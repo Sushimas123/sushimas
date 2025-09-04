@@ -62,6 +62,7 @@ export default function ReadyPage() {
   const [editingItem, setEditingItem] = useState<Ready | null>(null);
   const [importProgress, setImportProgress] = useState<{show: boolean, progress: number, message: string}>({show: false, progress: 0, message: ''});
   const [showDataTable, setShowDataTable] = useState(false);
+  const [requireReadyInput, setRequireReadyInput] = useState(true);
 
   useEffect(() => {
     fetchReady();
@@ -110,27 +111,25 @@ export default function ReadyPage() {
 
   const fetchReady = async () => {
     try {
-      const { data, error } = await supabase
-        .from('ready')
-        .select('*')
-        .order('tanggal_input', { ascending: false });
+      // Fetch all data in parallel instead of sequential N+1 queries
+      const [readyData, productsData, branchesData] = await Promise.all([
+        supabase.from('ready').select('*').order('tanggal_input', { ascending: false }),
+        supabase.from('nama_product').select('id_product, product_name'),
+        supabase.from('branches').select('id_branch, nama_branch')
+      ]);
 
-      if (error) throw error;
+      if (readyData.error) throw readyData.error;
       
-      const readyWithNames = await Promise.all(
-        (data || []).map(async (item: any) => {
-          const [productData, branchData] = await Promise.all([
-            supabase.from('nama_product').select('product_name').eq('id_product', item.id_product).single(),
-            supabase.from('branches').select('nama_branch').eq('id_branch', item.id_branch).single()
-          ]);
-          
-          return {
-            ...item,
-            product_name: productData.data?.product_name || '',
-            branch_name: branchData.data?.nama_branch || ''
-          };
-        })
-      );
+      // Create lookup maps for O(1) access
+      const productMap = new Map(productsData.data?.map(p => [p.id_product, p.product_name]) || []);
+      const branchMap = new Map(branchesData.data?.map(b => [b.id_branch, b.nama_branch]) || []);
+      
+      // Transform data using lookup maps
+      const readyWithNames = (readyData.data || []).map((item: any) => ({
+        ...item,
+        product_name: productMap.get(item.id_product) || '',
+        branch_name: branchMap.get(item.id_branch) || ''
+      }));
       
       setReady(readyWithNames);
     } catch (error) {
@@ -204,26 +203,35 @@ export default function ReadyPage() {
       return;
     }
 
-    // Check if all products have ready values filled (waste is optional)
-    const hasEmptyReadyFields = formProducts.some(product => 
-      product.ready === ''
-    );
-    
-    if (hasEmptyReadyFields) {
-      alert('Semua field Ready harus diisi!');
-      return;
+    // Check if all products have ready values filled (waste is optional) - only if required
+    if (requireReadyInput) {
+      const hasEmptyReadyFields = formProducts.some(product => 
+        product.ready === ''
+      );
+      
+      if (hasEmptyReadyFields) {
+        alert('Semua field Ready harus diisi!');
+        return;
+      }
     }
 
     const readyNo = generateReadyNo();
-    const submitData = formProducts.map(product => ({
-      ready_no: readyNo,
-      tanggal_input: selectedDate,
-      id_product: product.id_product,
-      ready: parseFloat(product.ready) || 0,
-      waste: parseFloat(product.waste) || 0,
-      sub_category: selectedSubCategory,
-      id_branch: parseInt(selectedBranch)
-    }));
+    const submitData = formProducts
+      .filter(product => parseFloat(product.ready) > 0) // Only save products with ready > 0
+      .map(product => ({
+        ready_no: readyNo,
+        tanggal_input: selectedDate,
+        id_product: product.id_product,
+        ready: parseFloat(product.ready),
+        waste: parseFloat(product.waste) || 0,
+        sub_category: selectedSubCategory,
+        id_branch: parseInt(selectedBranch)
+      }));
+    
+    if (submitData.length === 0) {
+      alert('Tidak ada produk dengan Ready > 0 untuk disimpan!');
+      return;
+    }
 
     try {
       const { error } = await supabase
@@ -471,25 +479,34 @@ export default function ReadyPage() {
           // Use XLSX library's built-in date conversion
           const excelDate = XLSX.SSF.parse_date_code(row['Tanggal']);
           if (excelDate) {
-            // Create date from parsed components (month is 0-indexed in JS)
-            const date = new Date(excelDate.y, excelDate.m - 1, excelDate.d);
-            tanggalInput = date.toISOString().split('T')[0];
+            // Format date as YYYY-MM-DD directly from components
+            const year = excelDate.y;
+            const month = String(excelDate.m).padStart(2, '0');
+            const day = String(excelDate.d).padStart(2, '0');
+            tanggalInput = `${year}-${month}-${day}`;
           } else {
             setImportProgress({show: false, progress: 0, message: ''});
             alert(`Tidak dapat mengkonversi tanggal Excel di baris ${i + 1}: ${row['Tanggal']}`);
             return;
           }
         } else if (row['Tanggal'] instanceof Date) {
-          tanggalInput = row['Tanggal'].toISOString().split('T')[0];
+
+          const year = row['Tanggal'].getFullYear();
+          const month = String(row['Tanggal'].getMonth() + 1).padStart(2, '0');
+          const day = String(row['Tanggal'].getDate()).padStart(2, '0');
+          tanggalInput = `${year}-${month}-${day}`;
         } else {
-          // Try to parse as string
+          // Try to parse as string and use local components
           const parsedDate = new Date(row['Tanggal']);
           if (isNaN(parsedDate.getTime())) {
             setImportProgress({show: false, progress: 0, message: ''});
             alert(`Format tanggal tidak valid di baris ${i + 1}: ${row['Tanggal']}`);
             return;
           }
-          tanggalInput = parsedDate.toISOString().split('T')[0];
+          const year = parsedDate.getFullYear();
+          const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+          const day = String(parsedDate.getDate()).padStart(2, '0');
+          tanggalInput = `${year}-${month}-${day}`;
         }
         
         console.log(`Converting date: ${row['Tanggal']} -> ${tanggalInput}`);
@@ -711,7 +728,7 @@ export default function ReadyPage() {
                                 onChange={(e) => updateProductValue(product.id_product, 'ready', e.target.value)}
                                 className="w-full text-center border-0 bg-transparent focus:bg-white focus:border focus:rounded px-1"
                                 placeholder="0"
-                                required
+                                required={requireReadyInput}
                               />
                             </td>
                             <td className="border px-2 py-1">
@@ -737,7 +754,7 @@ export default function ReadyPage() {
               <div className="flex gap-2">
                 <button
                   type="submit"
-                  disabled={formProducts.length === 0 || formProducts.some(p => p.ready === '')}
+                  disabled={formProducts.length === 0 || (requireReadyInput && formProducts.some(p => p.ready === ''))}
                   className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-3 py-1 rounded-md text-xs"
                 >
                   Simpan Semua
@@ -824,12 +841,23 @@ export default function ReadyPage() {
 
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl font-bold text-gray-800">🍽️ Ready Stock</h1>
-          <button
-            onClick={() => setShowDataTable(!showDataTable)}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
-          >
-            {showDataTable ? 'Hide' : 'Show'} Data Table
-          </button>
+          <div className="flex gap-2 items-center">
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={requireReadyInput}
+                onChange={(e) => setRequireReadyInput(e.target.checked)}
+                className="w-3 h-3"
+              />
+              Wajib isi Ready
+            </label>
+            <button
+              onClick={() => setShowDataTable(!showDataTable)}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
+            >
+              {showDataTable ? 'Hide' : 'Show'} Data Table
+            </button>
+          </div>
         </div>
 
         <div className="space-y-3 mb-4">

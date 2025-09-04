@@ -66,21 +66,28 @@ function UsersPageContent() {
 
       if (error) throw error;
 
-      // Fetch user branches
-      const usersWithBranches = await Promise.all(
-        (usersData || []).map(async (user) => {
-          const { data: userBranches } = await supabase
-            .from('user_branches')
-            .select('kode_branch')
-            .eq('id_user', user.id_user)
-            .eq('is_active', true);
-          
-          return {
-            ...user,
-            branches: userBranches?.map(ub => ub.kode_branch) || []
-          };
-        })
-      );
+      // Fetch all user branches in one query
+      const userIds = usersData.map(user => user.id_user);
+      const { data: allUserBranches } = await supabase
+        .from('user_branches')
+        .select('id_user, kode_branch')
+        .in('id_user', userIds)
+        .eq('is_active', true);
+      
+      // Create branches map for O(1) lookup
+      const branchesMap = new Map<number, string[]>();
+      allUserBranches?.forEach(ub => {
+        if (!branchesMap.has(ub.id_user)) {
+          branchesMap.set(ub.id_user, []);
+        }
+        branchesMap.get(ub.id_user)!.push(ub.kode_branch);
+      });
+      
+      // Transform users with branches
+      const usersWithBranches = usersData.map(user => ({
+        ...user,
+        branches: branchesMap.get(user.id_user) || []
+      }));
 
       setUsers(usersWithBranches);
     } catch (error) {

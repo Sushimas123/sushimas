@@ -113,35 +113,25 @@ function GudangPageContent() {
 
   const fetchGudang = async () => {
     try {
-      const { data, error } = await supabase
-        .from('gudang')
-        .select('*')
-        .order('tanggal', { ascending: false });
+      // Fetch all data in parallel
+      const [gudangData, productsData, branchesData] = await Promise.all([
+        supabase.from('gudang').select('*').order('tanggal', { ascending: false }),
+        supabase.from('nama_product').select('id_product, product_name'),
+        supabase.from('branches').select('kode_branch, nama_branch')
+      ]);
 
-      if (error) throw error;
+      if (gudangData.error) throw gudangData.error;
       
-      const gudangWithNames = await Promise.all(
-        (data || []).map(async (item: any) => {
-          const { data: productData } = await supabase
-            .from('nama_product')
-            .select('product_name')
-            .eq('id_product', item.id_product)
-            .single();
-          
-          // Get branch name from branches table
-          const { data: branchData } = await supabase
-            .from('branches')
-            .select('nama_branch')
-            .eq('kode_branch', item.cabang)
-            .single();
-          
-          return {
-            ...item,
-            product_name: productData?.product_name || '',
-            branch_name: branchData?.nama_branch || item.cabang
-          };
-        })
-      );
+      // Create lookup maps
+      const productMap = new Map(productsData.data?.map(p => [p.id_product, p.product_name]) || []);
+      const branchMap = new Map(branchesData.data?.map(b => [b.kode_branch, b.nama_branch]) || []);
+      
+      // Transform data using lookup maps
+      const gudangWithNames = (gudangData.data || []).map((item: any) => ({
+        ...item,
+        product_name: productMap.get(item.id_product) || '',
+        branch_name: branchMap.get(item.cabang) || item.cabang
+      }));
       
       setGudang(gudangWithNames);
     } catch (error) {
@@ -243,7 +233,7 @@ function GudangPageContent() {
   };
 
   const handleEdit = (item: Gudang) => {
-    // Extract date and time directly from ISO string to avoid timezone issues
+
     const [datePart, timePart] = item.tanggal.split('T');
     const timeOnly = timePart ? timePart.split('.')[0].slice(0, 5) : '00:00';
     
@@ -531,10 +521,17 @@ function GudangPageContent() {
           
           // Convert Excel date serial number to proper date
           if (typeof tanggal === 'number') {
-            // Excel date serial number (days since 1900-01-01)
-            const excelEpoch = new Date(1900, 0, 1);
-            const date = new Date(excelEpoch.getTime() + (tanggal - 2) * 24 * 60 * 60 * 1000);
-            tanggal = date.toISOString().split('T')[0];
+            // Use XLSX library's built-in date conversion
+            const excelDate = XLSX.SSF.parse_date_code(tanggal);
+            if (excelDate) {
+              // Format date as YYYY-MM-DD directly from components
+              const year = excelDate.y;
+              const month = String(excelDate.m).padStart(2, '0');
+              const day = String(excelDate.d).padStart(2, '0');
+              tanggal = `${year}-${month}-${day}`;
+            } else {
+              tanggal = tanggal.toString().trim();
+            }
           } else if (tanggal) {
             tanggal = tanggal.toString().trim();
           }

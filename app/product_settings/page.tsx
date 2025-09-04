@@ -121,11 +121,14 @@ export default function ProductSettingsPage() {
         
         console.log(`Product ${product.id_product} tolerance:`, tolerance?.tolerance_percentage);
         
+        const toleranceValue = tolerance?.tolerance_percentage;
+        console.log(`Product ${product.id_product} raw tolerance:`, toleranceValue, typeof toleranceValue);
+        
         return {
           id_product: product.id_product,
           product_name: product.product_name,
           category: product.category,
-          tolerance_percentage: Number(tolerance?.tolerance_percentage) || 5,
+          tolerance_percentage: toleranceValue !== null && toleranceValue !== undefined ? Number(toleranceValue) : 5,
           branch_settings: branchSettings.map((setting: any) => ({
             id_setting: setting.id_setting,
             id_branch: setting.id_branch,
@@ -222,16 +225,43 @@ export default function ProductSettingsPage() {
 
     setSaving(true);
     try {
-      // Save tolerance using upsert with unique constraint
-      const { data: toleranceData, error: toleranceError } = await supabase
+      console.log('Saving tolerance:', {
+        id_product: formData.id_product,
+        tolerance_percentage: formData.tolerance_percentage
+      });
+      
+      // Try to update first, then insert if not exists
+      let toleranceData, toleranceError;
+      
+      // First try to update existing record
+      const { data: updateData, error: updateError } = await supabase
         .from('product_tolerances')
-        .upsert({
-          id_product: formData.id_product,
-          tolerance_percentage: formData.tolerance_percentage
-        }, {
-          onConflict: 'id_product'
+        .update({
+          tolerance_percentage: formData.tolerance_percentage,
+          updated_at: new Date().toISOString()
         })
+        .eq('id_product', formData.id_product)
         .select();
+      
+      if (updateError || !updateData || updateData.length === 0) {
+        console.log('Update failed or no record found, trying insert:', updateError);
+        // If update failed or no record exists, try insert
+        const { data: insertData, error: insertError } = await supabase
+          .from('product_tolerances')
+          .insert({
+            id_product: formData.id_product,
+            tolerance_percentage: formData.tolerance_percentage
+          })
+          .select();
+        
+        toleranceData = insertData;
+        toleranceError = insertError;
+      } else {
+        toleranceData = updateData;
+        toleranceError = updateError;
+      }
+
+      console.log('Tolerance save result:', { toleranceData, toleranceError });
 
       if (toleranceError) {
         throw new Error(`Failed to save tolerance: ${toleranceError.message}`);
@@ -258,13 +288,17 @@ export default function ProductSettingsPage() {
 
       console.log('All settings saved successfully');
       showToast('Settings saved successfully', 'success');
+      
+      // Force refresh data to show updated values
+      await fetchData();
+      
       setShowAddForm(false);
+      setEditingId(null);
       setFormData({
         id_product: 0,
         tolerance_percentage: 5,
         branch_settings: []
       });
-      await fetchData();
     } catch (error: any) {
       console.error('Error saving settings:', error);
       const errorMessage = error?.message || error?.details || 'Unknown error occurred';

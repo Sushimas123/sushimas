@@ -117,25 +117,32 @@ export default function StockOpnamePage() {
       return
     }
     
-    // Get latest stock from gudang for each product
-    const processedData = await Promise.all(
-      branchProductsData.map(async (item) => {
-        const { data: latestStock } = await supabase
-          .from("gudang")
-          .select("total_gudang")
-          .eq("id_product", item.nama_product.id_product)
-          .eq("cabang", branchCode)
-          .order("tanggal", { ascending: false })
-          .order("order_no", { ascending: false })
-          .limit(1)
-        
-        return {
-          product_name: item.nama_product.product_name,
-          system_stock: latestStock?.[0]?.total_gudang || 0,
-          unit: item.nama_product.unit_kecil || 'pcs'
-        }
-      })
-    )
+    // Get all product IDs for batch query
+    const productIds = branchProductsData.map(item => item.nama_product.id_product)
+    
+    // Get latest stock for all products in one query
+    const { data: stockData } = await supabase
+      .from("gudang")
+      .select("id_product, total_gudang")
+      .eq("cabang", branchCode)
+      .in("id_product", productIds)
+      .order("tanggal", { ascending: false })
+      .order("order_no", { ascending: false })
+    
+    // Create stock map for O(1) lookup
+    const stockMap = new Map()
+    stockData?.forEach(stock => {
+      if (!stockMap.has(stock.id_product)) {
+        stockMap.set(stock.id_product, stock.total_gudang)
+      }
+    })
+    
+    // Process data using stock map
+    const processedData = branchProductsData.map(item => ({
+      product_name: item.nama_product.product_name,
+      system_stock: stockMap.get(item.nama_product.id_product) || 0,
+      unit: item.nama_product.unit_kecil || 'pcs'
+    }))
     
     setBranchProducts(processedData)
     setLoadingBranchData(false)

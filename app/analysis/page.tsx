@@ -6,7 +6,9 @@ import { Download, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 
+
 interface AnalysisData {
+  id_product: number;
   ready_no: string;
   tanggal: string;
   product: string;
@@ -23,16 +25,43 @@ interface AnalysisData {
   selisih: number;
   total_production: number;
   sumif_total: number;
+  tolerance_percentage: number;
+  tolerance_range: string;
+  status: string;
 }
 
 export default function AnalysisPage() {
   const [data, setData] = useState<AnalysisData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dateFilter, setDateFilter] = useState('');
   const [productFilter, setProductFilter] = useState('');
   const [subCategoryFilter, setSubCategoryFilter] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [editingTolerance, setEditingTolerance] = useState<{id: number, value: string} | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(20);
+  const [showColumnFilter, setShowColumnFilter] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState({
+    ready_no: true,
+    tanggal: true,
+    product: true,
+    unit_kecil: false,
+    cabang: true,
+    ready: true,
+    gudang: true,
+    barang_masuk: false,
+    waste: true,
+    total_barang: false,
+    sub_category: false,
+    keluar_form: true,
+    hasil_esb: true,
+    selisih: true,
+    total_production: false,
+    sumif_total: false,
+    tolerance_percentage: true,
+    tolerance_range: true,
+    status: true
+  });
 
   useEffect(() => {
     fetchAnalysisData();
@@ -43,41 +72,112 @@ export default function AnalysisPage() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  const handleToleranceUpdate = async (productId: number, newValue: string) => {
+    const tolerance = parseFloat(newValue);
+    if (isNaN(tolerance) || tolerance < 0 || tolerance > 100) {
+      showToast('Tolerance must be between 0 and 100', 'error');
+      setEditingTolerance(null);
+      return;
+    }
+
+    try {
+      console.log('Updating tolerance:', { productId, tolerance });
+      
+      // Try update first
+      const { data: updateData, error: updateError } = await supabase
+        .from('product_tolerances')
+        .update({ tolerance_percentage: tolerance })
+        .eq('id_product', productId)
+        .select();
+      
+      if (updateError || !updateData || updateData.length === 0) {
+        console.log('Update failed, trying insert:', updateError);
+        // If update failed, try insert
+        const { data: insertData, error: insertError } = await supabase
+          .from('product_tolerances')
+          .insert({
+            id_product: productId,
+            tolerance_percentage: tolerance
+          })
+          .select();
+        
+        if (insertError) {
+          console.error('Insert error:', insertError);
+          throw insertError;
+        }
+      }
+      
+      // Update local data and recalculate status
+      setData(prev => prev.map(item => {
+        if (item.id_product === productId) {
+          const toleranceValue = Math.abs(item.hasil_esb) * (tolerance / 100);
+          const toleranceMin = -toleranceValue;
+          const toleranceMax = toleranceValue;
+          const toleranceRange = `${toleranceMin.toFixed(1)} ~ ${toleranceMax.toFixed(1)}`;
+          const status = Math.abs(item.selisih) <= toleranceValue ? 'OK' : (item.selisih < 0 ? 'Kurang' : 'Lebih');
+          
+          return { 
+            ...item, 
+            tolerance_percentage: tolerance,
+            tolerance_range: toleranceRange,
+            status
+          };
+        }
+        return item;
+      }));
+      
+      showToast('Tolerance updated successfully', 'success');
+    } catch (error: any) {
+      console.error('Error updating tolerance:', error);
+      const errorMessage = error?.message || error?.details || 'Unknown error';
+      showToast(`Failed to update tolerance: ${errorMessage}`, 'error');
+    } finally {
+      setEditingTolerance(null);
+    }
+  };
+
   const fetchAnalysisData = async () => {
     setLoading(true);
     try {
-      // Fetch from ready table without joins first
+      // Try to fetch from analysis view first
+      const { data: viewData, error: viewError } = await supabase
+        .from('analysis_view')
+        .select('*')
+        .order('tanggal', { ascending: false });
+
+      if (!viewError && viewData) {
+        setData(viewData);
+        return;
+      }
+
+      // Fallback to manual calculation
       const { data: readyData, error: readyError } = await supabase
         .from('ready')
         .select('*')
         .order('tanggal_input', { ascending: false });
 
       if (readyError) {
-        console.error('Ready fetch error:', readyError);
         throw new Error(`Failed to fetch ready data: ${readyError.message}`);
       }
 
-      // Fetch products separately
-      const { data: productData, error: productError } = await supabase
-        .from('nama_product')
-        .select('*');
-
-      if (productError) {
-        console.error('Product fetch error:', productError);
-      }
-
-      // Fetch branches data
-      const { data: branchData, error: branchError } = await supabase.from('branches').select('*');
-      if (branchError) {
-        console.error('Branch fetch error:', branchError);
-      }
-      
-      // Fetch other tables with correct names
+      const { data: productData } = await supabase.from('nama_product').select('*');
+      const { data: branchData } = await supabase.from('branches').select('*');
       const { data: warehouseData } = await supabase.from('gudang').select('*');
-      const { data: esbData } = await supabase.from('esb_harian').select('*');
+      const { data: toleranceData } = await supabase.from('product_tolerances').select('*');
+      // Optimized ESB fetch - only get relevant data based on ready stock
+      const uniqueDates = [...new Set(readyData?.map(r => r.tanggal_input) || [])];
+      const uniqueProductIds = [...new Set(readyData?.map(r => r.id_product) || [])];
+      
+      const { data: esbData } = await supabase
+        .from('esb_harian')
+        .select('*')
+        .in('sales_date', uniqueDates)
+        .in('product_id', uniqueProductIds)
+        .limit(10000);
+      
+      console.log('ESB records fetched:', esbData?.length || 0, 'for', uniqueDates.length, 'dates and', uniqueProductIds.length, 'products');
       const { data: productionData } = await supabase.from('produksi').select('*');
-
-
+      const { data: productionDetailData } = await supabase.from('produksi_detail').select('*');
 
       if (!readyData || readyData.length === 0) {
         showToast('No ready data found. Please add some data in Ready Stock first.', 'error');
@@ -85,15 +185,23 @@ export default function AnalysisPage() {
         return;
       }
 
+      // Filter out empty ready stock entries (ready=0 with no other significant data)
+      const filteredReadyData = (readyData || []).filter(ready => {
+        return ready.ready > 0 || ready.waste > 0 || ready.sub_category;
+      });
+      
+      console.log('Filtered ready data:', filteredReadyData.length, 'from', readyData?.length || 0, 'total records');
+      
       const analysisData = processAnalysisData(
-        readyData || [],
+        filteredReadyData,
         productData || [],
         warehouseData || [],
         esbData || [],
         productionData || [],
-        branchData || []
+        branchData || [],
+        productionDetailData || [],
+        toleranceData || []
       );
-
 
       setData(analysisData);
     } catch (error) {
@@ -104,7 +212,7 @@ export default function AnalysisPage() {
     }
   };
 
-  const processAnalysisData = (readyStock: any[], products: any[], warehouse: any[], esb: any[], production: any[], branches: any[]): AnalysisData[] => {
+  const processAnalysisData = (readyStock: any[], products: any[], warehouse: any[], esb: any[], production: any[], branches: any[], productionDetail: any[], tolerances: any[]): AnalysisData[] => {
     
     return readyStock.map((ready, index) => {
       // Get product info from products array
@@ -116,19 +224,44 @@ export default function AnalysisPage() {
       const branch = branches.find(b => b.id_branch === ready.id_branch);
       const cabangName = branch?.nama_branch || `Branch ${ready.id_branch}`;
       
-      // Gudang lookup by product, date, and branch name
+      // Gudang lookup - get latest warehouse data for this product and branch (not exact date match)
       // Note: gudang.cabang stores kode_branch, so we need to match with branch.kode_branch
-      const warehouseItem = warehouse.find(w => {
+      const warehouseItems = warehouse.filter(w => {
         const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
         return w.id_product === ready.id_product &&
-               warehouseDate === ready.tanggal_input &&
+               warehouseDate <= ready.tanggal_input &&
                w.cabang === branch?.kode_branch;
       });
       
-      const esbItem = esb.find(e => 
-        e.tanggal_input === ready.tanggal_input && 
-        e.id_product === ready.id_product
-      );
+      // Get the latest warehouse entry (most recent timestamp, including time) for total_gudang
+      const warehouseItem = warehouseItems.length > 0 
+        ? warehouseItems.reduce((latest, current) => {
+            const latestTimestamp = latest.tanggal || '1900-01-01T00:00:00.000Z';
+            const currentTimestamp = current.tanggal || '1900-01-01T00:00:00.000Z';
+            return currentTimestamp > latestTimestamp ? current : latest;
+          })
+        : null;
+      
+      // Hasil ESB - lookup berdasarkan sales_date, product_id, dan branch
+      const readyDate = String(ready.tanggal_input).slice(0, 10);
+      const readyProductId = Number(ready.id_product);
+      const readyBranch = branch?.nama_branch?.trim() || "";
+      
+
+      
+      const esbItem = esb.find(e => {
+        const salesDate = String(e.sales_date).slice(0, 10);
+        const esbProductId = Number(e.product_id);
+        const esbBranch = e.branch?.trim() || "";
+
+        return salesDate === readyDate &&
+               esbProductId === readyProductId &&
+               esbBranch === readyBranch;
+      });
+
+      const hasilESB = esbItem ? Number(esbItem.qty_total) : 0;
+      
+
       
       const productionItem = production.find(p => 
         p.id_product === ready.id_product && 
@@ -136,21 +269,51 @@ export default function AnalysisPage() {
       );
 
       const gudang = warehouseItem?.total_gudang || 0;
-      const barangMasuk = warehouseItem?.jumlah_masuk || 0;
+      
+      // Barang Masuk - SUMIFS: sum all jumlah_masuk for same product, branch, and date
+      const barangMasuk = warehouse
+        .filter(w => {
+          const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
+          return w.id_product === ready.id_product &&
+                 warehouseDate === ready.tanggal_input &&
+                 w.cabang === branch?.kode_branch;
+        })
+        .reduce((sum, w) => sum + (w.jumlah_masuk || 0), 0);
       const waste = ready.waste || 0;
       const totalBarang = (ready.ready || 0) + gudang;
-      const totalProduction = productionItem?.total || 0;
-      
-      const keluarForm = calculateKeluarForm(ready, readyStock, index, totalProduction, gudang);
-      const hasilEsb = esbItem?.total || 0;
+      // Total Production - Cari pemakaian bahan baku ini untuk produksi WIP pada tanggal yang sama
+      // Logika: Jika produk ini adalah bahan baku, cari berapa yang terpakai untuk produksi WIP
+      const totalProduction = productionDetail
+        .filter(pd => {
+          // Cari di produksi detail dimana item_id sama dengan id_product saat ini (sebagai bahan baku)
+          // dan tanggal sama
+          return pd.item_id === ready.id_product && 
+                 pd.tanggal_input === ready.tanggal_input;
+        })
+        .reduce((sum, pd) => sum + (pd.total_pakai || 0), 0);
       
       const sumifTotal = production
         .filter(p => p.id_product === ready.id_product && p.tanggal_input === ready.tanggal_input)
-        .reduce((sum, p) => sum + (p.total || 0), 0);
+        .reduce((sum, p) => sum + (p.total_konversi || 0), 0);
+      
+      const keluarForm = calculateKeluarForm(ready, readyStock, warehouse, branches, sumifTotal);
 
-      const selisih = calculateSelisih(productName, hasilEsb, keluarForm, sumifTotal);
+      const selisih = calculateSelisih(productName, hasilESB, keluarForm, totalProduction);
+      
+      // Get tolerance for this product
+      const tolerance = tolerances.find(t => t.id_product === ready.id_product);
+      const tolerancePercentage = tolerance?.tolerance_percentage || 5.0;
+      
+      // Calculate status based on selisih and tolerance
+      // Tolerance dikalikan dengan Hasil ESB sebagai base value
+      const toleranceValue = Math.abs(hasilESB) * (tolerancePercentage / 100);
+      const toleranceMin = -toleranceValue;
+      const toleranceMax = toleranceValue;
+      const toleranceRange = `${toleranceMin.toFixed(1)} ~ ${toleranceMax.toFixed(1)}`;
+      const status = Math.abs(selisih) <= toleranceValue ? 'OK' : (selisih < 0 ? 'Kurang' : 'Lebih');
 
       return {
+        id_product: ready.id_product,
         ready_no: ready.ready_no || `${index + 1}`,
         tanggal: ready.tanggal_input || '',
         product: productName,
@@ -163,41 +326,90 @@ export default function AnalysisPage() {
         total_barang: totalBarang,
         sub_category: ready.sub_category || '',
         keluar_form: keluarForm,
-        hasil_esb: hasilEsb,
+        hasil_esb: hasilESB,
         selisih,
         total_production: totalProduction,
-        sumif_total: sumifTotal
+        sumif_total: sumifTotal,
+        tolerance_percentage: tolerancePercentage,
+        tolerance_range: toleranceRange,
+        status
       };
     });
   };
 
-  const calculateKeluarForm = (currentReady: any, allReadyStock: any[], currentIndex: number, totalProduction: number, gudang: number): number => {
-    const previousDay = new Date(currentReady.tanggal_input);
-    previousDay.setDate(previousDay.getDate() - 1);
+  // KELUAR FORM = BARANG YANG TERJUAL HARI INI
+  // Rumus: (Stok Kemarin + Barang Masuk Hari Ini) - (Stok Hari Ini + Waste) + Total Konversi
+  const calculateKeluarForm = (currentReady: any, allReadyStock: any[], warehouse: any[], branches: any[], totalKonversi: number): number => {
+    // Calculate previous day - simple string manipulation to avoid timezone issues
+    const [year, month, day] = currentReady.tanggal_input.split('-').map(Number);
+    const currentDate = new Date(year, month - 1, day); // month is 0-indexed
+    currentDate.setDate(currentDate.getDate() - 1);
+    const previousDayStr = currentDate.getFullYear() + '-' + 
+      String(currentDate.getMonth() + 1).padStart(2, '0') + '-' + 
+      String(currentDate.getDate()).padStart(2, '0');
+    const branch = branches.find(b => b.id_branch === currentReady.id_branch);
     
-    // Match by Product, Branch, and Date for accurate per-branch calculation
+    // Stok kemarin (Ready + Gudang)
     const previousReady = allReadyStock.find(r => 
       r.id_product === currentReady.id_product && 
       r.id_branch === currentReady.id_branch &&
-      r.tanggal_input === previousDay.toISOString().split('T')[0]
+      r.tanggal_input === previousDayStr
     );
     
-    // Excel formula: INDEX(Ready Kemarin) + Production Hari Ini - (Ready Hari Ini - Gudang Hari Ini) - Waste Hari Ini
-    const readyKemarin = previousReady?.ready || 0;
-    const productionHariIni = totalProduction;
-    const readyHariIni = currentReady.ready || 0;
-    const gudangHariIni = gudang;
-    const wasteHariIni = currentReady.waste || 0;
+    const previousWarehouseItems = warehouse.filter(w => {
+      const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
+      return w.id_product === currentReady.id_product &&
+             warehouseDate <= previousDayStr &&
+             w.cabang === branch?.kode_branch;
+    });
     
-    return readyKemarin + productionHariIni - (readyHariIni - gudangHariIni) - wasteHariIni;
+    const previousWarehouseItem = previousWarehouseItems.length > 0 
+      ? previousWarehouseItems.reduce((latest, current) => {
+          const latestTimestamp = latest.tanggal || '1900-01-01T00:00:00.000Z';
+          const currentTimestamp = current.tanggal || '1900-01-01T00:00:00.000Z';
+          return currentTimestamp > latestTimestamp ? current : latest;
+        })
+      : null;
+    
+    const stokKemarin = (previousReady?.ready || 0) + (previousWarehouseItem?.total_gudang || 0);
+    
+    // Barang masuk hari ini
+    const barangMasukHariIni = warehouse
+      .filter(w => {
+        const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
+        return w.id_product === currentReady.id_product &&
+               warehouseDate === currentReady.tanggal_input &&
+               w.cabang === branch?.kode_branch;
+      })
+      .reduce((sum, w) => sum + (w.jumlah_masuk || 0), 0);
+    
+    // Stok hari ini (Ready + Gudang)
+    const currentWarehouseItems = warehouse.filter(w => {
+      const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
+      return w.id_product === currentReady.id_product &&
+             warehouseDate <= currentReady.tanggal_input &&
+             w.cabang === branch?.kode_branch;
+    });
+    
+    const currentWarehouseItem = currentWarehouseItems.length > 0 
+      ? currentWarehouseItems.reduce((latest, current) => {
+          const latestTimestamp = latest.tanggal || '1900-01-01T00:00:00.000Z';
+          const currentTimestamp = current.tanggal || '1900-01-01T00:00:00.000Z';
+          return currentTimestamp > latestTimestamp ? current : latest;
+        })
+      : null;
+    
+    const stokHariIni = (currentReady.ready || 0) + (currentWarehouseItem?.total_gudang || 0);
+    const waste = currentReady.waste || 0;
+    
+    // Keluar Form = (Stok Kemarin + Barang Masuk Hari Ini) - (Stok Hari Ini + Waste) + Total Konversi
+    const keluarForm = (stokKemarin + barangMasukHariIni) - (stokHariIni + waste) + totalKonversi;
+    
+    return keluarForm;
   };
 
-  const calculateSelisih = (product: string, hasilEsb: number, keluarForm: number, sumifTotal: number): number => {
-    if (product === "Badan Salmon WIP") {
-      return (hasilEsb + (0.1 * hasilEsb)) - ((keluarForm - (keluarForm * 0.07))) + sumifTotal;
-    } else {
-      return hasilEsb - keluarForm + sumifTotal;
-    }
+  const calculateSelisih = (product: string, hasilEsb: number, keluarForm: number, totalProduction: number): number => {
+    return hasilEsb - keluarForm + totalProduction;
   };
 
   const handleExport = () => {
@@ -218,11 +430,14 @@ export default function AnalysisPage() {
       'Waste': item.waste,
       'Total Barang': item.total_barang,
       'Sub Category': item.sub_category,
-      'Keluar Form': item.keluar_form,
-      'Hasil ESB': item.hasil_esb,
+      'Pemakaian': item.keluar_form,
+      'Penjualan': item.hasil_esb,
       'Selisih': item.selisih,
       'Total Production': item.total_production,
-      'Sumif Total': item.sumif_total
+      'Total Konversi': item.sumif_total,
+      'Toleransi (%)': item.tolerance_percentage,
+      'Range Toleransi': item.tolerance_range,
+      'Status': item.status
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -240,12 +455,18 @@ export default function AnalysisPage() {
     setSortConfig({ key, direction });
   };
 
+  const toggleColumn = (column: string) => {
+    setVisibleColumns(prev => ({
+      ...prev,
+      [column]: !prev[column as keyof typeof prev]
+    }));
+  };
+
   const filteredAndSortedData = React.useMemo(() => {
     let filtered = data.filter(item => {
-      const matchesDate = !dateFilter || item.tanggal.includes(dateFilter);
       const matchesProduct = !productFilter || item.product.toLowerCase().includes(productFilter.toLowerCase());
       const matchesSubCategory = !subCategoryFilter || item.sub_category === subCategoryFilter;
-      return matchesDate && matchesProduct && matchesSubCategory;
+      return matchesProduct && matchesSubCategory;
     });
 
     if (sortConfig) {
@@ -266,7 +487,35 @@ export default function AnalysisPage() {
     }
 
     return filtered;
-  }, [data, dateFilter, productFilter, subCategoryFilter, sortConfig]);
+  }, [data, productFilter, subCategoryFilter, sortConfig]);
+
+  const totalPages = Math.ceil(filteredAndSortedData.length / itemsPerPage);
+  const paginatedData = filteredAndSortedData.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const columns = [
+    { key: 'ready_no', label: 'Ready No' },
+    { key: 'tanggal', label: 'Tanggal' },
+    { key: 'product', label: 'Product' },
+    { key: 'unit_kecil', label: 'Unit Kecil' },
+    { key: 'cabang', label: 'Cabang' },
+    { key: 'ready', label: 'Ready' },
+    { key: 'gudang', label: 'Gudang' },
+    { key: 'barang_masuk', label: 'Barang Masuk' },
+    { key: 'waste', label: 'Waste' },
+    { key: 'total_barang', label: 'Total Barang' },
+    { key: 'sub_category', label: 'Sub Category' },
+    { key: 'keluar_form', label: 'Pemakaian' },
+    { key: 'hasil_esb', label: 'Penjualan' },
+    { key: 'selisih', label: 'Selisih' },
+    { key: 'total_production', label: 'Total Production' },
+    { key: 'sumif_total', label: 'Total Konversi' },
+    { key: 'tolerance_percentage', label: 'Toleransi (%)' },
+    { key: 'tolerance_range', label: 'Range Toleransi' },
+    { key: 'status', label: 'Status' }
+  ];
 
   const uniqueSubCategories = [...new Set(data.map(item => item.sub_category).filter(Boolean))];
 
@@ -287,18 +536,12 @@ export default function AnalysisPage() {
 
         <div className="bg-white p-4 rounded-lg shadow mb-4">
           <div className="flex flex-wrap gap-4 items-end">
+
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">Date Filter</label>
+              <label htmlFor="productFilter" className="block text-sm font-medium mb-2 text-gray-700">Product Filter</label>
               <input
-                type="date"
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="border border-gray-300 px-3 py-2 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">Product Filter</label>
-              <input
+                id="productFilter"
+                name="productFilter"
                 type="text"
                 placeholder="Search products..."
                 value={productFilter}
@@ -307,8 +550,10 @@ export default function AnalysisPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">Sub Category</label>
+              <label htmlFor="subCategoryFilter" className="block text-sm font-medium mb-2 text-gray-700">Sub Category</label>
               <select
+                id="subCategoryFilter"
+                name="subCategoryFilter"
                 value={subCategoryFilter}
                 onChange={(e) => setSubCategoryFilter(e.target.value)}
                 className="border border-gray-300 px-3 py-2 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -320,6 +565,12 @@ export default function AnalysisPage() {
               </select>
             </div>
             <div className="flex gap-2">
+              <button
+                onClick={() => setShowColumnFilter(!showColumnFilter)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm flex items-center gap-1"
+              >
+                📋 Columns
+              </button>
               <button
                 onClick={handleExport}
                 className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md text-sm flex items-center gap-1"
@@ -337,7 +588,7 @@ export default function AnalysisPage() {
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-gray-200 text-sm text-gray-600">
-            Showing {filteredAndSortedData.length} records
+            Showing {paginatedData.length} of {filteredAndSortedData.length} records
             {sortConfig && (
               <span className="ml-4 text-blue-600">
                 Sorted by {sortConfig.key} ({sortConfig.direction})
@@ -346,33 +597,56 @@ export default function AnalysisPage() {
           </div>
         </div>
 
+        {/* Column Filter Panel */}
+        {showColumnFilter && (
+          <div className="bg-white p-4 rounded-lg shadow mb-4">
+            <h3 className="font-medium text-gray-800 mb-3 text-sm">Show/Hide Columns</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+              {columns.map(column => (
+                <label key={column.key} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={visibleColumns[column.key as keyof typeof visibleColumns]}
+                    onChange={() => toggleColumn(column.key)}
+                    className="rounded"
+                  />
+                  <span className="text-gray-700">{column.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="overflow-x-auto bg-white rounded-lg shadow">
           <table className="w-full text-xs border border-gray-200">
             <thead className="bg-gray-100 text-gray-700">
               <tr>
-                <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready_no')}>Ready No</th>
-                <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal')}>Tanggal</th>
-                <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product')}>Product</th>
-                <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('unit_kecil')}>Unit Kecil</th>
-                <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('cabang')}>Cabang</th>
-                <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>
-                <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('gudang')}>Gudang</th>
-                <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('barang_masuk')}>Barang Masuk</th>
-                <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('waste')}>Waste</th>
-                <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_barang')}>Total Barang</th>
-                <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sub_category')}>Sub Category</th>
-                <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('keluar_form')}>Keluar Form</th>
-                <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('hasil_esb')}>Hasil ESB</th>
-                <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('selisih')}>Selisih</th>
-                <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_production')}>Total Production</th>
-                <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sumif_total')}>Sumif Total</th>
+                {visibleColumns.ready_no && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready_no')}>Ready No</th>}
+                {visibleColumns.tanggal && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal')}>Tanggal</th>}
+                {visibleColumns.product && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product')}>Product</th>}
+                {visibleColumns.unit_kecil && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('unit_kecil')}>Unit Kecil</th>}
+                {visibleColumns.cabang && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('cabang')}>Cabang</th>}
+                {visibleColumns.ready && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>}
+                {visibleColumns.gudang && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('gudang')}>Gudang</th>}
+                {visibleColumns.barang_masuk && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('barang_masuk')}>Barang Masuk</th>}
+                {visibleColumns.waste && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('waste')}>Waste</th>}
+                {visibleColumns.total_barang && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_barang')}>Total Barang</th>}
+                {visibleColumns.sub_category && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sub_category')}>Sub Category</th>}
+                {visibleColumns.keluar_form && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('keluar_form')}>Pemakaian</th>}
+                {visibleColumns.hasil_esb && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('hasil_esb')}>Penjualan</th>}
+                {visibleColumns.selisih && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('selisih')}>Selisih</th>}
+                {visibleColumns.total_production && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_production')}>Total Production</th>}
+                {visibleColumns.sumif_total && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sumif_total')}>Total Konversi</th>}
+                {visibleColumns.tolerance_percentage && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tolerance_percentage')}>Toleransi (%)</th>}
+                {visibleColumns.tolerance_range && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tolerance_range')}>Range Toleransi</th>}
+                {visibleColumns.status && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('status')}>Status</th>}
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 Array.from({ length: 10 }).map((_, idx) => (
                   <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                    {Array.from({ length: 16 }).map((_, cellIdx) => (
+                    {Object.values(visibleColumns).filter(Boolean).map((_, cellIdx) => (
                       <td key={cellIdx} className="border px-2 py-1">
                         <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
                       </td>
@@ -381,38 +655,133 @@ export default function AnalysisPage() {
                 ))
               ) : filteredAndSortedData.length === 0 ? (
                 <tr>
-                  <td colSpan={16} className="text-center py-4 text-gray-500">
+                  <td colSpan={Object.values(visibleColumns).filter(Boolean).length} className="text-center py-4 text-gray-500">
                     No analysis data found
                   </td>
                 </tr>
               ) : (
-                filteredAndSortedData.map((item, idx) => (
+                paginatedData.map((item, idx) => (
                   <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                    <td className="border px-2 py-1 text-center">{item.ready_no}</td>
-                    <td className="border px-2 py-1 text-center">{item.tanggal}</td>
-                    <td className="border px-2 py-1 font-medium">{item.product}</td>
-                    <td className="border px-2 py-1 text-center">{item.unit_kecil}</td>
-                    <td className="border px-2 py-1">{item.cabang}</td>
-                    <td className="border px-2 py-1 text-center">{item.ready.toFixed(2)}</td>
-                    <td className="border px-2 py-1 text-center">{item.gudang.toFixed(2)}</td>
-                    <td className="border px-2 py-1 text-center">{item.barang_masuk.toFixed(2)}</td>
-                    <td className="border px-2 py-1 text-center">{item.waste.toFixed(2)}</td>
-                    <td className="border px-2 py-1 text-center font-medium">{item.total_barang.toFixed(2)}</td>
-                    <td className="border px-2 py-1">{item.sub_category}</td>
-                    <td className="border px-2 py-1 text-center">{item.keluar_form.toFixed(2)}</td>
-                    <td className="border px-2 py-1 text-center">{item.hasil_esb.toFixed(2)}</td>
-                    <td className={`border px-2 py-1 text-center font-medium ${
+                    {visibleColumns.ready_no && <td className="border px-2 py-1 text-center">{item.ready_no}</td>}
+                    {visibleColumns.tanggal && <td className="border px-2 py-1 text-center">{item.tanggal}</td>}
+                    {visibleColumns.product && <td className="border px-2 py-1 font-medium">{item.product}</td>}
+                    {visibleColumns.unit_kecil && <td className="border px-2 py-1 text-center">{item.unit_kecil}</td>}
+                    {visibleColumns.cabang && <td className="border px-2 py-1">{item.cabang}</td>}
+                    {visibleColumns.ready && <td className="border px-2 py-1 text-center">{item.ready.toFixed(2)}</td>}
+                    {visibleColumns.gudang && <td className="border px-2 py-1 text-center">{item.gudang.toFixed(2)}</td>}
+                    {visibleColumns.barang_masuk && <td className="border px-2 py-1 text-center">{item.barang_masuk.toFixed(2)}</td>}
+                    {visibleColumns.waste && <td className="border px-2 py-1 text-center">{item.waste.toFixed(2)}</td>}
+                    {visibleColumns.total_barang && <td className="border px-2 py-1 text-center font-medium">{item.total_barang.toFixed(2)}</td>}
+                    {visibleColumns.sub_category && <td className="border px-2 py-1">{item.sub_category}</td>}
+                    {visibleColumns.keluar_form && <td className="border px-2 py-1 text-center">{item.keluar_form.toFixed(2)}</td>}
+                    {visibleColumns.hasil_esb && <td className="border px-2 py-1 text-center">{item.hasil_esb.toFixed(2)}</td>}
+                    {visibleColumns.selisih && <td className={`border px-2 py-1 text-center font-medium ${
                       item.selisih > 0 ? 'text-green-600' : item.selisih < 0 ? 'text-red-600' : 'text-gray-600'
                     }`}>
                       {item.selisih.toFixed(2)}
-                    </td>
-                    <td className="border px-2 py-1 text-center">{item.total_production.toFixed(2)}</td>
-                    <td className="border px-2 py-1 text-center">{item.sumif_total.toFixed(2)}</td>
+                    </td>}
+                    {visibleColumns.total_production && <td className="border px-2 py-1 text-center">{item.total_production.toFixed(2)}</td>}
+                    {visibleColumns.sumif_total && <td className="border px-2 py-1 text-center">{item.sumif_total.toFixed(2)}</td>}
+                    {visibleColumns.tolerance_percentage && <td className="border px-2 py-1 text-center">
+                      {editingTolerance?.id === item.id_product ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={editingTolerance?.value || ''}
+                            onChange={(e) => setEditingTolerance({id: item.id_product, value: e.target.value})}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleToleranceUpdate(item.id_product, editingTolerance?.value || '0');
+                              }
+                              if (e.key === 'Escape') {
+                                e.preventDefault();
+                                setEditingTolerance(null);
+                              }
+                            }}
+                            className="w-12 text-center text-xs border border-blue-300 bg-yellow-100 focus:bg-white focus:border-blue-500 rounded px-1"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleToleranceUpdate(item.id_product, editingTolerance?.value || '0')}
+                            className="text-green-600 hover:text-green-800 text-xs px-1"
+                            title="Save (or press Enter)"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={() => setEditingTolerance(null)}
+                            className="text-red-600 hover:text-red-800 text-xs px-1"
+                            title="Cancel (or press Escape)"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <span 
+                          className="cursor-pointer hover:bg-blue-100 px-1 rounded"
+                          onClick={() => setEditingTolerance({id: item.id_product, value: item.tolerance_percentage.toString()})}
+                          title="Click to edit tolerance"
+                        >
+                          {item.tolerance_percentage.toFixed(1)}%
+                        </span>
+                      )}
+                    </td>}
+                    {visibleColumns.tolerance_range && <td className="border px-2 py-1 text-center text-xs">{item.tolerance_range}</td>}
+                    {visibleColumns.status && <td className={`border px-2 py-1 text-center font-medium ${
+                      item.status === 'OK' ? 'text-green-600 bg-green-50' : 
+                      item.status === 'Kurang' ? 'text-red-600 bg-red-50' : 'text-purple-600 bg-purple-50'
+                    }`}>
+                      {item.status}
+                    </td>}
                   </tr>
                 ))
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="flex justify-between items-center mt-4">
+          <p className="text-sm text-gray-600">
+            Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedData.length)} of {filteredAndSortedData.length} entries
+          </p>
+          <div className="flex gap-1">
+            <button 
+              disabled={currentPage === 1} 
+              onClick={() => setCurrentPage(1)}
+              className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
+            >
+              First
+            </button>
+            <button 
+              disabled={currentPage === 1} 
+              onClick={() => setCurrentPage(p => p - 1)}
+              className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
+            >
+              Prev
+            </button>
+            <span className="px-3 py-1 border rounded text-sm bg-blue-50">
+              Page {currentPage} of {totalPages || 1}
+            </span>
+            <button 
+              disabled={currentPage === totalPages || totalPages === 0} 
+              onClick={() => setCurrentPage(p => p + 1)}
+              className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
+            >
+              Next
+            </button>
+            <button 
+              disabled={currentPage === totalPages || totalPages === 0} 
+              onClick={() => setCurrentPage(totalPages)}
+              className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
+            >
+              Last
+            </button>
+          </div>
         </div>
       </div>
     </Layout>
