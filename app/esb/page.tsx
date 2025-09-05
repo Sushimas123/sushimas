@@ -40,13 +40,15 @@ export default function ESBPage() {
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
 
   // kolom hide/show
-  const [hiddenColumns, setHiddenColumns] = useState<string[]>(["id", "product_code", "value_total"])
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>(["id", "product_code"])
   const [showColumnSelector, setShowColumnSelector] = useState(false)
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
   }
+
+
 
   const fetchData = useCallback(async (page: number = 1) => {
     setLoading(true)
@@ -293,6 +295,7 @@ export default function ESBPage() {
             <X size={12} />
             Reset Filter
           </button>
+
           <button
             onClick={exportCSV}
             className="bg-green-600 text-white px-1 py-0.5 rounded-md hover:bg-green-700 text-xs flex items-center gap-0.5"

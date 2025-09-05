@@ -99,14 +99,30 @@ export default function ReadyPage() {
     }
   }, [selectedSubCategory, menuProducts]);
 
-  const generateReadyNo = () => {
+  const generateReadyNo = async () => {
     const now = new Date();
     const year = now.getFullYear().toString().slice(-2);
     const month = (now.getMonth() + 1).toString().padStart(2, '0');
     const day = now.getDate().toString().padStart(2, '0');
-    const time = now.getHours().toString().padStart(2, '0') + now.getMinutes().toString().padStart(2, '0');
-    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    return `RDY${year}${month}${day}${time}${random}`;
+    const datePrefix = `RDY${year}${month}${day}`;
+    
+    // Get existing ready numbers for today
+    const { data: existing } = await supabase
+      .from('ready')
+      .select('ready_no')
+      .like('ready_no', `${datePrefix}%`);
+    
+    const existingNumbers = new Set(existing?.map(r => r.ready_no) || []);
+    
+    // Find next available number
+    let counter = 1;
+    let readyNo;
+    do {
+      readyNo = `${datePrefix}${counter.toString().padStart(3, '0')}`;
+      counter++;
+    } while (existingNumbers.has(readyNo));
+    
+    return readyNo;
   };
 
   const fetchReady = async () => {
@@ -215,7 +231,7 @@ export default function ReadyPage() {
       }
     }
 
-    const readyNo = generateReadyNo();
+    const readyNo = await generateReadyNo();
     const submitData = formProducts
       .filter(product => parseFloat(product.ready) > 0) // Only save products with ready > 0
       .map(product => ({
@@ -473,43 +489,38 @@ export default function ReadyPage() {
           return;
         }
 
-        // Convert Excel date using XLSX library for accurate conversion
+        // Convert Excel date using proper Excel date conversion
         let tanggalInput;
         if (typeof row['Tanggal'] === 'number') {
-          // Use XLSX library's built-in date conversion
-          const excelDate = XLSX.SSF.parse_date_code(row['Tanggal']);
-          if (excelDate) {
-            // Format date as YYYY-MM-DD directly from components
-            const year = excelDate.y;
-            const month = String(excelDate.m).padStart(2, '0');
-            const day = String(excelDate.d).padStart(2, '0');
-            tanggalInput = `${year}-${month}-${day}`;
+          // Excel stores dates as numbers (days since 1900-01-01)
+          // Use XLSX utility to convert Excel serial date to JS Date
+          const jsDate = XLSX.SSF.parse_date_code(row['Tanggal']);
+          if (jsDate) {
+            tanggalInput = `${jsDate.y}-${String(jsDate.m).padStart(2, '0')}-${String(jsDate.d).padStart(2, '0')}`;
           } else {
-            setImportProgress({show: false, progress: 0, message: ''});
-            alert(`Tidak dapat mengkonversi tanggal Excel di baris ${i + 1}: ${row['Tanggal']}`);
-            return;
+            // Fallback: manual conversion for Excel serial dates
+            const excelEpoch = new Date(1900, 0, 1);
+            const jsDate = new Date(excelEpoch.getTime() + (row['Tanggal'] - 2) * 24 * 60 * 60 * 1000);
+            tanggalInput = jsDate.toISOString().split('T')[0];
           }
         } else if (row['Tanggal'] instanceof Date) {
-
-          const year = row['Tanggal'].getFullYear();
-          const month = String(row['Tanggal'].getMonth() + 1).padStart(2, '0');
-          const day = String(row['Tanggal'].getDate()).padStart(2, '0');
-          tanggalInput = `${year}-${month}-${day}`;
+          // Direct Date object - use UTC to avoid timezone issues
+          const utcDate = new Date(row['Tanggal'].getTime() + (row['Tanggal'].getTimezoneOffset() * 60000));
+          tanggalInput = utcDate.toISOString().split('T')[0];
         } else {
-          // Try to parse as string and use local components
+          // String date - parse and convert
           const parsedDate = new Date(row['Tanggal']);
           if (isNaN(parsedDate.getTime())) {
             setImportProgress({show: false, progress: 0, message: ''});
             alert(`Format tanggal tidak valid di baris ${i + 1}: ${row['Tanggal']}`);
             return;
           }
-          const year = parsedDate.getFullYear();
-          const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
-          const day = String(parsedDate.getDate()).padStart(2, '0');
-          tanggalInput = `${year}-${month}-${day}`;
+          // Use UTC to avoid timezone offset
+          const utcDate = new Date(parsedDate.getTime() + (parsedDate.getTimezoneOffset() * 60000));
+          tanggalInput = utcDate.toISOString().split('T')[0];
         }
         
-        console.log(`Converting date: ${row['Tanggal']} -> ${tanggalInput}`);
+        console.log(`Converting date: ${row['Tanggal']} (type: ${typeof row['Tanggal']}) -> ${tanggalInput}`);
 
         processedData.push({
           ready_no: row['Ready No'],
@@ -976,6 +987,7 @@ export default function ReadyPage() {
                     <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>Cabang</th>
                     <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sub_category')}>Sub Category</th>
                     <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>Product</th>
+                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id_product')}>Product ID</th>
                     <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>
                     <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('waste')}>Waste</th>
                     <th className="border px-2 py-1 text-left font-medium">Actions</th>
@@ -985,7 +997,7 @@ export default function ReadyPage() {
                   {loading ? (
                     Array.from({ length: itemsPerPage }).map((_, idx) => (
                       <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                        {Array.from({ length: 9 }).map((_, cellIdx) => (
+                        {Array.from({ length: 10 }).map((_, cellIdx) => (
                           <td key={cellIdx} className="border px-2 py-1">
                             <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
                           </td>
@@ -994,7 +1006,7 @@ export default function ReadyPage() {
                     ))
                   ) : paginatedReady.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="text-center py-2 text-gray-500 text-xs">
+                      <td colSpan={10} className="text-center py-2 text-gray-500 text-xs">
                         No ready stock records found
                       </td>
                     </tr>
@@ -1014,6 +1026,7 @@ export default function ReadyPage() {
                         <td className="border px-2 py-1">{item.branch_name}</td>
                         <td className="border px-2 py-1">{item.sub_category}</td>
                         <td className="border px-2 py-1">{item.product_name}</td>
+                        <td className="border px-2 py-1 text-center">{item.id_product}</td>
                         <td className="border px-2 py-1 text-right">{item.ready}</td>
                         <td className="border px-2 py-1 text-right">{item.waste}</td>
                         <td className="border px-2 py-1">

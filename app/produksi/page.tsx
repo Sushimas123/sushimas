@@ -51,6 +51,7 @@ export default function ProduksiPage() {
   const [productSearch, setProductSearch] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const productDropdownRef = useRef<HTMLDivElement>(null);
+  const [selectedItems, setSelectedItems] = useState<number[]>([]);
 
   useEffect(() => {
     fetchProduksi();
@@ -220,6 +221,43 @@ export default function ProduksiPage() {
       alert('Produksi berhasil dihapus!');
     } catch (error) {
       console.error('Error deleting produksi:', error);
+      alert('Gagal menghapus produksi');
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedItems.length === paginatedProduksi.length) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems(paginatedProduksi.map(item => item.id));
+    }
+  };
+
+  const handleSelectItem = (id: number) => {
+    setSelectedItems(prev => 
+      prev.includes(id) 
+        ? prev.filter(item => item !== id)
+        : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedItems.length === 0) return;
+    if (!confirm(`Hapus ${selectedItems.length} produksi yang dipilih?`)) return;
+    
+    try {
+      const { error } = await supabase
+        .from('produksi')
+        .delete()
+        .in('id', selectedItems);
+      
+      if (error) throw error;
+      
+      setSelectedItems([]);
+      await fetchProduksi();
+      alert(`${selectedItems.length} produksi berhasil dihapus!`);
+    } catch (error) {
+      console.error('Error bulk deleting:', error);
       alert('Gagal menghapus produksi');
     }
   };
@@ -486,6 +524,14 @@ export default function ProduksiPage() {
               className="hidden"
             />
           </label>
+          {selectedItems.length > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              className="bg-red-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
+            >
+              <Trash2 size={12} />Delete ({selectedItems.length})
+            </button>
+          )}
           <button
             onClick={() => {
               if (!showAddForm) {
@@ -600,6 +646,14 @@ export default function ProduksiPage() {
           <table className="w-full text-xs">
             <thead className="bg-gray-100">
               <tr>
+                <th className="px-1 py-1 text-center font-medium text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={selectedItems.length === paginatedProduksi.length && paginatedProduksi.length > 0}
+                    onChange={handleSelectAll}
+                    className="rounded"
+                  />
+                </th>
                 <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('production_no')}>
                   Production No {sortConfig?.key === 'production_no' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
@@ -627,13 +681,21 @@ export default function ProduksiPage() {
             <tbody className="divide-y divide-gray-200">
               {paginatedProduksi.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-1 py-2 text-center text-gray-500 text-xs">
+                  <td colSpan={9} className="px-1 py-2 text-center text-gray-500 text-xs">
                     No data found
                   </td>
                 </tr>
               ) : (
                 paginatedProduksi.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50">
+                  <tr key={item.id} className={`hover:bg-gray-50 ${selectedItems.includes(item.id) ? 'bg-blue-50' : ''}`}>
+                    <td className="px-1 py-1 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.includes(item.id)}
+                        onChange={() => handleSelectItem(item.id)}
+                        className="rounded"
+                      />
+                    </td>
                     <td className="px-1 py-1 font-medium">
                       <button
                         onClick={() => router.push(`/produksi_detail?search=${item.production_no}`)}

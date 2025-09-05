@@ -35,6 +35,7 @@ export default function AnalysisPage() {
   const [loading, setLoading] = useState(true);
   const [productFilter, setProductFilter] = useState('');
   const [subCategoryFilter, setSubCategoryFilter] = useState('');
+  const [branchFilter, setBranchFilter] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [dateRange, setDateRange] = useState({
     startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days ago
@@ -526,7 +527,8 @@ export default function AnalysisPage() {
     let filtered = data.filter(item => {
       const matchesProduct = !debouncedProductFilter || item.product.toLowerCase().includes(debouncedProductFilter.toLowerCase());
       const matchesSubCategory = !subCategoryFilter || item.sub_category === subCategoryFilter;
-      return matchesProduct && matchesSubCategory;
+      const matchesBranch = !branchFilter || item.cabang === branchFilter;
+      return matchesProduct && matchesSubCategory && matchesBranch;
     });
 
     if (sortConfig) {
@@ -547,7 +549,7 @@ export default function AnalysisPage() {
     }
 
     return filtered;
-  }, [data, debouncedProductFilter, subCategoryFilter, sortConfig]);
+  }, [data, debouncedProductFilter, subCategoryFilter, branchFilter, sortConfig]);
 
   const totalPages = Math.ceil(filteredAndSortedData.length / itemsPerPage);
   const paginatedData = filteredAndSortedData.slice(
@@ -578,6 +580,7 @@ export default function AnalysisPage() {
   ];
 
   const uniqueSubCategories = [...new Set(data.map(item => item.sub_category).filter(Boolean))];
+  const uniqueBranches = [...new Set(data.map(item => item.cabang).filter(Boolean))];
 
   return (
     <Layout>
@@ -644,63 +647,75 @@ export default function AnalysisPage() {
                 ))}
               </select>
             </div>
-            <div className="flex gap-2">
-              <div className="flex gap-1">
-                <button
-                  onClick={() => {
-                    const today = new Date().toISOString().split('T')[0];
-                    setDateRange({ startDate: today, endDate: today });
-                  }}
-                  className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded text-xs"
-                >
-                  Today
-                </button>
-                <button
-                  onClick={() => {
-                    const today = new Date();
-                    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-                    setDateRange({ 
-                      startDate: weekAgo.toISOString().split('T')[0], 
-                      endDate: today.toISOString().split('T')[0] 
-                    });
-                  }}
-                  className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded text-xs"
-                >
-                  7 Days
-                </button>
-                <button
-                  onClick={() => {
-                    const today = new Date();
-                    const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-                    setDateRange({ 
-                      startDate: monthAgo.toISOString().split('T')[0], 
-                      endDate: today.toISOString().split('T')[0] 
-                    });
-                  }}
-                  className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded text-xs"
-                >
-                  30 Days
-                </button>
-              </div>
+            <div>
+              <label htmlFor="branchFilter" className="block text-sm font-medium mb-2 text-gray-700">Branch</label>
+              <select
+                id="branchFilter"
+                name="branchFilter"
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value)}
+                className="border border-gray-300 px-3 py-2 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Branches</option>
+                {uniqueBranches.map(branch => (
+                  <option key={branch} value={branch}>{branch}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-1">
+              <button
+                onClick={() => {
+                  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                  setDateRange({ startDate: yesterday, endDate: yesterday });
+                }}
+                className="bg-gray-500 hover:bg-gray-600 text-white px-1 py-1 rounded text-xs"
+              >
+                Yesterday
+              </button>
+              <button
+                onClick={() => {
+                  const today = new Date();
+                  const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+                  setDateRange({ 
+                    startDate: weekAgo.toISOString().split('T')[0], 
+                    endDate: today.toISOString().split('T')[0] 
+                  });
+                }}
+                className="bg-gray-500 hover:bg-gray-600 text-white px-1 py-1 rounded text-xs"
+              >
+                7D
+              </button>
+              <button
+                onClick={() => {
+                  const today = new Date();
+                  const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+                  setDateRange({ 
+                    startDate: monthAgo.toISOString().split('T')[0], 
+                    endDate: today.toISOString().split('T')[0] 
+                  });
+                }}
+                className="bg-gray-500 hover:bg-gray-600 text-white px-1 py-1 rounded text-xs"
+              >
+                30D
+              </button>
+
               <button
                 onClick={() => setShowColumnFilter(!showColumnFilter)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm flex items-center gap-1"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-1 py-1 rounded text-xs"
               >
-                📋 Columns
+                📋
               </button>
               <button
                 onClick={handleExport}
-                className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md text-sm flex items-center gap-1"
+                className="bg-green-600 hover:bg-green-700 text-white px-1 py-1 rounded text-xs"
               >
-                <Download size={16} />
-                Export Excel
+                📊
               </button>
               <button
                 onClick={fetchAnalysisData}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-md text-sm flex items-center gap-1"
+                className="bg-gray-600 hover:bg-gray-700 text-white px-1 py-1 rounded text-xs"
               >
-                <RefreshCw size={16} />
-                Refresh
+                🔄
               </button>
             </div>
           </div>
