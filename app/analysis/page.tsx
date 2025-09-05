@@ -5,6 +5,7 @@ import { supabase } from "@/src/lib/supabaseClient";
 import { Download, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 
 interface AnalysisData {

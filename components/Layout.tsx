@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   BarChart3,
   Package,
@@ -15,7 +15,8 @@ import {
   Warehouse,
   Menu,
   X,
-  Settings2Icon
+  Settings2Icon,
+  User
 } from "lucide-react"
 
 interface LayoutProps {
@@ -24,6 +25,15 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const pathname = usePathname()
+  const [userRole, setUserRole] = useState<string>('')
+
+  useEffect(() => {
+    const user = localStorage.getItem('user')
+    if (user) {
+      const userData = JSON.parse(user)
+      setUserRole(userData.role || 'guest')
+    }
+  }, [])
 
   const topMenuItems = [
     { name: "Ready Stock", href: "/ready", icon: Package },
@@ -54,7 +64,14 @@ export default function Layout({ children }: LayoutProps) {
             <Link href="/" className="text-xl font-bold hover:text-white/90 transition-colors">
               📦 Sushimas Inventory
             </Link>
-            <nav className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
+              {userRole && (
+                <div className="flex items-center gap-2 bg-gray-700 px-3 py-1 rounded-full">
+                  <User size={14} />
+                  <span className="text-xs font-medium capitalize">{userRole}</span>
+                </div>
+              )}
+              <nav className="flex items-center gap-2">
               {topMenuItems.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname === item.href
@@ -74,17 +91,24 @@ export default function Layout({ children }: LayoutProps) {
                   </Link>
                 )
               })}
-            </nav>
+              </nav>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Mobile Header */}
       <header className="md:hidden bg-gray-800 text-white shadow-sm">
-        <div className="px-4 py-3">
+        <div className="px-4 py-3 flex items-center justify-between">
           <Link href="/" className="text-lg font-bold">
             📦 Sushimas Inventory
           </Link>
+          {userRole && (
+            <div className="flex items-center gap-2 bg-gray-700 px-2 py-1 rounded-full">
+              <User size={12} />
+              <span className="text-xs font-medium capitalize">{userRole}</span>
+            </div>
+          )}
         </div>
       </header>
 
