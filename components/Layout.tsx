@@ -26,12 +26,14 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const pathname = usePathname()
   const [userRole, setUserRole] = useState<string>('')
+  const [userBranch, setUserBranch] = useState<string>('')
 
   useEffect(() => {
     const user = localStorage.getItem('user')
     if (user) {
       const userData = JSON.parse(user)
       setUserRole(userData.role || 'guest')
+      setUserBranch(userData.branch || '')
     }
   }, [])
 
@@ -68,7 +70,10 @@ export default function Layout({ children }: LayoutProps) {
               {userRole && (
                 <div className="flex items-center gap-2 bg-gray-700 px-3 py-1 rounded-full">
                   <User size={14} />
-                  <span className="text-xs font-medium capitalize">{userRole}</span>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium capitalize">{userRole}</span>
+                    {userBranch && <span className="text-xs text-gray-300">{userBranch}</span>}
+                  </div>
                 </div>
               )}
               <nav className="flex items-center gap-2">
@@ -106,7 +111,10 @@ export default function Layout({ children }: LayoutProps) {
           {userRole && (
             <div className="flex items-center gap-2 bg-gray-700 px-2 py-1 rounded-full">
               <User size={12} />
-              <span className="text-xs font-medium capitalize">{userRole}</span>
+              <div className="flex flex-col">
+                <span className="text-xs font-medium capitalize">{userRole}</span>
+                {userBranch && <span className="text-xs text-gray-300">{userBranch}</span>}
+              </div>
             </div>
           )}
         </div>
