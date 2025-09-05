@@ -5,13 +5,17 @@
   --foreground: #171717;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Ganti aturan @theme dengan aturan lain */
+:root {
+  --color-background: #ffffff;
+  --color-foreground: #171717;
 }
 
+/* Atau gunakan aturan lain yang memiliki fungsi yang sama */
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+}
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
@@ -23,4 +27,53 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.login-container {
+  max-width: 400px;
+  margin: 40px auto;
+  padding: 20px;
+  background-color: var(--background);
+  border: 1px solid var(--foreground);
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.login-container h2 {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.login-container form {
+  margin-top: 20px;
+}
+
+.login-container label {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.login-container input[type="text"], .login-container input[type="password"] {
+  width: 100%;
+  height: 40px;
+  margin-bottom: 20px;
+  padding: 10px;
+  border: 1px solid var(--foreground);
+  border-radius: 5px;
+}
+
+.login-container button[type="submit"] {
+  width: 100%;
+  height: 40px;
+  background-color: var(--foreground);
+  color: var(--background);
+  padding: 10px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.login-container button[type="submit"]:hover {
+  background-color: var(--foreground);
+  color: var(--background);
 }
