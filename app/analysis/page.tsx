@@ -36,13 +36,18 @@ export default function AnalysisPage() {
   const [productFilter, setProductFilter] = useState('');
   const [subCategoryFilter, setSubCategoryFilter] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days ago
+    endDate: new Date().toISOString().split('T')[0] // today
+  });
+  const [debouncedProductFilter, setDebouncedProductFilter] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [editingTolerance, setEditingTolerance] = useState<{id: number, value: string} | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
   const [showColumnFilter, setShowColumnFilter] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState({
-    ready_no: true,
+    ready_no: false,
     tanggal: true,
     product: true,
     unit_kecil: false,
@@ -58,14 +63,43 @@ export default function AnalysisPage() {
     selisih: true,
     total_production: false,
     sumif_total: false,
-    tolerance_percentage: true,
+    tolerance_percentage: false,
     tolerance_range: true,
     status: true
   });
 
+  // Load column settings on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('analysis-visible-columns');
+    if (saved) {
+      try {
+        setVisibleColumns(JSON.parse(saved));
+      } catch (e) {
+        console.error('Error loading column settings:', e);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     fetchAnalysisData();
-  }, []);
+  }, [dateRange]);
+
+  // Save column settings whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('analysis-visible-columns', JSON.stringify(visibleColumns));
+    } catch (e) {
+      console.error('Error saving column settings:', e);
+    }
+  }, [visibleColumns]);
+
+  // Debounce product filter
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedProductFilter(productFilter);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [productFilter]);
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
@@ -139,10 +173,12 @@ export default function AnalysisPage() {
   const fetchAnalysisData = async () => {
     setLoading(true);
     try {
-      // Try to fetch from analysis view first
+      // Try to fetch from analysis view first with date filter
       const { data: viewData, error: viewError } = await supabase
         .from('analysis_view')
         .select('*')
+        .gte('tanggal', dateRange.startDate)
+        .lte('tanggal', dateRange.endDate)
         .order('tanggal', { ascending: false });
 
       if (!viewError && viewData) {
@@ -150,11 +186,14 @@ export default function AnalysisPage() {
         return;
       }
 
-      // Fallback to manual calculation
+      // Fallback to manual calculation with date filter
       const { data: readyData, error: readyError } = await supabase
         .from('ready')
         .select('*')
-        .order('tanggal_input', { ascending: false });
+        .gte('tanggal_input', dateRange.startDate)
+        .lte('tanggal_input', dateRange.endDate)
+        .order('tanggal_input', { ascending: false })
+        .limit(500);
 
       if (readyError) {
         throw new Error(`Failed to fetch ready data: ${readyError.message}`);
@@ -170,14 +209,27 @@ export default function AnalysisPage() {
       
       const { data: esbData } = await supabase
         .from('esb_harian')
-        .select('*')
+        .select('sales_date, product_id, branch, qty_total')
         .in('sales_date', uniqueDates)
         .in('product_id', uniqueProductIds)
-        .limit(10000);
+        .gte('sales_date', dateRange.startDate)
+        .lte('sales_date', dateRange.endDate)
+        .limit(5000);
       
       console.log('ESB records fetched:', esbData?.length || 0, 'for', uniqueDates.length, 'dates and', uniqueProductIds.length, 'products');
-      const { data: productionData } = await supabase.from('produksi').select('*');
-      const { data: productionDetailData } = await supabase.from('produksi_detail').select('*');
+      const { data: productionData } = await supabase
+        .from('produksi')
+        .select('id_product, tanggal_input, total_konversi')
+        .gte('tanggal_input', dateRange.startDate)
+        .lte('tanggal_input', dateRange.endDate)
+        .in('id_product', uniqueProductIds);
+      
+      const { data: productionDetailData } = await supabase
+        .from('produksi_detail')
+        .select('item_id, tanggal_input, total_pakai')
+        .gte('tanggal_input', dateRange.startDate)
+        .lte('tanggal_input', dateRange.endDate)
+        .in('item_id', uniqueProductIds);
 
       if (!readyData || readyData.length === 0) {
         showToast('No ready data found. Please add some data in Ready Stock first.', 'error');
@@ -213,95 +265,103 @@ export default function AnalysisPage() {
   };
 
   const processAnalysisData = (readyStock: any[], products: any[], warehouse: any[], esb: any[], production: any[], branches: any[], productionDetail: any[], tolerances: any[]): AnalysisData[] => {
+    // Create lookup maps for better performance
+    const productMap = new Map(products.map(p => [p.id_product, p]));
+    const branchMap = new Map(branches.map(b => [b.id_branch, b]));
+    const toleranceMap = new Map(tolerances.map(t => [t.id_product, t]));
+    
+    // Group warehouse data by product and branch for faster lookup
+    const warehouseMap = new Map();
+    warehouse.forEach(w => {
+      const key = `${w.id_product}-${w.cabang}`;
+      if (!warehouseMap.has(key)) warehouseMap.set(key, []);
+      warehouseMap.get(key).push(w);
+    });
+    
+    // Group ESB data for faster lookup
+    const esbMap = new Map();
+    esb.forEach(e => {
+      const key = `${e.sales_date}-${e.product_id}-${e.branch?.trim()}`;
+      esbMap.set(key, e);
+    });
+    
+    // Group production data for faster lookup
+    const productionMap = new Map();
+    production.forEach(p => {
+      const key = `${p.id_product}-${p.tanggal_input}`;
+      productionMap.set(key, p);
+    });
+    
+    // Group production detail data for faster lookup
+    const productionDetailMap = new Map();
+    productionDetail.forEach(pd => {
+      const key = `${pd.item_id}-${pd.tanggal_input}`;
+      if (!productionDetailMap.has(key)) productionDetailMap.set(key, []);
+      productionDetailMap.get(key).push(pd);
+    });
     
     return readyStock.map((ready, index) => {
-      // Get product info from products array
-      const product = products.find(p => p.id_product === ready.id_product);
+      // Get product info from map
+      const product = productMap.get(ready.id_product);
       const productName = product?.product_name || `Product ${ready.id_product}`;
       const unitKecil = product?.unit_kecil || '';
       
-      // Get branch info from branches table using id_branch
-      const branch = branches.find(b => b.id_branch === ready.id_branch);
+      // Get branch info from map
+      const branch = branchMap.get(ready.id_branch);
       const cabangName = branch?.nama_branch || `Branch ${ready.id_branch}`;
       
-      // Gudang lookup - get latest warehouse data for this product and branch (not exact date match)
-      // Note: gudang.cabang stores kode_branch, so we need to match with branch.kode_branch
-      const warehouseItems = warehouse.filter(w => {
+      // Gudang lookup using map
+      const warehouseKey = `${ready.id_product}-${branch?.kode_branch}`;
+      const warehouseItems = warehouseMap.get(warehouseKey) || [];
+      const filteredWarehouseItems = warehouseItems.filter((w: any) => {
         const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
-        return w.id_product === ready.id_product &&
-               warehouseDate <= ready.tanggal_input &&
-               w.cabang === branch?.kode_branch;
+        return warehouseDate <= ready.tanggal_input;
       });
       
-      // Get the latest warehouse entry (most recent timestamp, including time) for total_gudang
-      const warehouseItem = warehouseItems.length > 0 
-        ? warehouseItems.reduce((latest, current) => {
+      const warehouseItem = filteredWarehouseItems.length > 0 
+        ? filteredWarehouseItems.reduce((latest: any, current: any) => {
             const latestTimestamp = latest.tanggal || '1900-01-01T00:00:00.000Z';
             const currentTimestamp = current.tanggal || '1900-01-01T00:00:00.000Z';
             return currentTimestamp > latestTimestamp ? current : latest;
           })
         : null;
       
-      // Hasil ESB - lookup berdasarkan sales_date, product_id, dan branch
+      // Hasil ESB lookup using map
       const readyDate = String(ready.tanggal_input).slice(0, 10);
-      const readyProductId = Number(ready.id_product);
       const readyBranch = branch?.nama_branch?.trim() || "";
-      
-
-      
-      const esbItem = esb.find(e => {
-        const salesDate = String(e.sales_date).slice(0, 10);
-        const esbProductId = Number(e.product_id);
-        const esbBranch = e.branch?.trim() || "";
-
-        return salesDate === readyDate &&
-               esbProductId === readyProductId &&
-               esbBranch === readyBranch;
-      });
-
+      const esbKey = `${readyDate}-${ready.id_product}-${readyBranch}`;
+      const esbItem = esbMap.get(esbKey);
       const hasilESB = esbItem ? Number(esbItem.qty_total) : 0;
       
 
       
-      const productionItem = production.find(p => 
-        p.id_product === ready.id_product && 
-        p.tanggal_input === ready.tanggal_input
-      );
+      const productionKey = `${ready.id_product}-${ready.tanggal_input}`;
+      const productionItem = productionMap.get(productionKey);
 
       const gudang = warehouseItem?.total_gudang || 0;
       
-      // Barang Masuk - SUMIFS: sum all jumlah_masuk for same product, branch, and date
-      const barangMasuk = warehouse
-        .filter(w => {
+      // Barang Masuk using filtered warehouse items
+      const barangMasuk = warehouseItems
+        .filter((w: any) => {
           const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
-          return w.id_product === ready.id_product &&
-                 warehouseDate === ready.tanggal_input &&
-                 w.cabang === branch?.kode_branch;
+          return warehouseDate === ready.tanggal_input;
         })
-        .reduce((sum, w) => sum + (w.jumlah_masuk || 0), 0);
+        .reduce((sum: number, w: any) => sum + (w.jumlah_masuk || 0), 0);
       const waste = ready.waste || 0;
       const totalBarang = (ready.ready || 0) + gudang;
-      // Total Production - Cari pemakaian bahan baku ini untuk produksi WIP pada tanggal yang sama
-      // Logika: Jika produk ini adalah bahan baku, cari berapa yang terpakai untuk produksi WIP
-      const totalProduction = productionDetail
-        .filter(pd => {
-          // Cari di produksi detail dimana item_id sama dengan id_product saat ini (sebagai bahan baku)
-          // dan tanggal sama
-          return pd.item_id === ready.id_product && 
-                 pd.tanggal_input === ready.tanggal_input;
-        })
-        .reduce((sum, pd) => sum + (pd.total_pakai || 0), 0);
+      // Total Production using map
+      const productionDetailKey = `${ready.id_product}-${ready.tanggal_input}`;
+      const productionDetails = productionDetailMap.get(productionDetailKey) || [];
+      const totalProduction = productionDetails.reduce((sum: number, pd: any) => sum + (pd.total_pakai || 0), 0);
       
-      const sumifTotal = production
-        .filter(p => p.id_product === ready.id_product && p.tanggal_input === ready.tanggal_input)
-        .reduce((sum, p) => sum + (p.total_konversi || 0), 0);
+      const sumifTotal = productionItem?.total_konversi || 0;
       
-      const keluarForm = calculateKeluarForm(ready, readyStock, warehouse, branches, sumifTotal);
+      const keluarForm = calculateKeluarForm(ready, readyStock, warehouse, branchMap, sumifTotal);
 
       const selisih = calculateSelisih(productName, hasilESB, keluarForm, totalProduction);
       
-      // Get tolerance for this product
-      const tolerance = tolerances.find(t => t.id_product === ready.id_product);
+      // Get tolerance using map
+      const tolerance = toleranceMap.get(ready.id_product);
       const tolerancePercentage = tolerance?.tolerance_percentage || 5.0;
       
       // Calculate status based on selisih and tolerance
@@ -339,7 +399,7 @@ export default function AnalysisPage() {
 
   // KELUAR FORM = BARANG YANG TERJUAL HARI INI
   // Rumus: (Stok Kemarin + Barang Masuk Hari Ini) - (Stok Hari Ini + Waste) + Total Konversi
-  const calculateKeluarForm = (currentReady: any, allReadyStock: any[], warehouse: any[], branches: any[], totalKonversi: number): number => {
+  const calculateKeluarForm = (currentReady: any, allReadyStock: any[], warehouse: any[], branchMap: Map<any, any>, totalKonversi: number): number => {
     // Calculate previous day - simple string manipulation to avoid timezone issues
     const [year, month, day] = currentReady.tanggal_input.split('-').map(Number);
     const currentDate = new Date(year, month - 1, day); // month is 0-indexed
@@ -347,7 +407,7 @@ export default function AnalysisPage() {
     const previousDayStr = currentDate.getFullYear() + '-' + 
       String(currentDate.getMonth() + 1).padStart(2, '0') + '-' + 
       String(currentDate.getDate()).padStart(2, '0');
-    const branch = branches.find(b => b.id_branch === currentReady.id_branch);
+    const branch = branchMap.get(currentReady.id_branch);
     
     // Stok kemarin (Ready + Gudang)
     const previousReady = allReadyStock.find(r => 
@@ -464,7 +524,7 @@ export default function AnalysisPage() {
 
   const filteredAndSortedData = React.useMemo(() => {
     let filtered = data.filter(item => {
-      const matchesProduct = !productFilter || item.product.toLowerCase().includes(productFilter.toLowerCase());
+      const matchesProduct = !debouncedProductFilter || item.product.toLowerCase().includes(debouncedProductFilter.toLowerCase());
       const matchesSubCategory = !subCategoryFilter || item.sub_category === subCategoryFilter;
       return matchesProduct && matchesSubCategory;
     });
@@ -487,7 +547,7 @@ export default function AnalysisPage() {
     }
 
     return filtered;
-  }, [data, productFilter, subCategoryFilter, sortConfig]);
+  }, [data, debouncedProductFilter, subCategoryFilter, sortConfig]);
 
   const totalPages = Math.ceil(filteredAndSortedData.length / itemsPerPage);
   const paginatedData = filteredAndSortedData.slice(
@@ -538,6 +598,26 @@ export default function AnalysisPage() {
           <div className="flex flex-wrap gap-4 items-end">
 
             <div>
+              <label htmlFor="startDate" className="block text-sm font-medium mb-2 text-gray-700">Start Date</label>
+              <input
+                id="startDate"
+                type="date"
+                value={dateRange.startDate}
+                onChange={(e) => setDateRange(prev => ({...prev, startDate: e.target.value}))}
+                className="border border-gray-300 px-3 py-2 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="endDate" className="block text-sm font-medium mb-2 text-gray-700">End Date</label>
+              <input
+                id="endDate"
+                type="date"
+                value={dateRange.endDate}
+                onChange={(e) => setDateRange(prev => ({...prev, endDate: e.target.value}))}
+                className="border border-gray-300 px-3 py-2 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
               <label htmlFor="productFilter" className="block text-sm font-medium mb-2 text-gray-700">Product Filter</label>
               <input
                 id="productFilter"
@@ -565,6 +645,43 @@ export default function AnalysisPage() {
               </select>
             </div>
             <div className="flex gap-2">
+              <div className="flex gap-1">
+                <button
+                  onClick={() => {
+                    const today = new Date().toISOString().split('T')[0];
+                    setDateRange({ startDate: today, endDate: today });
+                  }}
+                  className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded text-xs"
+                >
+                  Today
+                </button>
+                <button
+                  onClick={() => {
+                    const today = new Date();
+                    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    setDateRange({ 
+                      startDate: weekAgo.toISOString().split('T')[0], 
+                      endDate: today.toISOString().split('T')[0] 
+                    });
+                  }}
+                  className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded text-xs"
+                >
+                  7 Days
+                </button>
+                <button
+                  onClick={() => {
+                    const today = new Date();
+                    const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+                    setDateRange({ 
+                      startDate: monthAgo.toISOString().split('T')[0], 
+                      endDate: today.toISOString().split('T')[0] 
+                    });
+                  }}
+                  className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded text-xs"
+                >
+                  30 Days
+                </button>
+              </div>
               <button
                 onClick={() => setShowColumnFilter(!showColumnFilter)}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm flex items-center gap-1"
@@ -589,11 +706,15 @@ export default function AnalysisPage() {
           </div>
           <div className="mt-3 pt-3 border-t border-gray-200 text-sm text-gray-600">
             Showing {paginatedData.length} of {filteredAndSortedData.length} records
+            {loading && <span className="ml-4 text-orange-600">⏳ Loading...</span>}
             {sortConfig && (
               <span className="ml-4 text-blue-600">
                 Sorted by {sortConfig.key} ({sortConfig.direction})
               </span>
             )}
+            <span className="ml-4 text-gray-500">
+              📅 {dateRange.startDate} to {dateRange.endDate}
+            </span>
           </div>
         </div>
 
@@ -644,15 +765,14 @@ export default function AnalysisPage() {
             </thead>
             <tbody>
               {loading ? (
-                Array.from({ length: 10 }).map((_, idx) => (
-                  <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                    {Object.values(visibleColumns).filter(Boolean).map((_, cellIdx) => (
-                      <td key={cellIdx} className="border px-2 py-1">
-                        <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                      </td>
-                    ))}
-                  </tr>
-                ))
+                <tr>
+                  <td colSpan={Object.values(visibleColumns).filter(Boolean).length} className="text-center py-8">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                      <span className="text-gray-600">Loading analysis data...</span>
+                    </div>
+                  </td>
+                </tr>
               ) : filteredAndSortedData.length === 0 ? (
                 <tr>
                   <td colSpan={Object.values(visibleColumns).filter(Boolean).length} className="text-center py-4 text-gray-500">

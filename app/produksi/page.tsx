@@ -245,13 +245,7 @@ export default function ProduksiPage() {
     return matchesDivisi && matchesSearch;
   });
   
-  // Debug logging
-  console.log('Current divisi:', formData.divisi);
-  console.log('All WIP products:', wipProducts.length);
-  console.log('Available sub_categories:', [...new Set(wipProducts.map(p => p.sub_category))]);
-  console.log('Products with matching sub_category:', wipProducts.filter(p => p.sub_category === formData.divisi));
-  console.log('Filtered products:', filteredProducts.length);
-  console.log('Product search term:', productSearch);
+  // Debug logging removed to prevent infinite loop
 
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';

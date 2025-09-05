@@ -53,39 +53,76 @@ export default function ProduksiDetailPage() {
 
   const fetchDetails = async () => {
     try {
-      const { data, error } = await supabase
-        .from('produksi_detail')
-        .select('*')
-        .order('tanggal_input', { ascending: false });
+      // Fetch all data using pagination
+      let allData: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('produksi_detail')
+          .select('*')
+          .order('tanggal_input', { ascending: false })
+          .range(from, from + batchSize - 1);
+
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          from += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const data = allData;
       
-      const detailsWithNames = await Promise.all(
-        (data || []).map(async (detail: any) => {
-          const [productData, itemData] = await Promise.all([
-            supabase
-              .from('nama_product')
-              .select('product_name')
-              .eq('id_product', detail.id_product)
-              .single(),
-            supabase
-              .from('nama_product')
-              .select('product_name')
-              .eq('id_product', detail.item_id)
-              .single()
-          ]);
-          
-          return {
-            ...detail,
-            product_name: productData.data?.product_name || '',
-            item_name: itemData.data?.product_name || ''
-          };
-        })
-      );
+      if (!allData || allData.length === 0) {
+        setDetails([]);
+        return;
+      }
+      
+      // Get all unique product IDs with null checks
+      const allProductIds = [...new Set([
+        ...allData.filter(d => d.id_product).map(d => d.id_product),
+        ...allData.filter(d => d.item_id).map(d => d.item_id)
+      ])].filter(Boolean);
+      
+      if (allProductIds.length === 0) {
+        setDetails(allData.map(detail => ({
+          ...detail,
+          product_name: '',
+          item_name: ''
+        })));
+        return;
+      }
+      
+      // Batch fetch all product names
+      const { data: productData, error: productError } = await supabase
+        .from('nama_product')
+        .select('id_product, product_name')
+        .in('id_product', allProductIds);
+      
+      if (productError) {
+        console.error('Error fetching product names:', productError);
+      }
+      
+      // Create lookup map
+      const productMap = new Map(productData?.map(p => [p.id_product, p.product_name]) || []);
+      
+      // Map details with product names
+      const detailsWithNames = allData.map(detail => ({
+        ...detail,
+        product_name: productMap.get(detail.id_product) || '',
+        item_name: productMap.get(detail.item_id) || ''
+      }));
       
       setDetails(detailsWithNames);
     } catch (error) {
       console.error('Error fetching details:', error);
+      setDetails([]);
     } finally {
       setLoading(false);
     }
@@ -295,165 +332,160 @@ export default function ProduksiDetailPage() {
 
   if (loading) {
     return (
-      <div className="p-2 bg-gray-50 min-h-screen">
-        <div className="bg-white p-2 rounded-lg shadow text-center">
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mb-1 mx-auto"></div>
-          <p className="text-xs text-gray-600">Loading...</p>
+      <Layout>
+        <div className="p-2 bg-gray-50 min-h-screen">
+          <div className="bg-white p-2 rounded-lg shadow text-center">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mb-1 mx-auto"></div>
+            <p className="text-xs text-gray-600">Loading...</p>
+          </div>
         </div>
-      </div>
+      </Layout>
     );
   }
 
   return (
     <Layout>
-      <div className="p-1 md:p-2">
-      <div className="flex items-center gap-3 mb-1">
-        <h1 className="text-sm font-bold text-gray-800">🏭 Production Details</h1>
-      </div>
-
-      <div className="bg-white p-1 rounded-lg shadow mb-1">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-1 mb-2">
-          <input
-            type="text"
-            placeholder="Search..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="border px-2 py-1 rounded-md text-xs"
-          />
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="border px-2 py-1 rounded-md text-xs"
-          />
-          <select
-            value={productFilter}
-            onChange={(e) => setProductFilter(e.target.value)}
-            className="border px-2 py-1 rounded-md text-xs"
-          >
-            <option value="">All Products</option>
-            {uniqueProducts.map(product => (
-              <option key={product} value={product}>{product}</option>
-            ))}
-          </select>
-          <div className="flex gap-1">
+      <div className="p-2">
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-lg font-bold text-gray-800">🏭 Production Details</h1>
+          <div className="flex gap-2">
             <button 
               onClick={recalculateAllDetails} 
               disabled={isRecalculating}
-              className="bg-orange-600 text-white px-2 py-1 rounded-md text-xs disabled:opacity-50"
+              className="bg-orange-600 text-white px-3 py-1 rounded text-xs disabled:opacity-50"
             >
               {isRecalculating ? 'Processing...' : 'Recalculate'}
             </button>
-            <button onClick={handleExport} className="bg-green-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1">
+            <button onClick={handleExport} className="bg-green-600 text-white px-3 py-1 rounded text-xs flex items-center gap-1">
               <Download size={12} />Export
             </button>
           </div>
         </div>
-      </div>
 
-      {/* Progress Bar */}
-      {isRecalculating && (
-        <div className="bg-white p-2 rounded-lg shadow mb-1">
-          <div className="flex items-center gap-2">
-            <div className="flex-1">
-              <div className="flex justify-between text-xs text-gray-600 mb-1">
-                <span>Recalculating production details...</span>
-                <span>{recalculateProgress}/{recalculateTotal}</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-orange-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${recalculateTotal > 0 ? (recalculateProgress / recalculateTotal) * 100 : 0}%` }}
-                ></div>
-              </div>
-            </div>
+        <div className="bg-white p-3 rounded-lg shadow mb-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input
+              type="text"
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="border px-3 py-2 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="border px-3 py-2 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <select
+              value={productFilter}
+              onChange={(e) => setProductFilter(e.target.value)}
+              className="border px-3 py-2 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">All Products</option>
+              {uniqueProducts.map(product => (
+                <option key={product} value={product}>{product}</option>
+              ))}
+            </select>
           </div>
         </div>
-      )}
 
-      {/* Production Details Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('production_no')}>
-                  Production No {sortConfig?.key === 'production_no' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>
-                  Date {sortConfig?.key === 'tanggal_input' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>
-                  Product {sortConfig?.key === 'product_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('item_name')}>
-                  Item {sortConfig?.key === 'item_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jumlah_buat')}>
-                  Qty {sortConfig?.key === 'jumlah_buat' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('gramasi')}>
-                  Gramasi {sortConfig?.key === 'gramasi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_pakai')}>
-                  Total {sortConfig?.key === 'total_pakai' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {paginatedDetails.length === 0 ? (
+        {isRecalculating && (
+          <div className="bg-white p-3 rounded-lg shadow mb-3">
+            <div className="flex justify-between text-sm text-gray-600 mb-2">
+              <span>Recalculating production details...</span>
+              <span>{recalculateProgress}/{recalculateTotal}</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-orange-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${recalculateTotal > 0 ? (recalculateProgress / recalculateTotal) * 100 : 0}%` }}
+              ></div>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
                 <tr>
-                  <td colSpan={7} className="px-1 py-2 text-center text-gray-500 text-xs">
-                    No data found
-                  </td>
+                  <th className="px-3 py-2 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('production_no')}>
+                    Production No {sortConfig?.key === 'production_no' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_input')}>
+                    Date {sortConfig?.key === 'tanggal_input' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('product_name')}>
+                    Product {sortConfig?.key === 'product_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('item_name')}>
+                    Item {sortConfig?.key === 'item_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('jumlah_buat')}>
+                    Qty {sortConfig?.key === 'jumlah_buat' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('gramasi')}>
+                    Gramasi {sortConfig?.key === 'gramasi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_pakai')}>
+                    Total {sortConfig?.key === 'total_pakai' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
                 </tr>
-              ) : (
-                paginatedDetails.map((detail) => (
-                  <tr key={detail.id} className="hover:bg-gray-50">
-                    <td className="px-1 py-1 font-medium text-blue-600">{detail.production_no}</td>
-                    <td className="px-1 py-1">{detail.tanggal_input}</td>
-                    <td className="px-1 py-1">{detail.product_name}</td>
-                    <td className="px-1 py-1">{detail.item_name}</td>
-                    <td className="px-1 py-1">{detail.jumlah_buat}</td>
-                    <td className="px-1 py-1">{detail.gramasi}</td>
-                    <td className="px-1 py-1 font-medium">{detail.total_pakai}</td>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {paginatedDetails.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-3 py-4 text-center text-gray-500">
+                      No data found
+                    </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="bg-white p-1 rounded-lg shadow mt-1">
-          <div className="flex justify-between items-center">
-            <p className="text-xs text-gray-600">
-              Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, filteredAndSortedDetails.length)} of {filteredAndSortedDetails.length} records
-            </p>
-            <div className="flex gap-1">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(currentPage - 1)}
-                className="px-2 py-1 bg-gray-100 text-gray-700 rounded disabled:opacity-50 hover:bg-gray-200 text-xs"
-              >
-                Previous
-              </button>
-              <span className="px-2 py-1 text-xs">
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(currentPage + 1)}
-                className="px-2 py-1 bg-blue-600 text-white rounded disabled:opacity-50 hover:bg-blue-700 text-xs"
-              >
-                Next
-              </button>
-            </div>
+                ) : (
+                  paginatedDetails.map((detail) => (
+                    <tr key={detail.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 font-medium text-blue-600">{detail.production_no}</td>
+                      <td className="px-3 py-2 text-gray-700">{detail.tanggal_input}</td>
+                      <td className="px-3 py-2 text-gray-700">{detail.product_name}</td>
+                      <td className="px-3 py-2 text-gray-700">{detail.item_name}</td>
+                      <td className="px-3 py-2 text-center text-gray-700">{detail.jumlah_buat}</td>
+                      <td className="px-3 py-2 text-center text-gray-700">{detail.gramasi}</td>
+                      <td className="px-3 py-2 text-center font-medium text-gray-900">{detail.total_pakai}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-      )}
+
+        {totalPages > 1 && (
+          <div className="bg-white p-3 rounded-lg shadow mt-3">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-gray-600">
+                Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, filteredAndSortedDetails.length)} of {filteredAndSortedDetails.length} records
+              </p>
+              <div className="flex gap-2">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded disabled:opacity-50 hover:bg-gray-200 text-sm"
+                >
+                  Previous
+                </button>
+                <span className="px-3 py-1 text-sm bg-blue-50 rounded">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50 hover:bg-blue-700 text-sm"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );
