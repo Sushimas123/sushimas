@@ -2,18 +2,18 @@
 export const COLUMN_PERMISSIONS = {
   // ESB Report columns
   esb: {
-    admin: ['*'], // semua kolom
-    manager: ['*'], // semua kolom
-    pic_branch: ['sales_date', 'branch', 'product', 'sub_category', 'quantity', 'price'], // tanpa value_total
-    staff: ['sales_date', 'branch', 'product', 'sub_category', 'quantity'] // tanpa price dan value_total
+    admin: ['*'],
+    manager: ['*'],
+    pic_branch: ['sales_date', 'branch', 'product', 'sub_category', 'quantity', 'price'],
+    staff: []
   },
   
   // Users table columns
   users: {
-    admin: ['*'], // semua kolom
-    manager: ['email', 'nama_lengkap', 'no_telp', 'role', 'cabang', 'created_at'], // tanpa password dan actions
-    pic_branch: ['email', 'nama_lengkap', 'no_telp', 'cabang'], // hanya info dasar
-    staff: [] // tidak bisa akses
+    admin: ['*'],
+    manager: ['email', 'nama_lengkap', 'no_telp', 'role', 'cabang', 'created_at'],
+    pic_branch: ['email', 'nama_lengkap', 'no_telp', 'cabang'],
+    staff: []
   },
   
   // Ready stock columns
@@ -21,7 +21,7 @@ export const COLUMN_PERMISSIONS = {
     admin: ['*'],
     manager: ['*'],
     pic_branch: ['product_name', 'category', 'quantity', 'unit', 'branch', 'last_updated'],
-    staff: ['product_name', 'category', 'quantity', 'unit', 'branch']
+    staff: ['product_name', 'quantity', 'branch']
   },
   
   // Production columns
@@ -30,15 +30,99 @@ export const COLUMN_PERMISSIONS = {
     manager: ['*'],
     pic_branch: ['product_name', 'quantity', 'status', 'branch', 'created_at'],
     staff: []
+  },
+  
+  // Analysis columns
+  analysis: {
+    admin: ['*'],
+    manager: ['*'],
+    pic_branch: ['product_name', 'branch', 'status', 'date'],
+    staff: []
+  },
+  
+  // Branches columns
+  branches: {
+    admin: ['*'],
+    manager: ['*'],
+    pic_branch: ['nama_branch', 'alamat', 'kota'],
+    staff: ['nama_branch']
+  },
+  
+  // Categories columns
+  categories: {
+    admin: ['*'],
+    manager: ['*'],
+    pic_branch: ['category_name', 'description'],
+    staff: ['category_name']
+  },
+  
+  // Gudang columns
+  gudang: {
+    admin: ['*'],
+    manager: ['*'],
+    pic_branch: ['product_name', 'quantity', 'location', 'branch'],
+    staff: ['product_name', 'quantity', 'branch']
+  },
+  
+  // Product Name columns
+  product_name: {
+    admin: ['*'],
+    manager: ['*'],
+    pic_branch: ['product_name', 'category', 'unit', 'price'],
+    staff: ['product_name', 'category', 'unit']
+  },
+  
+  // Product Settings columns
+  product_settings: {
+    admin: ['*'],
+    manager: ['*'],
+    pic_branch: [],
+    staff: []
+  },
+  
+  // Production Detail columns
+  produksi_detail: {
+    admin: ['*'],
+    manager: ['*'],
+    pic_branch: [],
+    staff: []
+  },
+  
+  // Recipes columns
+  recipes: {
+    admin: ['*'],
+    manager: ['*'],
+    pic_branch: ['recipe_name', 'ingredients', 'quantity'],
+    staff: ['recipe_name', 'ingredients']
+  },
+  
+  // Stock Opname columns
+  stock_opname: {
+    admin: ['*'],
+    manager: ['*'],
+    pic_branch: ['product_name', 'system_qty', 'actual_qty', 'difference', 'branch'],
+    staff: []
+  },
+  
+  // Supplier columns
+  supplier: {
+    admin: ['*'],
+    manager: ['*'],
+    pic_branch: ['supplier_name', 'contact', 'address'],
+    staff: ['supplier_name']
   }
 }
 
 // Function to check if user can see a column
 export const canViewColumn = (userRole: string, tableName: string, columnName: string): boolean => {
-  const permissions = COLUMN_PERMISSIONS[tableName as keyof typeof COLUMN_PERMISSIONS]
-  if (!permissions) return true // jika tidak ada aturan, tampilkan semua
+  // Check for custom permissions first
+  const customPerms = localStorage.getItem('customPermissions')
+  const permissions = customPerms ? JSON.parse(customPerms) : COLUMN_PERMISSIONS
   
-  const rolePermissions = permissions[userRole as keyof typeof permissions]
+  const tablePermissions = permissions[tableName as keyof typeof permissions]
+  if (!tablePermissions) return true // jika tidak ada aturan, tampilkan semua
+  
+  const rolePermissions = tablePermissions[userRole as keyof typeof tablePermissions]
   if (!rolePermissions) return false // jika role tidak ada, sembunyikan semua
   
   // Jika ada wildcard (*), tampilkan semua kolom

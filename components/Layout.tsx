@@ -62,7 +62,8 @@ export default function Layout({ children }: LayoutProps) {
     { name: "Recipes", href: "/recipes", icon: BookOpen, roles: ['admin', 'manager', 'pic_branch'] },
     { name: "Supplier", href: "/supplier", icon: Truck, roles: ['admin', 'manager'] },
     { name: "Branches", href: "/branches", icon: Store, roles: ['admin', 'manager'] },
-    { name: "Users", href: "/users", icon: Users, roles: ['admin'] }
+    { name: "Users", href: "/users", icon: Users, roles: ['admin'] },
+    { name: "Permissions", href: "/permissions", icon: Settings2Icon, roles: ['admin'] }
   ]
 
   const filteredTopMenuItems = getFilteredMenuItems(topMenuItems, userRole)
