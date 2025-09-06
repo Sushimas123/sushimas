@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/src/lib/supabaseClient"
 import { ArrowUpDown, Filter, X, Download, Settings, Eye, EyeOff } from "lucide-react"
 import Layout from '../../components/Layout'
+import { getHiddenColumns, canViewColumn } from '@/src/utils/columnPermissions'
 
 // Helper function to convert text to Title Case
 const toTitleCase = (str: any) => {
@@ -42,6 +43,22 @@ export default function ESBPage() {
   // kolom hide/show
   const [hiddenColumns, setHiddenColumns] = useState<string[]>(["id", "product_code"])
   const [showColumnSelector, setShowColumnSelector] = useState(false)
+  const [userRole, setUserRole] = useState<string>('guest')
+
+  // Get user role from localStorage
+  useEffect(() => {
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      const user = JSON.parse(userData)
+      setUserRole(user.role || 'guest')
+      
+      // Set initial hidden columns based on role
+      if (data.length > 0) {
+        const roleHiddenColumns = getHiddenColumns(user.role || 'guest', 'esb', Object.keys(data[0]))
+        setHiddenColumns(prev => [...new Set([...prev, ...roleHiddenColumns])])
+      }
+    }
+  }, [data])
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
@@ -135,6 +152,12 @@ export default function ESBPage() {
   }
 
   const toggleColumn = (col: string) => {
+    // Check if user has permission to view this column
+    if (!canViewColumn(userRole, 'esb', col)) {
+      showToast(`You don't have permission to view ${col} column`, 'error')
+      return
+    }
+    
     setHiddenColumns(prev =>
       prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
     )
@@ -221,8 +244,19 @@ export default function ESBPage() {
         </div>
       )}
 
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center justify-between mb-4">
         <h1 className="text-sm font-bold text-gray-800">📊 Laporan ESB Harian</h1>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-600">Access Level:</span>
+          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+            userRole === 'admin' ? 'bg-red-100 text-red-800' :
+            userRole === 'manager' ? 'bg-blue-100 text-blue-800' :
+            userRole === 'pic_branch' ? 'bg-green-100 text-green-800' :
+            'bg-gray-100 text-gray-800'
+          }`}>
+            {userRole.toUpperCase()}
+          </span>
+        </div>
       </div>
 
       {/* Filter Section */}
@@ -318,19 +352,27 @@ export default function ESBPage() {
         <div className="bg-white p-1 rounded-lg shadow mb-1">
           <h3 className="font-medium text-gray-800 mb-1 text-xs">Pengaturan Kolom Tampilan</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1 mb-1">
-            {Object.keys(data[0]).map(col => (
-              <label key={col} className="flex items-center gap-1 text-xs">
-                <input
-                  type="checkbox"
-                  checked={!hiddenColumns.includes(col)}
-                  onChange={() => toggleColumn(col)}
-                  className="rounded text-blue-600"
-                />
-                <span className={hiddenColumns.includes(col) ? 'text-gray-500' : 'text-gray-800'}>
-                  {toTitleCase(col)}
-                </span>
-              </label>
-            ))}
+            {Object.keys(data[0]).map(col => {
+              const hasPermission = canViewColumn(userRole, 'esb', col)
+              return (
+                <label key={col} className="flex items-center gap-1 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={!hiddenColumns.includes(col)}
+                    onChange={() => toggleColumn(col)}
+                    disabled={!hasPermission}
+                    className="rounded text-blue-600 disabled:opacity-50"
+                  />
+                  <span className={`${
+                    !hasPermission ? 'text-red-400 line-through' :
+                    hiddenColumns.includes(col) ? 'text-gray-500' : 'text-gray-800'
+                  }`}>
+                    {toTitleCase(col)}
+                    {!hasPermission && ' 🔒'}
+                  </span>
+                </label>
+              )
+            })}
           </div>
           <div className="flex gap-1">
             <button
@@ -359,15 +401,21 @@ export default function ESBPage() {
               <h3 className="text-xs text-gray-600">Total Records</h3>
               <p className="text-sm font-bold text-blue-700">{totalCount.toLocaleString()}</p>
             </div>
-            <div className="bg-green-50 p-1 rounded-md flex-1 min-w-[120px]">
-              <h3 className="text-xs text-gray-600">Total Value</h3>
-              <p className="text-sm font-bold text-green-700">{formatCurrency(totalValue)}</p>
-            </div>
+            {canViewColumn(userRole, 'esb', 'value_total') && (
+              <div className="bg-green-50 p-1 rounded-md flex-1 min-w-[120px]">
+                <h3 className="text-xs text-gray-600">Total Value</h3>
+                <p className="text-sm font-bold text-green-700">{formatCurrency(totalValue)}</p>
+              </div>
+            )}
             <div className="bg-purple-50 p-1 rounded-md flex-1 min-w-[120px]">
               <h3 className="text-xs text-gray-600">Current Page</h3>
               <p className="text-sm font-bold text-purple-700">
                 {currentPage} of {totalPages}
               </p>
+            </div>
+            <div className="bg-yellow-50 p-1 rounded-md flex-1 min-w-[120px]">
+              <h3 className="text-xs text-gray-600">Access Level</h3>
+              <p className="text-sm font-bold text-yellow-700 capitalize">{userRole}</p>
             </div>
           </div>
         </div>
@@ -433,10 +481,13 @@ export default function ESBPage() {
                     >
                       {visibleColumns.map((col, j) => (
                         <td key={j} className="border-b p-1">
-                          {col === 'value_total' || col === 'price' ? 
-                            formatCurrency(Number(row[col]) || 0) : 
-                            toTitleCase(row[col] ?? "")
-                          }
+                          {canViewColumn(userRole, 'esb', col) ? (
+                            col === 'value_total' || col === 'price' ? 
+                              formatCurrency(Number(row[col]) || 0) : 
+                              toTitleCase(row[col] ?? "")
+                          ) : (
+                            <span className="text-gray-400">🔒 Hidden</span>
+                          )}
                         </td>
                       ))}
                     </tr>

@@ -6,6 +6,7 @@ import { Plus, Edit, Trash2, Download, Upload, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
+import { canViewColumn } from '@/src/utils/columnPermissions';
 
 interface Ready {
   id_ready: number;
@@ -63,6 +64,16 @@ export default function ReadyPage() {
   const [importProgress, setImportProgress] = useState<{show: boolean, progress: number, message: string}>({show: false, progress: 0, message: ''});
   const [showDataTable, setShowDataTable] = useState(false);
   const [requireReadyInput, setRequireReadyInput] = useState(true);
+  const [userRole, setUserRole] = useState<string>('guest');
+
+  // Get user role
+  useEffect(() => {
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      const user = JSON.parse(userData)
+      setUserRole(user.role || 'guest')
+    }
+  }, [])
 
   useEffect(() => {
     fetchReady();
@@ -853,15 +864,26 @@ export default function ReadyPage() {
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl font-bold text-gray-800">🍽️ Ready Stock</h1>
           <div className="flex gap-2 items-center">
-            <label className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={requireReadyInput}
-                onChange={(e) => setRequireReadyInput(e.target.checked)}
-                className="w-3 h-3"
-              />
-              Wajib isi Ready
-            </label>
+            <span className="text-xs text-gray-600">Access Level:</span>
+            <span className={`px-2 py-1 rounded text-xs font-semibold ${
+              userRole === 'admin' ? 'bg-red-100 text-red-800' :
+              userRole === 'manager' ? 'bg-blue-100 text-blue-800' :
+              userRole === 'pic_branch' ? 'bg-green-100 text-green-800' :
+              'bg-gray-100 text-gray-800'
+            }`}>
+              {userRole.toUpperCase()}
+            </span>
+            {(userRole === 'admin' || userRole === 'manager') && (
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={requireReadyInput}
+                  onChange={(e) => setRequireReadyInput(e.target.checked)}
+                  className="w-3 h-3"
+                />
+                Wajib isi Ready
+              </label>
+            )}
             <button
               onClick={() => setShowDataTable(!showDataTable)}
               className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
@@ -881,24 +903,26 @@ export default function ReadyPage() {
           />
           
           <div className="flex flex-wrap gap-2">
-            <div
-              onClick={() => {
-                console.log('Input Harian clicked');
-                setShowAddForm(true);
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1 cursor-pointer select-none"
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
+            {(userRole === 'admin' || userRole === 'manager' || userRole === 'pic_branch') && (
+              <div
+                onClick={() => {
+                  console.log('Input Harian clicked');
                   setShowAddForm(true);
-                }
-              }}
-            >
-              <Plus size={16} />
-              Input Harian
-            </div>
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1 cursor-pointer select-none"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setShowAddForm(true);
+                  }
+                }}
+              >
+                <Plus size={16} />
+                Input Harian
+              </div>
+            )}
             <button
               onClick={exportToExcel}
               className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
@@ -906,16 +930,18 @@ export default function ReadyPage() {
               <Download size={16} />
               Export Excel
             </button>
-            <label className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1 cursor-pointer">
-              <Upload size={16} />
-              Import Excel
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleImportExcel}
-                className="hidden"
-              />
-            </label>
+            {(userRole === 'admin' || userRole === 'manager') && (
+              <label className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1 cursor-pointer">
+                <Upload size={16} />
+                Import Excel
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleImportExcel}
+                  className="hidden"
+                />
+              </label>
+            )}
             <button
               onClick={() => {
                 fetchReady()
@@ -982,15 +1008,15 @@ export default function ReadyPage() {
                         className="cursor-pointer"
                       />
                     </th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready_no')}>Ready No</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>Tanggal</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>Cabang</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sub_category')}>Sub Category</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>Product</th>
+                    {canViewColumn(userRole, 'ready', 'ready_no') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready_no')}>Ready No</th>}
+                    {canViewColumn(userRole, 'ready', 'tanggal_input') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>Tanggal</th>}
+                    {canViewColumn(userRole, 'ready', 'branch') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>Cabang</th>}
+                    {canViewColumn(userRole, 'ready', 'category') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sub_category')}>Sub Category</th>}
+                    {canViewColumn(userRole, 'ready', 'product_name') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>Product</th>}
                     <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id_product')}>Product ID</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>
+                    {canViewColumn(userRole, 'ready', 'quantity') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>}
                     <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('waste')}>Waste</th>
-                    <th className="border px-2 py-1 text-left font-medium">Actions</th>
+                    {(userRole === 'admin' || userRole === 'manager') && <th className="border px-2 py-1 text-left font-medium">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -1006,8 +1032,14 @@ export default function ReadyPage() {
                     ))
                   ) : paginatedReady.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="text-center py-2 text-gray-500 text-xs">
-                        No ready stock records found
+                      <td colSpan={Object.keys(['ready_no', 'tanggal_input', 'branch', 'category', 'product_name', 'id_product', 'quantity', 'waste', 'actions']).filter(col => 
+                        col === 'actions' ? (userRole === 'admin' || userRole === 'manager') : 
+                        col === 'id_product' || col === 'waste' ? true :
+                        canViewColumn(userRole, 'ready', col)
+                      ).length} className="text-center py-2 text-gray-500 text-xs">
+                        {userRole === 'staff' && !canViewColumn(userRole, 'ready', 'product_name') ? 
+                         'You have limited access to ready stock data' : 
+                         'No ready stock records found'}
                       </td>
                     </tr>
                   ) : (
@@ -1021,22 +1053,24 @@ export default function ReadyPage() {
                             className="cursor-pointer"
                           />
                         </td>
-                        <td className="border px-2 py-1">{item.ready_no}</td>
-                        <td className="border px-2 py-1">{item.tanggal_input}</td>
-                        <td className="border px-2 py-1">{item.branch_name}</td>
-                        <td className="border px-2 py-1">{item.sub_category}</td>
-                        <td className="border px-2 py-1">{item.product_name}</td>
+                        {canViewColumn(userRole, 'ready', 'ready_no') && <td className="border px-2 py-1">{item.ready_no}</td>}
+                        {canViewColumn(userRole, 'ready', 'tanggal_input') && <td className="border px-2 py-1">{item.tanggal_input}</td>}
+                        {canViewColumn(userRole, 'ready', 'branch') && <td className="border px-2 py-1">{item.branch_name}</td>}
+                        {canViewColumn(userRole, 'ready', 'category') && <td className="border px-2 py-1">{item.sub_category}</td>}
+                        {canViewColumn(userRole, 'ready', 'product_name') && <td className="border px-2 py-1">{item.product_name}</td>}
                         <td className="border px-2 py-1 text-center">{item.id_product}</td>
-                        <td className="border px-2 py-1 text-right">{item.ready}</td>
+                        {canViewColumn(userRole, 'ready', 'quantity') && <td className="border px-2 py-1 text-right">{item.ready}</td>}
                         <td className="border px-2 py-1 text-right">{item.waste}</td>
-                        <td className="border px-2 py-1">
-                          <button
-                            onClick={() => handleEdit(item)}
-                            className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                          >
-                            <Edit size={12} />
-                          </button>
-                        </td>
+                        {(userRole === 'admin' || userRole === 'manager') && (
+                          <td className="border px-2 py-1">
+                            <button
+                              onClick={() => handleEdit(item)}
+                              className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                            >
+                              <Edit size={12} />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))
                   )}

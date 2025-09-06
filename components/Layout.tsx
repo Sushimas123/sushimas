@@ -37,25 +37,36 @@ export default function Layout({ children }: LayoutProps) {
     }
   }, [])
 
+  // Role-based menu filtering
+  const getFilteredMenuItems = (items: any[], role: string) => {
+    return items.filter(item => {
+      if (!item.roles) return true // jika tidak ada role restriction, tampilkan
+      return item.roles.includes(role)
+    })
+  }
+
   const topMenuItems = [
-    { name: "Ready Stock", href: "/ready", icon: Package },
-    { name: "Production", href: "/produksi", icon: Factory },
-    { name: "Production Detail", href: "/produksi_detail", icon: FileText },
-    { name: "Stock Opname", href: "/stock_opname", icon: FileText },
-    { name: "Gudang", href: "/gudang", icon: Warehouse },
-    { nama: "Setting", href: "/product_settings", icon: Settings2Icon },
-    { name: "View", href: "/analysis", icon: BarChart3 }
+    { name: "Ready Stock", href: "/ready", icon: Package, roles: ['admin', 'manager', 'pic_branch', 'staff'] },
+    { name: "Production", href: "/produksi", icon: Factory, roles: ['admin', 'manager', 'pic_branch'] },
+    { name: "Production Detail", href: "/produksi_detail", icon: FileText, roles: ['admin', 'manager'] },
+    { name: "Stock Opname", href: "/stock_opname", icon: FileText, roles: ['admin', 'manager', 'pic_branch'] },
+    { name: "Gudang", href: "/gudang", icon: Warehouse, roles: ['admin', 'manager', 'pic_branch'] },
+    { name: "Setting", href: "/product_settings", icon: Settings2Icon, roles: ['admin', 'manager'] },
+    { name: "View", href: "/analysis", icon: BarChart3, roles: ['admin', 'manager'] }
   ]
 
   const sideMenuItems = [
-    { name: "Esb Report", href: "/esb", icon: BarChart3 },
-    { name: "Product Name Report", href: "/product_name", icon: Package }, 
-    { name: "Categories", href: "/categories", icon: BookOpen },
-    { name: "Recipes", href: "/recipes", icon: BookOpen },
-    { name: "Supplier", href: "/supplier", icon: Truck },
-    { name: "Branches", href: "/branches", icon: Store },
-    { name: "Users", href: "/users", icon: Users }
+    { name: "Esb Report", href: "/esb", icon: BarChart3, roles: ['admin', 'manager'] },
+    { name: "Product Name Report", href: "/product_name", icon: Package, roles: ['admin', 'manager', 'pic_branch'] }, 
+    { name: "Categories", href: "/categories", icon: BookOpen, roles: ['admin', 'manager'] },
+    { name: "Recipes", href: "/recipes", icon: BookOpen, roles: ['admin', 'manager', 'pic_branch'] },
+    { name: "Supplier", href: "/supplier", icon: Truck, roles: ['admin', 'manager'] },
+    { name: "Branches", href: "/branches", icon: Store, roles: ['admin', 'manager'] },
+    { name: "Users", href: "/users", icon: Users, roles: ['admin'] }
   ]
+
+  const filteredTopMenuItems = getFilteredMenuItems(topMenuItems, userRole)
+  const filteredSideMenuItems = getFilteredMenuItems(sideMenuItems, userRole)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -77,7 +88,7 @@ export default function Layout({ children }: LayoutProps) {
                 </div>
               )}
               <nav className="flex items-center gap-2">
-              {topMenuItems.map((item) => {
+              {filteredTopMenuItems.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname === item.href
                 return (
@@ -131,7 +142,7 @@ export default function Layout({ children }: LayoutProps) {
 
           {/* Menu */}
           <nav className="flex-1 p-4 space-y-2">
-            {sideMenuItems.map((item) => {
+            {filteredSideMenuItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href
               return (
@@ -184,7 +195,7 @@ export default function Layout({ children }: LayoutProps) {
           </Link>
           
           {/* Top Menu Items */}
-          {topMenuItems.map((item) => {
+          {filteredTopMenuItems.slice(0, 3).map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href
             return (
@@ -223,7 +234,7 @@ export default function Layout({ children }: LayoutProps) {
         {['/esb', '/product_name', '/stock_opname', '/ready', '/categories', '/recipes', '/supplier', '/branches', '/users'].includes(pathname) && (
           <div className="border-t border-gray-700 bg-gray-700">
             <div className="flex overflow-x-auto py-1 px-1 gap-1">
-              {sideMenuItems.map((item) => {
+              {filteredSideMenuItems.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname === item.href
                 return (

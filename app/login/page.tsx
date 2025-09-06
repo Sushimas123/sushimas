@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/src/lib/supabaseClient'
+import Link from 'next/link'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -16,18 +17,62 @@ export default function LoginPage() {
     setError('')
 
     try {
-      // Sign in dengan email dan password
+      // Try direct database login first (bypass auth for development)
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id_user, email, nama_lengkap, role, cabang, password_hash')
+        .eq('email', email.trim())
+        .eq('is_active', true)
+        .single()
+
+      if (userData && userData.password_hash === password) {
+        // Direct login success
+        const userInfo = {
+          id: userData.id_user,
+          email: userData.email,
+          name: userData.nama_lengkap,
+          role: userData.role,
+          branch: userData.cabang
+        }
+        
+        localStorage.setItem('user', JSON.stringify(userInfo))
+        document.cookie = `user=${JSON.stringify(userInfo)}; path=/; max-age=86400`
+        router.push('/dashboard')
+        return
+      }
+
+      // Fallback to Supabase Auth
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password,
       })
 
       if (error) {
-        throw error
+        throw new Error('Invalid email or password')
       }
 
       if (data.user) {
-        // Redirect ke dashboard setelah login sukses
+        const { data: authUserData, error: authUserError } = await supabase
+          .from('users')
+          .select('id_user, email, nama_lengkap, role, cabang')
+          .eq('email', data.user.email)
+          .eq('is_active', true)
+          .single()
+
+        if (authUserError || !authUserData) {
+          throw new Error('User data not found')
+        }
+
+        const userInfo = {
+          id: authUserData.id_user,
+          email: authUserData.email,
+          name: authUserData.nama_lengkap,
+          role: authUserData.role,
+          branch: authUserData.cabang
+        }
+        
+        localStorage.setItem('user', JSON.stringify(userInfo))
+        document.cookie = `user=${JSON.stringify(userInfo)}; path=/; max-age=86400`
         router.push('/dashboard')
       }
     } catch (err: any) {
@@ -43,7 +88,7 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h1 className="text-center text-3xl font-extrabold text-gray-900">
-            📦 InvenPro
+            📦 Sushimas Inventory
           </h1>
           <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
             Sign in to your account
@@ -94,6 +139,11 @@ export default function LoginPage() {
             >
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
+          </div>
+          <div className="text-center">
+            <Link href="/register" className="text-blue-600 hover:text-blue-800">
+              Don't have account? Create one
+            </Link>
           </div>
         </form>
       </div>

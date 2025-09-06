@@ -6,6 +6,7 @@ import { Plus, Edit, Trash2, Download, Upload, Eye, EyeOff } from 'lucide-react'
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
+import { canViewColumn, getHiddenColumns } from '@/src/utils/columnPermissions';
 
 interface User {
   id_user: number;
@@ -50,6 +51,16 @@ function UsersPageContent() {
   const [importLoading, setImportLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [userRole, setUserRole] = useState<string>('guest');
+
+  // Get user role
+  useEffect(() => {
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      const user = JSON.parse(userData)
+      setUserRole(user.role || 'guest')
+    }
+  }, [])
 
   useEffect(() => {
     fetchUsers();
@@ -363,8 +374,19 @@ function UsersPageContent() {
   return (
     <div className="p-1 md:p-2">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-1">
+      <div className="flex items-center justify-between mb-1">
         <h1 className="text-sm font-bold text-gray-800">👥 User Management</h1>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-600">Access Level:</span>
+          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+            userRole === 'admin' ? 'bg-red-100 text-red-800' :
+            userRole === 'manager' ? 'bg-blue-100 text-blue-800' :
+            userRole === 'pic_branch' ? 'bg-green-100 text-green-800' :
+            'bg-gray-100 text-gray-800'
+          }`}>
+            {userRole.toUpperCase()}
+          </span>
+        </div>
       </div>
 
       {/* Search & Controls */}
@@ -398,13 +420,15 @@ function UsersPageContent() {
                 disabled={importLoading}
               />
             </label>
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
-            >
-              <Plus size={12} />
-              Add New
-            </button>
+            {userRole === 'admin' && (
+              <button
+                onClick={() => setShowAddForm(!showAddForm)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
+              >
+                <Plus size={12} />
+                Add New
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -522,82 +546,99 @@ function UsersPageContent() {
           <table className="w-full text-xs">
             <thead className="bg-gray-100">
               <tr>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Email</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Nama Lengkap</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">No Telp</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Role</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Branch</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Created</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Aksi</th>
+                {canViewColumn(userRole, 'users', 'email') && <th className="px-1 py-1 text-left font-medium text-gray-700">Email</th>}
+                {canViewColumn(userRole, 'users', 'nama_lengkap') && <th className="px-1 py-1 text-left font-medium text-gray-700">Nama Lengkap</th>}
+                {canViewColumn(userRole, 'users', 'no_telp') && <th className="px-1 py-1 text-left font-medium text-gray-700">No Telp</th>}
+                {canViewColumn(userRole, 'users', 'role') && <th className="px-1 py-1 text-left font-medium text-gray-700">Role</th>}
+                {canViewColumn(userRole, 'users', 'cabang') && <th className="px-1 py-1 text-left font-medium text-gray-700">Branch</th>}
+                {canViewColumn(userRole, 'users', 'created_at') && <th className="px-1 py-1 text-left font-medium text-gray-700">Created</th>}
+                {userRole === 'admin' && <th className="px-1 py-1 text-left font-medium text-gray-700">Aksi</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-1 py-2 text-center text-gray-500 text-xs">
-                    {searchTerm ? 'Tidak ada user yang sesuai dengan pencarian' : 'Belum ada data user'}
+                  <td colSpan={Object.keys(['email', 'nama_lengkap', 'no_telp', 'role', 'cabang', 'created_at', 'actions']).filter(col => 
+                    col === 'actions' ? userRole === 'admin' : canViewColumn(userRole, 'users', col)
+                  ).length} className="px-1 py-2 text-center text-gray-500 text-xs">
+                    {userRole === 'staff' ? 'You do not have permission to view user data' :
+                     searchTerm ? 'Tidak ada user yang sesuai dengan pencarian' : 'Belum ada data user'}
                   </td>
                 </tr>
               ) : (
                 filteredUsers.map((user) => (
                   <tr key={user.id_user} className="hover:bg-gray-50">
-                    <td className="px-1 py-1">
-                      <div className="font-medium text-blue-600">{user.email}</div>
-                    </td>
-                    <td className="px-1 py-1">
-                      <div className="font-medium text-gray-900">{user.nama_lengkap}</div>
-                    </td>
-                    <td className="px-1 py-1">
-                      <div className="text-gray-900">{user.no_telp || '-'}</div>
-                    </td>
-                    <td className="px-1 py-1">
-                      <span className={`px-1 py-0.5 rounded text-xs font-semibold ${
-                        user.role === 'admin' ? 'bg-red-100 text-red-800' :
-                        user.role === 'manager' ? 'bg-blue-100 text-blue-800' :
-                        user.role === 'pic_branch' ? 'bg-green-100 text-green-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="px-1 py-1">
-                      <div className="text-gray-900">
-                        {user.branches && user.branches.length > 0 
-                          ? user.branches.map(branchCode => {
-                              const branch = branches.find(b => b.kode_branch === branchCode);
-                              return branch ? branch.nama_branch : branchCode;
-                            }).join(', ')
-                          : (user.cabang || '-')
-                        }
-                      </div>
-                    </td>
-                    <td className="px-1 py-1">
-                      <div className="text-gray-500">
-                        {new Date(user.created_at).toLocaleDateString()}
-                      </div>
-                    </td>
-                    <td className="px-1 py-1 whitespace-nowrap">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleEdit(user)}
-                          className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                          title="Edit"
-                        >
-                          <Edit size={12} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(user.id_user)}
-                          disabled={deleteLoading === user.id_user}
-                          className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 disabled:opacity-50"
-                        >
-                          {deleteLoading === user.id_user ? (
-                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
-                          ) : (
-                            <Trash2 size={12} />
-                          )}
-                        </button>
-                      </div>
-                    </td>
+                    {canViewColumn(userRole, 'users', 'email') && (
+                      <td className="px-1 py-1">
+                        <div className="font-medium text-blue-600">{user.email}</div>
+                      </td>
+                    )}
+                    {canViewColumn(userRole, 'users', 'nama_lengkap') && (
+                      <td className="px-1 py-1">
+                        <div className="font-medium text-gray-900">{user.nama_lengkap}</div>
+                      </td>
+                    )}
+                    {canViewColumn(userRole, 'users', 'no_telp') && (
+                      <td className="px-1 py-1">
+                        <div className="text-gray-900">{user.no_telp || '-'}</div>
+                      </td>
+                    )}
+                    {canViewColumn(userRole, 'users', 'role') && (
+                      <td className="px-1 py-1">
+                        <span className={`px-1 py-0.5 rounded text-xs font-semibold ${
+                          user.role === 'admin' ? 'bg-red-100 text-red-800' :
+                          user.role === 'manager' ? 'bg-blue-100 text-blue-800' :
+                          user.role === 'pic_branch' ? 'bg-green-100 text-green-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {user.role}
+                        </span>
+                      </td>
+                    )}
+                    {canViewColumn(userRole, 'users', 'cabang') && (
+                      <td className="px-1 py-1">
+                        <div className="text-gray-900">
+                          {user.branches && user.branches.length > 0 
+                            ? user.branches.map(branchCode => {
+                                const branch = branches.find(b => b.kode_branch === branchCode);
+                                return branch ? branch.nama_branch : branchCode;
+                              }).join(', ')
+                            : (user.cabang || '-')
+                          }
+                        </div>
+                      </td>
+                    )}
+                    {canViewColumn(userRole, 'users', 'created_at') && (
+                      <td className="px-1 py-1">
+                        <div className="text-gray-500">
+                          {new Date(user.created_at).toLocaleDateString()}
+                        </div>
+                      </td>
+                    )}
+                    {userRole === 'admin' && (
+                      <td className="px-1 py-1 whitespace-nowrap">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleEdit(user)}
+                            className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                            title="Edit"
+                          >
+                            <Edit size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(user.id_user)}
+                            disabled={deleteLoading === user.id_user}
+                            className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 disabled:opacity-50"
+                          >
+                            {deleteLoading === user.id_user ? (
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
+                            ) : (
+                              <Trash2 size={12} />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
