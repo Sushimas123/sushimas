@@ -56,7 +56,10 @@ export default function ReadyPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedSubCategory, setSelectedSubCategory] = useState('');
+  const [selectedSubCategory, setSelectedSubCategory] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('')
+  const [categories, setCategories] = useState<string[]>([])
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(['bahan baku', 'wip']);
   const [formProducts, setFormProducts] = useState<FormProduct[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
@@ -76,15 +79,25 @@ export default function ReadyPage() {
   }, [])
 
   useEffect(() => {
-    fetchReady();
-    fetchMenuProducts();
-    fetchSubCategories();
-    fetchBranches();
+    const loadData = async () => {
+      await fetchReady();
+      await fetchSubCategories();
+      await fetchBranches();
+      await fetchCategories();
+    };
+    loadData();
   }, []);
 
+  // Fetch products when categories change
   useEffect(() => {
-    if (selectedSubCategory) {
-      // Match both WIP and non-WIP versions of the category
+    if (selectedCategories.length > 0) {
+      fetchMenuProducts();
+    }
+  }, [selectedCategories]);
+
+  useEffect(() => {
+    if (selectedSubCategory && menuProducts.length > 0) {
+      // Filter by sub category
       const products = menuProducts.filter(p => {
         const normalizedProductCategory = p.sub_category.toLowerCase().replace(/^wip\s+/, '');
         const normalizedSelectedCategory = selectedSubCategory.toLowerCase();
@@ -107,6 +120,8 @@ export default function ReadyPage() {
         ready: '',
         waste: ''
       })));
+    } else {
+      setFormProducts([]);
     }
   }, [selectedSubCategory, menuProducts]);
 
@@ -185,7 +200,8 @@ export default function ReadyPage() {
     try {
       const { data, error } = await supabase
         .from('nama_product')
-        .select('id_product, product_name, sub_category')
+        .select('id_product, product_name, sub_category, category')
+        .in('category', selectedCategories)
         .order('product_name');
       
       if (error) throw error;
@@ -220,6 +236,23 @@ export default function ReadyPage() {
       setSubCategories(groupedCategories.sort());
     } catch (error) {
       console.error('Error fetching sub categories:', error);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('nama_product')
+        .select('category')
+        .not('category', 'is', null);
+      
+      if (error) throw error;
+      
+      const uniqueCategories = [...new Set(data?.map(item => item.category).filter(Boolean))] as string[];
+      setCategories(uniqueCategories.sort());
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      setCategories(['bahan baku', 'wip', 'menu']);
     }
   };
 
@@ -664,7 +697,7 @@ export default function ReadyPage() {
             
             <form onSubmit={handleSubmit}>
               {/* Selection Form */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 p-3 bg-gray-50 rounded">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 p-3 bg-gray-50 rounded">
                 <div>
                   <label className="block text-xs font-medium mb-1 text-gray-700">Cabang *</label>
                   <select
@@ -690,6 +723,28 @@ export default function ReadyPage() {
                     className="border px-2 py-1 rounded-md text-xs w-full"
                     required
                   />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1 text-gray-700">Category Filter</label>
+                  <div className="border rounded-md p-2 max-h-20 overflow-y-auto bg-white">
+                    {categories.map(cat => (
+                      <label key={cat} className="flex items-center gap-1 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.includes(cat)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedCategories(prev => [...prev, cat])
+                            } else {
+                              setSelectedCategories(prev => prev.filter(c => c !== cat))
+                            }
+                          }}
+                          className="w-3 h-3"
+                        />
+                        <span className="capitalize">{cat}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1 text-gray-700">Sub Category *</label>
