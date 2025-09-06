@@ -6,7 +6,7 @@ import { Plus, Edit, Trash2, Download, Upload } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
-import { getBranchFilter, getAllowedBranches } from '@/src/utils/branchAccess';
+import { getBranchFilter, applyBranchFilter } from '@/src/utils/branchAccess';
 
 interface Gudang {
   uniqueid_gudang: string;
@@ -107,7 +107,12 @@ function GudangPageContent() {
       
       if (error) throw error;
       // Filter branches based on user access
-      const filteredBranches = getAllowedBranches(data || []);
+      // Apply branch filtering based on user role
+      let filteredBranches = data || [];
+      const branchFilter = await getBranchFilter();
+      if (branchFilter && branchFilter.length > 0) {
+        filteredBranches = data?.filter(branch => branchFilter.includes(branch.kode_branch)) || [];
+      }
       setCabangList(filteredBranches);
     } catch (error) {
       console.error('Error fetching cabang:', error);

@@ -6,7 +6,7 @@ import { Download, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { getBranchFilter, getAllowedBranches } from '@/src/utils/branchAccess';
+import { getBranchFilter, applyBranchFilter } from '@/src/utils/branchAccess';
 
 
 interface AnalysisData {
@@ -271,11 +271,20 @@ export default function AnalysisPage() {
       });
       
       // Apply branch filter only for display (CRITICAL: calculations already done)
-      const userBranchFilter = getBranchFilter();
-      if (userBranchFilter) {
-        filteredAnalysisData = filteredAnalysisData.filter(item => 
-          item.cabang === userBranchFilter
-        );
+      const userBranchFilter = await getBranchFilter();
+      if (userBranchFilter && userBranchFilter.length > 0) {
+        // Get branch names from codes
+        const { data: branchData } = await supabase
+          .from('branches')
+          .select('nama_branch, kode_branch')
+          .in('kode_branch', userBranchFilter);
+        
+        const allowedBranchNames = branchData?.map(b => b.nama_branch) || [];
+        if (allowedBranchNames.length > 0) {
+          filteredAnalysisData = filteredAnalysisData.filter(item => 
+            allowedBranchNames.includes(item.cabang)
+          );
+        }
       }
 
       setData(filteredAnalysisData);

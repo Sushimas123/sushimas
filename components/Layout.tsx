@@ -18,6 +18,8 @@ import {
   Settings2Icon,
   User
 } from "lucide-react"
+import { canAccessPage } from '@/src/utils/dbPermissions'
+import { supabase } from '@/src/lib/supabaseClient'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -26,48 +28,99 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const pathname = usePathname()
   const [userRole, setUserRole] = useState<string>('')
-  const [userBranch, setUserBranch] = useState<string>('')
+  const [userBranches, setUserBranches] = useState<string[]>([])
+  const [userName, setUserName] = useState<string>('')
 
   useEffect(() => {
     const user = localStorage.getItem('user')
     if (user) {
       const userData = JSON.parse(user)
       setUserRole(userData.role || 'guest')
-      setUserBranch(userData.branch || '')
+      setUserName(userData.nama_lengkap || userData.email || '')
+      
+      // Get user's branches from user_branches table
+      if (userData.id_user) {
+        fetchUserBranches(userData.id_user, userData.role)
+      }
     }
   }, [])
 
-  // Role-based menu filtering
-  const getFilteredMenuItems = (items: any[], role: string) => {
-    return items.filter(item => {
-      if (!item.roles) return true // jika tidak ada role restriction, tampilkan
-      return item.roles.includes(role)
-    })
+  const fetchUserBranches = async (userId: number, role: string) => {
+    try {
+      if (role === 'admin' || role === 'manager') {
+        setUserBranches(['All Branches'])
+        return
+      }
+      
+      const { data } = await supabase
+        .from('user_branches')
+        .select(`
+          kode_branch,
+          branches!inner(nama_branch)
+        `)
+        .eq('id_user', userId)
+        .eq('is_active', true)
+      
+      const branchNames = data?.map(item => item.branches.nama_branch) || []
+      setUserBranches(branchNames.length > 0 ? branchNames : ['No Branch Assigned'])
+    } catch (error) {
+      console.error('Error fetching user branches:', error)
+      setUserBranches(['Unknown'])
+    }
   }
 
+  // Permission-based menu filtering
+  const getFilteredMenuItems = async (items: any[], role: string) => {
+    const filteredItems = []
+    for (const item of items) {
+      const hasAccess = await canAccessPage(role, item.href.replace('/', ''))
+      if (hasAccess) {
+        filteredItems.push(item)
+      }
+    }
+    return filteredItems
+  }
+
+  const [filteredTopMenuItems, setFilteredTopMenuItems] = useState<any[]>([])
+  const [filteredSideMenuItems, setFilteredSideMenuItems] = useState<any[]>([])
+  const [menuLoading, setMenuLoading] = useState(true)
+
+  useEffect(() => {
+    if (userRole) {
+      setMenuLoading(true)
+      Promise.all([
+        getFilteredMenuItems(topMenuItems, userRole),
+        getFilteredMenuItems(sideMenuItems, userRole)
+      ]).then(([topItems, sideItems]) => {
+        setFilteredTopMenuItems(topItems)
+        setFilteredSideMenuItems(sideItems)
+        setMenuLoading(false)
+      })
+    }
+  }, [userRole])
+
   const topMenuItems = [
-    { name: "Ready Stock", href: "/ready", icon: Package, roles: ['admin', 'manager', 'pic_branch', 'staff'] },
-    { name: "Production", href: "/produksi", icon: Factory, roles: ['admin', 'manager', 'pic_branch'] },
-    { name: "Production Detail", href: "/produksi_detail", icon: FileText, roles: ['admin', 'manager'] },
-    { name: "Stock Opname", href: "/stock_opname", icon: FileText, roles: ['admin', 'manager', 'pic_branch'] },
-    { name: "Gudang", href: "/gudang", icon: Warehouse, roles: ['admin', 'manager', 'pic_branch'] },
-    { name: "Setting", href: "/product_settings", icon: Settings2Icon, roles: ['admin', 'manager'] },
-    { name: "View", href: "/analysis", icon: BarChart3, roles: ['admin', 'manager'] }
+    { name: "Ready Stock", href: "/ready", icon: Package },
+    { name: "Production", href: "/produksi", icon: Factory },
+    { name: "Production Detail", href: "/produksi_detail", icon: FileText },
+    { name: "Stock Opname", href: "/stock_opname", icon: FileText },
+    { name: "Gudang", href: "/gudang", icon: Warehouse },
+    { name: "Setting", href: "/product_settings", icon: Settings2Icon },
+    { name: "View", href: "/analysis", icon: BarChart3 }
   ]
 
   const sideMenuItems = [
-    { name: "Esb Report", href: "/esb", icon: BarChart3, roles: ['admin', 'manager'] },
-    { name: "Product Name Report", href: "/product_name", icon: Package, roles: ['admin', 'manager', 'pic_branch'] }, 
-    { name: "Categories", href: "/categories", icon: BookOpen, roles: ['admin', 'manager'] },
-    { name: "Recipes", href: "/recipes", icon: BookOpen, roles: ['admin', 'manager', 'pic_branch'] },
-    { name: "Supplier", href: "/supplier", icon: Truck, roles: ['admin', 'manager'] },
-    { name: "Branches", href: "/branches", icon: Store, roles: ['admin', 'manager'] },
-    { name: "Users", href: "/users", icon: Users, roles: ['admin'] },
-    { name: "Permissions", href: "/permissions", icon: Settings2Icon, roles: ['admin'] }
+    { name: "Esb Report", href: "/esb", icon: BarChart3 },
+    { name: "Product Name Report", href: "/product_name", icon: Package }, 
+    { name: "Categories", href: "/categories", icon: BookOpen },
+    { name: "Recipes", href: "/recipes", icon: BookOpen },
+    { name: "Supplier", href: "/supplier", icon: Truck },
+    { name: "Branches", href: "/branches", icon: Store },
+    { name: "Users", href: "/users", icon: Users },
+    { name: "Permissions", href: "/permissions", icon: Settings2Icon }
   ]
 
-  const filteredTopMenuItems = getFilteredMenuItems(topMenuItems, userRole)
-  const filteredSideMenuItems = getFilteredMenuItems(sideMenuItems, userRole)
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -84,7 +137,9 @@ export default function Layout({ children }: LayoutProps) {
                   <User size={14} />
                   <div className="flex flex-col">
                     <span className="text-xs font-medium capitalize">{userRole}</span>
-                    {userBranch && <span className="text-xs text-gray-300">{userBranch}</span>}
+                    <span className="text-xs text-gray-300 truncate max-w-32" title={userBranches.join(', ')}>
+                      {userBranches.length > 0 ? userBranches.join(', ') : 'Loading...'}
+                    </span>
                   </div>
                 </div>
               )}
@@ -125,7 +180,9 @@ export default function Layout({ children }: LayoutProps) {
               <User size={12} />
               <div className="flex flex-col">
                 <span className="text-xs font-medium capitalize">{userRole}</span>
-                {userBranch && <span className="text-xs text-gray-300">{userBranch}</span>}
+                <span className="text-xs text-gray-300 truncate max-w-20" title={userBranches.join(', ')}>
+                  {userBranches.length > 0 ? userBranches[0] : 'Loading...'}
+                </span>
               </div>
             </div>
           )}
@@ -143,25 +200,31 @@ export default function Layout({ children }: LayoutProps) {
 
           {/* Menu */}
           <nav className="flex-1 p-4 space-y-2">
-            {filteredSideMenuItems.map((item) => {
-              const Icon = item.icon
-              const isActive = pathname === item.href
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-sm font-medium
-                    ${
-                      isActive
-                        ? "bg-gray-100 text-gray-800"
-                        : "text-gray-300 hover:bg-gray-700 hover:text-white"
-                    }`}
-                >
-                  <Icon size={18} />
-                  <span>{item.name}</span>
-                </Link>
-              )
-            })}
+            {menuLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+              </div>
+            ) : (
+              filteredSideMenuItems.map((item) => {
+                const Icon = item.icon
+                const isActive = pathname === item.href
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-sm font-medium
+                      ${
+                        isActive
+                          ? "bg-gray-100 text-gray-800"
+                          : "text-gray-300 hover:bg-gray-700 hover:text-white"
+                      }`}
+                  >
+                    <Icon size={18} />
+                    <span>{item.name}</span>
+                  </Link>
+                )
+              })
+            )}
           </nav>
 
           {/* Footer */}

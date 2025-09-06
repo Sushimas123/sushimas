@@ -20,8 +20,8 @@ export const COLUMN_PERMISSIONS = {
   ready: {
     admin: ['*'],
     manager: ['*'],
-    pic_branch: ['product_name', 'category', 'quantity', 'unit', 'branch', 'last_updated'],
-    staff: ['product_name', 'quantity', 'branch']
+    pic_branch: ['ready_no', 'tanggal_input', 'branch', 'category', 'product_name', 'product_id', 'quantity', 'waste'],
+    staff: ['product_name', 'quantity']
   },
   
   // Production columns
@@ -115,8 +115,11 @@ export const COLUMN_PERMISSIONS = {
 
 // Function to check if user can see a column
 export const canViewColumn = (userRole: string, tableName: string, columnName: string): boolean => {
-  // Check for custom permissions first
-  const customPerms = localStorage.getItem('customPermissions')
+  // Check for custom permissions first (only in browser)
+  let customPerms = null
+  if (typeof window !== 'undefined') {
+    customPerms = localStorage.getItem('customPermissions')
+  }
   const permissions = customPerms ? JSON.parse(customPerms) : COLUMN_PERMISSIONS
   
   const tablePermissions = permissions[tableName as keyof typeof permissions]

@@ -1,47 +1,121 @@
-// Branch-based access control utilities
-export interface UserBranchInfo {
-  role: string;
-  cabang: string | null;
+import { supabase } from '@/src/lib/supabaseClient'
+
+interface User {
+  id_user: number
+  role: string
+  cabang?: string
+  branches?: string[]
 }
 
-export const getUserBranchInfo = (): UserBranchInfo => {
+// Get current user's branch information
+export const getCurrentUser = (): User | null => {
+  if (typeof window === 'undefined') return null
+  
+  const userData = localStorage.getItem('user')
+  if (!userData) return null
+  
   try {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const user = JSON.parse(userData);
-      return {
-        role: user.role || 'staff',
-        cabang: user.cabang || null
-      };
-    }
-  } catch (error) {
-    console.error('Error getting user branch info:', error);
+    return JSON.parse(userData)
+  } catch {
+    return null
   }
-  return { role: 'staff', cabang: null };
-};
+}
 
-export const shouldFilterByBranch = (userRole: string): boolean => {
-  // Only PIC Branch users are restricted to their branch
-  return userRole === 'pic_branch';
-};
-
-export const getBranchFilter = (): string | null => {
-  const { role, cabang } = getUserBranchInfo();
-  return shouldFilterByBranch(role) ? cabang : null;
-};
-
-// For forms - get allowed branches for user
-export const getAllowedBranches = (allBranches: any[]): any[] => {
-  const { role, cabang } = getUserBranchInfo();
+// Get user's allowed branches based on role and assignments
+export const getUserBranches = async (userId: number): Promise<string[]> => {
+  const user = getCurrentUser()
+  if (!user) return []
   
-  if (shouldFilterByBranch(role) && cabang) {
-    // PIC Branch can only see their branch
-    return allBranches.filter(branch => 
-      branch.nama_branch === cabang || 
-      branch.kode_branch === cabang
-    );
+  // Admin & Manager can see all branches
+  if (user.role === 'admin' || user.role === 'manager') {
+    const { data } = await supabase
+      .from('branches')
+      .select('kode_branch')
+      .eq('is_active', true)
+    
+    return data?.map(b => b.kode_branch) || []
   }
   
-  // Admin, Manager, Staff can see all branches
-  return allBranches;
-};
+  // PIC Branch & Staff only see assigned branches
+  const { data } = await supabase
+    .from('user_branches')
+    .select('kode_branch')
+    .eq('id_user', userId)
+    .eq('is_active', true)
+  
+  return data?.map(b => b.kode_branch) || []
+}
+
+// Get branch filter for queries (returns branch codes user can access)
+export const getBranchFilter = async (): Promise<string[] | null> => {
+  const user = getCurrentUser()
+  if (!user) return null
+  
+  // Admin & Manager see all branches (no filter)
+  if (user.role === 'admin' || user.role === 'manager') {
+    return null // No filter = see all
+  }
+  
+  // Get user's assigned branches
+  return await getUserBranches(user.id_user)
+}
+
+// Get user's default/primary branch for auto-selection
+export const getUserDefaultBranch = async (): Promise<string | null> => {
+  const user = getCurrentUser()
+  if (!user) return null
+  
+  // For admin/manager, return first branch or null (they choose manually)
+  if (user.role === 'admin' || user.role === 'manager') {
+    return null
+  }
+  
+  // For PIC Branch/Staff, return their first assigned branch
+  const branches = await getUserBranches(user.id_user)
+  return branches.length > 0 ? branches[0] : null
+}
+
+// Apply branch filter to Supabase query
+export const applyBranchFilter = async (query: any, branchColumn: string = 'kode_branch') => {
+  const branchFilter = await getBranchFilter()
+  
+  if (branchFilter && branchFilter.length > 0) {
+    return query.in(branchColumn, branchFilter)
+  }
+  
+  return query // No filter for admin/manager
+}
+
+// Synchronous version for immediate use
+export const applyBranchFilterSync = (query: any, branchCodes: string[], branchColumn: string = 'kode_branch') => {
+  if (branchCodes && branchCodes.length > 0) {
+    return query.in(branchColumn, branchCodes)
+  }
+  return query
+}
+
+// Get branch name from code
+export const getBranchName = async (branchCode: string): Promise<string> => {
+  const { data } = await supabase
+    .from('branches')
+    .select('nama_branch')
+    .eq('kode_branch', branchCode)
+    .single()
+  
+  return data?.nama_branch || branchCode
+}
+
+// Check if user can access specific branch
+export const canAccessBranch = async (branchCode: string): Promise<boolean> => {
+  const user = getCurrentUser()
+  if (!user) return false
+  
+  // Admin & Manager can access all branches
+  if (user.role === 'admin' || user.role === 'manager') {
+    return true
+  }
+  
+  // Check if branch is in user's assigned branches
+  const userBranches = await getUserBranches(user.id_user)
+  return userBranches.includes(branchCode)
+}

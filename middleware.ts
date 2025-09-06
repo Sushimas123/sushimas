@@ -1,23 +1,22 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// Route permissions berdasarkan role
-const ROUTE_PERMISSIONS = {
-  '/dashboard': ['admin', 'manager', 'pic_branch', 'staff'],
-  '/ready': ['admin', 'manager', 'pic_branch', 'staff'],
-  '/produksi': ['admin', 'manager', 'pic_branch'],
-  '/produksi_detail': ['admin', 'manager'],
-  '/stock_opname': ['admin', 'manager', 'pic_branch'],
-  '/gudang': ['admin', 'manager', 'pic_branch'],
-  '/product_settings': ['admin', 'manager'],
-  '/analysis': ['admin', 'manager'],
-  '/esb': ['admin', 'manager'],
-  '/product_name': ['admin', 'manager', 'pic_branch'],
-  '/categories': ['admin', 'manager'],
-  '/recipes': ['admin', 'manager', 'pic_branch'],
-  '/supplier': ['admin', 'manager'],
-  '/branches': ['admin', 'manager'],
-  '/users': ['admin']
+// Role-based page access control
+const ROLE_PAGE_ACCESS = {
+  admin: ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname', 'supplier', 'permissions', 'permissions-db'],
+  manager: ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname', 'supplier'],
+  pic_branch: ['dashboard', 'esb', 'ready', 'produksi', 'analysis', 'gudang', 'stock_opname'],
+  staff: ['dashboard', 'esb', 'ready', 'produksi', 'gudang', 'stock_opname']
+}
+
+// Function to check page access based on role
+function canAccessPage(userRole: string, pagePath: string): boolean {
+  // Remove leading slash and get page name
+  const pageName = pagePath.replace('/', '') || 'dashboard'
+  
+  // Check if user role has access to this page
+  const allowedPages = ROLE_PAGE_ACCESS[userRole as keyof typeof ROLE_PAGE_ACCESS] || []
+  return allowedPages.includes(pageName)
 }
 
 export function middleware(request: NextRequest) {
@@ -29,14 +28,13 @@ export function middleware(request: NextRequest) {
   }
 
   // Check if route requires authentication
-  const requiredRoles = ROUTE_PERMISSIONS[pathname as keyof typeof ROUTE_PERMISSIONS]
+  const protectedRoutes = ['/dashboard', '/esb', '/ready', '/users', '/produksi', '/analysis', '/branches', '/categories', '/gudang', '/product_name', '/product_settings', '/produksi_detail', '/recipes', '/stock_opname', '/supplier', '/permissions', '/permissions-db']
   
-  if (requiredRoles) {
-    // Get user data from cookie or header (since we can't access localStorage in middleware)
+  if (protectedRoutes.includes(pathname)) {
+    // Get user data from cookie
     const userCookie = request.cookies.get('user')
     
     if (!userCookie) {
-      // Redirect to login if no user data
       return NextResponse.redirect(new URL('/login', request.url))
     }
 
@@ -44,12 +42,11 @@ export function middleware(request: NextRequest) {
       const userData = JSON.parse(userCookie.value)
       const userRole = userData.role
 
-      if (!requiredRoles.includes(userRole)) {
-        // Redirect to dashboard if user doesn't have permission
+      // Check if user can access this page
+      if (!canAccessPage(userRole, pathname)) {
         return NextResponse.redirect(new URL('/dashboard', request.url))
       }
     } catch (error) {
-      // Redirect to login if user data is invalid
       return NextResponse.redirect(new URL('/login', request.url))
     }
   }

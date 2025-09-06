@@ -6,8 +6,8 @@ import { Plus, Edit, Trash2, Download, Upload, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
-import { canViewColumn } from '@/src/utils/columnPermissions';
-import { getBranchFilter, getAllowedBranches } from '@/src/utils/branchAccess';
+import { canViewColumn } from '@/src/utils/dbPermissions';
+import { getBranchFilter, getUserDefaultBranch } from '@/src/utils/branchAccess';
 
 interface Ready {
   id_ready: number;
@@ -69,15 +69,28 @@ export default function ReadyPage() {
   const [showDataTable, setShowDataTable] = useState(false);
   const [requireReadyInput, setRequireReadyInput] = useState(true);
   const [userRole, setUserRole] = useState<string>('guest');
+  const [userId, setUserId] = useState<number | null>(null);
 
-  // Get user role
+  // Get user info and set default branch
   useEffect(() => {
     const userData = localStorage.getItem('user')
     if (userData) {
       const user = JSON.parse(userData)
       setUserRole(user.role || 'guest')
+      setUserId(user.id_user || null)
+      
+      // Auto-select user's default branch
+      getUserDefaultBranch().then(defaultBranch => {
+        if (defaultBranch) {
+          // Find branch ID from code
+          const branch = branches.find(b => b.nama_branch === defaultBranch)
+          if (branch) {
+            setSelectedBranch(branch.id_branch.toString())
+          }
+        }
+      })
     }
-  }, [])
+  }, [branches])
 
   useEffect(() => {
     const loadData = async () => {
@@ -154,9 +167,30 @@ export default function ReadyPage() {
 
   const fetchReady = async () => {
     try {
-      // Fetch all data in parallel - only filter display data, not calculation data
+      // Get branch filter first
+      const branchFilter = await getBranchFilter()
+      
+      // Build query with branch filtering
+      let readyQuery = supabase.from('ready').select('*')
+      
+      // Apply branch filter for non-admin/manager users
+      if (branchFilter && branchFilter.length > 0) {
+        // Get branch IDs from codes
+        const { data: branchData } = await supabase
+          .from('branches')
+          .select('id_branch, kode_branch')
+          .in('kode_branch', branchFilter)
+        
+        const branchIds = branchData?.map(b => b.id_branch) || []
+        if (branchIds.length > 0) {
+          readyQuery = readyQuery.in('id_branch', branchIds)
+        }
+      }
+      
+      readyQuery = readyQuery.order('tanggal_input', { ascending: false })
+      
       const [readyData, productsData, branchesData] = await Promise.all([
-        supabase.from('ready').select('*').order('tanggal_input', { ascending: false }),
+        readyQuery,
         supabase.from('nama_product').select('id_product, product_name'),
         supabase.from('branches').select('id_branch, nama_branch')
       ]);
@@ -168,19 +202,11 @@ export default function ReadyPage() {
       const branchMap = new Map(branchesData.data?.map(b => [b.id_branch, b.nama_branch]) || []);
       
       // Transform data using lookup maps
-      let readyWithNames = (readyData.data || []).map((item: any) => ({
+      const readyWithNames = (readyData.data || []).map((item: any) => ({
         ...item,
         product_name: productMap.get(item.id_product) || '',
         branch_name: branchMap.get(item.id_branch) || ''
       }));
-      
-      // Apply branch filter only for display (not for calculations)
-      const userBranchFilter = getBranchFilter();
-      if (userBranchFilter) {
-        readyWithNames = readyWithNames.filter(item => 
-          item.branch_name === userBranchFilter
-        );
-      }
       
       setReady(readyWithNames);
     } catch (error) {
@@ -192,16 +218,25 @@ export default function ReadyPage() {
 
   const fetchBranches = async () => {
     try {
-      const { data, error } = await supabase
+      // Get branch filter first
+      const branchFilter = await getBranchFilter()
+      
+      let branchQuery = supabase
         .from('branches')
-        .select('id_branch, nama_branch')
+        .select('id_branch, nama_branch, kode_branch')
         .eq('is_active', true)
-        .order('nama_branch');
+      
+      // Apply branch filter for non-admin/manager users
+      if (branchFilter && branchFilter.length > 0) {
+        branchQuery = branchQuery.in('kode_branch', branchFilter)
+      }
+      
+      branchQuery = branchQuery.order('nama_branch')
+      
+      const { data, error } = await branchQuery;
       
       if (error) throw error;
-      // Filter branches based on user access
-      const filteredBranches = getAllowedBranches(data || []);
-      setBranches(filteredBranches);
+      setBranches(data || []);
     } catch (error) {
       console.error('Error fetching branches:', error);
     }
@@ -615,7 +650,7 @@ export default function ReadyPage() {
         }
 
         // Find product ID - prioritize Product ID over Product name
-        let productId;
+        let productId: number;
         if (row['Product ID']) {
           // Use Product ID directly
           productId = parseInt(row['Product ID']);
@@ -1168,13 +1203,13 @@ export default function ReadyPage() {
                         className="cursor-pointer"
                       />
                     </th>
-                    {canViewColumn(userRole, 'ready', 'ready_no') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready_no')}>Ready No</th>}
-                    {canViewColumn(userRole, 'ready', 'tanggal_input') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>Tanggal</th>}
-                    {canViewColumn(userRole, 'ready', 'branch') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>Cabang</th>}
-                    {canViewColumn(userRole, 'ready', 'category') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sub_category')}>Sub Category</th>}
-                    {canViewColumn(userRole, 'ready', 'product_name') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>Product</th>}
+                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready_no')}>Ready No</th>
+                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>Tanggal</th>
+                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>Cabang</th>
+                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sub_category')}>Sub Category</th>
+                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>Product</th>
                     <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id_product')}>Product ID</th>
-                    {canViewColumn(userRole, 'ready', 'quantity') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>}
+                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>
                     <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('waste')}>Waste</th>
                     {(userRole === 'admin' || userRole === 'manager') && <th className="border px-2 py-1 text-left font-medium">Actions</th>}
                   </tr>
@@ -1192,14 +1227,8 @@ export default function ReadyPage() {
                     ))
                   ) : paginatedReady.length === 0 ? (
                     <tr>
-                      <td colSpan={Object.keys(['ready_no', 'tanggal_input', 'branch', 'category', 'product_name', 'id_product', 'quantity', 'waste', 'actions']).filter(col => 
-                        col === 'actions' ? (userRole === 'admin' || userRole === 'manager') : 
-                        col === 'id_product' || col === 'waste' ? true :
-                        canViewColumn(userRole, 'ready', col)
-                      ).length} className="text-center py-2 text-gray-500 text-xs">
-                        {userRole === 'staff' && !canViewColumn(userRole, 'ready', 'product_name') ? 
-                         'You have limited access to ready stock data' : 
-                         'No ready stock records found'}
+                      <td colSpan={userRole === 'admin' || userRole === 'manager' ? 10 : 9} className="text-center py-2 text-gray-500 text-xs">
+                        No ready stock records found
                       </td>
                     </tr>
                   ) : (
@@ -1213,13 +1242,13 @@ export default function ReadyPage() {
                             className="cursor-pointer"
                           />
                         </td>
-                        {canViewColumn(userRole, 'ready', 'ready_no') && <td className="border px-2 py-1">{item.ready_no}</td>}
-                        {canViewColumn(userRole, 'ready', 'tanggal_input') && <td className="border px-2 py-1">{item.tanggal_input}</td>}
-                        {canViewColumn(userRole, 'ready', 'branch') && <td className="border px-2 py-1">{item.branch_name}</td>}
-                        {canViewColumn(userRole, 'ready', 'category') && <td className="border px-2 py-1">{item.sub_category}</td>}
-                        {canViewColumn(userRole, 'ready', 'product_name') && <td className="border px-2 py-1">{item.product_name}</td>}
+                        <td className="border px-2 py-1">{item.ready_no}</td>
+                        <td className="border px-2 py-1">{item.tanggal_input}</td>
+                        <td className="border px-2 py-1">{item.branch_name}</td>
+                        <td className="border px-2 py-1">{item.sub_category}</td>
+                        <td className="border px-2 py-1">{item.product_name}</td>
                         <td className="border px-2 py-1 text-center">{item.id_product}</td>
-                        {canViewColumn(userRole, 'ready', 'quantity') && <td className="border px-2 py-1 text-right">{item.ready}</td>}
+                        <td className="border px-2 py-1 text-right">{item.ready}</td>
                         <td className="border px-2 py-1 text-right">{item.waste}</td>
                         {(userRole === 'admin' || userRole === 'manager') && (
                           <td className="border px-2 py-1">

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Layout from '../../components/Layout'
 import { BarChart3, Package, Users, Store, Truck, BookOpen, Factory, FileText, Warehouse } from 'lucide-react'
 import Link from 'next/link'
+import { canAccessPage } from '@/src/utils/dbPermissions'
 
 interface User {
   id: number
@@ -44,26 +45,42 @@ function DashboardContent() {
     router.push('/login')
   }
 
-  // Role-based menu items
-  const getMenuItems = (role: string) => {
+  const [menuItems, setMenuItems] = useState<any[]>([])
+
+  // Get menu items based on database permissions
+  const getMenuItems = async (role: string) => {
     const allItems = [
-      { name: "Ready Stock", href: "/ready", icon: Package, roles: ['admin', 'manager', 'pic_branch', 'staff'] },
-      { name: "Production", href: "/produksi", icon: Factory, roles: ['admin', 'manager', 'pic_branch'] },
-      { name: "Production Detail", href: "/produksi_detail", icon: FileText, roles: ['admin', 'manager'] },
-      { name: "Stock Opname", href: "/stock_opname", icon: FileText, roles: ['admin', 'manager', 'pic_branch'] },
-      { name: "Gudang", href: "/gudang", icon: Warehouse, roles: ['admin', 'manager', 'pic_branch'] },
-      { name: "ESB Report", href: "/esb", icon: BarChart3, roles: ['admin', 'manager'] },
-      { name: "Product Name Report", href: "/product_name", icon: Package, roles: ['admin', 'manager', 'pic_branch'] },
-      { name: "Analysis", href: "/analysis", icon: BarChart3, roles: ['admin', 'manager'] },
-      { name: "Categories", href: "/categories", icon: BookOpen, roles: ['admin', 'manager'] },
-      { name: "Recipes", href: "/recipes", icon: BookOpen, roles: ['admin', 'manager', 'pic_branch'] },
-      { name: "Supplier", href: "/supplier", icon: Truck, roles: ['admin', 'manager'] },
-      { name: "Branches", href: "/branches", icon: Store, roles: ['admin', 'manager'] },
-      { name: "Users", href: "/users", icon: Users, roles: ['admin'] }
+      { name: "Ready Stock", href: "/ready", icon: Package },
+      { name: "Production", href: "/produksi", icon: Factory },
+      { name: "Production Detail", href: "/produksi_detail", icon: FileText },
+      { name: "Stock Opname", href: "/stock_opname", icon: FileText },
+      { name: "Gudang", href: "/gudang", icon: Warehouse },
+      { name: "ESB Report", href: "/esb", icon: BarChart3 },
+      { name: "Product Name Report", href: "/product_name", icon: Package },
+      { name: "Analysis", href: "/analysis", icon: BarChart3 },
+      { name: "Categories", href: "/categories", icon: BookOpen },
+      { name: "Recipes", href: "/recipes", icon: BookOpen },
+      { name: "Supplier", href: "/supplier", icon: Truck },
+      { name: "Branches", href: "/branches", icon: Store },
+      { name: "Users", href: "/users", icon: Users }
     ]
     
-    return allItems.filter(item => item.roles.includes(role))
+    const filteredItems = []
+    for (const item of allItems) {
+      const hasAccess = await canAccessPage(role, item.href.replace('/', ''))
+      if (hasAccess) {
+        filteredItems.push(item)
+      }
+    }
+    return filteredItems
   }
+
+  // Load menu items when user changes
+  useEffect(() => {
+    if (user?.role) {
+      getMenuItems(user.role).then(setMenuItems)
+    }
+  }, [user])
 
   if (loading) {
     return (
@@ -77,7 +94,7 @@ function DashboardContent() {
     return null
   }
 
-  const menuItems = getMenuItems(user.role)
+  // menuItems is now loaded via useEffect
 
   return (
     <div className="p-6">

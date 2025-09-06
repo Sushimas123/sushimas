@@ -28,9 +28,9 @@ export default function LoginPage() {
       if (userData && userData.password_hash === password) {
         // Direct login success
         const userInfo = {
-          id: userData.id_user,
+          id_user: userData.id_user,
           email: userData.email,
-          name: userData.nama_lengkap,
+          nama_lengkap: userData.nama_lengkap,
           role: userData.role,
           cabang: userData.cabang
         }
@@ -48,6 +48,7 @@ export default function LoginPage() {
       })
 
       if (error) {
+        console.log('Supabase auth error:', error)
         throw new Error('Invalid email or password')
       }
 
@@ -64,9 +65,9 @@ export default function LoginPage() {
         }
 
         const userInfo = {
-          id: authUserData.id_user,
+          id_user: authUserData.id_user,
           email: authUserData.email,
-          name: authUserData.nama_lengkap,
+          nama_lengkap: authUserData.nama_lengkap,
           role: authUserData.role,
           cabang: authUserData.cabang
         }
