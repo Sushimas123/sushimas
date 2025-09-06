@@ -175,27 +175,36 @@ export default function AnalysisPage() {
   const fetchAnalysisData = async () => {
     setLoading(true);
     try {
-      // Try to fetch from analysis view first with date filter
+      // Add buffer 1 day before start date for accurate calculation
+      const bufferDate = new Date(dateRange.startDate);
+      bufferDate.setDate(bufferDate.getDate() - 1);
+      const bufferDateStr = bufferDate.toISOString().split('T')[0];
+
+      // Try to fetch from analysis view first with buffer
       const { data: viewData, error: viewError } = await supabase
         .from('analysis_view')
         .select('*')
-        .gte('tanggal', dateRange.startDate)
+        .gte('tanggal', bufferDateStr)
         .lte('tanggal', dateRange.endDate)
         .order('tanggal', { ascending: false });
 
       if (!viewError && viewData) {
-        setData(viewData);
+        // Filter for display (remove buffer data)
+        const filteredViewData = viewData.filter(item => 
+          item.tanggal >= dateRange.startDate && item.tanggal <= dateRange.endDate
+        );
+        setData(filteredViewData);
         return;
       }
 
-      // Fallback to manual calculation with date filter
+      // Fallback: fetch data with buffer for accurate calculation
       const { data: readyData, error: readyError } = await supabase
         .from('ready')
         .select('*')
-        .gte('tanggal_input', dateRange.startDate)
+        .gte('tanggal_input', bufferDateStr)
         .lte('tanggal_input', dateRange.endDate)
         .order('tanggal_input', { ascending: false })
-        .limit(500);
+        .limit(1000);
 
       if (readyError) {
         throw new Error(`Failed to fetch ready data: ${readyError.message}`);
@@ -203,33 +212,37 @@ export default function AnalysisPage() {
 
       const { data: productData } = await supabase.from('nama_product').select('*');
       const { data: branchData } = await supabase.from('branches').select('*');
-      const { data: warehouseData } = await supabase.from('gudang').select('*');
       const { data: toleranceData } = await supabase.from('product_tolerances').select('*');
-      // Optimized ESB fetch - only get relevant data based on ready stock
-      const uniqueDates = [...new Set(readyData?.map(r => r.tanggal_input) || [])];
+      
+      // Get unique products and dates for optimized queries
       const uniqueProductIds = [...new Set(readyData?.map(r => r.id_product) || [])];
       
+      // Fetch warehouse data with buffer
+      const { data: warehouseData } = await supabase
+        .from('gudang')
+        .select('*')
+        .in('id_product', uniqueProductIds);
+      
+      // Fetch ESB data with buffer
       const { data: esbData } = await supabase
         .from('esb_harian')
         .select('sales_date, product_id, branch, qty_total')
-        .in('sales_date', uniqueDates)
-        .in('product_id', uniqueProductIds)
-        .gte('sales_date', dateRange.startDate)
+        .gte('sales_date', bufferDateStr)
         .lte('sales_date', dateRange.endDate)
-        .limit(5000);
+        .in('product_id', uniqueProductIds);
       
-      console.log('ESB records fetched:', esbData?.length || 0, 'for', uniqueDates.length, 'dates and', uniqueProductIds.length, 'products');
+      // Fetch production data with buffer
       const { data: productionData } = await supabase
         .from('produksi')
         .select('id_product, tanggal_input, total_konversi')
-        .gte('tanggal_input', dateRange.startDate)
+        .gte('tanggal_input', bufferDateStr)
         .lte('tanggal_input', dateRange.endDate)
         .in('id_product', uniqueProductIds);
       
       const { data: productionDetailData } = await supabase
         .from('produksi_detail')
         .select('item_id, tanggal_input, total_pakai')
-        .gte('tanggal_input', dateRange.startDate)
+        .gte('tanggal_input', bufferDateStr)
         .lte('tanggal_input', dateRange.endDate)
         .in('item_id', uniqueProductIds);
 
@@ -239,15 +252,9 @@ export default function AnalysisPage() {
         return;
       }
 
-      // Filter out empty ready stock entries (ready=0 with no other significant data)
-      const filteredReadyData = (readyData || []).filter(ready => {
-        return ready.ready > 0 || ready.waste > 0 || ready.sub_category;
-      });
-      
-      console.log('Filtered ready data:', filteredReadyData.length, 'from', readyData?.length || 0, 'total records');
-      
-      const analysisData = processAnalysisData(
-        filteredReadyData,
+      // Process data with buffer for accurate calculation
+      const allAnalysisData = processAnalysisData(
+        readyData || [],
         productData || [],
         warehouseData || [],
         esbData || [],
@@ -256,8 +263,13 @@ export default function AnalysisPage() {
         productionDetailData || [],
         toleranceData || []
       );
+      
+      // Filter for display (remove buffer data)
+      const filteredAnalysisData = allAnalysisData.filter(item => {
+        return item.tanggal >= dateRange.startDate && item.tanggal <= dateRange.endDate;
+      });
 
-      setData(analysisData);
+      setData(filteredAnalysisData);
     } catch (error) {
       console.error('Error fetching analysis data:', error);
       showToast('Failed to fetch analysis data', 'error');
@@ -342,7 +354,7 @@ export default function AnalysisPage() {
 
       const gudang = warehouseItem?.total_gudang || 0;
       
-      // Barang Masuk using filtered warehouse items
+      // Barang Masuk - calculate from ALL data (not filtered by date range)
       const barangMasuk = warehouseItems
         .filter((w: any) => {
           const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
@@ -350,7 +362,7 @@ export default function AnalysisPage() {
         })
         .reduce((sum: number, w: any) => sum + (w.jumlah_masuk || 0), 0);
       const waste = ready.waste || 0;
-      const totalBarang = (ready.ready || 0) + gudang;
+      const totalBarang = (ready.ready || 0) + gudang + barangMasuk;
       // Total Production using map
       const productionDetailKey = `${ready.id_product}-${ready.tanggal_input}`;
       const productionDetails = productionDetailMap.get(productionDetailKey) || [];
@@ -435,7 +447,7 @@ export default function AnalysisPage() {
     
     const stokKemarin = (previousReady?.ready || 0) + (previousWarehouseItem?.total_gudang || 0);
     
-    // Barang masuk hari ini
+    // Barang masuk hari ini - get from ALL warehouse data (not filtered by date range)
     const barangMasukHariIni = warehouse
       .filter(w => {
         const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
