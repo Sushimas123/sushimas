@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { canViewColumn } from '@/src/utils/columnPermissions';
+import { getBranchFilter, getAllowedBranches } from '@/src/utils/branchAccess';
 
 interface Ready {
   id_ready: number;
@@ -153,7 +154,7 @@ export default function ReadyPage() {
 
   const fetchReady = async () => {
     try {
-      // Fetch all data in parallel instead of sequential N+1 queries
+      // Fetch all data in parallel - only filter display data, not calculation data
       const [readyData, productsData, branchesData] = await Promise.all([
         supabase.from('ready').select('*').order('tanggal_input', { ascending: false }),
         supabase.from('nama_product').select('id_product, product_name'),
@@ -167,11 +168,19 @@ export default function ReadyPage() {
       const branchMap = new Map(branchesData.data?.map(b => [b.id_branch, b.nama_branch]) || []);
       
       // Transform data using lookup maps
-      const readyWithNames = (readyData.data || []).map((item: any) => ({
+      let readyWithNames = (readyData.data || []).map((item: any) => ({
         ...item,
         product_name: productMap.get(item.id_product) || '',
         branch_name: branchMap.get(item.id_branch) || ''
       }));
+      
+      // Apply branch filter only for display (not for calculations)
+      const userBranchFilter = getBranchFilter();
+      if (userBranchFilter) {
+        readyWithNames = readyWithNames.filter(item => 
+          item.branch_name === userBranchFilter
+        );
+      }
       
       setReady(readyWithNames);
     } catch (error) {
@@ -190,7 +199,9 @@ export default function ReadyPage() {
         .order('nama_branch');
       
       if (error) throw error;
-      setBranches(data || []);
+      // Filter branches based on user access
+      const filteredBranches = getAllowedBranches(data || []);
+      setBranches(filteredBranches);
     } catch (error) {
       console.error('Error fetching branches:', error);
     }
@@ -409,10 +420,18 @@ export default function ReadyPage() {
       
       setImportProgress({show: true, progress: 20, message: 'Validasi data...'});
 
-      // Validate required columns
-      const requiredColumns = ['Ready No', 'Tanggal', 'Cabang', 'Sub Category', 'Product', 'Ready'];
+      // Validate required columns - prioritize Product ID over Product name
+      const requiredColumns = ['Ready No', 'Tanggal', 'Cabang', 'Sub Category', 'Ready'];
       const firstRow = jsonData[0];
       const missingColumns = requiredColumns.filter(col => !(col in firstRow));
+      
+      // Check if we have either Product ID or Product name
+      const hasProductId = 'Product ID' in firstRow;
+      const hasProductName = 'Product' in firstRow;
+      
+      if (!hasProductId && !hasProductName) {
+        missingColumns.push('Product ID atau Product');
+      }
       
       if (missingColumns.length > 0) {
         setImportProgress({show: false, progress: 0, message: ''});
@@ -429,12 +448,15 @@ export default function ReadyPage() {
         const readyNo = row['Ready No'];
         
         // Check if row has valid Ready No and other required fields
+        const hasValidProduct = (row['Product ID'] && row['Product ID'].toString().trim() !== '') || 
+                               (row['Product'] && row['Product'].toString().trim() !== '');
+        
         if (readyNo && 
             readyNo.toString().trim() !== '' && 
             row['Tanggal'] && 
             row['Cabang'] && 
             row['Sub Category'] && 
-            row['Product'] && 
+            hasValidProduct && 
             row['Ready'] !== undefined && 
             row['Ready'] !== null && 
             row['Ready'].toString().trim() !== '') {
@@ -454,60 +476,127 @@ export default function ReadyPage() {
       // Debug: Log first few Ready No values
       console.log('First 5 Ready No values:', validRows.slice(0, 5).map(row => row['Ready No']));
       
-      // Check for duplicates in current import - but Ready No is supposed to be same for one batch
-      // So we should only check for duplicate combinations of Ready No + Product
-      const existingCombinations = new Set();
+      // Check for duplicates in current import - Ready No can be same for one batch
+      // Only check for duplicate combinations of Ready No + Product within the same import
+      const seenCombinations = new Map();
       const duplicateRows = [];
+      const duplicateDetails = [];
       
       for (let i = 0; i < validRows.length; i++) {
         const readyNo = validRows[i]['Ready No'].toString().trim();
-        const product = validRows[i]['Product'].toString().trim();
-        const combination = `${readyNo}|${product}`;
+        // Use Product ID if available, otherwise use Product name
+        const productIdentifier = validRows[i]['Product ID'] ? 
+          validRows[i]['Product ID'].toString().trim() : 
+          validRows[i]['Product'].toString().trim();
+        const combination = `${readyNo}|${productIdentifier}`;
         
-        if (existingCombinations.has(combination)) {
+        if (seenCombinations.has(combination)) {
+          // This is a true duplicate - same Ready No + same Product
+          const firstOccurrence = seenCombinations.get(combination);
           duplicateRows.push(originalRowNumbers[i]);
+          duplicateDetails.push({
+            row: originalRowNumbers[i],
+            firstRow: firstOccurrence,
+            readyNo,
+            product: productIdentifier
+          });
         } else {
-          existingCombinations.add(combination);
+          seenCombinations.set(combination, originalRowNumbers[i]);
         }
       }
       
       if (duplicateRows.length > 0) {
         setImportProgress({show: false, progress: 0, message: ''});
-        alert(`Kombinasi Ready No + Product duplikat ditemukan di baris: ${duplicateRows.join(', ')}`);
-        return;
+        
+        // Show detailed duplicate information
+        const sampleDuplicates = duplicateDetails.slice(0, 5);
+        const duplicateInfo = sampleDuplicates.map(d => 
+          `Baris ${d.row}: ${d.readyNo} + ${d.product} (sama dengan baris ${d.firstRow})`
+        ).join('\n');
+        
+        const totalDuplicates = duplicateRows.length;
+        const message = `Ditemukan ${totalDuplicates} duplikasi dalam file Excel:\n\n${duplicateInfo}${totalDuplicates > 5 ? `\n\n...dan ${totalDuplicates - 5} duplikasi lainnya` : ''}\n\nApakah Anda ingin:\n1. Perbaiki file Excel dan import ulang\n2. Skip duplikasi dan import data unik saja`;
+        
+        const skipDuplicates = confirm(message + '\n\nKlik OK untuk skip duplikasi, Cancel untuk batal import');
+        
+        if (!skipDuplicates) {
+          return;
+        }
+        
+        // Remove duplicates and continue
+        const uniqueRows = [];
+        const uniqueOriginalRows = [];
+        const seenUnique = new Set();
+        
+        for (let i = 0; i < validRows.length; i++) {
+          const readyNo = validRows[i]['Ready No'].toString().trim();
+          const productIdentifier = validRows[i]['Product ID'] ? 
+            validRows[i]['Product ID'].toString().trim() : 
+            validRows[i]['Product'].toString().trim();
+          const combination = `${readyNo}|${productIdentifier}`;
+          
+          if (!seenUnique.has(combination)) {
+            seenUnique.add(combination);
+            uniqueRows.push(validRows[i]);
+            uniqueOriginalRows.push(originalRowNumbers[i]);
+          }
+        }
+        
+        validRows.length = 0;
+        validRows.push(...uniqueRows);
+        originalRowNumbers.length = 0;
+        originalRowNumbers.push(...uniqueOriginalRows);
+        
+        alert(`Duplikasi di-skip. Akan mengimport ${validRows.length} data unik dari ${validRows.length + totalDuplicates} total data.`);
       }
 
-      // Check for duplicates in database - check Ready No + Product combinations
+      // Check for duplicates in database - check Ready No + Product ID combinations
       setImportProgress({show: true, progress: 40, message: 'Mengecek database...'});
       
       const readyNos = [...new Set(validRows.map(row => row['Ready No'].toString().trim()))];
       const { data: existingData } = await supabase
         .from('ready')
-        .select('ready_no, product_name')
+        .select('ready_no, id_product')
         .in('ready_no', readyNos);
       
       if (existingData && existingData.length > 0) {
         // Check if any combination already exists
-        const existingCombinations = new Set(existingData.map(item => `${item.ready_no}|${item.product_name}`));
+        const existingCombinations = new Set(existingData.map(item => `${item.ready_no}|${item.id_product}`));
         const duplicateCombinations = [];
         
         for (const row of validRows) {
           const readyNo = row['Ready No'].toString().trim();
-          const product = row['Product'].toString().trim();
-          const combination = `${readyNo}|${product}`;
-          
-          if (existingCombinations.has(combination)) {
-            duplicateCombinations.push(`${readyNo} - ${product}`);
+          // We'll get the product ID during processing, so skip duplicate check here if using product name
+          if (row['Product ID']) {
+            const productId = row['Product ID'].toString().trim();
+            const combination = `${readyNo}|${productId}`;
+            
+            if (existingCombinations.has(combination)) {
+              duplicateCombinations.push(`${readyNo} - Product ID ${productId}`);
+            }
           }
         }
         
         if (duplicateCombinations.length > 0) {
           setImportProgress({show: false, progress: 0, message: ''});
-          alert(`Kombinasi Ready No + Product sudah ada di database: ${duplicateCombinations.slice(0, 5).join(', ')}${duplicateCombinations.length > 5 ? ` dan ${duplicateCombinations.length - 5} lainnya` : ''}`);
+          alert(`Kombinasi Ready No + Product ID sudah ada di database: ${duplicateCombinations.slice(0, 5).join(', ')}${duplicateCombinations.length > 5 ? ` dan ${duplicateCombinations.length - 5} lainnya` : ''}`);
           return;
         }
       }
 
+      // Load all products for import validation (not filtered by category)
+      setImportProgress({show: true, progress: 45, message: 'Memuat data produk...'});
+      
+      const { data: allProducts, error: productsError } = await supabase
+        .from('nama_product')
+        .select('id_product, product_name, sub_category, category');
+      
+      if (productsError) {
+        setImportProgress({show: false, progress: 0, message: ''});
+        alert(`Error memuat produk: ${productsError.message}`);
+        return;
+      }
+      
       // Process and validate data
       setImportProgress({show: true, progress: 50, message: 'Memproses data...'});
       
@@ -525,12 +614,27 @@ export default function ReadyPage() {
           return;
         }
 
-        // Find product ID
-        const product = menuProducts.find(p => p.product_name === row['Product']);
-        if (!product) {
-          setImportProgress({show: false, progress: 0, message: ''});
-          alert(`Product '${row['Product']}' tidak ditemukan!`);
-          return;
+        // Find product ID - prioritize Product ID over Product name
+        let productId;
+        if (row['Product ID']) {
+          // Use Product ID directly
+          productId = parseInt(row['Product ID']);
+          // Verify product exists in all products (not just filtered ones)
+          const product = allProducts?.find(p => p.id_product === productId);
+          if (!product) {
+            setImportProgress({show: false, progress: 0, message: ''});
+            alert(`Product dengan ID '${productId}' tidak ditemukan!`);
+            return;
+          }
+        } else {
+          // Use Product name to find ID in all products
+          const product = allProducts?.find(p => p.product_name === row['Product']);
+          if (!product) {
+            setImportProgress({show: false, progress: 0, message: ''});
+            alert(`Product '${row['Product']}' tidak ditemukan!`);
+            return;
+          }
+          productId = product.id_product;
         }
 
         // Convert Excel date using proper Excel date conversion
@@ -569,7 +673,7 @@ export default function ReadyPage() {
         processedData.push({
           ready_no: row['Ready No'],
           tanggal_input: tanggalInput,
-          id_product: product.id_product,
+          id_product: productId,
           ready: parseFloat(row['Ready']) || 0,
           waste: parseFloat(row['Waste']) || 0,
           sub_category: row['Sub Category'],
@@ -664,6 +768,7 @@ export default function ReadyPage() {
       'Tanggal': item.tanggal_input,
       'Cabang': item.branch_name,
       'Sub Category': item.sub_category,
+      'Product ID': item.id_product,
       'Product': item.product_name,
       'Ready': item.ready,
       'Waste': item.waste

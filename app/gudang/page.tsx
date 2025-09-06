@@ -6,6 +6,7 @@ import { Plus, Edit, Trash2, Download, Upload } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
+import { getBranchFilter, getAllowedBranches } from '@/src/utils/branchAccess';
 
 interface Gudang {
   uniqueid_gudang: string;
@@ -105,7 +106,9 @@ function GudangPageContent() {
         .order('nama_branch');
       
       if (error) throw error;
-      setCabangList(data || []);
+      // Filter branches based on user access
+      const filteredBranches = getAllowedBranches(data || []);
+      setCabangList(filteredBranches);
     } catch (error) {
       console.error('Error fetching cabang:', error);
     }
@@ -127,11 +130,19 @@ function GudangPageContent() {
       const branchMap = new Map(branchesData.data?.map(b => [b.kode_branch, b.nama_branch]) || []);
       
       // Transform data using lookup maps
-      const gudangWithNames = (gudangData.data || []).map((item: any) => ({
+      let gudangWithNames = (gudangData.data || []).map((item: any) => ({
         ...item,
         product_name: productMap.get(item.id_product) || '',
         branch_name: branchMap.get(item.cabang) || item.cabang
       }));
+      
+      // Apply branch filter only for display
+      const userBranchFilter = getBranchFilter();
+      if (userBranchFilter) {
+        gudangWithNames = gudangWithNames.filter(item => 
+          item.branch_name === userBranchFilter || item.cabang === userBranchFilter
+        );
+      }
       
       setGudang(gudangWithNames);
     } catch (error) {

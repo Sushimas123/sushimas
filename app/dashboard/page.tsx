@@ -11,7 +11,7 @@ interface User {
   email: string
   name: string
   role: string
-  branch: string
+  cabang: string
 }
 
 function DashboardContent() {
@@ -99,8 +99,8 @@ function DashboardContent() {
                   {user.role.toUpperCase()}
                 </span>
               </span>
-              {user.branch && (
-                <span>Branch: {user.branch}</span>
+              {user.cabang && (
+                <span>Branch: {user.cabang}</span>
               )}
             </div>
           </div>

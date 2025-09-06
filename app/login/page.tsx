@@ -32,7 +32,7 @@ export default function LoginPage() {
           email: userData.email,
           name: userData.nama_lengkap,
           role: userData.role,
-          branch: userData.cabang
+          cabang: userData.cabang
         }
         
         localStorage.setItem('user', JSON.stringify(userInfo))
@@ -68,7 +68,7 @@ export default function LoginPage() {
           email: authUserData.email,
           name: authUserData.nama_lengkap,
           role: authUserData.role,
-          branch: authUserData.cabang
+          cabang: authUserData.cabang
         }
         
         localStorage.setItem('user', JSON.stringify(userInfo))

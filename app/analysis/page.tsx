@@ -6,6 +6,7 @@ import { Download, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { getBranchFilter, getAllowedBranches } from '@/src/utils/branchAccess';
 
 
 interface AnalysisData {
@@ -265,9 +266,17 @@ export default function AnalysisPage() {
       );
       
       // Filter for display (remove buffer data)
-      const filteredAnalysisData = allAnalysisData.filter(item => {
+      let filteredAnalysisData = allAnalysisData.filter(item => {
         return item.tanggal >= dateRange.startDate && item.tanggal <= dateRange.endDate;
       });
+      
+      // Apply branch filter only for display (CRITICAL: calculations already done)
+      const userBranchFilter = getBranchFilter();
+      if (userBranchFilter) {
+        filteredAnalysisData = filteredAnalysisData.filter(item => 
+          item.cabang === userBranchFilter
+        );
+      }
 
       setData(filteredAnalysisData);
     } catch (error) {
