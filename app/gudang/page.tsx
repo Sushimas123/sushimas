@@ -79,6 +79,16 @@ function GudangPageContent() {
 
   const fetchUserInfo = async () => {
     try {
+      // Try to get user from localStorage first (for direct DB login)
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const userData = JSON.parse(storedUser);
+        setUserCabang(userData.cabang || '');
+        setUserRole(userData.role || 'user');
+        return;
+      }
+      
+      // Fallback to Supabase auth
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: userData } = await supabase
@@ -106,7 +116,7 @@ function GudangPageContent() {
         .order('nama_branch');
       
       if (error) throw error;
-      // Filter branches based on user access
+      
       // Apply branch filtering based on user role
       let filteredBranches = data || [];
       const branchFilter = await getBranchFilter();
@@ -141,12 +151,16 @@ function GudangPageContent() {
         branch_name: branchMap.get(item.cabang) || item.cabang
       }));
       
-      // Apply branch filter only for display
-      const userBranchFilter = getBranchFilter();
-      if (userBranchFilter) {
+      // Apply branch filter based on user access
+      const branchFilter = await getBranchFilter();
+      console.log('Branch filter applied:', branchFilter);
+      console.log('Total records before filter:', gudangWithNames.length);
+      
+      if (branchFilter && branchFilter.length > 0) {
         gudangWithNames = gudangWithNames.filter(item => 
-          item.branch_name === userBranchFilter || item.cabang === userBranchFilter
+          branchFilter.includes(item.cabang) || branchFilter.includes(item.branch_name)
         );
+        console.log('Records after branch filter:', gudangWithNames.length);
       }
       
       setGudang(gudangWithNames);
@@ -217,16 +231,23 @@ function GudangPageContent() {
           .update(submitData)
           .eq('uniqueid_gudang', editingId);
         if (error) throw error;
+        console.log('Updated gudang record:', editingId);
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('gudang')
-          .insert([submitData]);
+          .insert([submitData])
+          .select();
         if (error) throw error;
+        console.log('Inserted new gudang record:', data);
       }
 
-      resetForm();
-      await recalculateAffectedRecords(formData.id_product, timestamp);
+      // Refresh data first to show the new entry immediately
       await fetchGudang();
+      // Then recalculate affected records
+      await recalculateAffectedRecords(formData.id_product, timestamp);
+      // Refresh again after recalculation
+      await fetchGudang();
+      resetForm();
     } catch (error) {
       console.error('Error saving gudang:', error);
     } finally {
@@ -241,7 +262,7 @@ function GudangPageContent() {
       waktu: new Date().toTimeString().slice(0, 5),
       jumlah_keluar: '',
       jumlah_masuk: '',
-      cabang: ''
+      cabang: userCabang || ''
     });
     setProductSearch('');
     setShowAddForm(false);
@@ -652,7 +673,13 @@ function GudangPageContent() {
             />
           </label>
           <button
-            onClick={() => setShowAddForm(!showAddForm)}
+            onClick={() => {
+              setShowAddForm(!showAddForm);
+              if (!showAddForm) {
+                // Auto-select user's branch when opening add form
+                setFormData(prev => ({ ...prev, cabang: userCabang || '' }));
+              }
+            }}
             className="bg-blue-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
           >
             <Plus size={12} />Add

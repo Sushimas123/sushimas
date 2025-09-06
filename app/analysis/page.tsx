@@ -218,10 +218,11 @@ export default function AnalysisPage() {
       // Get unique products and dates for optimized queries
       const uniqueProductIds = [...new Set(readyData?.map(r => r.id_product) || [])];
       
-      // Fetch warehouse data with buffer
+      // Fetch warehouse data with buffer - get ALL data for accurate calculations
       const { data: warehouseData } = await supabase
         .from('gudang')
         .select('*')
+        .gte('tanggal', bufferDateStr)
         .in('id_product', uniqueProductIds);
       
       // Fetch ESB data with buffer
@@ -242,7 +243,7 @@ export default function AnalysisPage() {
       
       const { data: productionDetailData } = await supabase
         .from('produksi_detail')
-        .select('item_id, tanggal_input, total_pakai')
+        .select('item_id, tanggal_input, total_pakai, cabang')
         .gte('tanggal_input', bufferDateStr)
         .lte('tanggal_input', dateRange.endDate)
         .in('item_id', uniqueProductIds);
@@ -270,21 +271,18 @@ export default function AnalysisPage() {
         return item.tanggal >= dateRange.startDate && item.tanggal <= dateRange.endDate;
       });
       
-      // Apply branch filter only for display (CRITICAL: calculations already done)
+      // Apply branch filter for display only - calculations already done with full data
       const userBranchFilter = await getBranchFilter();
       if (userBranchFilter && userBranchFilter.length > 0) {
-        // Get branch names from codes
         const { data: branchData } = await supabase
           .from('branches')
           .select('nama_branch, kode_branch')
           .in('kode_branch', userBranchFilter);
         
         const allowedBranchNames = branchData?.map(b => b.nama_branch) || [];
-        if (allowedBranchNames.length > 0) {
-          filteredAnalysisData = filteredAnalysisData.filter(item => 
-            allowedBranchNames.includes(item.cabang)
-          );
-        }
+        filteredAnalysisData = filteredAnalysisData.filter(item => 
+          allowedBranchNames.includes(item.cabang)
+        );
       }
 
       setData(filteredAnalysisData);
@@ -324,10 +322,10 @@ export default function AnalysisPage() {
       productionMap.set(key, p);
     });
     
-    // Group production detail data for faster lookup
+    // Group production detail data by product, date, and branch
     const productionDetailMap = new Map();
     productionDetail.forEach(pd => {
-      const key = `${pd.item_id}-${pd.tanggal_input}`;
+      const key = `${pd.item_id}-${pd.tanggal_input}-${pd.cabang}`;
       if (!productionDetailMap.has(key)) productionDetailMap.set(key, []);
       productionDetailMap.get(key).push(pd);
     });
@@ -381,10 +379,12 @@ export default function AnalysisPage() {
         .reduce((sum: number, w: any) => sum + (w.jumlah_masuk || 0), 0);
       const waste = ready.waste || 0;
       const totalBarang = (ready.ready || 0) + gudang + barangMasuk;
-      // Total Production using map
-      const productionDetailKey = `${ready.id_product}-${ready.tanggal_input}`;
+      // Total Production per tanggal dan cabang
+      const productionDetailKey = `${ready.id_product}-${ready.tanggal_input}-${branch?.kode_branch}`;
       const productionDetails = productionDetailMap.get(productionDetailKey) || [];
-      const totalProduction = productionDetails.reduce((sum: number, pd: any) => sum + (pd.total_pakai || 0), 0);
+      const totalProduction = productionDetails
+        .filter((pd: any) => pd.tanggal_input === ready.tanggal_input && pd.cabang === branch?.kode_branch)
+        .reduce((sum: number, pd: any) => sum + (pd.total_pakai || 0), 0);
       
       const sumifTotal = productionItem?.total_konversi || 0;
       
@@ -465,7 +465,7 @@ export default function AnalysisPage() {
     
     const stokKemarin = (previousReady?.ready || 0) + (previousWarehouseItem?.total_gudang || 0);
     
-    // Barang masuk hari ini - get from ALL warehouse data (not filtered by date range)
+    // Barang masuk hari ini
     const barangMasukHariIni = warehouse
       .filter(w => {
         const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
