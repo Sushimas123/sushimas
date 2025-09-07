@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
-import { Plus, Edit, Trash2, Download, Upload } from 'lucide-react';
+import { Plus, Edit, Trash2, Download, Upload, Settings, Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { getBranchFilter, applyBranchFilter } from '@/src/utils/branchAccess';
+import { canPerformActionSync, getUserRole, arePermissionsLoaded, reloadPermissions } from '@/src/utils/rolePermissions';
 
 interface Gudang {
   uniqueid_gudang: string;
@@ -50,6 +51,7 @@ function GudangPageContent() {
   });
   const [userCabang, setUserCabang] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('user');
+  const [userId, setUserId] = useState<number | null>(null);
   const [cabangList, setCabangList] = useState<{id_branch: number, kode_branch: string, nama_branch: string}[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState('');
@@ -59,12 +61,20 @@ function GudangPageContent() {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
 
   useEffect(() => {
     fetchUserInfo();
     fetchCabang();
     fetchGudang();
     fetchProducts();
+    
+    // Force reload permissions if not loaded
+    if (!arePermissionsLoaded()) {
+      console.log('Permissions not loaded, reloading...');
+      reloadPermissions();
+    }
   }, []);
 
   useEffect(() => {
@@ -85,6 +95,7 @@ function GudangPageContent() {
         const userData = JSON.parse(storedUser);
         setUserCabang(userData.cabang || '');
         setUserRole(userData.role || 'user');
+        setUserId(userData.id_user || null);
         return;
       }
       
@@ -663,28 +674,39 @@ function GudangPageContent() {
           <button onClick={handleExport} className="bg-green-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1">
             <Download size={12} />Export
           </button>
-          <label className="bg-orange-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1 cursor-pointer hover:bg-orange-700">
-            <Upload size={12} />Import
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={handleImport}
-              className="hidden"
-            />
-          </label>
+          {canPerformActionSync(userRole, 'gudang', 'create') && (
+            <label className="bg-orange-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1 cursor-pointer hover:bg-orange-700">
+              <Upload size={12} />Import
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleImport}
+                className="hidden"
+              />
+            </label>
+          )}
+          {canPerformActionSync(userRole, 'gudang', 'create') && (
+            <button
+              onClick={() => {
+                setShowAddForm(!showAddForm);
+                if (!showAddForm) {
+                  // Auto-select user's branch when opening add form
+                  setFormData(prev => ({ ...prev, cabang: userCabang || '' }));
+                }
+              }}
+              className="bg-blue-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
+            >
+              <Plus size={12} />Add
+            </button>
+          )}
           <button
-            onClick={() => {
-              setShowAddForm(!showAddForm);
-              if (!showAddForm) {
-                // Auto-select user's branch when opening add form
-                setFormData(prev => ({ ...prev, cabang: userCabang || '' }));
-              }
-            }}
-            className="bg-blue-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
+            onClick={() => setShowColumnSelector(!showColumnSelector)}
+            className="bg-purple-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
           >
-            <Plus size={12} />Add
+            <Settings size={12} />
+            {showColumnSelector ? 'Hide Columns' : 'Show Columns'}
           </button>
-          {selectedItems.length > 0 && (
+          {selectedItems.length > 0 && canPerformActionSync(userRole, 'gudang', 'delete') && (
             <button
               onClick={handleBulkDelete}
               className="bg-red-600 text-white px-2 py-1 rounded-md text-xs"
@@ -787,6 +809,50 @@ function GudangPageContent() {
         </div>
       )}
 
+      {/* Column Selector */}
+      {showColumnSelector && paginatedGudang.length > 0 && (
+        <div className="bg-white p-2 rounded-lg shadow mb-1">
+          <h3 className="font-medium text-gray-800 mb-2 text-xs">Column Visibility Settings</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 mb-2">
+            {Object.keys(paginatedGudang[0]).filter(col => col !== 'uniqueid_gudang').map(col => (
+              <label key={col} className="flex items-center gap-1 text-xs">
+                <input
+                  type="checkbox"
+                  checked={!hiddenColumns.includes(col)}
+                  onChange={() => {
+                    setHiddenColumns(prev => 
+                      prev.includes(col) 
+                        ? prev.filter(c => c !== col)
+                        : [...prev, col]
+                    );
+                  }}
+                  className="rounded text-blue-600 w-3 h-3"
+                />
+                <span className={hiddenColumns.includes(col) ? 'text-gray-500' : 'text-gray-800'}>
+                  {col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setHiddenColumns([])}
+              className="px-2 py-1 bg-green-600 text-white rounded-md text-xs hover:bg-green-700 flex items-center gap-1"
+            >
+              <Eye size={10} />
+              Show All
+            </button>
+            <button
+              onClick={() => setHiddenColumns(Object.keys(paginatedGudang[0]).filter(col => col !== 'uniqueid_gudang'))}
+              className="px-2 py-1 bg-red-600 text-white rounded-md text-xs hover:bg-red-700 flex items-center gap-1"
+            >
+              <EyeOff size={10} />
+              Hide All
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -800,31 +866,31 @@ function GudangPageContent() {
                     className="w-3 h-3"
                   />
                 </th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('order_no')}>
+                {!hiddenColumns.includes('order_no') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('order_no')}>
                   Order No {sortConfig?.key === 'order_no' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal')}>
+                </th>}
+                {!hiddenColumns.includes('tanggal') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal')}>
                   Date {sortConfig?.key === 'tanggal' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">
+                </th>}
+                {!hiddenColumns.includes('tanggal') && <th className="px-1 py-1 text-left font-medium text-gray-700">
                   Time
-                </th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>
+                </th>}
+                {!hiddenColumns.includes('branch_name') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>
                   Branch {sortConfig?.key === 'branch_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>
+                </th>}
+                {!hiddenColumns.includes('product_name') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>
                   Product {sortConfig?.key === 'product_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jumlah_masuk')}>
+                </th>}
+                {!hiddenColumns.includes('jumlah_masuk') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jumlah_masuk')}>
                   In {sortConfig?.key === 'jumlah_masuk' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jumlah_keluar')}>
+                </th>}
+                {!hiddenColumns.includes('jumlah_keluar') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jumlah_keluar')}>
                   Out {sortConfig?.key === 'jumlah_keluar' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_gudang')}>
+                </th>}
+                {!hiddenColumns.includes('total_gudang') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_gudang')}>
                   Total {sortConfig?.key === 'total_gudang' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Pengambil</th>
+                </th>}
+                {!hiddenColumns.includes('nama_pengambil_barang') && <th className="px-1 py-1 text-left font-medium text-gray-700">Pengambil</th>}
                 <th className="px-1 py-1 text-left font-medium text-gray-700">Source</th>
                 <th className="px-1 py-1 text-left font-medium text-gray-700">Action</th>
               </tr>
@@ -847,7 +913,7 @@ function GudangPageContent() {
                         className="w-3 h-3"
                       />
                     </td>
-                    <td className="px-1 py-1 font-medium">
+                    {!hiddenColumns.includes('order_no') && <td className="px-1 py-1 font-medium">
                       {(item as any).source_type === 'stock_opname' ? (
                         <a 
                           href={`/stock_opname?highlight=${(item as any).source_reference?.replace('SO-', '')}`}
@@ -859,15 +925,15 @@ function GudangPageContent() {
                       ) : (
                         <span className="text-blue-600">{item.order_no}</span>
                       )}
-                    </td>
-                    <td className="px-1 py-1">{item.tanggal.split('T')[0]}</td>
-                    <td className="px-1 py-1">{new Date(item.tanggal).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}</td>
-                    <td className="px-1 py-1">{item.branch_name || item.cabang}</td>
-                    <td className="px-1 py-1">{item.product_name}</td>
-                    <td className="px-1 py-1 text-green-600">{item.jumlah_masuk}</td>
-                    <td className="px-1 py-1 text-red-600">{item.jumlah_keluar}</td>
-                    <td className="px-1 py-1 font-medium">{item.total_gudang}</td>
-                    <td className="px-1 py-1">{item.nama_pengambil_barang}</td>
+                    </td>}
+                    {!hiddenColumns.includes('tanggal') && <td className="px-1 py-1">{item.tanggal.split('T')[0]}</td>}
+                    {!hiddenColumns.includes('tanggal') && <td className="px-1 py-1">{new Date(item.tanggal).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}</td>}
+                    {!hiddenColumns.includes('branch_name') && <td className="px-1 py-1">{item.branch_name || item.cabang}</td>}
+                    {!hiddenColumns.includes('product_name') && <td className="px-1 py-1">{item.product_name}</td>}
+                    {!hiddenColumns.includes('jumlah_masuk') && <td className="px-1 py-1 text-green-600">{item.jumlah_masuk}</td>}
+                    {!hiddenColumns.includes('jumlah_keluar') && <td className="px-1 py-1 text-red-600">{item.jumlah_keluar}</td>}
+                    {!hiddenColumns.includes('total_gudang') && <td className="px-1 py-1 font-medium">{item.total_gudang}</td>}
+                    {!hiddenColumns.includes('nama_pengambil_barang') && <td className="px-1 py-1">{item.nama_pengambil_barang}</td>}
                     <td className="px-1 py-1">
                       {(item as any).source_type === 'stock_opname' ? (
                         <span className="px-1 py-0.5 bg-orange-100 text-orange-800 rounded text-xs font-semibold">
@@ -881,18 +947,24 @@ function GudangPageContent() {
                     </td>
                     <td className="px-1 py-1">
                       <div className="flex gap-1">
-                        <button
-                          onClick={() => handleEdit(item)}
-                          className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                        >
-                          <Edit size={12} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.uniqueid_gudang)}
-                          className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                        {canPerformActionSync(userRole, 'gudang', 'edit', userId || undefined) && (
+                          <button
+                            onClick={() => handleEdit(item)}
+                            className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                            title="Edit"
+                          >
+                            <Edit size={12} />
+                          </button>
+                        )}
+                        {canPerformActionSync(userRole, 'gudang', 'delete', userId || undefined) && (
+                          <button
+                            onClick={() => handleDelete(item.uniqueid_gudang)}
+                            className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
+                            title="Delete"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

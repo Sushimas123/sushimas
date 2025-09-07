@@ -23,7 +23,7 @@ export const getPermissions = async (userRole: string): Promise<any> => {
     
     if (error) {
       console.error('Error fetching permissions:', error)
-      return {}
+      return getDefaultPermissions(userRole)
     }
     
     // Convert to object format for easy access
@@ -32,6 +32,11 @@ export const getPermissions = async (userRole: string): Promise<any> => {
       permissions[perm.page] = perm.columns || []
     })
     
+    // If no permissions found, use defaults
+    if (Object.keys(permissions).length === 0) {
+      return getDefaultPermissions(userRole)
+    }
+    
     // Cache the result
     permissionsCache[cacheKey] = permissions
     cacheExpiry = now + (5 * 60 * 1000) // 5 minutes
@@ -39,21 +44,55 @@ export const getPermissions = async (userRole: string): Promise<any> => {
     return permissions
   } catch (error) {
     console.error('Error fetching permissions:', error)
-    return {}
+    return getDefaultPermissions(userRole)
   }
+}
+
+// Default permissions fallback
+const getDefaultPermissions = (userRole: string) => {
+  const defaultPages = ['ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'product_settings', 'stock_opname']
+  
+  if (userRole === 'super admin' || userRole === 'admin') {
+    const permissions: { [key: string]: string[] } = {}
+    // Admin gets access to all pages plus management pages
+    const allPages = [...defaultPages, 'esb', 'product_name', 'categories', 'recipes', 'supplier', 'branches', 'users', 'permissions-db', 'crud-permissions']
+    allPages.forEach(page => {
+      permissions[page] = ['*'] // Full access
+    })
+    return permissions
+  }
+  
+  if (userRole === 'finance' || userRole === 'pic branch' || userRole === 'staff') {
+    const permissions: { [key: string]: string[] } = {}
+    defaultPages.forEach(page => {
+      permissions[page] = ['*'] // Access to main pages
+    })
+    return permissions
+  }
+  
+  return {}
 }
 
 // Function to check if user can access a page
 export const canAccessPage = async (userRole: string, pagePath: string): Promise<boolean> => {
-  // Special cases
-  if (pagePath === '/permissions') return userRole === 'admin'
-  if (pagePath === '/dashboard' || pagePath === '/') return true
+  // Special cases - admin only pages
+  if (pagePath === 'permissions-db' || pagePath === 'crud-permissions') {
+    return userRole === 'super admin' || userRole === 'admin'
+  }
+  if (pagePath === 'dashboard' || pagePath === '' || pagePath === '/') return true
   
   // Remove leading slash and get page name
   const pageName = pagePath.replace('/', '')
   
-  const permissions = await getPermissions(userRole)
-  return !!permissions[pageName]
+  try {
+    const permissions = await getPermissions(userRole)
+    return !!permissions[pageName]
+  } catch (error) {
+    console.error('Error checking page access:', error)
+    // Fallback: allow access for basic pages
+    const basicPages = ['ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'esb']
+    return basicPages.includes(pageName)
+  }
 }
 
 // Function to check if user can view a column

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
-import { Plus, Edit, Trash2, Download, Upload, Eye, EyeOff } from 'lucide-react';
+import { Plus, Edit, Trash2, Download, Upload, Eye, EyeOff, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
@@ -53,6 +53,8 @@ function UsersPageContent() {
   const [saving, setSaving] = useState(false);
   const [userRole, setUserRole] = useState<string>('guest');
   const [userId, setUserId] = useState<number | null>(null);
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
 
   // Get user role
   useEffect(() => {
@@ -381,8 +383,9 @@ function UsersPageContent() {
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-600">Access Level:</span>
           <span className={`px-2 py-1 rounded text-xs font-semibold ${
-            userRole === 'admin' ? 'bg-red-100 text-red-800' :
-            userRole === 'manager' ? 'bg-blue-100 text-blue-800' :
+            userRole === 'super admin' ? 'bg-red-100 text-red-800' :
+            userRole === 'admin' ? 'bg-blue-100 text-blue-800' :
+            userRole === 'finance' ? 'bg-purple-100 text-purple-800' :
             userRole === 'pic_branch' ? 'bg-green-100 text-green-800' :
             'bg-gray-100 text-gray-800'
           }`}>
@@ -422,7 +425,7 @@ function UsersPageContent() {
                 disabled={importLoading}
               />
             </label>
-            {userRole === 'admin' && (
+            {(userRole === 'super admin' || userRole === 'admin') && (
               <button
                 onClick={() => setShowAddForm(!showAddForm)}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
@@ -431,6 +434,13 @@ function UsersPageContent() {
                 Add New
               </button>
             )}
+            <button
+              onClick={() => setShowColumnSelector(!showColumnSelector)}
+              className="bg-purple-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
+            >
+              <Settings size={12} />
+              {showColumnSelector ? 'Hide Columns' : 'Show Columns'}
+            </button>
           </div>
         </div>
       </div>
@@ -491,8 +501,9 @@ function UsersPageContent() {
                 className="border px-2 py-1 rounded-md text-xs w-full"
               >
                 <option value="staff">Staff</option>
+                <option value="super admin">Super Admin</option>
                 <option value="admin">Admin</option>
-                <option value="manager">Manager</option>
+                <option value="finance">Finance</option>
                 <option value="pic_branch">PIC Branch</option>
               </select>
               <div className="border rounded-md p-2 max-h-24 overflow-y-auto">
@@ -542,25 +553,69 @@ function UsersPageContent() {
         </div>
       )}
 
+      {/* Column Selector */}
+      {showColumnSelector && filteredUsers.length > 0 && (
+        <div className="bg-white p-2 rounded-lg shadow mb-1">
+          <h3 className="font-medium text-gray-800 mb-2 text-xs">Column Visibility Settings</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 mb-2">
+            {['email', 'nama_lengkap', 'no_telp', 'role', 'branches', 'created_at'].map(col => (
+              <label key={col} className="flex items-center gap-1 text-xs">
+                <input
+                  type="checkbox"
+                  checked={!hiddenColumns.includes(col)}
+                  onChange={() => {
+                    setHiddenColumns(prev => 
+                      prev.includes(col) 
+                        ? prev.filter(c => c !== col)
+                        : [...prev, col]
+                    );
+                  }}
+                  className="rounded text-blue-600 w-3 h-3"
+                />
+                <span className={hiddenColumns.includes(col) ? 'text-gray-500' : 'text-gray-800'}>
+                  {col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setHiddenColumns([])}
+              className="px-2 py-1 bg-green-600 text-white rounded-md text-xs hover:bg-green-700 flex items-center gap-1"
+            >
+              <Eye size={10} />
+              Show All
+            </button>
+            <button
+              onClick={() => setHiddenColumns(['email', 'nama_lengkap', 'no_telp', 'role', 'branches', 'created_at'])}
+              className="px-2 py-1 bg-red-600 text-white rounded-md text-xs hover:bg-red-700 flex items-center gap-1"
+            >
+              <EyeOff size={10} />
+              Hide All
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Users Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="bg-gray-100">
               <tr>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Email</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Nama Lengkap</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">No Telp</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Role</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Branch</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Created</th>
-                {userRole === 'admin' && <th className="px-1 py-1 text-left font-medium text-gray-700">Aksi</th>}
+                {!hiddenColumns.includes('email') && <th className="px-1 py-1 text-left font-medium text-gray-700">Email</th>}
+                {!hiddenColumns.includes('nama_lengkap') && <th className="px-1 py-1 text-left font-medium text-gray-700">Nama Lengkap</th>}
+                {!hiddenColumns.includes('no_telp') && <th className="px-1 py-1 text-left font-medium text-gray-700">No Telp</th>}
+                {!hiddenColumns.includes('role') && <th className="px-1 py-1 text-left font-medium text-gray-700">Role</th>}
+                {!hiddenColumns.includes('branches') && <th className="px-1 py-1 text-left font-medium text-gray-700">Branch</th>}
+                {!hiddenColumns.includes('created_at') && <th className="px-1 py-1 text-left font-medium text-gray-700">Created</th>}
+                {(userRole === 'super admin' || userRole === 'admin') && <th className="px-1 py-1 text-left font-medium text-gray-700">Aksi</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={userRole === 'admin' ? 7 : 6} className="px-1 py-2 text-center text-gray-500 text-xs">
+                  <td colSpan={(userRole === 'super admin' || userRole === 'admin') ? 7 : 6} className="px-1 py-2 text-center text-gray-500 text-xs">
                     {userRole === 'staff' ? 'You do not have permission to view user data' :
                      searchTerm ? 'Tidak ada user yang sesuai dengan pencarian' : 'Belum ada data user'}
                   </td>
@@ -568,26 +623,27 @@ function UsersPageContent() {
               ) : (
                 filteredUsers.map((user) => (
                   <tr key={user.id_user} className="hover:bg-gray-50">
-                    <td className="px-1 py-1">
+                    {!hiddenColumns.includes('email') && <td className="px-1 py-1">
                       <div className="font-medium text-blue-600">{user.email}</div>
-                    </td>
-                    <td className="px-1 py-1">
+                    </td>}
+                    {!hiddenColumns.includes('nama_lengkap') && <td className="px-1 py-1">
                       <div className="font-medium text-gray-900">{user.nama_lengkap}</div>
-                    </td>
-                    <td className="px-1 py-1">
+                    </td>}
+                    {!hiddenColumns.includes('no_telp') && <td className="px-1 py-1">
                       <div className="text-gray-900">{user.no_telp || '-'}</div>
-                    </td>
-                    <td className="px-1 py-1">
+                    </td>}
+                    {!hiddenColumns.includes('role') && <td className="px-1 py-1">
                       <span className={`px-1 py-0.5 rounded text-xs font-semibold ${
-                        user.role === 'admin' ? 'bg-red-100 text-red-800' :
-                        user.role === 'manager' ? 'bg-blue-100 text-blue-800' :
+                        user.role === 'super admin' ? 'bg-red-100 text-red-800' :
+                        user.role === 'admin' ? 'bg-blue-100 text-blue-800' :
+                        user.role === 'finance' ? 'bg-purple-100 text-purple-800' :
                         user.role === 'pic_branch' ? 'bg-green-100 text-green-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
                         {user.role}
                       </span>
-                    </td>
-                    <td className="px-1 py-1">
+                    </td>}
+                    {!hiddenColumns.includes('branches') && <td className="px-1 py-1">
                       <div className="text-gray-900">
                         {user.branches && user.branches.length > 0 
                           ? user.branches.map(branchCode => {
@@ -597,13 +653,13 @@ function UsersPageContent() {
                           : (user.cabang || '-')
                         }
                       </div>
-                    </td>
-                    <td className="px-1 py-1">
+                    </td>}
+                    {!hiddenColumns.includes('created_at') && <td className="px-1 py-1">
                       <div className="text-gray-500">
                         {new Date(user.created_at).toLocaleDateString()}
                       </div>
-                    </td>
-                    {userRole === 'admin' && (
+                    </td>}
+                    {(userRole === 'super admin' || userRole === 'admin') && (
                       <td className="px-1 py-1 whitespace-nowrap">
                         <div className="flex items-center gap-1">
                           <button

@@ -7,6 +7,7 @@ import { Plus, Edit, Trash2, Search, Phone, Mail, Download, Upload } from 'lucid
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
+import { canPerformActionSync } from '@/src/utils/rolePermissions';
 
 interface Branch {
   id_branch: number;
@@ -58,6 +59,16 @@ function BranchesPageContent() {
   const [importLoading, setImportLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const picDropdownRef = useRef<HTMLDivElement>(null);
+  const [userRole, setUserRole] = useState<string>('guest');
+
+  // Get user role
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      setUserRole(user.role || 'guest');
+    }
+  }, []);
 
   // Using imported supabase client
 
@@ -454,13 +465,15 @@ function BranchesPageContent() {
                 disabled={importLoading}
               />
             </label>
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
-            >
-              <Plus size={12} />
-              Add New
-            </button>
+            {canPerformActionSync(userRole, 'branches', 'create') && (
+              <button
+                onClick={() => setShowAddForm(!showAddForm)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
+              >
+                <Plus size={12} />
+                Add New
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -679,24 +692,28 @@ function BranchesPageContent() {
                     </td>
                     <td className="px-1 py-1 whitespace-nowrap">
                       <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleEdit(branch)}
-                          className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                          title="Edit"
-                        >
-                          <Edit size={12} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(branch.id_branch)}
-                          disabled={deleteLoading === branch.id_branch}
-                          className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 disabled:opacity-50"
-                        >
-                          {deleteLoading === branch.id_branch ? (
-                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
-                          ) : (
-                            <Trash2 size={12} />
-                          )}
-                        </button>
+                        {canPerformActionSync(userRole, 'branches', 'edit') && (
+                          <button
+                            onClick={() => handleEdit(branch)}
+                            className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                            title="Edit"
+                          >
+                            <Edit size={12} />
+                          </button>
+                        )}
+                        {canPerformActionSync(userRole, 'branches', 'delete') && (
+                          <button
+                            onClick={() => handleDelete(branch.id_branch)}
+                            disabled={deleteLoading === branch.id_branch}
+                            className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 disabled:opacity-50"
+                          >
+                            {deleteLoading === branch.id_branch ? (
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
+                            ) : (
+                              <Trash2 size={12} />
+                            )}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

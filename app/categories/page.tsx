@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from "react"
 import { supabase } from "@/src/lib/supabaseClient"
 import { ArrowUpDown, Edit2, Trash2, Plus } from "lucide-react"
 import Layout from '../../components/Layout'
+import { canPerformActionSync } from '@/src/utils/rolePermissions'
 
 export default function CategoriesPage() {
   const [data, setData] = useState<any[]>([])
@@ -18,6 +19,16 @@ export default function CategoriesPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<{show: boolean, id: number | null}>({show: false, id: null})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showAddForm, setShowAddForm] = useState(false)
+  const [userRole, setUserRole] = useState<string>('guest')
+
+  // Get user role
+  useEffect(() => {
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      const user = JSON.parse(userData)
+      setUserRole(user.role || 'guest')
+    }
+  }, [])
 
   useEffect(() => {
     fetchData()
@@ -193,13 +204,15 @@ export default function CategoriesPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="border px-2 py-1 rounded-md text-xs w-full sm:w-64"
           />
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
-          >
-            <Plus size={16} />
-            Add New
-          </button>
+          {canPerformActionSync(userRole, 'categories', 'create') && (
+            <button
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
+            >
+              <Plus size={16} />
+              Add New
+            </button>
+          )}
         </div>
 
         {showAddForm && (
@@ -320,19 +333,25 @@ export default function CategoriesPage() {
                     <td className="border px-2 py-1">
                       {new Date(row.created_at).toLocaleDateString()}
                     </td>
-                    <td className="border px-2 py-1 flex gap-1">
-                      <button 
-                        onClick={() => handleEdit(row)} 
-                        className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                      >
-                        <Edit2 size={12} />
-                      </button>
-                      <button 
-                        onClick={() => setDeleteConfirm({show: true, id: row.id_category})} 
-                        className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                    <td className="border px-2 py-1">
+                      <div className="flex gap-1">
+                        {canPerformActionSync(userRole, 'categories', 'edit') && (
+                          <button 
+                            onClick={() => handleEdit(row)} 
+                            className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                        )}
+                        {canPerformActionSync(userRole, 'categories', 'delete') && (
+                          <button 
+                            onClick={() => setDeleteConfirm({show: true, id: row.id_category})} 
+                            className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

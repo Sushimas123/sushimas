@@ -3,8 +3,9 @@ import type { NextRequest } from 'next/server'
 
 // Role-based page access control
 const ROLE_PAGE_ACCESS = {
-  admin: ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname', 'supplier', 'permissions', 'permissions-db'],
-  manager: ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname', 'supplier'],
+  'super admin': ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname', 'supplier', 'permissions-db'],
+  admin: ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname', 'supplier'],
+  finance: ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'gudang', 'product_settings', 'produksi_detail', 'stock_opname'],
   pic_branch: ['dashboard', 'esb', 'ready', 'produksi', 'analysis', 'gudang', 'stock_opname'],
   staff: ['dashboard', 'esb', 'ready', 'produksi', 'gudang', 'stock_opname']
 }
@@ -28,7 +29,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Check if route requires authentication
-  const protectedRoutes = ['/dashboard', '/esb', '/ready', '/users', '/produksi', '/analysis', '/branches', '/categories', '/gudang', '/product_name', '/product_settings', '/produksi_detail', '/recipes', '/stock_opname', '/supplier', '/permissions', '/permissions-db']
+  const protectedRoutes = ['/dashboard', '/esb', '/ready', '/users', '/produksi', '/analysis', '/branches', '/categories', '/gudang', '/product_name', '/product_settings', '/produksi_detail', '/recipes', '/stock_opname', '/supplier', '/permissions-db']
   
   if (protectedRoutes.includes(pathname)) {
     // Get user data from cookie

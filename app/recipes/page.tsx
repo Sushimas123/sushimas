@@ -6,6 +6,7 @@ import { ArrowUpDown, Plus, Edit2, Trash2, Save, X, Download, Upload } from "luc
 import * as XLSX from 'xlsx'
 import { useRouter } from "next/navigation"
 import Layout from '../../components/Layout'
+import { canPerformActionSync } from '@/src/utils/rolePermissions'
 
 // Helper function to convert text to Title Case
 const toTitleCase = (str: any) => {
@@ -50,6 +51,16 @@ export default function RecipesPage() {
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize] = useState(10)
+  const [userRole, setUserRole] = useState<string>('guest')
+
+  // Get user role
+  useEffect(() => {
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      const user = JSON.parse(userData)
+      setUserRole(user.role || 'guest')
+    }
+  }, [])
 
   // Filter products by category
   const parentProducts = useMemo(() => 
@@ -438,13 +449,15 @@ export default function RecipesPage() {
                 />
               </label>
               
-              <button
-                onClick={() => setEditingId(-1)}
-                className="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 text-xs flex items-center gap-1"
-              >
-                <Plus size={16} />
-                Add New
-              </button>
+              {canPerformActionSync(userRole, 'recipes', 'create') && (
+                <button
+                  onClick={() => setEditingId(-1)}
+                  className="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 text-xs flex items-center gap-1"
+                >
+                  <Plus size={16} />
+                  Add New
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -579,20 +592,24 @@ export default function RecipesPage() {
                           </span>
                         </div>
                         <div className="flex gap-0.5 ml-0.5">
-                          <button
-                            onClick={() => handleEdit(recipe)}
-                            className="text-blue-600 hover:text-blue-800 p-0.5 rounded hover:bg-blue-50"
-                            title="Edit"
-                          >
-                            <Edit2 size={6} />
-                          </button>
-                          <button
-                            onClick={() => recipe.id && handleDelete(recipe.id)}
-                            className="text-red-600 hover:text-red-800 p-0.5 rounded hover:bg-red-50"
-                            title="Delete"
-                          >
-                            <Trash2 size={6} />
-                          </button>
+                          {canPerformActionSync(userRole, 'recipes', 'edit') && (
+                            <button
+                              onClick={() => handleEdit(recipe)}
+                              className="text-blue-600 hover:text-blue-800 p-0.5 rounded hover:bg-blue-50"
+                              title="Edit"
+                            >
+                              <Edit2 size={6} />
+                            </button>
+                          )}
+                          {canPerformActionSync(userRole, 'recipes', 'delete') && (
+                            <button
+                              onClick={() => recipe.id && handleDelete(recipe.id)}
+                              className="text-red-600 hover:text-red-800 p-0.5 rounded hover:bg-red-50"
+                              title="Delete"
+                            >
+                              <Trash2 size={6} />
+                            </button>
+                          )}
                         </div>
                       </div>
                       

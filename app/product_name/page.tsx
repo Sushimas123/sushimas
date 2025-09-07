@@ -14,6 +14,7 @@ import { ArrowUpDown, Edit2, Trash2, Filter, X, Plus, RefreshCw } from "lucide-r
 import { useRouter } from "next/navigation"
 import * as XLSX from 'xlsx'
 import Layout from '../../components/Layout'
+import { canPerformActionSync } from '@/src/utils/rolePermissions'
 
 export default function ProductPage() {
   const router = useRouter()
@@ -38,6 +39,16 @@ export default function ProductPage() {
   const [showSupplierDropdown, setShowSupplierDropdown] = useState(false)
   const [selectedSupplierText, setSelectedSupplierText] = useState("")
   const [showAddForm, setShowAddForm] = useState(false)
+  const [userRole, setUserRole] = useState<string>('guest')
+
+  // Get user role
+  useEffect(() => {
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      const user = JSON.parse(userData)
+      setUserRole(user.role || 'guest')
+    }
+  }, [])
 
   // Load data
   useEffect(() => {
@@ -470,13 +481,15 @@ export default function ProductPage() {
         
         {/* Primary Actions */}
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
-          >
-            <Plus size={16} />
-            Add New
-          </button>
+          {canPerformActionSync(userRole, 'product_name', 'create') && (
+            <button
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
+            >
+              <Plus size={16} />
+              Add New
+            </button>
+          )}
           <button
             onClick={() => {
               fetchData()
@@ -797,21 +810,27 @@ export default function ProductPage() {
                       )) || <span className="text-gray-400 text-xs">No branches</span>}
                     </div>
                   </td>
-                  <td className="border px-1 py-1 flex gap-1">
-                    <button 
-                      onClick={() => handleEdit(row)} 
-                      className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                      title="Edit"
-                    >
-                      <Edit2 size={12} />
-                    </button>
-                    <button 
-                      onClick={() => setDeleteConfirm({show: true, id: row.id_product})} 
-                      className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
-                      title="Delete"
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                  <td className="border px-1 py-1">
+                    <div className="flex gap-1">
+                      {canPerformActionSync(userRole, 'product_name', 'edit') && (
+                        <button 
+                          onClick={() => handleEdit(row)} 
+                          className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                          title="Edit"
+                        >
+                          <Edit2 size={12} />
+                        </button>
+                      )}
+                      {canPerformActionSync(userRole, 'product_name', 'delete') && (
+                        <button 
+                          onClick={() => setDeleteConfirm({show: true, id: row.id_product})} 
+                          className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
+                          title="Delete"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))

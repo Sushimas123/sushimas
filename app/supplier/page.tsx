@@ -7,6 +7,7 @@ import { Plus, Edit2, Trash2, Search, Download, Upload, ArrowUpDown, List, Grid 
 import * as XLSX from 'xlsx';
 import { useRouter } from 'next/navigation';
 import Layout from '../../components/Layout';
+import { canPerformActionSync } from '@/src/utils/rolePermissions';
 
 // Helper function to convert text to Title Case
 const toTitleCase = (str: any) => {
@@ -58,6 +59,16 @@ export default function SuppliersPage() {
     created_by: '',
     nama_barang: ''
   });
+  const [userRole, setUserRole] = useState<string>('guest');
+
+  // Get user role
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      setUserRole(user.role || 'guest');
+    }
+  }, []);
 
   // const supabase = createClient(); // removed - using imported supabase
 
@@ -482,13 +493,15 @@ export default function SuppliersPage() {
                 Group
               </button>
             </div>
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 text-xs flex items-center gap-1"
-            >
-              <Plus size={16} />
-              Add New
-            </button>
+            {canPerformActionSync(userRole, 'supplier', 'create') && (
+              <button
+                onClick={() => setShowAddForm(!showAddForm)}
+                className="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 text-xs flex items-center gap-1"
+              >
+                <Plus size={16} />
+                Add New
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -570,39 +583,43 @@ export default function SuppliersPage() {
                     <td className="px-1 py-1 text-gray-600">{toTitleCase(supplier.divisi) || '-'}</td>
                     <td className="px-1 py-1">
                       <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => {
-                            setFormData({
-                              nama_supplier: supplier.nama_supplier,
-                              nomor_rekening: supplier.nomor_rekening || '',
-                              bank_penerima: supplier.bank_penerima || '',
-                              nama_penerima: supplier.nama_penerima || '',
-                              termin_tempo: supplier.termin_tempo,
-                              estimasi_pengiriman: supplier.estimasi_pengiriman,
-                              divisi: supplier.divisi || '',
-                              created_by: supplier.created_by || '',
-                              nama_barang: supplier.nama_barang || ''
-                            });
-                            setEditingId(supplier.id_supplier);
-                            setShowAddForm(true);
-                          }}
-                          className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                          title="Edit"
-                        >
-                          <Edit2 size={12} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(supplier.id_supplier)}
-                          disabled={deleteLoading === supplier.id_supplier}
-                          className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 disabled:opacity-50"
-                          title="Delete"
-                        >
-                          {deleteLoading === supplier.id_supplier ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-                          ) : (
-                            <Trash2 size={12} />
-                          )}
-                        </button>
+                        {canPerformActionSync(userRole, 'supplier', 'edit') && (
+                          <button
+                            onClick={() => {
+                              setFormData({
+                                nama_supplier: supplier.nama_supplier,
+                                nomor_rekening: supplier.nomor_rekening || '',
+                                bank_penerima: supplier.bank_penerima || '',
+                                nama_penerima: supplier.nama_penerima || '',
+                                termin_tempo: supplier.termin_tempo,
+                                estimasi_pengiriman: supplier.estimasi_pengiriman,
+                                divisi: supplier.divisi || '',
+                                created_by: supplier.created_by || '',
+                                nama_barang: supplier.nama_barang || ''
+                              });
+                              setEditingId(supplier.id_supplier);
+                              setShowAddForm(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                            title="Edit"
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                        )}
+                        {canPerformActionSync(userRole, 'supplier', 'delete') && (
+                          <button
+                            onClick={() => handleDelete(supplier.id_supplier)}
+                            disabled={deleteLoading === supplier.id_supplier}
+                            className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 disabled:opacity-50"
+                            title="Delete"
+                          >
+                            {deleteLoading === supplier.id_supplier ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                            ) : (
+                              <Trash2 size={12} />
+                            )}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -649,39 +666,43 @@ export default function SuppliersPage() {
                             <div className="text-gray-500 truncate">{toTitleCase(item.divisi) || '-'}</div>
                           </div>
                           <div className="flex gap-0.5 ml-1">
-                            <button
-                              onClick={() => {
-                                setFormData({
-                                  nama_supplier: item.nama_supplier,
-                                  nomor_rekening: item.nomor_rekening || '',
-                                  bank_penerima: item.bank_penerima || '',
-                                  nama_penerima: item.nama_penerima || '',
-                                  termin_tempo: item.termin_tempo,
-                                  estimasi_pengiriman: item.estimasi_pengiriman,
-                                  divisi: item.divisi || '',
-                                  created_by: item.created_by || '',
-                                  nama_barang: item.nama_barang || ''
-                                });
-                                setEditingId(item.id_supplier);
-                                setShowAddForm(true);
-                              }}
-                              className="text-blue-600 hover:text-blue-800 p-0.5 rounded"
-                              title="Edit"
-                            >
-                              <Edit2 size={10} />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(item.id_supplier)}
-                              disabled={deleteLoading === item.id_supplier}
-                              className="text-red-600 hover:text-red-800 p-0.5 rounded disabled:opacity-50"
-                              title="Delete"
-                            >
-                              {deleteLoading === item.id_supplier ? (
-                                <div className="animate-spin rounded-full h-2 w-2 border-b border-red-600"></div>
-                              ) : (
-                                <Trash2 size={10} />
-                              )}
-                            </button>
+                            {canPerformActionSync(userRole, 'supplier', 'edit') && (
+                              <button
+                                onClick={() => {
+                                  setFormData({
+                                    nama_supplier: item.nama_supplier,
+                                    nomor_rekening: item.nomor_rekening || '',
+                                    bank_penerima: item.bank_penerima || '',
+                                    nama_penerima: item.nama_penerima || '',
+                                    termin_tempo: item.termin_tempo,
+                                    estimasi_pengiriman: item.estimasi_pengiriman,
+                                    divisi: item.divisi || '',
+                                    created_by: item.created_by || '',
+                                    nama_barang: item.nama_barang || ''
+                                  });
+                                  setEditingId(item.id_supplier);
+                                  setShowAddForm(true);
+                                }}
+                                className="text-blue-600 hover:text-blue-800 p-0.5 rounded"
+                                title="Edit"
+                              >
+                                <Edit2 size={10} />
+                              </button>
+                            )}
+                            {canPerformActionSync(userRole, 'supplier', 'delete') && (
+                              <button
+                                onClick={() => handleDelete(item.id_supplier)}
+                                disabled={deleteLoading === item.id_supplier}
+                                className="text-red-600 hover:text-red-800 p-0.5 rounded disabled:opacity-50"
+                                title="Delete"
+                              >
+                                {deleteLoading === item.id_supplier ? (
+                                  <div className="animate-spin rounded-full h-2 w-2 border-b border-red-600"></div>
+                                ) : (
+                                  <Trash2 size={10} />
+                                )}
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>

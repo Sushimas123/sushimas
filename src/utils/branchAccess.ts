@@ -26,8 +26,8 @@ export const getUserBranches = async (userId: number): Promise<string[]> => {
   const user = getCurrentUser()
   if (!user) return []
   
-  // Admin & Manager can see all branches
-  if (user.role === 'admin' || user.role === 'manager') {
+  // Super Admin & Admin can see all branches
+  if (user.role === 'super admin' || user.role === 'admin') {
     const { data } = await supabase
       .from('branches')
       .select('kode_branch')
@@ -51,8 +51,8 @@ export const getBranchFilter = async (): Promise<string[] | null> => {
   const user = getCurrentUser()
   if (!user) return null
   
-  // Admin & Manager see all branches (no filter)
-  if (user.role === 'admin' || user.role === 'manager') {
+  // Super Admin & Admin see all branches (no filter)
+  if (user.role === 'super admin' || user.role === 'admin') {
     return null // No filter = see all
   }
   
@@ -65,8 +65,8 @@ export const getUserDefaultBranch = async (): Promise<string | null> => {
   const user = getCurrentUser()
   if (!user) return null
   
-  // For admin/manager, return first branch or null (they choose manually)
-  if (user.role === 'admin' || user.role === 'manager') {
+  // For super admin/admin, return first branch or null (they choose manually)
+  if (user.role === 'super admin' || user.role === 'admin') {
     return null
   }
   
@@ -110,8 +110,8 @@ export const canAccessBranch = async (branchCode: string): Promise<boolean> => {
   const user = getCurrentUser()
   if (!user) return false
   
-  // Admin & Manager can access all branches
-  if (user.role === 'admin' || user.role === 'manager') {
+  // Super Admin & Admin can access all branches
+  if (user.role === 'super admin' || user.role === 'admin') {
     return true
   }
   

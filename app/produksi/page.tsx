@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
-import { Plus, Edit, Trash2, Download, Upload, RefreshCw } from 'lucide-react';
+import { Plus, Edit, Trash2, Download, Upload, RefreshCw, Settings, Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
+import { canPerformActionSync, getUserRole } from '@/src/utils/rolePermissions';
 
 interface Produksi {
   id: number;
@@ -56,12 +57,22 @@ export default function ProduksiPage() {
   const productDropdownRef = useRef<HTMLDivElement>(null);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [branches, setBranches] = useState<string[]>([]);
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
+  const [userRole, setUserRole] = useState<string>('guest');
 
   useEffect(() => {
     fetchProduksi();
     fetchWipProducts();
     fetchSubCategories();
     fetchBranches();
+    
+    // Get user role
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      setUserRole(user.role || 'guest');
+    }
   }, []);
 
   useEffect(() => {
@@ -86,27 +97,19 @@ export default function ProduksiPage() {
 
   const fetchProduksi = async () => {
     try {
-      const { data, error } = await supabase
-        .from('produksi')
-        .select('*')
-        .order('tanggal_input', { ascending: false });
+      const [produksiData, productsData] = await Promise.all([
+        supabase.from('produksi').select('*').order('tanggal_input', { ascending: false }),
+        supabase.from('nama_product').select('id_product, product_name')
+      ]);
 
-      if (error) throw error;
+      if (produksiData.error) throw produksiData.error;
       
-      const produksiWithNames = await Promise.all(
-        (data || []).map(async (item: any) => {
-          const { data: productData } = await supabase
-            .from('nama_product')
-            .select('product_name')
-            .eq('id_product', item.id_product)
-            .single();
-          
-          return {
-            ...item,
-            product_name: productData?.product_name || ''
-          };
-        })
-      );
+      const productMap = new Map(productsData.data?.map(p => [p.id_product, p.product_name]) || []);
+      
+      const produksiWithNames = (produksiData.data || []).map((item: any) => ({
+        ...item,
+        product_name: productMap.get(item.id_product) || ''
+      }));
       
       setProduksi(produksiWithNames);
     } catch (error) {
@@ -565,16 +568,18 @@ export default function ProduksiPage() {
             <button onClick={handleExport} className="bg-green-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1">
               <Download size={12} />Export
             </button>
-            <label className="bg-orange-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1 cursor-pointer hover:bg-orange-700">
-              <Upload size={12} />Import
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleImport}
-                className="hidden"
-              />
-            </label>
-            {selectedItems.length > 0 && (
+            {canPerformActionSync(userRole, 'produksi', 'create') && (
+              <label className="bg-orange-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1 cursor-pointer hover:bg-orange-700">
+                <Upload size={12} />Import
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleImport}
+                  className="hidden"
+                />
+              </label>
+            )}
+            {selectedItems.length > 0 && canPerformActionSync(userRole, 'produksi', 'delete') && (
               <button
                 onClick={handleBulkDelete}
                 className="bg-red-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
@@ -582,16 +587,25 @@ export default function ProduksiPage() {
                 <Trash2 size={12} />Delete ({selectedItems.length})
               </button>
             )}
+            {canPerformActionSync(userRole, 'produksi', 'create') && (
+              <button
+                onClick={() => {
+                  if (!showAddForm) {
+                    setFormData(prev => ({ ...prev, production_no: generateProductionNo() }));
+                  }
+                  setShowAddForm(!showAddForm);
+                }}
+                className="bg-blue-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
+              >
+                <Plus size={12} />Add
+              </button>
+            )}
             <button
-              onClick={() => {
-                if (!showAddForm) {
-                  setFormData(prev => ({ ...prev, production_no: generateProductionNo() }));
-                }
-                setShowAddForm(!showAddForm);
-              }}
-              className="bg-blue-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
+              onClick={() => setShowColumnSelector(!showColumnSelector)}
+              className="bg-purple-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
             >
-              <Plus size={12} />Add
+              <Settings size={12} />
+              {showColumnSelector ? 'Hide Columns' : 'Show Columns'}
             </button>
           </div>
         </div>
@@ -702,6 +716,50 @@ export default function ProduksiPage() {
           </div>
         )}
 
+        {/* Column Selector */}
+        {showColumnSelector && paginatedProduksi.length > 0 && (
+          <div className="bg-white p-2 rounded-lg shadow mb-1">
+            <h3 className="font-medium text-gray-800 mb-2 text-xs">Column Visibility Settings</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 mb-2">
+              {Object.keys(paginatedProduksi[0]).filter(col => col !== 'id').map(col => (
+                <label key={col} className="flex items-center gap-1 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={!hiddenColumns.includes(col)}
+                    onChange={() => {
+                      setHiddenColumns(prev => 
+                        prev.includes(col) 
+                          ? prev.filter(c => c !== col)
+                          : [...prev, col]
+                      );
+                    }}
+                    className="rounded text-blue-600 w-3 h-3"
+                  />
+                  <span className={hiddenColumns.includes(col) ? 'text-gray-500' : 'text-gray-800'}>
+                    {col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setHiddenColumns([])}
+                className="px-2 py-1 bg-green-600 text-white rounded-md text-xs hover:bg-green-700 flex items-center gap-1"
+              >
+                <Eye size={10} />
+                Show All
+              </button>
+              <button
+                onClick={() => setHiddenColumns(Object.keys(paginatedProduksi[0]).filter(col => col !== 'id'))}
+                className="px-2 py-1 bg-red-600 text-white rounded-md text-xs hover:bg-red-700 flex items-center gap-1"
+              >
+                <EyeOff size={10} />
+                Hide All
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -715,30 +773,30 @@ export default function ProduksiPage() {
                       className="rounded"
                     />
                   </th>
-                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('production_no')}>
+                  {!hiddenColumns.includes('production_no') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('production_no')}>
                     Production No {sortConfig?.key === 'production_no' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>
+                  </th>}
+                  {!hiddenColumns.includes('tanggal_input') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>
                     Date {sortConfig?.key === 'tanggal_input' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('divisi')}>
+                  </th>}
+                  {!hiddenColumns.includes('divisi') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('divisi')}>
                     Divisi {sortConfig?.key === 'divisi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch')}>
+                  </th>}
+                  {!hiddenColumns.includes('branch') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch')}>
                     Branch {sortConfig?.key === 'branch' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>
+                  </th>}
+                  {!hiddenColumns.includes('product_name') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>
                     Product {sortConfig?.key === 'product_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jumlah_buat')}>
+                  </th>}
+                  {!hiddenColumns.includes('jumlah_buat') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jumlah_buat')}>
                     Qty {sortConfig?.key === 'jumlah_buat' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('konversi')}>
+                  </th>}
+                  {!hiddenColumns.includes('konversi') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('konversi')}>
                     Konversi {sortConfig?.key === 'konversi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_konversi')}>
+                  </th>}
+                  {!hiddenColumns.includes('total_konversi') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_konversi')}>
                     Total {sortConfig?.key === 'total_konversi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
+                  </th>}
                   <th className="px-1 py-1 text-left font-medium text-gray-700">Action</th>
                 </tr>
               </thead>
@@ -760,35 +818,41 @@ export default function ProduksiPage() {
                           className="rounded"
                         />
                       </td>
-                      <td className="px-1 py-1 font-medium">
+                      {!hiddenColumns.includes('production_no') && <td className="px-1 py-1 font-medium">
                         <button
                           onClick={() => router.push(`/produksi_detail?search=${item.production_no}`)}
                           className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
                         >
                           {item.production_no}
                         </button>
-                      </td>
-                      <td className="px-1 py-1">{item.tanggal_input}</td>
-                      <td className="px-1 py-1">{item.divisi}</td>
-                      <td className="px-1 py-1">{item.branch}</td>
-                      <td className="px-1 py-1">{item.product_name}</td>
-                      <td className="px-1 py-1">{item.jumlah_buat}</td>
-                      <td className="px-1 py-1">{item.konversi}</td>
-                      <td className="px-1 py-1 font-medium">{item.total_konversi}</td>
+                      </td>}
+                      {!hiddenColumns.includes('tanggal_input') && <td className="px-1 py-1">{item.tanggal_input}</td>}
+                      {!hiddenColumns.includes('divisi') && <td className="px-1 py-1">{item.divisi}</td>}
+                      {!hiddenColumns.includes('branch') && <td className="px-1 py-1">{item.branch}</td>}
+                      {!hiddenColumns.includes('product_name') && <td className="px-1 py-1">{item.product_name}</td>}
+                      {!hiddenColumns.includes('jumlah_buat') && <td className="px-1 py-1">{item.jumlah_buat}</td>}
+                      {!hiddenColumns.includes('konversi') && <td className="px-1 py-1">{item.konversi}</td>}
+                      {!hiddenColumns.includes('total_konversi') && <td className="px-1 py-1 font-medium">{item.total_konversi}</td>}
                       <td className="px-1 py-1">
                         <div className="flex gap-1">
-                          <button
-                            onClick={() => handleEdit(item)}
-                            className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                          >
-                            <Edit size={12} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(item.id)}
-                            className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                          {canPerformActionSync(userRole, 'produksi', 'edit') && (
+                            <button
+                              onClick={() => handleEdit(item)}
+                              className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                              title="Edit"
+                            >
+                              <Edit size={12} />
+                            </button>
+                          )}
+                          {canPerformActionSync(userRole, 'produksi', 'delete') && (
+                            <button
+                              onClick={() => handleDelete(item.id)}
+                              className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
+                              title="Delete"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

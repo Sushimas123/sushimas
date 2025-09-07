@@ -178,9 +178,9 @@ export default function ESBPage() {
   }
 
   const deselectAllColumns = () => {
-    if (data.length > 0) {
-      setHiddenColumns(Object.keys(data[0])) // sembunyikan semua
-      showToast("All columns hidden", 'success')
+    if (permittedColumns.length > 0) {
+      setHiddenColumns(permittedColumns) // sembunyikan semua yang diizinkan
+      showToast("All permitted columns hidden", 'success')
     }
   }
 
@@ -195,9 +195,30 @@ export default function ESBPage() {
     fetchData(1)
   }
 
-  const visibleColumns = data.length > 0
-    ? Object.keys(data[0]).filter(col => !hiddenColumns.includes(col))
-    : []
+  // Get columns based on permissions
+  const [permittedColumns, setPermittedColumns] = useState<string[]>([])
+  
+  useEffect(() => {
+    const loadPermittedColumns = async () => {
+      if (data.length > 0) {
+        const allColumns = Object.keys(data[0])
+        const permitted = []
+        
+        for (const col of allColumns) {
+          const hasPermission = await canViewColumn(userRole, 'esb', col)
+          if (hasPermission) {
+            permitted.push(col)
+          }
+        }
+        
+        setPermittedColumns(permitted)
+      }
+    }
+    
+    loadPermittedColumns()
+  }, [data, userRole])
+  
+  const visibleColumns = permittedColumns.filter(col => !hiddenColumns.includes(col))
 
   // Export CSV
   const exportCSV = () => {
@@ -256,8 +277,9 @@ export default function ESBPage() {
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-600">Access Level:</span>
           <span className={`px-2 py-1 rounded text-xs font-semibold ${
-            userRole === 'admin' ? 'bg-red-100 text-red-800' :
-            userRole === 'manager' ? 'bg-blue-100 text-blue-800' :
+            userRole === 'super admin' ? 'bg-red-100 text-red-800' :
+            userRole === 'admin' ? 'bg-blue-100 text-blue-800' :
+            userRole === 'finance' ? 'bg-purple-100 text-purple-800' :
             userRole === 'pic_branch' ? 'bg-green-100 text-green-800' :
             'bg-gray-100 text-gray-800'
           }`}>

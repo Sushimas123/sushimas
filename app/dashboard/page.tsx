@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Layout from '../../components/Layout'
-import { BarChart3, Package, Users, Store, Truck, BookOpen, Factory, FileText, Warehouse } from 'lucide-react'
+import { BarChart3, Package, Users, Store, Truck, BookOpen, Factory, FileText, Warehouse, Settings2 } from 'lucide-react'
 import Link from 'next/link'
 import { canAccessPage } from '@/src/utils/dbPermissions'
 
@@ -47,38 +47,66 @@ function DashboardContent() {
 
   const [menuItems, setMenuItems] = useState<any[]>([])
 
-  // Get menu items based on database permissions
-  const getMenuItems = async (role: string) => {
-    const allItems = [
-      { name: "Ready Stock", href: "/ready", icon: Package },
-      { name: "Production", href: "/produksi", icon: Factory },
-      { name: "Production Detail", href: "/produksi_detail", icon: FileText },
-      { name: "Stock Opname", href: "/stock_opname", icon: FileText },
-      { name: "Gudang", href: "/gudang", icon: Warehouse },
-      { name: "ESB Report", href: "/esb", icon: BarChart3 },
-      { name: "Product Name Report", href: "/product_name", icon: Package },
-      { name: "Analysis", href: "/analysis", icon: BarChart3 },
-      { name: "Categories", href: "/categories", icon: BookOpen },
-      { name: "Recipes", href: "/recipes", icon: BookOpen },
-      { name: "Supplier", href: "/supplier", icon: Truck },
-      { name: "Branches", href: "/branches", icon: Store },
-      { name: "Users", href: "/users", icon: Users }
-    ]
-    
-    const filteredItems = []
-    for (const item of allItems) {
-      const hasAccess = await canAccessPage(role, item.href.replace('/', ''))
-      if (hasAccess) {
-        filteredItems.push(item)
-      }
+  // Get menu items based on role (optimized)
+  const getMenuItems = (role: string) => {
+    const roleMenus = {
+      'super admin': [
+        { name: "Ready Stock", href: "/ready", icon: Package },
+        { name: "Production", href: "/produksi", icon: Factory },
+        { name: "Production Detail", href: "/produksi_detail", icon: FileText },
+        { name: "Stock Opname", href: "/stock_opname", icon: FileText },
+        { name: "Gudang", href: "/gudang", icon: Warehouse },
+        { name: "ESB Report", href: "/esb", icon: BarChart3 },
+        { name: "Product Name Report", href: "/product_name", icon: Package },
+        { name: "Analysis", href: "/analysis", icon: BarChart3 },
+        { name: "Categories", href: "/categories", icon: BookOpen },
+        { name: "Recipes", href: "/recipes", icon: BookOpen },
+        { name: "Supplier", href: "/supplier", icon: Truck },
+        { name: "Branches", href: "/branches", icon: Store },
+        { name: "Users", href: "/users", icon: Users },
+        { name: "Permissions", href: "/permissions-db", icon: Settings2 }
+      ],
+      admin: [
+        { name: "Ready Stock", href: "/ready", icon: Package },
+        { name: "Production", href: "/produksi", icon: Factory },
+        { name: "Production Detail", href: "/produksi_detail", icon: FileText },
+        { name: "Stock Opname", href: "/stock_opname", icon: FileText },
+        { name: "Gudang", href: "/gudang", icon: Warehouse },
+        { name: "ESB Report", href: "/esb", icon: BarChart3 },
+        { name: "Analysis", href: "/analysis", icon: BarChart3 },
+        { name: "Categories", href: "/categories", icon: BookOpen },
+        { name: "Recipes", href: "/recipes", icon: BookOpen }
+      ],
+      finance: [
+        { name: "Ready Stock", href: "/ready", icon: Package },
+        { name: "Production", href: "/produksi", icon: Factory },
+        { name: "Production Detail", href: "/produksi_detail", icon: FileText },
+        { name: "Stock Opname", href: "/stock_opname", icon: FileText },
+        { name: "Gudang", href: "/gudang", icon: Warehouse },
+        { name: "ESB Report", href: "/esb", icon: BarChart3 },
+        { name: "Analysis", href: "/analysis", icon: BarChart3 },
+        { name: "Users", href: "/users", icon: Users }
+      ],
+      pic_branch: [
+        { name: "Ready Stock", href: "/ready", icon: Package },
+        { name: "Production", href: "/produksi", icon: Factory },
+        { name: "Stock Opname", href: "/stock_opname", icon: FileText },
+        { name: "Gudang", href: "/gudang", icon: Warehouse },
+        { name: "ESB Report", href: "/esb", icon: BarChart3 }
+      ],
+      staff: [
+        { name: "Ready Stock", href: "/ready", icon: Package },
+        { name: "Production", href: "/produksi", icon: Factory },
+        { name: "Stock Opname", href: "/stock_opname", icon: FileText }
+      ]
     }
-    return filteredItems
+    return roleMenus[role as keyof typeof roleMenus] || []
   }
 
-  // Load menu items when user changes
+  // Load menu items when user changes (synchronous)
   useEffect(() => {
     if (user?.role) {
-      getMenuItems(user.role).then(setMenuItems)
+      setMenuItems(getMenuItems(user.role))
     }
   }, [user])
 
@@ -108,8 +136,9 @@ function DashboardContent() {
             <div className="flex items-center gap-4 text-sm text-gray-600">
               <span className="flex items-center gap-1">
                 <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                  user.role === 'admin' ? 'bg-red-100 text-red-800' :
-                  user.role === 'manager' ? 'bg-blue-100 text-blue-800' :
+                  user.role === 'super admin' ? 'bg-red-100 text-red-800' :
+                  user.role === 'admin' ? 'bg-blue-100 text-blue-800' :
+                  user.role === 'finance' ? 'bg-purple-100 text-purple-800' :
                   user.role === 'pic_branch' ? 'bg-green-100 text-green-800' :
                   'bg-gray-100 text-gray-800'
                 }`}>

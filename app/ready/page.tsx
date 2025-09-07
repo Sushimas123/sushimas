@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
-import { Plus, Edit, Trash2, Download, Upload, RefreshCw } from 'lucide-react';
+import { Plus, Edit, Trash2, Download, Upload, RefreshCw, Settings, Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { canViewColumn } from '@/src/utils/dbPermissions';
 import { getBranchFilter, getUserDefaultBranch } from '@/src/utils/branchAccess';
+import { canPerformActionSync, getUserRole } from '@/src/utils/rolePermissions';
 
 interface Ready {
   id_ready: number;
@@ -70,6 +71,8 @@ export default function ReadyPage() {
   const [requireReadyInput, setRequireReadyInput] = useState(true);
   const [userRole, setUserRole] = useState<string>('guest');
   const [userId, setUserId] = useState<number | null>(null);
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
 
   // Get user info and set default branch
   useEffect(() => {
@@ -1061,14 +1064,15 @@ export default function ReadyPage() {
           <div className="flex gap-2 items-center">
             <span className="text-xs text-gray-600">Access Level:</span>
             <span className={`px-2 py-1 rounded text-xs font-semibold ${
-              userRole === 'admin' ? 'bg-red-100 text-red-800' :
-              userRole === 'manager' ? 'bg-blue-100 text-blue-800' :
+              userRole === 'super admin' ? 'bg-red-100 text-red-800' :
+              userRole === 'admin' ? 'bg-blue-100 text-blue-800' :
+              userRole === 'finance' ? 'bg-purple-100 text-purple-800' :
               userRole === 'pic_branch' ? 'bg-green-100 text-green-800' :
               'bg-gray-100 text-gray-800'
             }`}>
               {userRole.toUpperCase()}
             </span>
-            {(userRole === 'admin' || userRole === 'manager') && (
+            {(userRole === 'super admin' || userRole === 'admin') && (
               <label className="flex items-center gap-2 text-xs">
                 <input
                   type="checkbox"
@@ -1085,6 +1089,15 @@ export default function ReadyPage() {
             >
               {showDataTable ? 'Hide' : 'Show'} Data Table
             </button>
+            {showDataTable && (
+              <button
+                onClick={() => setShowColumnSelector(!showColumnSelector)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
+              >
+                <Settings size={16} />
+                {showColumnSelector ? 'Hide Columns' : 'Show Columns'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -1098,7 +1111,7 @@ export default function ReadyPage() {
           />
           
           <div className="flex flex-wrap gap-2">
-            {(userRole === 'admin' || userRole === 'manager' || userRole === 'pic_branch') && (
+            {canPerformActionSync(userRole, 'ready', 'create') && (
               <div
                 onClick={() => {
                   console.log('Input Harian clicked');
@@ -1125,7 +1138,7 @@ export default function ReadyPage() {
               <Download size={16} />
               Export Excel
             </button>
-            {(userRole === 'admin' || userRole === 'manager') && (
+            {canPerformActionSync(userRole, 'ready', 'create') && (
               <label className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1 cursor-pointer">
                 <Upload size={16} />
                 Import Excel
@@ -1149,7 +1162,7 @@ export default function ReadyPage() {
               <RefreshCw size={16} />
               Refresh
             </button>
-            {selectedItems.length > 0 && (
+            {selectedItems.length > 0 && canPerformActionSync(userRole, 'ready', 'delete') && (
               <button
                 onClick={handleDeleteSelected}
                 className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
@@ -1160,6 +1173,50 @@ export default function ReadyPage() {
             )}
           </div>
         </div>
+
+        {/* Column Selector */}
+        {showDataTable && showColumnSelector && paginatedReady.length > 0 && (
+          <div className="bg-white p-4 rounded-lg shadow mb-4">
+            <h3 className="font-medium text-gray-800 mb-3 text-sm">Column Visibility Settings</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 mb-3">
+              {Object.keys(paginatedReady[0]).filter(col => col !== 'id_ready').map(col => (
+                <label key={col} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={!hiddenColumns.includes(col)}
+                    onChange={() => {
+                      setHiddenColumns(prev => 
+                        prev.includes(col) 
+                          ? prev.filter(c => c !== col)
+                          : [...prev, col]
+                      );
+                    }}
+                    className="rounded text-blue-600"
+                  />
+                  <span className={hiddenColumns.includes(col) ? 'text-gray-500' : 'text-gray-800'}>
+                    {col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setHiddenColumns([])}
+                className="px-3 py-1 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 flex items-center gap-1"
+              >
+                <Eye size={14} />
+                Show All
+              </button>
+              <button
+                onClick={() => setHiddenColumns(Object.keys(paginatedReady[0]).filter(col => col !== 'id_ready'))}
+                className="px-3 py-1 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 flex items-center gap-1"
+              >
+                <EyeOff size={14} />
+                Hide All
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Data Table Section */}
         {showDataTable && (
@@ -1203,15 +1260,15 @@ export default function ReadyPage() {
                         className="cursor-pointer"
                       />
                     </th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready_no')}>Ready No</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>Tanggal</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>Cabang</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sub_category')}>Sub Category</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>Product</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id_product')}>Product ID</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('waste')}>Waste</th>
-                    {(userRole === 'admin' || userRole === 'manager') && <th className="border px-2 py-1 text-left font-medium">Actions</th>}
+                    {!hiddenColumns.includes('ready_no') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready_no')}>Ready No</th>}
+                    {!hiddenColumns.includes('tanggal_input') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>Tanggal</th>}
+                    {!hiddenColumns.includes('branch_name') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>Cabang</th>}
+                    {!hiddenColumns.includes('sub_category') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sub_category')}>Sub Category</th>}
+                    {!hiddenColumns.includes('product_name') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>Product</th>}
+                    {!hiddenColumns.includes('id_product') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id_product')}>Product ID</th>}
+                    {!hiddenColumns.includes('ready') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>}
+                    {!hiddenColumns.includes('waste') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('waste')}>Waste</th>}
+                    {(canPerformActionSync(userRole, 'ready', 'edit') || canPerformActionSync(userRole, 'ready', 'delete')) && <th className="border px-2 py-1 text-left font-medium">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -1227,7 +1284,7 @@ export default function ReadyPage() {
                     ))
                   ) : paginatedReady.length === 0 ? (
                     <tr>
-                      <td colSpan={userRole === 'admin' || userRole === 'manager' ? 10 : 9} className="text-center py-2 text-gray-500 text-xs">
+                      <td colSpan={(userRole === 'super admin' || userRole === 'admin') ? 10 : 9} className="text-center py-2 text-gray-500 text-xs">
                         No ready stock records found
                       </td>
                     </tr>
@@ -1242,22 +1299,41 @@ export default function ReadyPage() {
                             className="cursor-pointer"
                           />
                         </td>
-                        <td className="border px-2 py-1">{item.ready_no}</td>
-                        <td className="border px-2 py-1">{item.tanggal_input}</td>
-                        <td className="border px-2 py-1">{item.branch_name}</td>
-                        <td className="border px-2 py-1">{item.sub_category}</td>
-                        <td className="border px-2 py-1">{item.product_name}</td>
-                        <td className="border px-2 py-1 text-center">{item.id_product}</td>
-                        <td className="border px-2 py-1 text-right">{item.ready}</td>
-                        <td className="border px-2 py-1 text-right">{item.waste}</td>
-                        {(userRole === 'admin' || userRole === 'manager') && (
+                        {!hiddenColumns.includes('ready_no') && <td className="border px-2 py-1">{item.ready_no}</td>}
+                        {!hiddenColumns.includes('tanggal_input') && <td className="border px-2 py-1">{item.tanggal_input}</td>}
+                        {!hiddenColumns.includes('branch_name') && <td className="border px-2 py-1">{item.branch_name}</td>}
+                        {!hiddenColumns.includes('sub_category') && <td className="border px-2 py-1">{item.sub_category}</td>}
+                        {!hiddenColumns.includes('product_name') && <td className="border px-2 py-1">{item.product_name}</td>}
+                        {!hiddenColumns.includes('id_product') && <td className="border px-2 py-1 text-center">{item.id_product}</td>}
+                        {!hiddenColumns.includes('ready') && <td className="border px-2 py-1 text-right">{item.ready}</td>}
+                        {!hiddenColumns.includes('waste') && <td className="border px-2 py-1 text-right">{item.waste}</td>}
+                        {(canPerformActionSync(userRole, 'ready', 'edit') || canPerformActionSync(userRole, 'ready', 'delete')) && (
                           <td className="border px-2 py-1">
-                            <button
-                              onClick={() => handleEdit(item)}
-                              className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                            >
-                              <Edit size={12} />
-                            </button>
+                            <div className="flex gap-1">
+                              {canPerformActionSync(userRole, 'ready', 'edit') && (
+                                <button
+                                  onClick={() => handleEdit(item)}
+                                  className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                                  title="Edit"
+                                >
+                                  <Edit size={12} />
+                                </button>
+                              )}
+                              {canPerformActionSync(userRole, 'ready', 'delete') && (
+                                <button
+                                  onClick={() => {
+                                    if (confirm('Hapus data ini?')) {
+                                      handleDeleteSelected();
+                                      setSelectedItems([item.id_ready]);
+                                    }
+                                  }}
+                                  className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
+                            </div>
                           </td>
                         )}
                       </tr>

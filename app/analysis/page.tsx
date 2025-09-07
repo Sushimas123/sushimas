@@ -64,7 +64,7 @@ export default function AnalysisPage() {
     keluar_form: true,
     hasil_esb: true,
     selisih: true,
-    total_production: false,
+    total_production: true,
     sumif_total: false,
     tolerance_percentage: false,
     tolerance_range: true,
@@ -176,29 +176,19 @@ export default function AnalysisPage() {
   const fetchAnalysisData = async () => {
     setLoading(true);
     try {
+      // Validate date range
+      if (!dateRange.startDate || !dateRange.endDate) {
+        showToast('Please select valid date range', 'error');
+        setLoading(false);
+        return;
+      }
+
       // Add buffer 1 day before start date for accurate calculation
       const bufferDate = new Date(dateRange.startDate);
       bufferDate.setDate(bufferDate.getDate() - 1);
       const bufferDateStr = bufferDate.toISOString().split('T')[0];
 
-      // Try to fetch from analysis view first with buffer
-      const { data: viewData, error: viewError } = await supabase
-        .from('analysis_view')
-        .select('*')
-        .gte('tanggal', bufferDateStr)
-        .lte('tanggal', dateRange.endDate)
-        .order('tanggal', { ascending: false });
-
-      if (!viewError && viewData) {
-        // Filter for display (remove buffer data)
-        const filteredViewData = viewData.filter(item => 
-          item.tanggal >= dateRange.startDate && item.tanggal <= dateRange.endDate
-        );
-        setData(filteredViewData);
-        return;
-      }
-
-      // Fallback: fetch data with buffer for accurate calculation
+      // Fetch ready data with simple date filter
       const { data: readyData, error: readyError } = await supabase
         .from('ready')
         .select('*')
@@ -243,7 +233,7 @@ export default function AnalysisPage() {
       
       const { data: productionDetailData } = await supabase
         .from('produksi_detail')
-        .select('item_id, tanggal_input, total_pakai, cabang')
+        .select('item_id, tanggal_input, total_pakai, branch')
         .gte('tanggal_input', bufferDateStr)
         .lte('tanggal_input', dateRange.endDate)
         .in('item_id', uniqueProductIds);
@@ -325,7 +315,7 @@ export default function AnalysisPage() {
     // Group production detail data by product, date, and branch
     const productionDetailMap = new Map();
     productionDetail.forEach(pd => {
-      const key = `${pd.item_id}-${pd.tanggal_input}-${pd.cabang}`;
+      const key = `${pd.item_id}-${pd.tanggal_input}-${pd.branch}`;
       if (!productionDetailMap.has(key)) productionDetailMap.set(key, []);
       productionDetailMap.get(key).push(pd);
     });
@@ -379,11 +369,25 @@ export default function AnalysisPage() {
         .reduce((sum: number, w: any) => sum + (w.jumlah_masuk || 0), 0);
       const waste = ready.waste || 0;
       const totalBarang = (ready.ready || 0) + gudang + barangMasuk;
-      // Total Production per tanggal dan cabang
-      const productionDetailKey = `${ready.id_product}-${ready.tanggal_input}-${branch?.kode_branch}`;
-      const productionDetails = productionDetailMap.get(productionDetailKey) || [];
-      const totalProduction = productionDetails
-        .filter((pd: any) => pd.tanggal_input === ready.tanggal_input && pd.cabang === branch?.kode_branch)
+      // Total Production - sum production detail for this product, date, and branch
+      // Map branch names: production detail uses full names, ready uses branch codes
+      const branchNameMap: { [key: string]: string } = {
+        'JAK279': 'Sushimas Depok',
+        'JAK280': 'Sushimas Harapan Indah', 
+        'JAK281': 'Sushimas Grand Wisata',
+        'JAK282': 'Sushimas Grand Galaxy',
+        'JAK283': 'Sushimas Condet',
+        'JAK284': 'Sushimas Serpong'
+      };
+      
+      const expectedBranchName = branchNameMap[branch?.kode_branch || ''] || branch?.nama_branch;
+      
+      const totalProduction = productionDetail
+        .filter((pd: any) => {
+          return pd.item_id === ready.id_product && 
+                 pd.tanggal_input === ready.tanggal_input &&
+                 pd.branch === expectedBranchName;
+        })
         .reduce((sum: number, pd: any) => sum + (pd.total_pakai || 0), 0);
       
       const sumifTotal = productionItem?.total_konversi || 0;

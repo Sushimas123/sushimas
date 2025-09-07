@@ -47,7 +47,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const fetchUserBranches = async (userId: number, role: string) => {
     try {
-      if (role === 'admin' || role === 'manager') {
+      if (role === 'super admin' || role === 'admin') {
         setUserBranches(['All Branches'])
         return
       }
@@ -61,7 +61,7 @@ export default function Layout({ children }: LayoutProps) {
         .eq('id_user', userId)
         .eq('is_active', true)
       
-      const branchNames = data?.map(item => item.branches.nama_branch) || []
+      const branchNames = data?.map(item => (item.branches as any).nama_branch) || []
       setUserBranches(branchNames.length > 0 ? branchNames : ['No Branch Assigned'])
     } catch (error) {
       console.error('Error fetching user branches:', error)
@@ -73,8 +73,15 @@ export default function Layout({ children }: LayoutProps) {
   const getFilteredMenuItems = async (items: any[], role: string) => {
     const filteredItems = []
     for (const item of items) {
-      const hasAccess = await canAccessPage(role, item.href.replace('/', ''))
-      if (hasAccess) {
+      try {
+        const pagePath = item.href.replace('/', '')
+        const hasAccess = await canAccessPage(role, pagePath)
+        if (hasAccess) {
+          filteredItems.push(item)
+        }
+      } catch (error) {
+        console.error('Error checking access for', item.href, error)
+        // Default to showing the item if there's an error
         filteredItems.push(item)
       }
     }
@@ -94,6 +101,12 @@ export default function Layout({ children }: LayoutProps) {
       ]).then(([topItems, sideItems]) => {
         setFilteredTopMenuItems(topItems)
         setFilteredSideMenuItems(sideItems)
+        setMenuLoading(false)
+      }).catch(error => {
+        console.error('Error loading menu items:', error)
+        // Fallback: show all items if there's an error
+        setFilteredTopMenuItems(topMenuItems)
+        setFilteredSideMenuItems(sideMenuItems)
         setMenuLoading(false)
       })
     }
@@ -117,7 +130,8 @@ export default function Layout({ children }: LayoutProps) {
     { name: "Supplier", href: "/supplier", icon: Truck },
     { name: "Branches", href: "/branches", icon: Store },
     { name: "Users", href: "/users", icon: Users },
-    { name: "Permissions", href: "/permissions", icon: Settings2Icon }
+    { name: "Permissions", href: "/permissions-db", icon: Settings2Icon },
+    { name: "CRUD Permissions", href: "/crud-permissions", icon: Settings2Icon }
   ]
 
 
@@ -192,12 +206,6 @@ export default function Layout({ children }: LayoutProps) {
       <div className="flex min-h-[calc(100vh-80px)]">
         {/* Desktop Sidebar */}
         <aside className="hidden md:flex w-64 bg-gray-800 text-white shadow-sm flex-col">
-          {/* Branding */}
-          <div className="p-6 border-b border-gray-700">
-            <h2 className="text-xl font-bold tracking-wide">📦 InvenPro</h2>
-            <p className="text-sm text-gray-300 mt-1">Inventory & Production Management</p>
-          </div>
-
           {/* Menu */}
           <nav className="flex-1 p-4 space-y-2">
             {menuLoading ? (
