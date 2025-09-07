@@ -69,30 +69,38 @@ export default function Layout({ children }: LayoutProps) {
     }
   }
 
-  // Permission-based menu filtering using database permissions only
-  const getFilteredMenuItems = async (items: any[], userId: number) => {
-    const filteredItems = []
-    for (const item of items) {
-      try {
-        const pagePath = item.href.replace('/', '')
-        
-        // Check database permissions only - no role-based fallback
-        const { data, error } = await supabase
-          .from('crud_permissions')
-          .select('can_read')
-          .eq('user_id', userId)
-          .eq('table_name', pagePath)
-          .single()
-
-        if (data && !error && data.can_read) {
-          filteredItems.push(item)
-        }
-      } catch (error) {
-        console.error('Error checking access for', item.href, error)
-        // No fallback - if error, no access
+  // Simple role-based menu filtering
+  const getFilteredMenuItems = (items: any[], role: string) => {
+    const roleAccess = {
+      'super admin': {
+        top: ['ready', 'produksi', 'produksi_detail', 'stock_opname', 'gudang', 'product_settings', 'analysis'],
+        side: ['esb', 'product_name', 'categories', 'recipes', 'supplier', 'branches', 'users', 'permissions-db', 'crud-permissions', 'audit-log']
+      },
+      'admin': {
+        top: ['ready', 'produksi', 'produksi_detail', 'stock_opname', 'gudang', 'product_settings', 'analysis'],
+        side: ['esb', 'product_name', 'categories', 'recipes', 'supplier', 'branches', 'users', 'permissions-db', 'crud-permissions', 'audit-log']
+      },
+      'finance': {
+        top: ['ready', 'produksi', 'produksi_detail', 'stock_opname', 'gudang', 'analysis'],
+        side: ['esb', 'users']
+      },
+      'pic branch': {
+        top: ['ready', 'produksi', 'stock_opname', 'gudang'],
+        side: ['esb']
+      },
+      'staff': {
+        top: ['ready', 'produksi', 'stock_opname'],
+        side: []
       }
     }
-    return filteredItems
+    
+    const access = roleAccess[role as keyof typeof roleAccess] || { top: [], side: [] }
+    const menuType = items === topMenuItems ? 'top' : 'side'
+    
+    return items.filter(item => {
+      const pagePath = item.href.replace('/', '')
+      return access[menuType].includes(pagePath)
+    })
   }
 
   const [filteredTopMenuItems, setFilteredTopMenuItems] = useState<any[]>([])
@@ -109,24 +117,15 @@ export default function Layout({ children }: LayoutProps) {
   }, [])
 
   useEffect(() => {
-    if (userRole && userId) {
+    if (userRole) {
       setMenuLoading(true)
-      Promise.all([
-        getFilteredMenuItems(topMenuItems, userId),
-        getFilteredMenuItems(sideMenuItems, userId)
-      ]).then(([topItems, sideItems]) => {
-        setFilteredTopMenuItems(topItems)
-        setFilteredSideMenuItems(sideItems)
-        setMenuLoading(false)
-      }).catch(error => {
-        console.error('Error loading menu items:', error)
-        // No fallback - if error, show nothing
-        setFilteredTopMenuItems([])
-        setFilteredSideMenuItems([])
-        setMenuLoading(false)
-      })
+      const topItems = getFilteredMenuItems(topMenuItems, userRole)
+      const sideItems = getFilteredMenuItems(sideMenuItems, userRole)
+      setFilteredTopMenuItems(topItems)
+      setFilteredSideMenuItems(sideItems)
+      setMenuLoading(false)
     }
-  }, [userRole, userId])
+  }, [userRole])
 
   const topMenuItems = [
     { name: "Ready Stock", href: "/ready", icon: Package },

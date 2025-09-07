@@ -50,22 +50,45 @@ export const getPermissions = async (userRole: string): Promise<any> => {
 
 // Default permissions fallback
 const getDefaultPermissions = (userRole: string) => {
-  const defaultPages = ['ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'product_settings', 'stock_opname']
+  const permissions: { [key: string]: string[] } = {}
   
-  if (userRole === 'super admin' || userRole === 'admin') {
-    const permissions: { [key: string]: string[] } = {}
-    // Admin gets access to all pages plus management pages
-    const allPages = [...defaultPages, 'esb', 'product_name', 'categories', 'recipes', 'supplier', 'branches', 'users', 'permissions-db', 'crud-permissions']
+  if (userRole === 'super admin') {
+    // Super admin gets access to all pages
+    const allPages = ['ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'product_settings', 'stock_opname', 'esb', 'product_name', 'categories', 'recipes', 'supplier', 'branches', 'users', 'permissions-db', 'crud-permissions', 'audit-log']
     allPages.forEach(page => {
       permissions[page] = ['*'] // Full access
     })
     return permissions
   }
   
-  if (userRole === 'finance' || userRole === 'pic branch' || userRole === 'staff') {
-    const permissions: { [key: string]: string[] } = {}
-    defaultPages.forEach(page => {
-      permissions[page] = ['*'] // Access to main pages
+  if (userRole === 'admin') {
+    const adminPages = ['ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'product_settings', 'stock_opname', 'esb', 'product_name', 'categories', 'recipes', 'supplier', 'branches', 'users', 'permissions-db', 'crud-permissions', 'audit-log']
+    adminPages.forEach(page => {
+      permissions[page] = ['*']
+    })
+    return permissions
+  }
+  
+  if (userRole === 'finance') {
+    const financePages = ['ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'stock_opname', 'esb', 'users']
+    financePages.forEach(page => {
+      permissions[page] = ['*']
+    })
+    return permissions
+  }
+  
+  if (userRole === 'pic branch') {
+    const picPages = ['ready', 'produksi', 'gudang', 'stock_opname', 'esb']
+    picPages.forEach(page => {
+      permissions[page] = ['*']
+    })
+    return permissions
+  }
+  
+  if (userRole === 'staff') {
+    const staffPages = ['ready', 'produksi', 'stock_opname']
+    staffPages.forEach(page => {
+      permissions[page] = ['*']
     })
     return permissions
   }
