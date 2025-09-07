@@ -387,6 +387,24 @@ function ReadyPageContent() {
     }
 
     try {
+      // Check for duplicates in database
+      const productIds = submitData.map(d => d.id_product);
+      const { data: existingData } = await supabase
+        .from('ready')
+        .select('id_product')
+        .eq('tanggal_input', selectedDate)
+        .eq('id_branch', parseInt(selectedBranch))
+        .in('id_product', productIds);
+      
+      if (existingData && existingData.length > 0) {
+        const duplicateProducts = existingData.map(item => {
+          const product = menuProducts.find(p => p.id_product === item.id_product);
+          return product?.product_name || `Product ID ${item.id_product}`;
+        });
+        alert(`Produk sudah ada untuk tanggal dan cabang ini: ${duplicateProducts.join(', ')}`);
+        return;
+      }
+      
       for (const data of submitData) {
         const { error } = await insertWithAudit('ready', data);
         if (error) throw error;
@@ -397,7 +415,7 @@ function ReadyPageContent() {
       await fetchReady();
     } catch (error) {
       console.error('Error saving ready:', error);
-      alert('Gagal menyimpan ready data');
+      alert(`Gagal menyimpan ready data: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -425,7 +443,7 @@ function ReadyPageContent() {
     if (!editingItem) return;
 
     try {
-      const { error } = await updateWithAudit(
+      const result = await updateWithAudit(
         'ready',
         {
           ready: editingItem.ready,
@@ -434,14 +452,20 @@ function ReadyPageContent() {
         { id_ready: editingItem.id_ready }
       );
       
-      if (error) throw error;
+      console.log('Update result:', result);
+      
+      if (result.error) {
+        console.error('Supabase error:', result.error);
+        throw new Error(result.error.message || 'Database update failed');
+      }
       
       alert('Data berhasil diupdate!');
       setEditingItem(null);
       await fetchReady();
     } catch (error) {
       console.error('Error updating item:', error);
-      alert('Gagal mengupdate data');
+      const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+      alert(`Gagal mengupdate data: ${errorMessage}`);
     }
   };
 
@@ -461,8 +485,13 @@ function ReadyPageContent() {
     
     try {
       for (const id of selectedItems) {
-        const { error } = await deleteWithAudit('ready', { id_ready: id });
-        if (error) throw error;
+        const result = await deleteWithAudit('ready', { id_ready: id });
+        console.log('Delete result:', result);
+        
+        if (result.error) {
+          console.error('Supabase delete error:', result.error);
+          throw new Error(result.error.message || 'Database delete failed');
+        }
       }
       
       setSelectedItems([]);
@@ -470,7 +499,8 @@ function ReadyPageContent() {
       alert(`${selectedItems.length} data berhasil dihapus!`);
     } catch (error) {
       console.error('Error deleting selected items:', error);
-      alert('Gagal menghapus data yang dipilih');
+      const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+      alert(`Gagal menghapus data yang dipilih: ${errorMessage}`);
     }
   };
 

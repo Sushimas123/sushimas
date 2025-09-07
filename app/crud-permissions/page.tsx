@@ -129,7 +129,7 @@ export default function CrudPermissionsPage() {
       await fetchPermissions();
     } catch (error) {
       console.error('Error saving permissions:', error);
-      alert(`Failed to save permissions: ${error.message}`);
+      alert(`Failed to save permissions`);
     } finally {
       setSaving(false);
     }
@@ -191,6 +191,93 @@ export default function CrudPermissionsPage() {
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
+        </div>
+
+                {/* Quick Actions */}
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="bg-white p-4 rounded-lg shadow">
+            <h3 className="font-semibold text-gray-800 mb-3">Quick Role Actions</h3>
+            <div className="space-y-2">
+              {ROLES.map(role => (
+                <div key={role} className="flex items-center justify-between">
+                  <span className="text-sm capitalize">{role}</span>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => {
+                        PAGES.forEach(page => {
+                          updatePermission(role, page, 'can_create', true);
+                          updatePermission(role, page, 'can_edit', true);
+                          updatePermission(role, page, 'can_delete', true);
+                        });
+                      }}
+                      className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs hover:bg-green-200"
+                    >
+                      All
+                    </button>
+                    <button
+                      onClick={() => {
+                        PAGES.forEach(page => {
+                          updatePermission(role, page, 'can_create', false);
+                          updatePermission(role, page, 'can_edit', false);
+                          updatePermission(role, page, 'can_delete', false);
+                        });
+                      }}
+                      className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs hover:bg-red-200"
+                    >
+                      None
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow">
+            <h3 className="font-semibold text-gray-800 mb-3">Bulk Actions</h3>
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  ROLES.forEach(role => {
+                    PAGES.forEach(page => {
+                      updatePermission(role, page, 'can_create', true);
+                    });
+                  });
+                }}
+                className="w-full px-3 py-2 bg-green-100 text-green-800 rounded hover:bg-green-200 text-sm"
+              >
+                Enable All CREATE
+              </button>
+              <button
+                onClick={() => {
+                  ROLES.forEach(role => {
+                    PAGES.forEach(page => {
+                      updatePermission(role, page, 'can_edit', true);
+                    });
+                  });
+                }}
+                className="w-full px-3 py-2 bg-blue-100 text-blue-800 rounded hover:bg-blue-200 text-sm"
+              >
+                Enable All EDIT
+              </button>
+              <button
+                onClick={() => {
+                  ROLES.forEach(role => {
+                    PAGES.forEach(page => {
+                      updatePermission(role, page, 'can_delete', false);
+                    });
+                  });
+                }}
+                className="w-full px-3 py-2 bg-red-100 text-red-800 rounded hover:bg-red-200 text-sm"
+              >
+                Disable All DELETE
+              </button>
+            </div>
+          </div>
+
+          
+        </div>
+
+      
         </div>
 
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -265,37 +352,7 @@ export default function CrudPermissionsPage() {
           </div>
         </div>
 
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-medium text-blue-800 mb-2">Permission Guide:</h3>
-          <ul className="text-sm text-blue-700 space-y-1">
-            <li><strong>Create:</strong> Can add new records (Add button, Import)</li>
-            <li><strong>Edit:</strong> Can modify existing records (Edit button)</li>
-            <li><strong>Delete:</strong> Can remove records (Delete button, Bulk delete)</li>
-          </ul>
-        </div>
 
-        <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <h3 className="font-medium text-yellow-800 mb-2">Default Role Permissions:</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-            <div>
-              <strong className="text-red-700">Super Admin & Admin:</strong>
-              <p className="text-gray-600">Full access (Create, Edit, Delete)</p>
-            </div>
-            <div>
-              <strong className="text-purple-700">Finance:</strong>
-              <p className="text-gray-600">Read-only access</p>
-            </div>
-            <div>
-              <strong className="text-green-700">PIC Branch:</strong>
-              <p className="text-gray-600">Create + Edit (no Delete)</p>
-            </div>
-            <div>
-              <strong className="text-gray-700">Staff:</strong>
-              <p className="text-gray-600">Create only</p>
-            </div>
-          </div>
-        </div>
-        </div>
       </PageAccessControl>
     </Layout>
   );
