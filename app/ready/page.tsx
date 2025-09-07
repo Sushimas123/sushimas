@@ -443,21 +443,17 @@ function ReadyPageContent() {
     if (!editingItem) return;
 
     try {
-      const result = await updateWithAudit(
-        'ready',
-        {
+      const { error } = await supabase
+        .from('ready')
+        .update({
           ready: editingItem.ready,
-          waste: editingItem.waste
-        },
-        { id_ready: editingItem.id_ready }
-      );
+          waste: editingItem.waste,
+          updated_by: userId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id_ready', editingItem.id_ready);
       
-      console.log('Update result:', result);
-      
-      if (result.error) {
-        console.error('Supabase error:', result.error);
-        throw new Error(result.error.message || 'Database update failed');
-      }
+      if (error) throw error;
       
       alert('Data berhasil diupdate!');
       setEditingItem(null);
@@ -484,15 +480,12 @@ function ReadyPageContent() {
     if (!confirm(`Hapus ${selectedItems.length} data yang dipilih?`)) return;
     
     try {
-      for (const id of selectedItems) {
-        const result = await deleteWithAudit('ready', { id_ready: id });
-        console.log('Delete result:', result);
-        
-        if (result.error) {
-          console.error('Supabase delete error:', result.error);
-          throw new Error(result.error.message || 'Database delete failed');
-        }
-      }
+      const { error } = await supabase
+        .from('ready')
+        .delete()
+        .in('id_ready', selectedItems);
+      
+      if (error) throw error;
       
       setSelectedItems([]);
       await fetchReady();
@@ -1379,10 +1372,23 @@ function ReadyPageContent() {
                               )}
                               {canPerformActionSync(userRole, 'ready', 'delete') && (
                                 <button
-                                  onClick={() => {
+                                  onClick={async () => {
                                     if (confirm('Hapus data ini?')) {
-                                      handleDeleteSelected();
-                                      setSelectedItems([item.id_ready]);
+                                      try {
+                                        const { error } = await supabase
+                                          .from('ready')
+                                          .delete()
+                                          .eq('id_ready', item.id_ready);
+                                        
+                                        if (error) throw error;
+                                        
+                                        await fetchReady();
+                                        alert('Data berhasil dihapus!');
+                                      } catch (error) {
+                                        console.error('Error deleting item:', error);
+                                        const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+                                        alert(`Gagal menghapus data: ${errorMessage}`);
+                                      }
                                     }
                                   }}
                                   className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
