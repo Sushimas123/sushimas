@@ -131,7 +131,8 @@ export default function Layout({ children }: LayoutProps) {
     { name: "Branches", href: "/branches", icon: Store },
     { name: "Users", href: "/users", icon: Users },
     { name: "Permissions", href: "/permissions-db", icon: Settings2Icon },
-    { name: "CRUD Permissions", href: "/crud-permissions", icon: Settings2Icon }
+    { name: "CRUD Permissions", href: "/crud-permissions", icon: Settings2Icon },
+    { name: "Audit Log", href: "/audit-log", icon: FileText }
   ]
 
 

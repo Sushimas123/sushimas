@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { canPerformActionSync, getUserRole } from '@/src/utils/rolePermissions';
+import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
 
 interface Produksi {
   id: number;
@@ -188,25 +189,10 @@ export default function ProduksiPage() {
 
     try {
       if (editingId) {
-        const { error } = await supabase
-          .from('produksi')
-          .update(submitData)
-          .eq('id', editingId)
-          ;
-        if (error) {
-          console.error('Update error details:', error);
-          throw error;
-        }
+        await updateWithAudit('produksi', submitData, { id: editingId });
         alert('Produksi berhasil diupdate!');
       } else {
-        const { error } = await supabase
-          .from('produksi')
-          .insert([submitData])
-          ;
-        if (error) {
-          console.error('Insert error details:', error);
-          throw error;
-        }
+        await insertWithAudit('produksi', submitData);
         alert('Produksi berhasil ditambahkan!');
       }
 
@@ -252,11 +238,7 @@ export default function ProduksiPage() {
   const handleDelete = async (id: number) => {
     if (!confirm('Hapus produksi ini?')) return;
     try {
-      const { error } = await supabase
-        .from('produksi')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
+      await deleteWithAudit('produksi', { id });
       await fetchProduksi();
       alert('Produksi berhasil dihapus!');
     } catch (error) {
@@ -286,12 +268,9 @@ export default function ProduksiPage() {
     if (!confirm(`Hapus ${selectedItems.length} produksi yang dipilih?`)) return;
     
     try {
-      const { error } = await supabase
-        .from('produksi')
-        .delete()
-        .in('id', selectedItems);
-      
-      if (error) throw error;
+      for (const id of selectedItems) {
+        await deleteWithAudit('produksi', { id });
+      }
       
       setSelectedItems([]);
       await fetchProduksi();
@@ -445,20 +424,18 @@ export default function ProduksiPage() {
         }
         
         // Insert new record
-        const { error } = await supabase
-          .from('produksi')
-          .insert({
-            production_no: generateProductionNo(),
-            tanggal_input: tanggalInput,
-            id_product: product.id_product,
-            divisi: divisi,
-            branch: branch,
-            jumlah_buat: jumlahBuat,
-            konversi: product.satuan_besar || 1,
-            total_konversi: jumlahBuat * (product.satuan_besar || 1)
-          });
+        await insertWithAudit('produksi', {
+          production_no: generateProductionNo(),
+          tanggal_input: tanggalInput,
+          id_product: product.id_product,
+          divisi: divisi,
+          branch: branch,
+          jumlah_buat: jumlahBuat,
+          konversi: product.satuan_besar || 1,
+          total_konversi: jumlahBuat * (product.satuan_besar || 1)
+        });
         
-        if (!error) importCount++;
+        importCount++;
       }
       
       let message = `✅ Imported ${importCount} production records`;

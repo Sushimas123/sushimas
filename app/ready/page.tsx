@@ -9,6 +9,7 @@ import Layout from '../../components/Layout';
 import { canViewColumn } from '@/src/utils/dbPermissions';
 import { getBranchFilter, getUserDefaultBranch } from '@/src/utils/branchAccess';
 import { canPerformActionSync, getUserRole } from '@/src/utils/rolePermissions';
+import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
 
 interface Ready {
   id_ready: number;
@@ -343,10 +344,10 @@ export default function ReadyPage() {
     }
 
     try {
-      const { error } = await supabase
-        .from('ready')
-        .insert(submitData);
-      if (error) throw error;
+      for (const data of submitData) {
+        const { error } = await insertWithAudit('ready', data);
+        if (error) throw error;
+      }
       
       alert('Ready data berhasil disimpan!');
       resetForm();
@@ -381,13 +382,14 @@ export default function ReadyPage() {
     if (!editingItem) return;
 
     try {
-      const { error } = await supabase
-        .from('ready')
-        .update({
+      const { error } = await updateWithAudit(
+        'ready',
+        {
           ready: editingItem.ready,
           waste: editingItem.waste
-        })
-        .eq('id_ready', editingItem.id_ready);
+        },
+        { id_ready: editingItem.id_ready }
+      );
       
       if (error) throw error;
       
@@ -415,11 +417,10 @@ export default function ReadyPage() {
     if (!confirm(`Hapus ${selectedItems.length} data yang dipilih?`)) return;
     
     try {
-      const { error } = await supabase
-        .from('ready')
-        .delete()
-        .in('id_ready', selectedItems);
-      if (error) throw error;
+      for (const id of selectedItems) {
+        const { error } = await deleteWithAudit('ready', { id_ready: id });
+        if (error) throw error;
+      }
       
       setSelectedItems([]);
       await fetchReady();
@@ -722,13 +723,12 @@ export default function ReadyPage() {
       // Insert data
       setImportProgress({show: true, progress: 85, message: 'Menyimpan ke database...'});
       
-      const { error } = await supabase
-        .from('ready')
-        .insert(processedData);
-      
-      if (error) {
-        console.error('Supabase insert error:', error);
-        throw new Error(`Database error: ${error.message || 'Failed to insert data'}`);
+      for (const data of processedData) {
+        const { error } = await insertWithAudit('ready', data);
+        if (error) {
+          console.error('Supabase insert error:', error);
+          throw new Error(`Database error: ${error.message || 'Failed to insert data'}`);
+        }
       }
       
       setImportProgress({show: true, progress: 95, message: 'Memperbarui tampilan...'});

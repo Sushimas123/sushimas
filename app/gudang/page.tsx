@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { getBranchFilter, applyBranchFilter } from '@/src/utils/branchAccess';
 import { canPerformActionSync, getUserRole, arePermissionsLoaded, reloadPermissions } from '@/src/utils/rolePermissions';
+import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
 
 interface Gudang {
   uniqueid_gudang: string;
@@ -237,17 +238,19 @@ function GudangPageContent() {
 
     try {
       if (editingId) {
-        const { error } = await supabase
-          .from('gudang')
-          .update(submitData)
-          .eq('uniqueid_gudang', editingId);
+        const { error } = await updateWithAudit(
+          'gudang',
+          submitData,
+          { uniqueid_gudang: editingId }
+        );
         if (error) throw error;
         console.log('Updated gudang record:', editingId);
       } else {
-        const { data, error } = await supabase
-          .from('gudang')
-          .insert([submitData])
-          .select();
+        const { data, error } = await insertWithAudit(
+          'gudang',
+          submitData,
+          { select: '*' }
+        );
         if (error) throw error;
         console.log('Inserted new gudang record:', data);
       }
@@ -309,10 +312,10 @@ function GudangPageContent() {
         .single();
       
       // Delete the gudang record
-      const { error } = await supabase
-        .from('gudang')
-        .delete()
-        .eq('uniqueid_gudang', id);
+      const { error } = await deleteWithAudit(
+        'gudang',
+        { uniqueid_gudang: id }
+      );
       if (error) throw error;
       
       // If it's from stock opname, reset the SO status to pending

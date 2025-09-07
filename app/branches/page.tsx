@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { canPerformActionSync } from '@/src/utils/rolePermissions';
+import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
 
 interface Branch {
   id_branch: number;
@@ -181,16 +182,18 @@ function BranchesPageContent() {
       };
 
       if (editingId) {
-        const { error } = await supabase
-          .from('branches')
-          .update(submitData)
-          .eq('id_branch', editingId);
+        const { error } = await updateWithAudit(
+          'branches',
+          submitData,
+          { id_branch: editingId }
+        );
 
         if (error) throw error;
       } else {
-        const { error } = await supabase
-          .from('branches')
-          .insert([submitData]);
+        const { error } = await insertWithAudit(
+          'branches',
+          submitData
+        );
 
         if (error) throw error;
       }
@@ -383,13 +386,10 @@ function BranchesPageContent() {
     setDeleteLoading(id);
     
     try {
-      const { error } = await supabase
-        .from('branches')
-        .update({ 
-          is_active: false,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id_branch', id);
+      const { error } = await deleteWithAudit(
+        'branches',
+        { id_branch: id }
+      );
 
       if (error) {
         throw error;

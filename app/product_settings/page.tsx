@@ -6,6 +6,7 @@ import { Plus, Edit, Trash2, Download, Upload, RefreshCw, Filter, X } from 'luci
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
+import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
 
 // Helper function to convert text to Title Case
 const toTitleCase = (str: any) => {
@@ -230,59 +231,46 @@ export default function ProductSettingsPage() {
         tolerance_percentage: formData.tolerance_percentage
       });
       
-      // Try to update first, then insert if not exists
-      let toleranceData, toleranceError;
-      
-      // First try to update existing record
-      const { data: updateData, error: updateError } = await supabase
+      // Check if tolerance exists
+      const { data: existingTolerance } = await supabase
         .from('product_tolerances')
-        .update({
+        .select('id_product')
+        .eq('id_product', formData.id_product)
+        .single();
+      
+      if (existingTolerance) {
+        await updateWithAudit('product_tolerances', {
           tolerance_percentage: formData.tolerance_percentage,
           updated_at: new Date().toISOString()
-        })
-        .eq('id_product', formData.id_product)
-        .select();
-      
-      if (updateError || !updateData || updateData.length === 0) {
-        console.log('Update failed or no record found, trying insert:', updateError);
-        // If update failed or no record exists, try insert
-        const { data: insertData, error: insertError } = await supabase
-          .from('product_tolerances')
-          .insert({
-            id_product: formData.id_product,
-            tolerance_percentage: formData.tolerance_percentage
-          })
-          .select();
-        
-        toleranceData = insertData;
-        toleranceError = insertError;
+        }, { id_product: formData.id_product });
       } else {
-        toleranceData = updateData;
-        toleranceError = updateError;
-      }
-
-      console.log('Tolerance save result:', { toleranceData, toleranceError });
-
-      if (toleranceError) {
-        throw new Error(`Failed to save tolerance: ${toleranceError.message}`);
+        await insertWithAudit('product_tolerances', {
+          id_product: formData.id_product,
+          tolerance_percentage: formData.tolerance_percentage
+        });
       }
 
       // Save branch settings
       for (const branchSetting of formData.branch_settings) {
-        const { data: settingData, error: settingError } = await supabase
+        const { data: existingSetting } = await supabase
           .from('product_branch_settings')
-          .upsert({
-            id_product: formData.id_product,
-            id_branch: branchSetting.id_branch,
-            safety_stock: branchSetting.safety_stock,
-            reorder_point: branchSetting.reorder_point,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'id_product,id_branch'
-          });
-
-        if (settingError) {
-          throw new Error(`Failed to save branch setting for ${branchSetting.branch_name}: ${settingError.message || settingError.details || 'Database operation failed'}`);
+          .select('id_setting')
+          .eq('id_product', formData.id_product)
+          .eq('id_branch', branchSetting.id_branch)
+          .single();
+        
+        const settingData = {
+          id_product: formData.id_product,
+          id_branch: branchSetting.id_branch,
+          safety_stock: branchSetting.safety_stock,
+          reorder_point: branchSetting.reorder_point,
+          updated_at: new Date().toISOString()
+        };
+        
+        if (existingSetting) {
+          await updateWithAudit('product_branch_settings', settingData, { id_setting: existingSetting.id_setting });
+        } else {
+          await insertWithAudit('product_branch_settings', settingData);
         }
       }
 
@@ -330,16 +318,17 @@ export default function ProductSettingsPage() {
   const handleDelete = async (id: number) => {
     try {
       // Delete tolerance
-      await supabase
-        .from('product_tolerances')
-        .delete()
-        .eq('id_product', id);
+      await deleteWithAudit('product_tolerances', { id_product: id });
 
       // Delete branch settings
-      await supabase
+      const { data: branchSettings } = await supabase
         .from('product_branch_settings')
-        .delete()
+        .select('id_setting')
         .eq('id_product', id);
+      
+      for (const setting of branchSettings || []) {
+        await deleteWithAudit('product_branch_settings', { id_setting: setting.id_setting });
+      }
 
       showToast('Settings deleted successfully', 'success');
       await fetchData();
@@ -408,22 +397,43 @@ export default function ProductSettingsPage() {
         
         if (product && branch) {
           // Save tolerance
-          await supabase
+          const { data: existingTolerance } = await supabase
             .from('product_tolerances')
-            .upsert({
-              id_product: product.id_product,
-              tolerance_percentage: parseFloat(row['Tolerance %']) || 5
-            }, { onConflict: 'id_product' });
+            .select('id_product')
+            .eq('id_product', product.id_product)
+            .single();
+          
+          const toleranceData = {
+            id_product: product.id_product,
+            tolerance_percentage: parseFloat(row['Tolerance %']) || 5
+          };
+          
+          if (existingTolerance) {
+            await updateWithAudit('product_tolerances', toleranceData, { id_product: product.id_product });
+          } else {
+            await insertWithAudit('product_tolerances', toleranceData);
+          }
 
           // Save branch setting
-          await supabase
+          const { data: existingSetting } = await supabase
             .from('product_branch_settings')
-            .upsert({
-              id_product: product.id_product,
-              id_branch: branch.id_branch,
-              safety_stock: parseFloat(row['Safety Stock']) || 10,
-              reorder_point: parseFloat(row['Reorder Point']) || 20
-            }, { onConflict: 'id_product,id_branch' });
+            .select('id_setting')
+            .eq('id_product', product.id_product)
+            .eq('id_branch', branch.id_branch)
+            .single();
+          
+          const settingData = {
+            id_product: product.id_product,
+            id_branch: branch.id_branch,
+            safety_stock: parseFloat(row['Safety Stock']) || 10,
+            reorder_point: parseFloat(row['Reorder Point']) || 20
+          };
+          
+          if (existingSetting) {
+            await updateWithAudit('product_branch_settings', settingData, { id_setting: existingSetting.id_setting });
+          } else {
+            await insertWithAudit('product_branch_settings', settingData);
+          }
         }
         
         processed++;
@@ -463,8 +473,18 @@ export default function ProductSettingsPage() {
 
     try {
       for (const id of selectedItems) {
-        await supabase.from('product_tolerances').delete().eq('id_product', id);
-        await supabase.from('product_branch_settings').delete().eq('id_product', id);
+        // Delete tolerance
+        await deleteWithAudit('product_tolerances', { id_product: id });
+        
+        // Delete branch settings
+        const { data: branchSettings } = await supabase
+          .from('product_branch_settings')
+          .select('id_setting')
+          .eq('id_product', id);
+        
+        for (const setting of branchSettings || []) {
+          await deleteWithAudit('product_branch_settings', { id_setting: setting.id_setting });
+        }
       }
       
       showToast(`Deleted ${selectedItems.length} items successfully`, 'success');

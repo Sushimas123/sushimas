@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { canViewColumn } from '@/src/utils/dbPermissions';
+import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
 
 interface User {
   id_user: number;
@@ -147,10 +148,11 @@ function UsersPageContent() {
           delete (updateData as any).password_hash;
         }
         
-        const { error } = await supabase
-          .from('users')
-          .update(updateData)
-          .eq('id_user', editingId);
+        const { error } = await updateWithAudit(
+          'users',
+          updateData,
+          { id_user: editingId }
+        );
 
         if (error) throw error;
         
@@ -168,14 +170,14 @@ function UsersPageContent() {
         const userData = { ...formData };
         delete (userData as any).selectedBranches;
         
-        const { data, error } = await supabase
-          .from('users')
-          .insert([userData])
-          .select('id_user')
-          .single();
+        const { data, error } = await insertWithAudit(
+          'users',
+          userData,
+          { select: 'id_user' }
+        );
 
         if (error) throw error;
-        userId = data.id_user;
+        userId = data?.[0]?.id_user || data?.id_user;
       }
 
       // Insert user branches
@@ -334,13 +336,10 @@ function UsersPageContent() {
     setDeleteLoading(id);
     
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({ 
-          is_active: false,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id_user', id);
+      const { error } = await deleteWithAudit(
+        'users',
+        { id_user: id }
+      );
 
       if (error) {
         throw error;
@@ -650,7 +649,9 @@ function UsersPageContent() {
                               const branch = branches.find(b => b.kode_branch === branchCode);
                               return branch ? branch.nama_branch : branchCode;
                             }).join(', ')
-                          : (user.cabang || '-')
+                          : user.cabang ? (
+                              branches.find(b => b.kode_branch === user.cabang)?.nama_branch || user.cabang
+                            ) : '-'
                         }
                       </div>
                     </td>}
