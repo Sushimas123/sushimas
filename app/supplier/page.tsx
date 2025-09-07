@@ -7,7 +7,8 @@ import { Plus, Edit2, Trash2, Search, Download, Upload, ArrowUpDown, List, Grid 
 import * as XLSX from 'xlsx';
 import { useRouter } from 'next/navigation';
 import Layout from '../../components/Layout';
-import { canPerformActionSync } from '@/src/utils/rolePermissions';
+import { canPerformActionSync, reloadPermissions } from '@/src/utils/rolePermissions';
+import { hasPageAccess } from '@/src/utils/permissionChecker';
 
 // Helper function to convert text to Title Case
 const toTitleCase = (str: any) => {
@@ -60,14 +61,25 @@ export default function SuppliersPage() {
     nama_barang: ''
   });
   const [userRole, setUserRole] = useState<string>('guest');
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 
-  // Get user role
+  // Get user role and check access
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const user = JSON.parse(userData);
-      setUserRole(user.role || 'guest');
+    const checkUserAccess = async () => {
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        setUserRole(user.role || 'guest');
+        
+        // Check page access
+        await reloadPermissions();
+        const pageAccess = await hasPageAccess(user.role, 'supplier');
+        setHasAccess(pageAccess);
+      } else {
+        setHasAccess(false);
+      }
     }
+    checkUserAccess();
   }, []);
 
   // const supabase = createClient(); // removed - using imported supabase
@@ -309,11 +321,50 @@ export default function SuppliersPage() {
     ? filteredAndSortedSuppliers.slice((page - 1) * pageSize, page * pageSize)
     : Object.entries(groupedSuppliers).slice((page - 1) * pageSize, page * pageSize);
 
-  if (loading) {
+  if (loading || hasAccess === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+      <Layout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Block access if user doesn't have permission
+  if (hasAccess === false) {
+    return (
+      <Layout>
+        <div className="p-4">
+          <div className="bg-white p-6 rounded-lg shadow text-center">
+            <div className="text-red-500 text-6xl mb-4">🚫</div>
+            <h2 className="text-lg font-bold text-gray-800 mb-2">Access Denied</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              You don't have permission to access the Supplier page.
+            </p>
+            <p className="text-xs text-gray-500 mb-4">
+              Current role: <span className="font-semibold">{userRole}</span>
+            </p>
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={() => router.back()}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={async () => {
+                  await reloadPermissions();
+                  window.location.reload();
+                }}
+                className="bg-green-600 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700"
+              >
+                Refresh Permissions
+              </button>
+            </div>
+          </div>
+        </div>
+      </Layout>
     );
   }
 

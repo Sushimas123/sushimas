@@ -8,7 +8,8 @@ import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { canViewColumn } from '@/src/utils/dbPermissions';
 import { getBranchFilter, getUserDefaultBranch } from '@/src/utils/branchAccess';
-import { canPerformActionSync, getUserRole } from '@/src/utils/rolePermissions';
+import { canPerformActionSync, getUserRole, arePermissionsLoaded, reloadPermissions } from '@/src/utils/rolePermissions';
+import { hasPageAccess } from '@/src/utils/permissionChecker';
 import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
 
 interface Ready {
@@ -72,28 +73,39 @@ export default function ReadyPage() {
   const [requireReadyInput, setRequireReadyInput] = useState(true);
   const [userRole, setUserRole] = useState<string>('guest');
   const [userId, setUserId] = useState<number | null>(null);
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
 
-  // Get user info and set default branch
+  // Get user info and check access
   useEffect(() => {
-    const userData = localStorage.getItem('user')
-    if (userData) {
-      const user = JSON.parse(userData)
-      setUserRole(user.role || 'guest')
-      setUserId(user.id_user || null)
-      
-      // Auto-select user's default branch
-      getUserDefaultBranch().then(defaultBranch => {
-        if (defaultBranch) {
-          // Find branch ID from code
-          const branch = branches.find(b => b.nama_branch === defaultBranch)
-          if (branch) {
-            setSelectedBranch(branch.id_branch.toString())
+    const checkUserAccess = async () => {
+      const userData = localStorage.getItem('user')
+      if (userData) {
+        const user = JSON.parse(userData)
+        setUserRole(user.role || 'guest')
+        setUserId(user.id_user || null)
+        
+        // Check page access
+        await reloadPermissions();
+        const pageAccess = await hasPageAccess(user.role, 'ready');
+        setHasAccess(pageAccess);
+        
+        // Auto-select user's default branch
+        getUserDefaultBranch().then(defaultBranch => {
+          if (defaultBranch) {
+            // Find branch ID from code
+            const branch = branches.find(b => b.nama_branch === defaultBranch)
+            if (branch) {
+              setSelectedBranch(branch.id_branch.toString())
+            }
           }
-        }
-      })
+        })
+      } else {
+        setHasAccess(false);
+      }
     }
+    checkUserAccess();
   }, [branches])
 
   useEffect(() => {
@@ -818,11 +830,48 @@ export default function ReadyPage() {
     XLSX.writeFile(wb, `ready_stock_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  if (loading) {
+  if (loading || hasAccess === null) {
     return (
       <Layout>
         <div className="flex justify-center items-center h-64">
           <RefreshCw className="animate-spin h-8 w-8" />
+        </div>
+      </Layout>
+    );
+  }
+
+  // Block access if user doesn't have permission
+  if (hasAccess === false) {
+    return (
+      <Layout>
+        <div className="p-4">
+          <div className="bg-white p-6 rounded-lg shadow text-center">
+            <div className="text-red-500 text-6xl mb-4">🚫</div>
+            <h2 className="text-lg font-bold text-gray-800 mb-2">Access Denied</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              You don't have permission to access the Ready Stock page.
+            </p>
+            <p className="text-xs text-gray-500 mb-4">
+              Current role: <span className="font-semibold">{userRole}</span>
+            </p>
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={() => router.back()}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={async () => {
+                  await reloadPermissions();
+                  window.location.reload();
+                }}
+                className="bg-green-600 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700"
+              >
+                Refresh Permissions
+              </button>
+            </div>
+          </div>
         </div>
       </Layout>
     );

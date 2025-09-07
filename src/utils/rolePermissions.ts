@@ -60,20 +60,20 @@ const FALLBACK_PERMISSIONS = {
   },
   'pic branch': {
     ready: { create: true, edit: true, delete: false },
-    gudang: { create: true, edit: true, delete: false },
+    gudang: { create: false, edit: false, delete: false },
     produksi: { create: true, edit: true, delete: false },
     produksi_detail: { create: true, edit: true, delete: false },
-    analysis: { create: false, edit: false, delete: false },
-    esb: { create: false, edit: false, delete: false },
-    product_name: { create: false, edit: false, delete: false },
-    categories: { create: false, edit: false, delete: false },
-    recipes: { create: false, edit: false, delete: false },
-    supplier: { create: false, edit: false, delete: false },
-    branches: { create: false, edit: false, delete: false },
-    users: { create: false, edit: false, delete: false },
+    analysis: { create: true, edit: true, delete: false },
+    esb: { create: true, edit: true, delete: false },
+    product_name: { create: true, edit: true, delete: false },
+    categories: { create: true, edit: true, delete: false },
+    recipes: { create: true, edit: true, delete: false },
+    supplier: { create: true, edit: true, delete: false },
+    branches: { create: true, edit: true, delete: false },
+    users: { create: true, edit: true, delete: false },
     stock_opname: { create: true, edit: true, delete: false },
-    product_settings: { create: false, edit: false, delete: false },
-    'permissions-db': { create: false, edit: false, delete: false }
+    product_settings: { create: true, edit: true, delete: false },
+    'permissions-db': { create: true, edit: true, delete: false }
   },
   'staff': {
     ready: { create: true, edit: false, delete: false },
@@ -96,11 +96,17 @@ const FALLBACK_PERMISSIONS = {
 
 const loadPermissionsFromDB = async (): Promise<void> => {
   try {
+    console.log('Loading permissions from database...');
     const { data, error } = await supabase
       .from('crud_permissions')
       .select('user_id, role, page, can_create, can_edit, can_delete');
 
-    if (error) throw error;
+    if (error) {
+      console.error('Database error loading permissions:', error);
+      throw error;
+    }
+
+    console.log('Raw permission data:', data);
 
     // Clear cache
     permissionsCache.clear();
@@ -125,6 +131,7 @@ const loadPermissionsFromDB = async (): Promise<void> => {
     });
 
     cacheTimestamp = Date.now();
+    console.log('Permissions loaded successfully, cache size:', permissionsCache.size);
   } catch (error) {
     console.error('Error loading CRUD permissions from database:', error);
   }
@@ -197,15 +204,46 @@ export const canPerformActionSync = (userRole: string, page: string, action: 'cr
     }
   }
   
-  // Check role-based permissions
-  const roleKey = `${userRole.toLowerCase()}|${page}|${action}`;
+  // Check role-based permissions - handle role name conversion
+  const normalizedRole = userRole.replace('_', ' ').toLowerCase();
+  const roleKey = `${normalizedRole}|${page}|${action}`;
   if (permissionsCache.has(roleKey)) {
     return permissionsCache.get(roleKey) || false;
   }
 
+  // Check database permissions directly if cache miss
+  const checkDBPermissions = async () => {
+    try {
+      const { data } = await supabase
+        .from('crud_permissions')
+        .select('can_create, can_edit, can_delete')
+        .eq('role', userRole)
+        .eq('page', page)
+        .single();
+      
+      if (data) {
+        return data[`can_${action}` as keyof typeof data] || false;
+      }
+    } catch (error) {
+      console.error('Error checking DB permissions:', error);
+    }
+    return false;
+  };
+
+  // For critical permission checks, try database first
+  if (page === 'gudang' && permissionsCache.size === 0) {
+    // Synchronously check fallback first, then async DB check will update cache
+    checkDBPermissions().then(result => {
+      if (result !== undefined) {
+        permissionsCache.set(roleKey, result);
+      }
+    });
+  }
+
   // Fallback to hardcoded permissions only if database is not available
   console.warn(`Permission not found in cache for ${userRole} - ${page} - ${action}, using fallback`);
-  const fallbackPerms = FALLBACK_PERMISSIONS[userRole.toLowerCase() as keyof typeof FALLBACK_PERMISSIONS];
+  const normalizedRoleForFallback = userRole.replace('_', ' ');
+  const fallbackPerms = FALLBACK_PERMISSIONS[normalizedRoleForFallback.toLowerCase() as keyof typeof FALLBACK_PERMISSIONS];
   if (fallbackPerms) {
     const pagePerms = fallbackPerms[page as keyof typeof fallbackPerms];
     if (pagePerms) {
@@ -236,9 +274,11 @@ export const getUserRole = (): string => {
 
 // Force reload permissions from database
 export const reloadPermissions = async (): Promise<void> => {
+  console.log('Clearing permission cache and reloading from DB...');
   permissionsCache.clear();
   cacheTimestamp = 0;
   await loadPermissionsFromDB();
+  console.log('Permission cache reloaded, size:', permissionsCache.size);
 };
 
 // Check if permissions are loaded

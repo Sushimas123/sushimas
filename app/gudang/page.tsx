@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
-import { Plus, Edit, Trash2, Download, Upload, Settings, Eye, EyeOff } from 'lucide-react';
+import { Plus, Edit, Trash2, Download, Upload, Settings, Eye, EyeOff, ArrowRightLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { getBranchFilter, applyBranchFilter } from '@/src/utils/branchAccess';
 import { canPerformActionSync, getUserRole, arePermissionsLoaded, reloadPermissions } from '@/src/utils/rolePermissions';
+import { hasPageAccess } from '@/src/utils/permissionChecker';
 import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
 
 interface Gudang {
@@ -20,6 +21,14 @@ interface Gudang {
   total_gudang: number;
   nama_pengambil_barang: string;
   cabang: string;
+  source_type: string;
+  source_reference: string;
+  created_by: number;
+  updated_by: number;
+  updated_at?: string;
+  transfer_id?: number;
+  from_cabang?: string;
+  to_cabang?: string;
   product_name?: string;
   branch_name?: string;
 }
@@ -35,6 +44,7 @@ function GudangPageContent() {
   const [gudang, setGudang] = useState<Gudang[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [productFilter, setProductFilter] = useState('');
@@ -48,11 +58,17 @@ function GudangPageContent() {
     waktu: new Date().toTimeString().slice(0, 5),
     jumlah_keluar: '',
     jumlah_masuk: '',
-    cabang: ''
+    nama_pengambil_barang: '',
+    cabang: '',
+    source_type: 'manual',
+    source_reference: '',
+    from_cabang: '',
+    to_cabang: ''
   });
   const [userCabang, setUserCabang] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('user');
   const [userId, setUserId] = useState<number | null>(null);
+  const [userName, setUserName] = useState<string>('');
   const [cabangList, setCabangList] = useState<{id_branch: number, kode_branch: string, nama_branch: string}[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState('');
@@ -67,16 +83,22 @@ function GudangPageContent() {
 
   useEffect(() => {
     fetchUserInfo();
-    fetchCabang();
-    fetchGudang();
-    fetchProducts();
+    
+    // Only fetch data if user has access
+    if (hasAccess === true) {
+      fetchCabang();
+      fetchGudang();
+      fetchProducts();
+    }
     
     // Force reload permissions if not loaded
     if (!arePermissionsLoaded()) {
       console.log('Permissions not loaded, reloading...');
       reloadPermissions();
     }
-  }, []);
+  }, [hasAccess]);
+
+
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -97,6 +119,22 @@ function GudangPageContent() {
         setUserCabang(userData.cabang || '');
         setUserRole(userData.role || 'user');
         setUserId(userData.id_user || null);
+        setUserName(userData.nama_lengkap || 'Current User');
+        
+        // Force reload permissions after user info is set
+        console.log('Forcing permission reload for role:', userData.role);
+        await reloadPermissions();
+        
+        // Force clear permission cache and reload
+        await reloadPermissions();
+        
+        // Check if user has any access to gudang page from database
+        const pageAccess = await hasPageAccess(userData.role, 'gudang');
+        console.log(`Database permission check for ${userData.role} on gudang:`, pageAccess);
+        
+        // Always set the access based on database result
+        // Always set the access based on database result
+        setHasAccess(pageAccess);
         return;
       }
       
@@ -105,17 +143,34 @@ function GudangPageContent() {
       if (user) {
         const { data: userData } = await supabase
           .from('users')
-          .select('cabang, role')
+          .select('cabang, role, nama_lengkap')
           .eq('id', user.id)
           .single();
         
         if (userData) {
           setUserCabang(userData.cabang || '');
           setUserRole(userData.role || 'user');
+          setUserName(userData.nama_lengkap || 'Current User');
+          
+          // Force reload permissions after user info is set
+          console.log('Forcing permission reload for role:', userData.role);
+          await reloadPermissions();
+          
+          // Force clear permission cache and reload
+          await reloadPermissions();
+          
+          // Check if user has any access to gudang page from database
+          const pageAccess = await hasPageAccess(userData.role, 'gudang');
+          console.log(`Database permission check for ${userData.role} on gudang:`, pageAccess);
+          
+          // Always set the access based on database result
+          // Always set the access based on database result
+          setHasAccess(pageAccess);
         }
       }
     } catch (error) {
       console.error('Error fetching user info:', error);
+      setHasAccess(false);
     }
   };
 
@@ -226,31 +281,44 @@ function GudangPageContent() {
     // Get previous balance for this product and timestamp
     const previousBalance = await calculateTotalGudang(formData.id_product, timestamp);
     
+    // Only proceed if there's an actual transaction (either in or out)
+    if (jumlahMasuk === 0 && jumlahKeluar === 0) {
+      alert('Please enter either Jumlah Masuk or Jumlah Keluar');
+      setSaving(false);
+      return;
+    }
+
     const submitData = {
       id_product: formData.id_product,
       tanggal: timestamp,
       jumlah_keluar: jumlahKeluar,
       jumlah_masuk: jumlahMasuk,
       total_gudang: previousBalance + jumlahMasuk - jumlahKeluar,
-      nama_pengambil_barang: 'Current User',
-      cabang: formData.cabang
+      nama_pengambil_barang: formData.nama_pengambil_barang || userName,
+      cabang: formData.cabang,
+      source_type: formData.source_type || 'manual',
+      source_reference: formData.source_reference || null,
+      created_by: userId ?? null,
+      updated_by: userId ?? null,
+      from_cabang: formData.from_cabang || null,
+      to_cabang: formData.to_cabang || null
     };
 
     try {
       if (editingId) {
-        const { error } = await updateWithAudit(
-          'gudang',
-          submitData,
-          { uniqueid_gudang: editingId }
-        );
+        // Use direct Supabase update instead of audit function to avoid schema issues
+        const { error } = await supabase
+          .from('gudang')
+          .update(submitData)
+          .eq('uniqueid_gudang', editingId);
         if (error) throw error;
         console.log('Updated gudang record:', editingId);
       } else {
-        const { data, error } = await insertWithAudit(
-          'gudang',
-          submitData,
-          { select: '*' }
-        );
+        // Use direct Supabase insert instead of audit function to avoid schema issues
+        const { data, error } = await supabase
+          .from('gudang')
+          .insert([submitData])
+          .select();
         if (error) throw error;
         console.log('Inserted new gudang record:', data);
       }
@@ -264,6 +332,10 @@ function GudangPageContent() {
       resetForm();
     } catch (error) {
       console.error('Error saving gudang:', error);
+      const errorMessage = error instanceof Error ? error.message : 
+                          error && typeof error === 'object' && 'message' in error ? (error as any).message :
+                          JSON.stringify(error);
+      alert(`Failed to save: ${errorMessage}`);
     } finally {
       setSaving(false);
     }
@@ -276,7 +348,12 @@ function GudangPageContent() {
       waktu: new Date().toTimeString().slice(0, 5),
       jumlah_keluar: '',
       jumlah_masuk: '',
-      cabang: userCabang || ''
+      nama_pengambil_barang: userName,
+      cabang: userCabang || '',
+      source_type: 'manual',
+      source_reference: '',
+      from_cabang: '',
+      to_cabang: ''
     });
     setProductSearch('');
     setShowAddForm(false);
@@ -294,7 +371,12 @@ function GudangPageContent() {
       waktu: timeOnly,
       jumlah_keluar: item.jumlah_keluar.toString(),
       jumlah_masuk: item.jumlah_masuk.toString(),
-      cabang: item.cabang || userCabang
+      nama_pengambil_barang: item.nama_pengambil_barang || '',
+      cabang: item.cabang || userCabang,
+      source_type: item.source_type || 'manual',
+      source_reference: item.source_reference || '',
+      from_cabang: item.from_cabang || '',
+      to_cabang: item.to_cabang || ''
     });
     setProductSearch(item.product_name || '');
     setEditingId(item.uniqueid_gudang);
@@ -311,11 +393,11 @@ function GudangPageContent() {
         .eq('uniqueid_gudang', id)
         .single();
       
-      // Delete the gudang record
-      const { error } = await deleteWithAudit(
-        'gudang',
-        { uniqueid_gudang: id }
-      );
+      // Delete the gudang record using direct Supabase call
+      const { error } = await supabase
+        .from('gudang')
+        .delete()
+        .eq('uniqueid_gudang', id);
       if (error) throw error;
       
       // If it's from stock opname, reset the SO status to pending
@@ -595,15 +677,22 @@ function GudangPageContent() {
             // Convert date-only format to timestamp with current time
             const timestamp = tanggal.includes('T') ? tanggal : `${tanggal}T${new Date().toTimeString().slice(0, 8)}.000Z`;
             
-            importData.push({
-              id_product: product.id_product,
-              tanggal: timestamp,
-              jumlah_masuk: jumlahMasuk,
-              jumlah_keluar: jumlahKeluar,
-              total_gudang: 0,
-              nama_pengambil_barang: namaPengambil,
-              cabang: row['cabang'] || formData.cabang || 'DEFAULT'
-            });
+            // Only import if there's an actual transaction
+            if (jumlahMasuk > 0 || jumlahKeluar > 0) {
+              importData.push({
+                id_product: product.id_product,
+                tanggal: timestamp,
+                jumlah_masuk: jumlahMasuk,
+                jumlah_keluar: jumlahKeluar,
+                total_gudang: 0,
+                nama_pengambil_barang: namaPengambil,
+                cabang: row['cabang'] || formData.cabang || 'DEFAULT',
+                source_type: 'manual',
+                source_reference: 'IMPORT',
+                created_by: userId || null,
+                updated_by: userId || null
+              });
+            }
           }
         }
         
@@ -613,7 +702,11 @@ function GudangPageContent() {
             .insert(importData);
           
           if (error) throw error;
+          
           fetchGudang();
+          alert(`✅ Imported ${importData.length} transactions successfully`);
+        } else {
+          alert('⚠️ No valid transactions found in the file');
         }
       } catch (err: any) {
         console.error('Import error:', err.message);
@@ -623,12 +716,47 @@ function GudangPageContent() {
     e.target.value = '';
   };
 
-  if (loading) {
+  if (loading || hasAccess === null) {
     return (
       <div className="p-2">
         <div className="bg-white p-2 rounded-lg shadow text-center">
           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mb-1 mx-auto"></div>
           <p className="text-xs text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Block access if user doesn't have permission
+  if (hasAccess === false) {
+    return (
+      <div className="p-2">
+        <div className="bg-white p-4 rounded-lg shadow text-center">
+          <div className="text-red-500 text-6xl mb-4">🚫</div>
+          <h2 className="text-lg font-bold text-gray-800 mb-2">Access Denied</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            You don't have permission to access the Warehouse page.
+          </p>
+          <p className="text-xs text-gray-500 mb-4">
+            Current role: <span className="font-semibold">{userRole}</span>
+          </p>
+          <div className="flex gap-2 justify-center">
+            <button
+              onClick={() => router.back()}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700"
+            >
+              Go Back
+            </button>
+            <button
+              onClick={async () => {
+                await reloadPermissions();
+                window.location.reload();
+              }}
+              className="bg-green-600 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700"
+            >
+              Refresh Permissions
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -693,13 +821,25 @@ function GudangPageContent() {
               onClick={() => {
                 setShowAddForm(!showAddForm);
                 if (!showAddForm) {
-                  // Auto-select user's branch when opening add form
-                  setFormData(prev => ({ ...prev, cabang: userCabang || '' }));
+                  // Auto-fill user's name and branch when opening add form
+                  setFormData(prev => ({ 
+                    ...prev, 
+                    nama_pengambil_barang: userName,
+                    cabang: userCabang || '' 
+                  }));
                 }
               }}
               className="bg-blue-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
             >
               <Plus size={12} />Add
+            </button>
+          )}
+          {canPerformActionSync(userRole, 'gudang', 'create') && (
+            <button
+              onClick={() => router.push('/transfer')}
+              className="bg-purple-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1 hover:bg-purple-700"
+            >
+              <ArrowRightLeft size={12} />Transfer
             </button>
           )}
           <button
@@ -724,7 +864,7 @@ function GudangPageContent() {
         <div className="bg-white p-1 rounded-lg shadow mb-1">
           <h3 className="font-medium text-gray-800 mb-2 text-xs">{editingId ? 'Edit' : 'Add'} Warehouse Entry</h3>
           <form onSubmit={handleSubmit} className="space-y-1">
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1 mb-2">
               <input
                 type="date"
                 value={formData.tanggal}
@@ -799,6 +939,16 @@ function GudangPageContent() {
                 className="border px-2 py-1 rounded-md text-xs"
                 placeholder="Jumlah Keluar"
               />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-1">
+              <input
+                type="text"
+                value={formData.nama_pengambil_barang}
+                onChange={(e) => setFormData(prev => ({ ...prev, nama_pengambil_barang: e.target.value }))}
+                className="border px-2 py-1 rounded-md text-xs"
+                placeholder="Nama Pengambil Barang"
+              />
+
             </div>
             <div className="flex gap-1">
               <button type="submit" disabled={saving} className="bg-green-600 text-white px-3 py-1 rounded-md text-xs disabled:opacity-50">
@@ -931,7 +1081,7 @@ function GudangPageContent() {
                     </td>}
                     {!hiddenColumns.includes('tanggal') && <td className="px-1 py-1">{item.tanggal.split('T')[0]}</td>}
                     {!hiddenColumns.includes('tanggal') && <td className="px-1 py-1">{new Date(item.tanggal).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}</td>}
-                    {!hiddenColumns.includes('branch_name') && <td className="px-1 py-1">{item.branch_name || item.cabang}</td>}
+                    {!hiddenColumns.includes('branch_name') && <td className="px-1 py-1">{item.branch_name}</td>}
                     {!hiddenColumns.includes('product_name') && <td className="px-1 py-1">{item.product_name}</td>}
                     {!hiddenColumns.includes('jumlah_masuk') && <td className="px-1 py-1 text-green-600">{item.jumlah_masuk}</td>}
                     {!hiddenColumns.includes('jumlah_keluar') && <td className="px-1 py-1 text-red-600">{item.jumlah_keluar}</td>}
@@ -950,7 +1100,7 @@ function GudangPageContent() {
                     </td>
                     <td className="px-1 py-1">
                       <div className="flex gap-1">
-                        {canPerformActionSync(userRole, 'gudang', 'edit', userId || undefined) && (
+                        {canPerformActionSync(userRole, 'gudang', 'edit', userId ?? undefined) && (
                           <button
                             onClick={() => handleEdit(item)}
                             className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
@@ -959,7 +1109,7 @@ function GudangPageContent() {
                             <Edit size={12} />
                           </button>
                         )}
-                        {canPerformActionSync(userRole, 'gudang', 'delete', userId || undefined) && (
+                        {canPerformActionSync(userRole, 'gudang', 'delete', userId ?? undefined) && (
                           <button
                             onClick={() => handleDelete(item.uniqueid_gudang)}
                             className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"

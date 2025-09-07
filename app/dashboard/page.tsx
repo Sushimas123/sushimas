@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Layout from '../../components/Layout'
-import { BarChart3, Package, Users, Store, Truck, BookOpen, Factory, FileText, Warehouse, Settings2 } from 'lucide-react'
-import Link from 'next/link'
+
 import { canAccessPage } from '@/src/utils/dbPermissions'
 
 interface User {
@@ -45,70 +44,7 @@ function DashboardContent() {
     router.push('/login')
   }
 
-  const [menuItems, setMenuItems] = useState<any[]>([])
 
-  // Get menu items based on role (optimized)
-  const getMenuItems = (role: string) => {
-    const roleMenus = {
-      'super admin': [
-        { name: "Ready Stock", href: "/ready", icon: Package },
-        { name: "Production", href: "/produksi", icon: Factory },
-        { name: "Production Detail", href: "/produksi_detail", icon: FileText },
-        { name: "Stock Opname", href: "/stock_opname", icon: FileText },
-        { name: "Gudang", href: "/gudang", icon: Warehouse },
-        { name: "ESB Report", href: "/esb", icon: BarChart3 },
-        { name: "Product Name Report", href: "/product_name", icon: Package },
-        { name: "Analysis", href: "/analysis", icon: BarChart3 },
-        { name: "Categories", href: "/categories", icon: BookOpen },
-        { name: "Recipes", href: "/recipes", icon: BookOpen },
-        { name: "Supplier", href: "/supplier", icon: Truck },
-        { name: "Branches", href: "/branches", icon: Store },
-        { name: "Users", href: "/users", icon: Users },
-        { name: "Permissions", href: "/permissions-db", icon: Settings2 }
-      ],
-      admin: [
-        { name: "Ready Stock", href: "/ready", icon: Package },
-        { name: "Production", href: "/produksi", icon: Factory },
-        { name: "Production Detail", href: "/produksi_detail", icon: FileText },
-        { name: "Stock Opname", href: "/stock_opname", icon: FileText },
-        { name: "Gudang", href: "/gudang", icon: Warehouse },
-        { name: "ESB Report", href: "/esb", icon: BarChart3 },
-        { name: "Analysis", href: "/analysis", icon: BarChart3 },
-        { name: "Categories", href: "/categories", icon: BookOpen },
-        { name: "Recipes", href: "/recipes", icon: BookOpen }
-      ],
-      finance: [
-        { name: "Ready Stock", href: "/ready", icon: Package },
-        { name: "Production", href: "/produksi", icon: Factory },
-        { name: "Production Detail", href: "/produksi_detail", icon: FileText },
-        { name: "Stock Opname", href: "/stock_opname", icon: FileText },
-        { name: "Gudang", href: "/gudang", icon: Warehouse },
-        { name: "ESB Report", href: "/esb", icon: BarChart3 },
-        { name: "Analysis", href: "/analysis", icon: BarChart3 },
-        { name: "Users", href: "/users", icon: Users }
-      ],
-      pic_branch: [
-        { name: "Ready Stock", href: "/ready", icon: Package },
-        { name: "Production", href: "/produksi", icon: Factory },
-        { name: "Stock Opname", href: "/stock_opname", icon: FileText },
-        { name: "Gudang", href: "/gudang", icon: Warehouse },
-        { name: "ESB Report", href: "/esb", icon: BarChart3 }
-      ],
-      staff: [
-        { name: "Ready Stock", href: "/ready", icon: Package },
-        { name: "Production", href: "/produksi", icon: Factory },
-        { name: "Stock Opname", href: "/stock_opname", icon: FileText }
-      ]
-    }
-    return roleMenus[role as keyof typeof roleMenus] || []
-  }
-
-  // Load menu items when user changes (synchronous)
-  useEffect(() => {
-    if (user?.role) {
-      setMenuItems(getMenuItems(user.role))
-    }
-  }, [user])
 
   if (loading) {
     return (
@@ -159,30 +95,7 @@ function DashboardContent() {
         </div>
       </div>
 
-      {/* Quick Access Menu */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Access</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {menuItems.map((item) => {
-            const Icon = item.icon
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-all group"
-              >
-                <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
-                  <Icon size={20} className="text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-gray-900">{item.name}</h3>
-                  <p className="text-sm text-gray-500">Access {item.name.toLowerCase()}</p>
-                </div>
-              </Link>
-            )
-          })}
-        </div>
-      </div>
+
     </div>
   )
 }

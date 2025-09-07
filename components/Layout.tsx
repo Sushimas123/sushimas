@@ -69,20 +69,27 @@ export default function Layout({ children }: LayoutProps) {
     }
   }
 
-  // Permission-based menu filtering
-  const getFilteredMenuItems = async (items: any[], role: string) => {
+  // Permission-based menu filtering using database permissions only
+  const getFilteredMenuItems = async (items: any[], userId: number) => {
     const filteredItems = []
     for (const item of items) {
       try {
         const pagePath = item.href.replace('/', '')
-        const hasAccess = await canAccessPage(role, pagePath)
-        if (hasAccess) {
+        
+        // Check database permissions only - no role-based fallback
+        const { data, error } = await supabase
+          .from('crud_permissions')
+          .select('can_read')
+          .eq('user_id', userId)
+          .eq('table_name', pagePath)
+          .single()
+
+        if (data && !error && data.can_read) {
           filteredItems.push(item)
         }
       } catch (error) {
         console.error('Error checking access for', item.href, error)
-        // Default to showing the item if there's an error
-        filteredItems.push(item)
+        // No fallback - if error, no access
       }
     }
     return filteredItems
@@ -91,26 +98,35 @@ export default function Layout({ children }: LayoutProps) {
   const [filteredTopMenuItems, setFilteredTopMenuItems] = useState<any[]>([])
   const [filteredSideMenuItems, setFilteredSideMenuItems] = useState<any[]>([])
   const [menuLoading, setMenuLoading] = useState(true)
+  const [userId, setUserId] = useState<number | null>(null)
 
   useEffect(() => {
-    if (userRole) {
+    const user = localStorage.getItem('user')
+    if (user) {
+      const userData = JSON.parse(user)
+      setUserId(userData.id)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (userRole && userId) {
       setMenuLoading(true)
       Promise.all([
-        getFilteredMenuItems(topMenuItems, userRole),
-        getFilteredMenuItems(sideMenuItems, userRole)
+        getFilteredMenuItems(topMenuItems, userId),
+        getFilteredMenuItems(sideMenuItems, userId)
       ]).then(([topItems, sideItems]) => {
         setFilteredTopMenuItems(topItems)
         setFilteredSideMenuItems(sideItems)
         setMenuLoading(false)
       }).catch(error => {
         console.error('Error loading menu items:', error)
-        // Fallback: show all items if there's an error
-        setFilteredTopMenuItems(topMenuItems)
-        setFilteredSideMenuItems(sideMenuItems)
+        // No fallback - if error, show nothing
+        setFilteredTopMenuItems([])
+        setFilteredSideMenuItems([])
         setMenuLoading(false)
       })
     }
-  }, [userRole])
+  }, [userRole, userId])
 
   const topMenuItems = [
     { name: "Ready Stock", href: "/ready", icon: Package },
