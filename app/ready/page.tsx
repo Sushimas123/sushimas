@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import PageAccessControl from '../../components/PageAccessControl';
-
+import { canViewColumn } from '@/src/utils/dbPermissions';
 import { getBranchFilter, getUserDefaultBranch } from '@/src/utils/branchAccess';
 import { canPerformActionSync, getUserRole, arePermissionsLoaded, reloadPermissions } from '@/src/utils/rolePermissions';
 import { hasPageAccess } from '@/src/utils/permissionChecker';
@@ -70,12 +70,13 @@ function ReadyPageContent() {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [editingItem, setEditingItem] = useState<Ready | null>(null);
   const [importProgress, setImportProgress] = useState<{show: boolean, progress: number, message: string}>({show: false, progress: 0, message: ''});
-  const [showDataTable, setShowDataTable] = useState(false);
+
   const [requireReadyInput, setRequireReadyInput] = useState(true);
   const [userRole, setUserRole] = useState<string>('guest');
   const [userId, setUserId] = useState<number | null>(null);
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [permittedColumns, setPermittedColumns] = useState<string[]>([]);
 
   // Get user info and check access
   useEffect(() => {
@@ -112,6 +113,27 @@ function ReadyPageContent() {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
   }
+
+  // Get columns based on permissions
+  useEffect(() => {
+    const loadPermittedColumns = async () => {
+      if (ready.length > 0) {
+        const allColumns = ['ready_no', 'tanggal_input', 'branch_name', 'sub_category', 'product_name', 'id_product', 'ready', 'waste']
+        const permitted = []
+        
+        for (const col of allColumns) {
+          const hasPermission = await canViewColumn(userRole, 'ready', col)
+          if (hasPermission) {
+            permitted.push(col)
+          }
+        }
+        
+        setPermittedColumns(permitted)
+      }
+    }
+    
+    loadPermittedColumns()
+  }, [ready, userRole])
 
 
 
@@ -841,18 +863,15 @@ function ReadyPageContent() {
 
   if (loading || hasAccess === null) {
     return (
-      <Layout>
         <div className="flex justify-center items-center h-64">
           <RefreshCw className="animate-spin h-8 w-8" />
         </div>
-      </Layout>
     );
   }
 
   // Block access if user doesn't have permission
   if (hasAccess === false) {
     return (
-      <Layout>
         <div className="p-4">
           <div className="bg-white p-6 rounded-lg shadow text-center">
             <div className="text-red-500 text-6xl mb-4">🚫</div>
@@ -882,7 +901,6 @@ function ReadyPageContent() {
             </div>
           </div>
         </div>
-      </Layout>
     );
   }
 
@@ -1149,12 +1167,7 @@ function ReadyPageContent() {
                 Wajib isi Ready
               </label>
             )}
-            <button
-              onClick={() => setShowDataTable(!showDataTable)}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
-            >
-              {showDataTable ? 'Hide' : 'Show'} Data Table
-            </button>
+
 
           </div>
         </div>
@@ -1235,8 +1248,7 @@ function ReadyPageContent() {
 
 
         {/* Data Table Section */}
-        {showDataTable && (
-          <>
+        <>
             {/* Filters */}
             <div className="bg-white p-4 rounded-lg shadow mb-4">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -1276,14 +1288,14 @@ function ReadyPageContent() {
                         className="cursor-pointer"
                       />
                     </th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready_no')}>Ready No</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>Tanggal</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>Cabang</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sub_category')}>Sub Category</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>Product</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id_product')}>Product ID</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>
-                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('waste')}>Waste</th>
+                    {permittedColumns.includes('ready_no') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready_no')}>Ready No</th>}
+                    {permittedColumns.includes('tanggal_input') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>Tanggal</th>}
+                    {permittedColumns.includes('branch_name') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>Cabang</th>}
+                    {permittedColumns.includes('sub_category') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sub_category')}>Sub Category</th>}
+                    {permittedColumns.includes('product_name') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>Product</th>}
+                    {permittedColumns.includes('id_product') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id_product')}>Product ID</th>}
+                    {permittedColumns.includes('ready') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>}
+                    {permittedColumns.includes('waste') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('waste')}>Waste</th>}
                     {(canPerformActionSync(userRole, 'ready', 'edit') || canPerformActionSync(userRole, 'ready', 'delete')) && <th className="border px-2 py-1 text-left font-medium">Actions</th>}
                   </tr>
                 </thead>
@@ -1300,7 +1312,7 @@ function ReadyPageContent() {
                     ))
                   ) : paginatedReady.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="text-center py-2 text-gray-500 text-xs">
+                      <td colSpan={permittedColumns.length + 2} className="text-center py-2 text-gray-500 text-xs">
                         No ready stock records found
                       </td>
                     </tr>
@@ -1315,14 +1327,14 @@ function ReadyPageContent() {
                             className="cursor-pointer"
                           />
                         </td>
-                        <td className="border px-2 py-1">{item.ready_no}</td>
-                        <td className="border px-2 py-1">{item.tanggal_input}</td>
-                        <td className="border px-2 py-1">{item.branch_name}</td>
-                        <td className="border px-2 py-1">{item.sub_category}</td>
-                        <td className="border px-2 py-1">{item.product_name}</td>
-                        <td className="border px-2 py-1 text-center">{item.id_product}</td>
-                        <td className="border px-2 py-1 text-right">{item.ready}</td>
-                        <td className="border px-2 py-1 text-right">{item.waste}</td>
+                        {permittedColumns.includes('ready_no') && <td className="border px-2 py-1">{item.ready_no}</td>}
+                        {permittedColumns.includes('tanggal_input') && <td className="border px-2 py-1">{item.tanggal_input}</td>}
+                        {permittedColumns.includes('branch_name') && <td className="border px-2 py-1">{item.branch_name}</td>}
+                        {permittedColumns.includes('sub_category') && <td className="border px-2 py-1">{item.sub_category}</td>}
+                        {permittedColumns.includes('product_name') && <td className="border px-2 py-1">{item.product_name}</td>}
+                        {permittedColumns.includes('id_product') && <td className="border px-2 py-1 text-center">{item.id_product}</td>}
+                        {permittedColumns.includes('ready') && <td className="border px-2 py-1 text-right">{item.ready}</td>}
+                        {permittedColumns.includes('waste') && <td className="border px-2 py-1 text-right">{item.waste}</td>}
                         {(canPerformActionSync(userRole, 'ready', 'edit') || canPerformActionSync(userRole, 'ready', 'delete')) && (
                           <td className="border px-2 py-1">
                             <div className="flex gap-1">
@@ -1398,17 +1410,7 @@ function ReadyPageContent() {
                 </button>
               </div>
             </div>
-          </>
-        )}
-
-        {/* Summary when table is hidden */}
-        {!showDataTable && (
-          <div className="bg-white p-6 rounded-lg shadow text-center">
-            <h3 className="text-lg font-medium text-gray-800 mb-2">Ready Stock Management</h3>
-            <p className="text-gray-600 mb-4">Total Records: {ready.length}</p>
-            <p className="text-sm text-gray-500">Click "Show Data Table" to view and manage your ready stock data</p>
-          </div>
-        )}
+        </>
 
 
       </div>

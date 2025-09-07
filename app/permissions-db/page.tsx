@@ -14,7 +14,7 @@ export default function PermissionsDBPage() {
   
   const pageColumns = {
     esb: ['id', 'sales_date', 'branch', 'product', 'product_code', 'category', 'sub_category', 'unit', 'qty_total', 'value_total', 'product_id'],
-    ready: ['ready_no', 'tanggal_input', 'branch', 'category', 'product_name', 'quantity', 'unit'],
+    ready: ['ready_no', 'tanggal_input', 'branch_name', 'sub_category', 'product_name', 'id_product', 'ready', 'waste'],
     users: ['email', 'nama_lengkap', 'no_telp', 'role', 'cabang', 'created_at'],
     produksi: ['tanggal_produksi', 'product_name', 'quantity', 'status', 'branch', 'notes'],
     analysis: ['date', 'branch', 'product', 'ready_stock', 'production', 'consumption', 'balance'],
