@@ -1190,20 +1190,10 @@ function ReadyPageContent() {
                 Wajib isi Ready
               </label>
             )}
-
-
           </div>
         </div>
 
-        <div className="space-y-3 mb-4">
-          <input
-            type="text"
-            placeholder="🔍 Search ready stock..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="border px-2 py-1 rounded-md text-xs w-full sm:w-64"
-          />
-          
+        <div className="bg-white p-4 rounded-lg shadow mb-4">
           <div className="flex flex-wrap gap-2">
             {canPerformActionSync(userRole, 'ready', 'create') && (
               <div
@@ -1271,187 +1261,187 @@ function ReadyPageContent() {
           </div>
         </div>
 
+        {/* Filters */}
+        <div className="bg-white p-4 rounded-lg shadow mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="border px-2 py-1 rounded-md text-xs"
+            />
+            <input
+              type="text"
+              placeholder="🔍 Search ready stock..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="border px-2 py-1 rounded-md text-xs"
+            />
+            <input
+              type="text"
+              placeholder="Filter Sub Category"
+              value={subCategoryFilter}
+              onChange={(e) => setSubCategoryFilter(e.target.value)}
+              className="border px-2 py-1 rounded-md text-xs"
+            />
+            <input
+              type="text"
+              placeholder="Filter Cabang"
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
+              className="border px-2 py-1 rounded-md text-xs"
+            />
+          </div>
+        </div>
 
-
-        {/* Data Table Section */}
-        <>
-            {/* Filters */}
-            <div className="bg-white p-4 rounded-lg shadow mb-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <input
-                  type="date"
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="border px-2 py-1 rounded-md text-xs"
-                />
-                <input
-                  type="text"
-                  placeholder="Filter Sub Category"
-                  value={subCategoryFilter}
-                  onChange={(e) => setSubCategoryFilter(e.target.value)}
-                  className="border px-2 py-1 rounded-md text-xs"
-                />
-                <input
-                  type="text"
-                  placeholder="Filter Cabang"
-                  value={branchFilter}
-                  onChange={(e) => setBranchFilter(e.target.value)}
-                  className="border px-2 py-1 rounded-md text-xs"
-                />
-              </div>
-            </div>
-
-            {/* Data Table */}
-            <div className="overflow-x-auto bg-white rounded-lg shadow">
-              <table className="w-full text-xs border border-gray-200">
-                <thead className="bg-gray-100 text-gray-700">
-                  <tr>
-                    <th className="border px-2 py-1 text-center font-medium">
+        {/* Data Table */}
+        <div className="overflow-x-auto bg-white rounded-lg shadow">
+          <table className="w-full text-xs border border-gray-200">
+            <thead className="bg-gray-100 text-gray-700">
+              <tr>
+                <th className="border px-2 py-1 text-center font-medium">
+                  <input
+                    type="checkbox"
+                    checked={selectedItems.length === paginatedReady.length && paginatedReady.length > 0}
+                    onChange={handleSelectAll}
+                    className="cursor-pointer"
+                  />
+                </th>
+                {permittedColumns.includes('ready_no') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready_no')}>Ready No</th>}
+                {permittedColumns.includes('tanggal_input') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>Tanggal</th>}
+                {permittedColumns.includes('branch_name') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>Cabang</th>}
+                {permittedColumns.includes('sub_category') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sub_category')}>Sub Category</th>}
+                {permittedColumns.includes('product_name') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>Product</th>}
+                {permittedColumns.includes('id_product') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id_product')}>Product ID</th>}
+                {permittedColumns.includes('ready') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>}
+                {permittedColumns.includes('waste') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('waste')}>Waste</th>}
+                {(canPerformActionSync(userRole, 'ready', 'edit') || canPerformActionSync(userRole, 'ready', 'delete')) && <th className="border px-2 py-1 text-left font-medium">Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                Array.from({ length: itemsPerPage }).map((_, idx) => (
+                  <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                    {Array.from({ length: 10 }).map((_, cellIdx) => (
+                      <td key={cellIdx} className="border px-2 py-1">
+                        <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : paginatedReady.length === 0 ? (
+                <tr>
+                  <td colSpan={permittedColumns.length + 2} className="text-center py-2 text-gray-500 text-xs">
+                    No ready stock records found
+                  </td>
+                </tr>
+              ) : (
+                paginatedReady.map((item, idx) => (
+                  <tr key={item.id_ready} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                    <td className="border px-2 py-1 text-center">
                       <input
                         type="checkbox"
-                        checked={selectedItems.length === paginatedReady.length && paginatedReady.length > 0}
-                        onChange={handleSelectAll}
+                        checked={selectedItems.includes(item.id_ready)}
+                        onChange={() => handleItemSelect(item.id_ready)}
                         className="cursor-pointer"
                       />
-                    </th>
-                    {permittedColumns.includes('ready_no') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready_no')}>Ready No</th>}
-                    {permittedColumns.includes('tanggal_input') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>Tanggal</th>}
-                    {permittedColumns.includes('branch_name') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>Cabang</th>}
-                    {permittedColumns.includes('sub_category') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sub_category')}>Sub Category</th>}
-                    {permittedColumns.includes('product_name') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>Product</th>}
-                    {permittedColumns.includes('id_product') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id_product')}>Product ID</th>}
-                    {permittedColumns.includes('ready') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>}
-                    {permittedColumns.includes('waste') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('waste')}>Waste</th>}
-                    {(canPerformActionSync(userRole, 'ready', 'edit') || canPerformActionSync(userRole, 'ready', 'delete')) && <th className="border px-2 py-1 text-left font-medium">Actions</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    Array.from({ length: itemsPerPage }).map((_, idx) => (
-                      <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                        {Array.from({ length: 10 }).map((_, cellIdx) => (
-                          <td key={cellIdx} className="border px-2 py-1">
-                            <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                          </td>
-                        ))}
-                      </tr>
-                    ))
-                  ) : paginatedReady.length === 0 ? (
-                    <tr>
-                      <td colSpan={permittedColumns.length + 2} className="text-center py-2 text-gray-500 text-xs">
-                        No ready stock records found
+                    </td>
+                    {permittedColumns.includes('ready_no') && <td className="border px-2 py-1">{item.ready_no}</td>}
+                    {permittedColumns.includes('tanggal_input') && <td className="border px-2 py-1">{item.tanggal_input}</td>}
+                    {permittedColumns.includes('branch_name') && <td className="border px-2 py-1">{item.branch_name}</td>}
+                    {permittedColumns.includes('sub_category') && <td className="border px-2 py-1">{item.sub_category}</td>}
+                    {permittedColumns.includes('product_name') && <td className="border px-2 py-1">{item.product_name}</td>}
+                    {permittedColumns.includes('id_product') && <td className="border px-2 py-1 text-center">{item.id_product}</td>}
+                    {permittedColumns.includes('ready') && <td className="border px-2 py-1 text-right">{item.ready}</td>}
+                    {permittedColumns.includes('waste') && <td className="border px-2 py-1 text-right">{item.waste}</td>}
+                    {(canPerformActionSync(userRole, 'ready', 'edit') || canPerformActionSync(userRole, 'ready', 'delete')) && (
+                      <td className="border px-2 py-1">
+                        <div className="flex gap-1">
+                          {canPerformActionSync(userRole, 'ready', 'edit') && (
+                            <button
+                              onClick={() => handleEdit(item)}
+                              className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                              title="Edit"
+                            >
+                              <Edit size={12} />
+                            </button>
+                          )}
+                          {canPerformActionSync(userRole, 'ready', 'delete') && (
+                            <button
+                              onClick={async () => {
+                                if (confirm('Hapus data ini?')) {
+                                  try {
+                                    const { error } = await supabase
+                                      .from('ready')
+                                      .delete()
+                                      .eq('id_ready', item.id_ready);
+                                    
+                                    if (error) throw error;
+                                    
+                                    await fetchReady();
+                                    alert('Data berhasil dihapus!');
+                                  } catch (error) {
+                                    console.error('Error deleting item:', error);
+                                    const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+                                    alert(`Gagal menghapus data: ${errorMessage}`);
+                                  }
+                                }
+                              }}
+                              className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
+                              title="Delete"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
                       </td>
-                    </tr>
-                  ) : (
-                    paginatedReady.map((item, idx) => (
-                      <tr key={item.id_ready} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                        <td className="border px-2 py-1 text-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedItems.includes(item.id_ready)}
-                            onChange={() => handleItemSelect(item.id_ready)}
-                            className="cursor-pointer"
-                          />
-                        </td>
-                        {permittedColumns.includes('ready_no') && <td className="border px-2 py-1">{item.ready_no}</td>}
-                        {permittedColumns.includes('tanggal_input') && <td className="border px-2 py-1">{item.tanggal_input}</td>}
-                        {permittedColumns.includes('branch_name') && <td className="border px-2 py-1">{item.branch_name}</td>}
-                        {permittedColumns.includes('sub_category') && <td className="border px-2 py-1">{item.sub_category}</td>}
-                        {permittedColumns.includes('product_name') && <td className="border px-2 py-1">{item.product_name}</td>}
-                        {permittedColumns.includes('id_product') && <td className="border px-2 py-1 text-center">{item.id_product}</td>}
-                        {permittedColumns.includes('ready') && <td className="border px-2 py-1 text-right">{item.ready}</td>}
-                        {permittedColumns.includes('waste') && <td className="border px-2 py-1 text-right">{item.waste}</td>}
-                        {(canPerformActionSync(userRole, 'ready', 'edit') || canPerformActionSync(userRole, 'ready', 'delete')) && (
-                          <td className="border px-2 py-1">
-                            <div className="flex gap-1">
-                              {canPerformActionSync(userRole, 'ready', 'edit') && (
-                                <button
-                                  onClick={() => handleEdit(item)}
-                                  className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                                  title="Edit"
-                                >
-                                  <Edit size={12} />
-                                </button>
-                              )}
-                              {canPerformActionSync(userRole, 'ready', 'delete') && (
-                                <button
-                                  onClick={async () => {
-                                    if (confirm('Hapus data ini?')) {
-                                      try {
-                                        const { error } = await supabase
-                                          .from('ready')
-                                          .delete()
-                                          .eq('id_ready', item.id_ready);
-                                        
-                                        if (error) throw error;
-                                        
-                                        await fetchReady();
-                                        alert('Data berhasil dihapus!');
-                                      } catch (error) {
-                                        console.error('Error deleting item:', error);
-                                        const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
-                                        alert(`Gagal menghapus data: ${errorMessage}`);
-                                      }
-                                    }
-                                  }}
-                                  className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
-                                  title="Delete"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    )}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
-            {/* Pagination */}
-            <div className="flex justify-between items-center mt-4">
-              <p className="text-xs text-gray-600">
-                Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedReady.length)} of {filteredAndSortedReady.length} entries
-              </p>
-              <div className="flex gap-1">
-                <button 
-                  disabled={currentPage === 1} 
-                  onClick={() => setCurrentPage(1)}
-                  className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
-                >
-                  First
-                </button>
-                <button 
-                  disabled={currentPage === 1} 
-                  onClick={() => setCurrentPage(p => p - 1)}
-                  className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
-                >
-                  Prev
-                </button>
-                <span className="px-2 py-0.5 border rounded text-xs">
-                  Page {currentPage} of {totalPages || 1}
-                </span>
-                <button 
-                  disabled={currentPage === totalPages || totalPages === 0} 
-                  onClick={() => setCurrentPage(p => p + 1)}
-                  className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
-                >
-                  Next
-                </button>
-                <button 
-                  disabled={currentPage === totalPages || totalPages === 0} 
-                  onClick={() => setCurrentPage(totalPages)}
-                  className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
-                >
-                  Last
-                </button>
-              </div>
-            </div>
-        </>
-
-
+        {/* Pagination */}
+        <div className="flex justify-between items-center mt-4">
+          <p className="text-xs text-gray-600">
+            Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedReady.length)} of {filteredAndSortedReady.length} entries
+          </p>
+          <div className="flex gap-1">
+            <button 
+              disabled={currentPage === 1} 
+              onClick={() => setCurrentPage(1)}
+              className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
+            >
+              First
+            </button>
+            <button 
+              disabled={currentPage === 1} 
+              onClick={() => setCurrentPage(p => p - 1)}
+              className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
+            >
+              Prev
+            </button>
+            <span className="px-2 py-0.5 border rounded text-xs">
+              Page {currentPage} of {totalPages || 1}
+            </span>
+            <button 
+              disabled={currentPage === totalPages || totalPages === 0} 
+              onClick={() => setCurrentPage(p => p + 1)}
+              className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
+            >
+              Next
+            </button>
+            <button 
+              disabled={currentPage === totalPages || totalPages === 0} 
+              onClick={() => setCurrentPage(totalPages)}
+              className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
+            >
+              Last
+            </button>
+          </div>
+        </div>
       </div>
   );
 }

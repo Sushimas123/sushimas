@@ -58,7 +58,7 @@ const FALLBACK_PERMISSIONS = {
     product_settings: { create: false, edit: false, delete: false },
     'permissions-db': { create: false, edit: false, delete: false }
   },
-  'pic branch': {
+  'pic_branch': {
     ready: { create: true, edit: true, delete: false },
     gudang: { create: false, edit: false, delete: false },
     produksi: { create: true, edit: true, delete: false },
@@ -204,9 +204,8 @@ export const canPerformActionSync = (userRole: string, page: string, action: 'cr
     }
   }
   
-  // Check role-based permissions - handle role name conversion
-  const normalizedRole = userRole.replace('_', ' ').toLowerCase();
-  const roleKey = `${normalizedRole}|${page}|${action}`;
+  // Check role-based permissions
+  const roleKey = `${userRole.toLowerCase()}|${page}|${action}`;
   if (permissionsCache.has(roleKey)) {
     return permissionsCache.get(roleKey) || false;
   }
@@ -242,8 +241,7 @@ export const canPerformActionSync = (userRole: string, page: string, action: 'cr
 
   // Fallback to hardcoded permissions only if database is not available
   console.warn(`Permission not found in cache for ${userRole} - ${page} - ${action}, using fallback`);
-  const normalizedRoleForFallback = userRole.replace('_', ' ');
-  const fallbackPerms = FALLBACK_PERMISSIONS[normalizedRoleForFallback.toLowerCase() as keyof typeof FALLBACK_PERMISSIONS];
+  const fallbackPerms = FALLBACK_PERMISSIONS[userRole.toLowerCase() as keyof typeof FALLBACK_PERMISSIONS];
   if (fallbackPerms) {
     const pagePerms = fallbackPerms[page as keyof typeof fallbackPerms];
     if (pagePerms) {

@@ -16,7 +16,7 @@ interface CrudPermission {
   can_delete: boolean;
 }
 
-const ROLES = ['super admin', 'admin', 'finance', 'pic branch', 'staff'];
+const ROLES = ['super admin', 'admin', 'finance', 'pic_branch', 'staff'];
 const PAGES = [
   'ready', 'gudang', 'produksi', 'produksi_detail', 'analysis', 'esb', 
   'product_name', 'categories', 'recipes', 'supplier', 'branches', 
@@ -80,7 +80,7 @@ export default function CrudPermissionsPage() {
         return { create: true, edit: true, delete: true };
       case 'finance':
         return { create: false, edit: false, delete: false };
-      case 'pic branch':
+      case 'pic_branch':
         return { create: true, edit: true, delete: false };
       case 'staff':
         return { create: true, edit: false, delete: false };
@@ -309,7 +309,7 @@ export default function CrudPermissionsPage() {
                               role === 'super admin' ? 'bg-red-100 text-red-800' :
                               role === 'admin' ? 'bg-blue-100 text-blue-800' :
                               role === 'finance' ? 'bg-purple-100 text-purple-800' :
-                              role === 'pic branch' ? 'bg-green-100 text-green-800' :
+                              role === 'pic_branch' ? 'bg-green-100 text-green-800' :
                               'bg-gray-100 text-gray-800'
                             }`}>
                               {role.toUpperCase()}
