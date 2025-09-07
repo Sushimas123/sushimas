@@ -5,6 +5,7 @@ import { supabase } from "@/src/lib/supabaseClient"
 import { ArrowUpDown, Edit2, Trash2, Plus } from "lucide-react"
 import Layout from '../../components/Layout'
 import { canPerformActionSync } from '@/src/utils/rolePermissions'
+import PageAccessControl from '../../components/PageAccessControl'
 
 export default function CategoriesPage() {
   const [data, setData] = useState<any[]>([])
@@ -159,7 +160,8 @@ export default function CategoriesPage() {
 
   return (
     <Layout>
-      <div className="p-4 md:p-6">
+      <PageAccessControl pageName="categories">
+        <div className="p-4 md:p-6">
         {toast && (
           <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 flex items-center shadow-lg transform transition-all duration-300 ${
             toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
@@ -398,7 +400,8 @@ export default function CategoriesPage() {
             </button>
           </div>
         </div>
-      </div>
+        </div>
+      </PageAccessControl>
     </Layout>
   )
 }

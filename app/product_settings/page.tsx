@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
+import PageAccessControl from '../../components/PageAccessControl';
 
 // Helper function to convert text to Title Case
 const toTitleCase = (str: any) => {
@@ -534,7 +535,8 @@ export default function ProductSettingsPage() {
 
   return (
     <Layout>
-      <div className="p-4 md:p-6">
+      <PageAccessControl pageName="product_settings">
+        <div className="p-4 md:p-6">
         {/* Toast */}
         {toast && (
           <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 ${
@@ -964,7 +966,8 @@ export default function ProductSettingsPage() {
             </button>
           </div>
         </div>
-      </div>
+        </div>
+      </PageAccessControl>
     </Layout>
   );
 }

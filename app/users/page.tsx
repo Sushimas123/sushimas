@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { canViewColumn } from '@/src/utils/dbPermissions';
 import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
+import PageAccessControl from '../../components/PageAccessControl';
 
 interface User {
   id_user: number;
@@ -698,7 +699,9 @@ function UsersPageContent() {
 export default function UsersPage() {
   return (
     <Layout>
-      <UsersPageContent />
+      <PageAccessControl pageName="users">
+        <UsersPageContent />
+      </PageAccessControl>
     </Layout>
   );
 }

@@ -6,6 +6,7 @@ import { Plus, Edit, Trash2, Download, Upload, RefreshCw, Settings, Eye, EyeOff 
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
+import PageAccessControl from '../../components/PageAccessControl';
 import { canViewColumn } from '@/src/utils/dbPermissions';
 import { getBranchFilter, getUserDefaultBranch } from '@/src/utils/branchAccess';
 import { canPerformActionSync, getUserRole, arePermissionsLoaded, reloadPermissions } from '@/src/utils/rolePermissions';
@@ -43,7 +44,7 @@ interface FormProduct {
   waste: string;
 }
 
-export default function ReadyPage() {
+function ReadyPageContent() {
   const router = useRouter();
   const [ready, setReady] = useState<Ready[]>([]);
   const [menuProducts, setMenuProducts] = useState<Product[]>([]);
@@ -878,7 +879,6 @@ export default function ReadyPage() {
   }
 
   return (
-    <Layout>
       <div className="p-4 md:p-6">
         {/* Add Form */}
         {showAddForm && (
@@ -1445,6 +1445,15 @@ export default function ReadyPage() {
 
 
       </div>
-    </Layout>
+  );
+}
+
+export default function ReadyPage() {
+  return (
+    <PageAccessControl pageName="ready">
+      <Layout>
+        <ReadyPageContent />
+      </Layout>
+    </PageAccessControl>
   );
 }

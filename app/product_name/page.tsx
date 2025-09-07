@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation"
 import * as XLSX from 'xlsx'
 import Layout from '../../components/Layout'
 import { canPerformActionSync } from '@/src/utils/rolePermissions'
+import PageAccessControl from '../../components/PageAccessControl'
 
 export default function ProductPage() {
   const router = useRouter()
@@ -430,7 +431,8 @@ export default function ProductPage() {
 
   return (
     <Layout>
-      <div className="p-4 md:p-6">
+      <PageAccessControl pageName="product_name">
+        <div className="p-4 md:p-6">
       {/* Toast Notification */}
       {toast && (
         <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 flex items-center shadow-lg transform transition-all duration-300 ${
@@ -879,7 +881,8 @@ export default function ProductPage() {
         </div>
       </div>
 
-      </div>
+        </div>
+      </PageAccessControl>
     </Layout>
   )
 }

@@ -6,6 +6,7 @@ import { Plus, Edit, Trash2, Download, Upload, Settings, Eye, EyeOff, ArrowRight
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
+import PageAccessControl from '../../components/PageAccessControl';
 import { getBranchFilter, applyBranchFilter } from '@/src/utils/branchAccess';
 import { canPerformActionSync, getUserRole, arePermissionsLoaded, reloadPermissions } from '@/src/utils/rolePermissions';
 import { hasPageAccess } from '@/src/utils/permissionChecker';
@@ -1163,8 +1164,10 @@ function GudangPageContent() {
 
 export default function GudangPage() {
   return (
-    <Layout>
-      <GudangPageContent />
-    </Layout>
+    <PageAccessControl pageName="gudang">
+      <Layout>
+        <GudangPageContent />
+      </Layout>
+    </PageAccessControl>
   );
 }

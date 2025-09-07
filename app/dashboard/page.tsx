@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Layout from '../../components/Layout'
 
 import { canAccessPage } from '@/src/utils/dbPermissions'
+import PageAccessControl from '../../components/PageAccessControl'
 
 interface User {
   id: number
@@ -103,7 +104,9 @@ function DashboardContent() {
 export default function DashboardPage() {
   return (
     <Layout>
-      <DashboardContent />
+      <PageAccessControl pageName="dashboard">
+        <DashboardContent />
+      </PageAccessControl>
     </Layout>
   )
 }

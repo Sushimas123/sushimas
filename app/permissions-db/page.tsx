@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '@/src/lib/supabaseClient'
+import PageAccessControl from '../../components/PageAccessControl'
 
 export default function PermissionsDBPage() {
   const [permissions, setPermissions] = useState<any[]>([])
@@ -131,7 +132,8 @@ export default function PermissionsDBPage() {
 
   return (
     <Layout>
-      <div className="p-6">
+      <PageAccessControl pageName="permissions-db">
+        <div className="p-6">
         <h1 className="text-2xl font-bold mb-6">🔐 Column-Level Permissions</h1>
         
         <div className="mb-6">
@@ -222,7 +224,8 @@ export default function PermissionsDBPage() {
             Please select a page to configure permissions
           </div>
         )}
-      </div>
+        </div>
+      </PageAccessControl>
     </Layout>
   )
 }

@@ -5,6 +5,7 @@ import { supabase } from "@/src/lib/supabaseClient";
 import { Eye, Download, RefreshCw } from 'lucide-react';
 import Layout from '../../components/Layout';
 import * as XLSX from 'xlsx';
+import PageAccessControl from '../../components/PageAccessControl';
 
 interface AuditLog {
   id: number;
@@ -109,7 +110,8 @@ export default function AuditLogPage() {
 
   return (
     <Layout>
-      <div className="p-4">
+      <PageAccessControl pageName="audit-log">
+        <div className="p-4">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl font-bold text-gray-800">📋 Audit Trail Log</h1>
           <div className="flex gap-2">
@@ -366,7 +368,8 @@ export default function AuditLogPage() {
             </div>
           </div>
         )}
-      </div>
+        </div>
+      </PageAccessControl>
     </Layout>
   );
 }

@@ -6,6 +6,7 @@ import { Download, ArrowUpDown, Settings, Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
+import PageAccessControl from '../../components/PageAccessControl';
 
 interface ProduksiDetail {
   id: number;
@@ -379,7 +380,8 @@ export default function ProduksiDetailPage() {
 
   return (
     <Layout>
-      <div className="p-2">
+      <PageAccessControl pageName="produksi_detail">
+        <div className="p-2">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-lg font-bold text-gray-800">🏭 Production Details</h1>
           <div className="flex gap-2">
@@ -586,7 +588,8 @@ export default function ProduksiDetailPage() {
             </div>
           </div>
         )}
-      </div>
+        </div>
+      </PageAccessControl>
     </Layout>
   );
 }

@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx'
 import { useRouter } from "next/navigation"
 import Layout from '../../components/Layout'
 import { canPerformActionSync } from '@/src/utils/rolePermissions'
+import PageAccessControl from '../../components/PageAccessControl'
 
 // Helper function to convert text to Title Case
 const toTitleCase = (str: any) => {
@@ -388,7 +389,8 @@ export default function RecipesPage() {
 
   return (
     <Layout>
-      <div className="p-4 md:p-6">
+      <PageAccessControl pageName="recipes">
+        <div className="p-4 md:p-6">
       {toast && (
         <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 ${
           toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
@@ -655,7 +657,8 @@ export default function RecipesPage() {
           </div>
         </div>
       )}
-      </div>
+        </div>
+      </PageAccessControl>
     </Layout>
   )
 }

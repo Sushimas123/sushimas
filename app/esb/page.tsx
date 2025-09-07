@@ -7,6 +7,7 @@ import { ArrowUpDown, Filter, X, Download, Settings, Eye, EyeOff } from "lucide-
 import Layout from '../../components/Layout'
 import { canViewColumn } from '@/src/utils/dbPermissions'
 import { getBranchFilter } from '@/src/utils/branchAccess'
+import PageAccessControl from '../../components/PageAccessControl'
 
 // Helper function to convert text to Title Case
 const toTitleCase = (str: any) => {
@@ -261,7 +262,8 @@ export default function ESBPage() {
 
   return (
     <Layout>
-      <div className="p-1 md:p-2 text-xs">
+      <PageAccessControl pageName="esb">
+        <div className="p-1 md:p-2 text-xs">
       {/* Toast Notification */}
       {toast && (
         <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 flex items-center shadow-lg transform transition-all duration-300 ${
@@ -557,7 +559,8 @@ export default function ESBPage() {
           )}
         </>
       )}
-      </div>
+        </div>
+      </PageAccessControl>
     </Layout>
   )
 }

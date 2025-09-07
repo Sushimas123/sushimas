@@ -9,6 +9,7 @@ import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { canPerformActionSync } from '@/src/utils/rolePermissions';
 import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
+import PageAccessControl from '../../components/PageAccessControl';
 
 interface Branch {
   id_branch: number;
@@ -730,7 +731,9 @@ function BranchesPageContent() {
 export default function BranchesPage() {
   return (
     <Layout>
-      <BranchesPageContent />
+      <PageAccessControl pageName="branches">
+        <BranchesPageContent />
+      </PageAccessControl>
     </Layout>
   );
 }

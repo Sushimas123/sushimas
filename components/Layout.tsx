@@ -16,7 +16,8 @@ import {
   Menu,
   X,
   Settings2Icon,
-  User
+  User,
+  LogOut
 } from "lucide-react"
 import { canAccessPage } from '@/src/utils/dbPermissions'
 import { supabase } from '@/src/lib/supabaseClient'
@@ -30,6 +31,11 @@ export default function Layout({ children }: LayoutProps) {
   const [userRole, setUserRole] = useState<string>('')
   const [userBranches, setUserBranches] = useState<string[]>([])
   const [userName, setUserName] = useState<string>('')
+
+  const handleLogout = () => {
+    localStorage.removeItem('user')
+    window.location.href = '/login'
+  }
 
   useEffect(() => {
     const user = localStorage.getItem('user')
@@ -69,61 +75,87 @@ export default function Layout({ children }: LayoutProps) {
     }
   }
 
-  // Simple role-based menu filtering
-  const getFilteredMenuItems = (items: any[], role: string) => {
-    const roleAccess = {
-      'super admin': {
-        top: ['ready', 'produksi', 'produksi_detail', 'stock_opname', 'gudang', 'product_settings', 'analysis'],
-        side: ['esb', 'product_name', 'categories', 'recipes', 'supplier', 'branches', 'users', 'permissions-db', 'crud-permissions', 'audit-log']
-      },
-      'admin': {
-        top: ['ready', 'produksi', 'produksi_detail', 'stock_opname', 'gudang', 'product_settings', 'analysis'],
-        side: ['esb', 'product_name', 'categories', 'recipes', 'supplier', 'branches', 'users', 'permissions-db', 'crud-permissions', 'audit-log']
-      },
-      'finance': {
-        top: ['ready', 'produksi', 'produksi_detail', 'stock_opname', 'gudang', 'analysis'],
-        side: ['esb', 'users']
-      },
-      'pic branch': {
-        top: ['ready', 'produksi', 'stock_opname', 'gudang'],
-        side: ['esb']
-      },
-      'staff': {
-        top: ['ready', 'produksi', 'stock_opname'],
-        side: []
+  // Permission-based menu filtering with database check for non-super admin
+  const getFilteredMenuItems = async (items: any[], role: string) => {
+    // Super admin gets full access without database check
+    if (role === 'super admin') {
+      return items
+    }
+
+    const filteredItems = []
+    for (const item of items) {
+      try {
+        const pagePath = item.href.replace('/', '')
+        
+        // Check role-based permissions from user_permissions table
+        const { data, error } = await supabase
+          .from('user_permissions')
+          .select('can_access')
+          .eq('role', role)
+          .eq('page', pagePath)
+          .single()
+
+        let hasAccess = false
+        if (data && !error) {
+          // Role permission found - use it (true or false)
+          hasAccess = data.can_access
+        } else {
+          // No database permission found - default to false
+          hasAccess = false
+        }
+        
+        if (hasAccess) {
+          filteredItems.push(item)
+        }
+      } catch (error) {
+        console.error('Error checking access for', item.href, error)
       }
     }
-    
-    const access = roleAccess[role as keyof typeof roleAccess] || { top: [], side: [] }
-    const menuType = items === topMenuItems ? 'top' : 'side'
-    
-    return items.filter(item => {
-      const pagePath = item.href.replace('/', '')
-      return access[menuType].includes(pagePath)
-    })
+    return filteredItems
   }
 
   const [filteredTopMenuItems, setFilteredTopMenuItems] = useState<any[]>([])
   const [filteredSideMenuItems, setFilteredSideMenuItems] = useState<any[]>([])
   const [menuLoading, setMenuLoading] = useState(true)
-  const [userId, setUserId] = useState<number | null>(null)
 
-  useEffect(() => {
-    const user = localStorage.getItem('user')
-    if (user) {
-      const userData = JSON.parse(user)
-      setUserId(userData.id)
-    }
-  }, [])
 
   useEffect(() => {
     if (userRole) {
       setMenuLoading(true)
-      const topItems = getFilteredMenuItems(topMenuItems, userRole)
-      const sideItems = getFilteredMenuItems(sideMenuItems, userRole)
-      setFilteredTopMenuItems(topItems)
-      setFilteredSideMenuItems(sideItems)
-      setMenuLoading(false)
+      
+      // Super admin gets immediate access without any database check
+      if (userRole === 'super admin') {
+        setFilteredTopMenuItems(topMenuItems)
+        setFilteredSideMenuItems(sideMenuItems)
+        setMenuLoading(false)
+        return
+      }
+      
+      // Set timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.warn('Menu loading timeout - no fallback, showing empty')
+        setFilteredTopMenuItems([])
+        setFilteredSideMenuItems([])
+        setMenuLoading(false)
+      }, 3000) // 3 second timeout
+      
+      // Database check for other roles
+      Promise.all([
+        getFilteredMenuItems(topMenuItems, userRole),
+        getFilteredMenuItems(sideMenuItems, userRole)
+      ]).then(([topItems, sideItems]) => {
+        clearTimeout(timeoutId)
+        setFilteredTopMenuItems(topItems)
+        setFilteredSideMenuItems(sideItems)
+        setMenuLoading(false)
+      }).catch(error => {
+        clearTimeout(timeoutId)
+        console.error('Error loading menu items:', error)
+        // No fallback - show empty on error
+        setFilteredTopMenuItems([])
+        setFilteredSideMenuItems([])
+        setMenuLoading(false)
+      })
     }
   }, [userRole])
 
@@ -163,14 +195,24 @@ export default function Layout({ children }: LayoutProps) {
             </Link>
             <div className="flex items-center gap-4">
               {userRole && (
-                <div className="flex items-center gap-2 bg-gray-700 px-3 py-1 rounded-full">
-                  <User size={14} />
-                  <div className="flex flex-col">
-                    <span className="text-xs font-medium capitalize">{userRole}</span>
-                    <span className="text-xs text-gray-300 truncate max-w-32" title={userBranches.join(', ')}>
-                      {userBranches.length > 0 ? userBranches.join(', ') : 'Loading...'}
-                    </span>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 bg-gray-700 px-3 py-1 rounded-full">
+                    <User size={14} />
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium capitalize">{userRole}</span>
+                      <span className="text-xs text-gray-300 truncate max-w-32" title={userBranches.join(', ')}>
+                        {userBranches.length > 0 ? userBranches.join(', ') : 'Loading...'}
+                      </span>
+                    </div>
                   </div>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-1 px-3 py-1 bg-red-600 hover:bg-red-700 rounded-lg transition-colors text-sm"
+                    title="Logout"
+                  >
+                    <LogOut size={14} />
+                    <span className="hidden lg:block">Logout</span>
+                  </button>
                 </div>
               )}
               <nav className="flex items-center gap-2">
@@ -206,14 +248,23 @@ export default function Layout({ children }: LayoutProps) {
             📦 Sushimas Inventory
           </Link>
           {userRole && (
-            <div className="flex items-center gap-2 bg-gray-700 px-2 py-1 rounded-full">
-              <User size={12} />
-              <div className="flex flex-col">
-                <span className="text-xs font-medium capitalize">{userRole}</span>
-                <span className="text-xs text-gray-300 truncate max-w-20" title={userBranches.join(', ')}>
-                  {userBranches.length > 0 ? userBranches[0] : 'Loading...'}
-                </span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 bg-gray-700 px-2 py-1 rounded-full">
+                <User size={12} />
+                <div className="flex flex-col">
+                  <span className="text-xs font-medium capitalize">{userRole}</span>
+                  <span className="text-xs text-gray-300 truncate max-w-20" title={userBranches.join(', ')}>
+                    {userBranches.length > 0 ? userBranches[0] : 'Loading...'}
+                  </span>
+                </div>
               </div>
+              <button
+                onClick={handleLogout}
+                className="p-1 bg-red-600 hover:bg-red-700 rounded transition-colors"
+                title="Logout"
+              >
+                <LogOut size={12} />
+              </button>
             </div>
           )}
         </div>

@@ -5,6 +5,7 @@ import { supabase } from "@/src/lib/supabaseClient"
 import { ArrowUpDown, Edit2, Trash2, Plus, RefreshCw, Search, Download, Upload, Filter, X } from "lucide-react"
 import * as XLSX from 'xlsx'
 import Layout from '../../components/Layout'
+import PageAccessControl from '../../components/PageAccessControl'
 
 export default function StockOpnamePage() {
   const [data, setData] = useState<any[]>([])
@@ -664,7 +665,8 @@ export default function StockOpnamePage() {
 
   return (
     <Layout>
-      <div className="p-4 md:p-6">
+      <PageAccessControl pageName="stock_opname">
+        <div className="p-4 md:p-6">
         {toast && (
           <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 flex items-center shadow-lg transform transition-all duration-300 ${
             toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
@@ -1204,7 +1206,8 @@ export default function StockOpnamePage() {
             </button>
           </div>
         </div>
-      </div>
+        </div>
+      </PageAccessControl>
     </Layout>
   )
 }

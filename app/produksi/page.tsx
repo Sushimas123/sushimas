@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { canPerformActionSync, getUserRole } from '@/src/utils/rolePermissions';
 import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
+import PageAccessControl from '../../components/PageAccessControl';
 
 interface Produksi {
   id: number;
@@ -497,7 +498,8 @@ export default function ProduksiPage() {
 
   return (
     <Layout>
-      <div className="p-1 md:p-2">
+      <PageAccessControl pageName="produksi">
+        <div className="p-1 md:p-2">
         <div className="flex items-center gap-3 mb-1">
           <h1 className="text-sm font-bold text-gray-800">🏭 Production</h1>
         </div>
@@ -869,7 +871,8 @@ export default function ProduksiPage() {
             </div>
           </div>
         )}
-      </div>
+        </div>
+      </PageAccessControl>
     </Layout>
   );
 }

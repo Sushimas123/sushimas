@@ -6,6 +6,7 @@ import { Download, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { getBranchFilter, applyBranchFilter } from '@/src/utils/branchAccess';
+import PageAccessControl from '../../components/PageAccessControl';
 
 
 interface AnalysisData {
@@ -618,7 +619,8 @@ export default function AnalysisPage() {
 
   return (
     <Layout>
-      <div className="p-4 md:p-6">
+      <PageAccessControl pageName="analysis">
+        <div className="p-4 md:p-6">
         {toast && (
           <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 ${
             toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
@@ -952,7 +954,8 @@ export default function AnalysisPage() {
             </button>
           </div>
         </div>
-      </div>
+        </div>
+      </PageAccessControl>
     </Layout>
   );
 }

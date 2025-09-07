@@ -5,6 +5,7 @@ import { supabase } from "@/src/lib/supabaseClient";
 import { Save, RefreshCw } from 'lucide-react';
 import Layout from '../../components/Layout';
 import { reloadPermissions } from '@/src/utils/rolePermissions';
+import PageAccessControl from '../../components/PageAccessControl';
 
 interface CrudPermission {
   id?: number;
@@ -169,7 +170,8 @@ export default function CrudPermissionsPage() {
 
   return (
     <Layout>
-      <div className="p-4">
+      <PageAccessControl pageName="crud-permissions">
+        <div className="p-4">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-800">🔐 CRUD Permissions Management</h1>
           <div className="flex gap-2">
@@ -293,7 +295,8 @@ export default function CrudPermissionsPage() {
             </div>
           </div>
         </div>
-      </div>
+        </div>
+      </PageAccessControl>
     </Layout>
   );
 }
