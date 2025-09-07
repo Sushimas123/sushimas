@@ -9,6 +9,8 @@ import Layout from '../../components/Layout';
 import { canPerformActionSync, getUserRole } from '@/src/utils/rolePermissions';
 import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
 import PageAccessControl from '../../components/PageAccessControl';
+import { canViewColumn } from '@/src/utils/dbPermissions';
+import { getBranchFilter } from '@/src/utils/branchAccess';
 
 interface Produksi {
   id: number;
@@ -62,6 +64,8 @@ export default function ProduksiPage() {
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
   const [userRole, setUserRole] = useState<string>('guest');
+  const [permittedColumns, setPermittedColumns] = useState<string[]>([]);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
     fetchProduksi();
@@ -76,6 +80,46 @@ export default function ProduksiPage() {
       setUserRole(user.role || 'guest');
     }
   }, []);
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  // Get columns based on permissions
+  useEffect(() => {
+    const loadPermittedColumns = async () => {
+      if (produksi.length > 0) {
+        const allColumns = Object.keys(produksi[0])
+        const permitted = []
+        
+        for (const col of allColumns) {
+          const hasPermission = await canViewColumn(userRole, 'produksi', col)
+          if (hasPermission) {
+            permitted.push(col)
+          }
+        }
+        
+        setPermittedColumns(permitted)
+      }
+    }
+    
+    loadPermittedColumns()
+  }, [produksi, userRole])
+  
+  const visibleColumns = permittedColumns.filter(col => !hiddenColumns.includes(col))
+
+  const toggleColumn = async (col: string) => {
+    const hasPermission = await canViewColumn(userRole, 'produksi', col)
+    if (!hasPermission) {
+      showToast(`You don't have permission to view ${col} column`, 'error')
+      return
+    }
+    
+    setHiddenColumns(prev =>
+      prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
+    )
+  }
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

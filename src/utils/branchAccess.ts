@@ -26,21 +26,10 @@ export const getUserBranches = async (userId: number): Promise<string[]> => {
   const user = getCurrentUser()
   if (!user) return []
   
-  // Super Admin & Admin can see all branches
-  if (user.role === 'super admin' || user.role === 'admin') {
-    const { data } = await supabase
-      .from('branches')
-      .select('kode_branch')
-      .eq('is_active', true)
-    
-    return data?.map(b => b.kode_branch) || []
-  }
-  
-  // PIC Branch & Staff only see assigned branches
+  // All roles can see all branches
   const { data } = await supabase
-    .from('user_branches')
+    .from('branches')
     .select('kode_branch')
-    .eq('id_user', userId)
     .eq('is_active', true)
   
   return data?.map(b => b.kode_branch) || []
@@ -51,10 +40,8 @@ export const getBranchFilter = async (): Promise<string[] | null> => {
   const user = getCurrentUser()
   if (!user) return null
   
-  // Super Admin & Admin see all branches (no filter)
-  if (user.role === 'super admin' || user.role === 'admin') {
-    return null // No filter = see all
-  }
+  // All roles can see all branches (no branch filter)
+  return null // No filter = see all
   
   // Get user's assigned branches
   return await getUserBranches(user.id_user)
@@ -110,12 +97,6 @@ export const canAccessBranch = async (branchCode: string): Promise<boolean> => {
   const user = getCurrentUser()
   if (!user) return false
   
-  // Super Admin & Admin can access all branches
-  if (user.role === 'super admin' || user.role === 'admin') {
-    return true
-  }
-  
-  // Check if branch is in user's assigned branches
-  const userBranches = await getUserBranches(user.id_user)
-  return userBranches.includes(branchCode)
+  // All roles can access all branches
+  return true
 }

@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
-import { Plus, Edit, Trash2, Download, Upload, RefreshCw, Settings, Eye, EyeOff } from 'lucide-react';
+import { Plus, Edit, Trash2, Download, Upload, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import PageAccessControl from '../../components/PageAccessControl';
-import { canViewColumn } from '@/src/utils/dbPermissions';
+
 import { getBranchFilter, getUserDefaultBranch } from '@/src/utils/branchAccess';
 import { canPerformActionSync, getUserRole, arePermissionsLoaded, reloadPermissions } from '@/src/utils/rolePermissions';
 import { hasPageAccess } from '@/src/utils/permissionChecker';
@@ -75,8 +75,7 @@ function ReadyPageContent() {
   const [userRole, setUserRole] = useState<string>('guest');
   const [userId, setUserId] = useState<number | null>(null);
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
-  const [showColumnSelector, setShowColumnSelector] = useState(false);
-  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Get user info and check access
   useEffect(() => {
@@ -108,6 +107,15 @@ function ReadyPageContent() {
     }
     checkUserAccess();
   }, [branches])
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+
+
+
 
   useEffect(() => {
     const loadData = async () => {
@@ -880,6 +888,15 @@ function ReadyPageContent() {
 
   return (
       <div className="p-4 md:p-6">
+        {/* Toast Notification */}
+        {toast && (
+          <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 flex items-center shadow-lg transform transition-all duration-300 ${
+            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+          }`}>
+            <span className="mr-2">{toast.type === 'success' ? '✅' : '❌'}</span>
+            {toast.message}
+          </div>
+        )}
         {/* Add Form */}
         {showAddForm && (
           <div className="mb-6 bg-white p-4 shadow rounded-lg">
@@ -1138,15 +1155,7 @@ function ReadyPageContent() {
             >
               {showDataTable ? 'Hide' : 'Show'} Data Table
             </button>
-            {showDataTable && (
-              <button
-                onClick={() => setShowColumnSelector(!showColumnSelector)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
-              >
-                <Settings size={16} />
-                {showColumnSelector ? 'Hide Columns' : 'Show Columns'}
-              </button>
-            )}
+
           </div>
         </div>
 
@@ -1223,49 +1232,7 @@ function ReadyPageContent() {
           </div>
         </div>
 
-        {/* Column Selector */}
-        {showDataTable && showColumnSelector && paginatedReady.length > 0 && (
-          <div className="bg-white p-4 rounded-lg shadow mb-4">
-            <h3 className="font-medium text-gray-800 mb-3 text-sm">Column Visibility Settings</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 mb-3">
-              {Object.keys(paginatedReady[0]).filter(col => col !== 'id_ready').map(col => (
-                <label key={col} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={!hiddenColumns.includes(col)}
-                    onChange={() => {
-                      setHiddenColumns(prev => 
-                        prev.includes(col) 
-                          ? prev.filter(c => c !== col)
-                          : [...prev, col]
-                      );
-                    }}
-                    className="rounded text-blue-600"
-                  />
-                  <span className={hiddenColumns.includes(col) ? 'text-gray-500' : 'text-gray-800'}>
-                    {col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                  </span>
-                </label>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setHiddenColumns([])}
-                className="px-3 py-1 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 flex items-center gap-1"
-              >
-                <Eye size={14} />
-                Show All
-              </button>
-              <button
-                onClick={() => setHiddenColumns(Object.keys(paginatedReady[0]).filter(col => col !== 'id_ready'))}
-                className="px-3 py-1 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 flex items-center gap-1"
-              >
-                <EyeOff size={14} />
-                Hide All
-              </button>
-            </div>
-          </div>
-        )}
+
 
         {/* Data Table Section */}
         {showDataTable && (
@@ -1309,14 +1276,14 @@ function ReadyPageContent() {
                         className="cursor-pointer"
                       />
                     </th>
-                    {!hiddenColumns.includes('ready_no') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready_no')}>Ready No</th>}
-                    {!hiddenColumns.includes('tanggal_input') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>Tanggal</th>}
-                    {!hiddenColumns.includes('branch_name') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>Cabang</th>}
-                    {!hiddenColumns.includes('sub_category') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sub_category')}>Sub Category</th>}
-                    {!hiddenColumns.includes('product_name') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>Product</th>}
-                    {!hiddenColumns.includes('id_product') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id_product')}>Product ID</th>}
-                    {!hiddenColumns.includes('ready') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>}
-                    {!hiddenColumns.includes('waste') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('waste')}>Waste</th>}
+                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready_no')}>Ready No</th>
+                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>Tanggal</th>
+                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>Cabang</th>
+                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sub_category')}>Sub Category</th>
+                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>Product</th>
+                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id_product')}>Product ID</th>
+                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>
+                    <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('waste')}>Waste</th>
                     {(canPerformActionSync(userRole, 'ready', 'edit') || canPerformActionSync(userRole, 'ready', 'delete')) && <th className="border px-2 py-1 text-left font-medium">Actions</th>}
                   </tr>
                 </thead>
@@ -1333,7 +1300,7 @@ function ReadyPageContent() {
                     ))
                   ) : paginatedReady.length === 0 ? (
                     <tr>
-                      <td colSpan={(userRole === 'super admin' || userRole === 'admin') ? 10 : 9} className="text-center py-2 text-gray-500 text-xs">
+                      <td colSpan={10} className="text-center py-2 text-gray-500 text-xs">
                         No ready stock records found
                       </td>
                     </tr>
@@ -1348,14 +1315,14 @@ function ReadyPageContent() {
                             className="cursor-pointer"
                           />
                         </td>
-                        {!hiddenColumns.includes('ready_no') && <td className="border px-2 py-1">{item.ready_no}</td>}
-                        {!hiddenColumns.includes('tanggal_input') && <td className="border px-2 py-1">{item.tanggal_input}</td>}
-                        {!hiddenColumns.includes('branch_name') && <td className="border px-2 py-1">{item.branch_name}</td>}
-                        {!hiddenColumns.includes('sub_category') && <td className="border px-2 py-1">{item.sub_category}</td>}
-                        {!hiddenColumns.includes('product_name') && <td className="border px-2 py-1">{item.product_name}</td>}
-                        {!hiddenColumns.includes('id_product') && <td className="border px-2 py-1 text-center">{item.id_product}</td>}
-                        {!hiddenColumns.includes('ready') && <td className="border px-2 py-1 text-right">{item.ready}</td>}
-                        {!hiddenColumns.includes('waste') && <td className="border px-2 py-1 text-right">{item.waste}</td>}
+                        <td className="border px-2 py-1">{item.ready_no}</td>
+                        <td className="border px-2 py-1">{item.tanggal_input}</td>
+                        <td className="border px-2 py-1">{item.branch_name}</td>
+                        <td className="border px-2 py-1">{item.sub_category}</td>
+                        <td className="border px-2 py-1">{item.product_name}</td>
+                        <td className="border px-2 py-1 text-center">{item.id_product}</td>
+                        <td className="border px-2 py-1 text-right">{item.ready}</td>
+                        <td className="border px-2 py-1 text-right">{item.waste}</td>
                         {(canPerformActionSync(userRole, 'ready', 'edit') || canPerformActionSync(userRole, 'ready', 'delete')) && (
                           <td className="border px-2 py-1">
                             <div className="flex gap-1">

@@ -13,7 +13,7 @@ export default function PermissionsDBPage() {
   const roles = ['super admin', 'admin', 'finance', 'pic_branch', 'staff']
   
   const pageColumns = {
-    esb: ['sales_date', 'branch', 'product', 'sub_category', 'quantity', 'price', 'total'],
+    esb: ['id', 'sales_date', 'branch', 'product', 'product_code', 'category', 'sub_category', 'unit', 'qty_total', 'value_total', 'product_id'],
     ready: ['ready_no', 'tanggal_input', 'branch', 'category', 'product_name', 'quantity', 'unit'],
     users: ['email', 'nama_lengkap', 'no_telp', 'role', 'cabang', 'created_at'],
     produksi: ['tanggal_produksi', 'product_name', 'quantity', 'status', 'branch', 'notes'],
@@ -61,12 +61,16 @@ export default function PermissionsDBPage() {
       const existing = permissions.find(p => p.role === role && p.page === page)
       const newAccess = !existing?.can_access
       
+      // When enabling page access, give access to all columns
+      // When disabling, remove all column access
+      const columns = newAccess ? ['*'] : []
+      
       const { error } = await supabase
         .from('user_permissions')
         .upsert({
           role,
           page,
-          columns: newAccess ? ['*'] : [],
+          columns,
           can_access: newAccess
         }, {
           onConflict: 'role,page'
@@ -114,9 +118,14 @@ export default function PermissionsDBPage() {
 
   const hasColumnAccess = (role: string, page: string, column: string) => {
     const perm = permissions.find(p => p.role === role && p.page === page)
-    if (!perm || !perm.can_access) return false
+    if (!perm) return false
     if (perm.columns?.includes('*')) return true
     return perm.columns?.includes(column) || false
+  }
+
+  const canAccessPage = (role: string, page: string) => {
+    const perm = permissions.find(p => p.role === role && p.page === page)
+    return perm?.can_access || false
   }
 
   if (userRole !== 'super admin' && userRole !== 'admin') {
@@ -204,15 +213,25 @@ export default function PermissionsDBPage() {
                   {pageColumns[selectedPage as keyof typeof pageColumns]?.map(column => (
                     <tr key={column}>
                       <td className="p-2 border font-medium">{column}</td>
-                      {roles.map(role => (
-                        <td key={role} className="p-2 text-center border">
-                          <input
-                            type="checkbox"
-                            checked={hasColumnAccess(role, selectedPage, column)}
-                            onChange={() => toggleColumnAccess(role, selectedPage, column)}
-                          />
-                        </td>
-                      ))}
+                      {roles.map(role => {
+                        const pageAccess = canAccessPage(role, selectedPage)
+                        const columnAccess = hasColumnAccess(role, selectedPage, column)
+                        
+                        return (
+                          <td key={role} className="p-2 text-center border">
+                            <input
+                              type="checkbox"
+                              checked={columnAccess}
+                              disabled={!pageAccess}
+                              onChange={() => toggleColumnAccess(role, selectedPage, column)}
+                              className={!pageAccess ? 'opacity-50 cursor-not-allowed' : ''}
+                            />
+                            {!pageAccess && (
+                              <div className="text-xs text-red-500 mt-1">No page access</div>
+                            )}
+                          </td>
+                        )
+                      })}
                     </tr>
                   ))}
                 </tbody>

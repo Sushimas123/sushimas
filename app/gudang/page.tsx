@@ -11,6 +11,7 @@ import { getBranchFilter, applyBranchFilter } from '@/src/utils/branchAccess';
 import { canPerformActionSync, getUserRole, arePermissionsLoaded, reloadPermissions } from '@/src/utils/rolePermissions';
 import { hasPageAccess } from '@/src/utils/permissionChecker';
 import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
+import { canViewColumn } from '@/src/utils/dbPermissions';
 
 interface Gudang {
   uniqueid_gudang: string;
@@ -81,6 +82,8 @@ function GudangPageContent() {
   const [saving, setSaving] = useState(false);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
+  const [permittedColumns, setPermittedColumns] = useState<string[]>([]);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
     fetchUserInfo();
@@ -98,6 +101,46 @@ function GudangPageContent() {
       reloadPermissions();
     }
   }, [hasAccess]);
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  // Get columns based on permissions
+  useEffect(() => {
+    const loadPermittedColumns = async () => {
+      if (gudang.length > 0) {
+        const allColumns = Object.keys(gudang[0])
+        const permitted = []
+        
+        for (const col of allColumns) {
+          const hasPermission = await canViewColumn(userRole, 'gudang', col)
+          if (hasPermission) {
+            permitted.push(col)
+          }
+        }
+        
+        setPermittedColumns(permitted)
+      }
+    }
+    
+    loadPermittedColumns()
+  }, [gudang, userRole])
+  
+  const visibleColumns = permittedColumns.filter(col => !hiddenColumns.includes(col))
+
+  const toggleColumn = async (col: string) => {
+    const hasPermission = await canViewColumn(userRole, 'gudang', col)
+    if (!hasPermission) {
+      showToast(`You don't have permission to view ${col} column`, 'error')
+      return
+    }
+    
+    setHiddenColumns(prev =>
+      prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
+    )
+  }
 
 
 
@@ -475,20 +518,29 @@ function GudangPageContent() {
   const uniqueProducts = [...new Set(gudang.map(g => g.product_name).filter(Boolean))];
 
   const handleExport = () => {
-    if (gudang.length === 0) return;
-    const ws = XLSX.utils.json_to_sheet(gudang.map(g => ({
-      order_no: g.order_no,
-      tanggal: g.tanggal.split('T')[0],
-      product_name: g.product_name,
-      cabang: g.branch_name || g.cabang,
-      jumlah_masuk: g.jumlah_masuk,
-      jumlah_keluar: g.jumlah_keluar,
-      total_gudang: g.total_gudang,
-      nama_pengambil_barang: g.nama_pengambil_barang
-    })));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Gudang");
-    XLSX.writeFile(wb, `gudang_${new Date().toISOString().split('T')[0]}.xlsx`);
+    if (gudang.length === 0) {
+      showToast("No data to export", 'error')
+      return
+    }
+    
+    try {
+      const header = visibleColumns.map(col => col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())).join(",")
+      const rows = gudang.map(row =>
+        visibleColumns.map(col => `"${row[col as keyof Gudang] ?? ""}"`).join(",")
+      )
+      const csvContent = [header, ...rows].join("\n")
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.setAttribute("download", `gudang_export_${new Date().toISOString().split('T')[0]}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      showToast("CSV exported successfully", 'success')
+    } catch (err) {
+      showToast("Failed to export CSV", 'error')
+    }
   };
 
   const recalculateAffectedRecords = async (idProduct: number, fromDate: string) => {
@@ -765,6 +817,15 @@ function GudangPageContent() {
 
   return (
     <div className="p-1 md:p-2">
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 flex items-center shadow-lg transform transition-all duration-300 ${
+          toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+        }`}>
+          <span className="mr-2">{toast.type === 'success' ? '✅' : '❌'}</span>
+          {toast.message}
+        </div>
+      )}
       <div className="flex items-center gap-3 mb-1">
         <h1 className="text-sm font-bold text-gray-800">📦 Warehouse</h1>
       </div>
@@ -966,27 +1027,26 @@ function GudangPageContent() {
       {/* Column Selector */}
       {showColumnSelector && paginatedGudang.length > 0 && (
         <div className="bg-white p-2 rounded-lg shadow mb-1">
-          <h3 className="font-medium text-gray-800 mb-2 text-xs">Column Visibility Settings</h3>
+          <h3 className="font-medium text-gray-800 mb-2 text-xs">Column Access Control</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 mb-2">
-            {Object.keys(paginatedGudang[0]).filter(col => col !== 'uniqueid_gudang').map(col => (
-              <label key={col} className="flex items-center gap-1 text-xs">
-                <input
-                  type="checkbox"
-                  checked={!hiddenColumns.includes(col)}
-                  onChange={() => {
-                    setHiddenColumns(prev => 
-                      prev.includes(col) 
-                        ? prev.filter(c => c !== col)
-                        : [...prev, col]
-                    );
-                  }}
-                  className="rounded text-blue-600 w-3 h-3"
-                />
-                <span className={hiddenColumns.includes(col) ? 'text-gray-500' : 'text-gray-800'}>
-                  {col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                </span>
-              </label>
-            ))}
+            {Object.keys(paginatedGudang[0]).filter(col => col !== 'uniqueid_gudang').map(col => {
+              const hasPermission = permittedColumns.includes(col)
+              return (
+                <label key={col} className="flex items-center gap-1 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={!hiddenColumns.includes(col) && hasPermission}
+                    disabled={!hasPermission}
+                    onChange={() => toggleColumn(col)}
+                    className="rounded text-blue-600 w-3 h-3"
+                  />
+                  <span className={hiddenColumns.includes(col) || !hasPermission ? 'text-gray-500' : 'text-gray-800'}>
+                    {col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    {!hasPermission && <span className="text-red-500 text-xs ml-1">(No Access)</span>}
+                  </span>
+                </label>
+              )
+            })}
           </div>
           <div className="flex gap-1">
             <button
@@ -994,14 +1054,14 @@ function GudangPageContent() {
               className="px-2 py-1 bg-green-600 text-white rounded-md text-xs hover:bg-green-700 flex items-center gap-1"
             >
               <Eye size={10} />
-              Show All
+              Show All Permitted
             </button>
             <button
-              onClick={() => setHiddenColumns(Object.keys(paginatedGudang[0]).filter(col => col !== 'uniqueid_gudang'))}
+              onClick={() => setHiddenColumns(permittedColumns)}
               className="px-2 py-1 bg-red-600 text-white rounded-md text-xs hover:bg-red-700 flex items-center gap-1"
             >
               <EyeOff size={10} />
-              Hide All
+              Hide All Permitted
             </button>
           </div>
         </div>
@@ -1020,31 +1080,31 @@ function GudangPageContent() {
                     className="w-3 h-3"
                   />
                 </th>
-                {!hiddenColumns.includes('order_no') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('order_no')}>
+                {visibleColumns.includes('order_no') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('order_no')}>
                   Order No {sortConfig?.key === 'order_no' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>}
-                {!hiddenColumns.includes('tanggal') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal')}>
+                {visibleColumns.includes('tanggal') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal')}>
                   Date {sortConfig?.key === 'tanggal' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>}
-                {!hiddenColumns.includes('tanggal') && <th className="px-1 py-1 text-left font-medium text-gray-700">
+                {visibleColumns.includes('tanggal') && <th className="px-1 py-1 text-left font-medium text-gray-700">
                   Time
                 </th>}
-                {!hiddenColumns.includes('branch_name') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>
+                {visibleColumns.includes('branch_name') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>
                   Branch {sortConfig?.key === 'branch_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>}
-                {!hiddenColumns.includes('product_name') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>
+                {visibleColumns.includes('product_name') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>
                   Product {sortConfig?.key === 'product_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>}
-                {!hiddenColumns.includes('jumlah_masuk') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jumlah_masuk')}>
+                {visibleColumns.includes('jumlah_masuk') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jumlah_masuk')}>
                   In {sortConfig?.key === 'jumlah_masuk' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>}
-                {!hiddenColumns.includes('jumlah_keluar') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jumlah_keluar')}>
+                {visibleColumns.includes('jumlah_keluar') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jumlah_keluar')}>
                   Out {sortConfig?.key === 'jumlah_keluar' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>}
-                {!hiddenColumns.includes('total_gudang') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_gudang')}>
+                {visibleColumns.includes('total_gudang') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_gudang')}>
                   Total {sortConfig?.key === 'total_gudang' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>}
-                {!hiddenColumns.includes('nama_pengambil_barang') && <th className="px-1 py-1 text-left font-medium text-gray-700">Pengambil</th>}
+                {visibleColumns.includes('nama_pengambil_barang') && <th className="px-1 py-1 text-left font-medium text-gray-700">Pengambil</th>}
                 <th className="px-1 py-1 text-left font-medium text-gray-700">Source</th>
                 <th className="px-1 py-1 text-left font-medium text-gray-700">Action</th>
               </tr>
@@ -1067,7 +1127,7 @@ function GudangPageContent() {
                         className="w-3 h-3"
                       />
                     </td>
-                    {!hiddenColumns.includes('order_no') && <td className="px-1 py-1 font-medium">
+                    {visibleColumns.includes('order_no') && <td className="px-1 py-1 font-medium">
                       {(item as any).source_type === 'stock_opname' ? (
                         <a 
                           href={`/stock_opname?highlight=${(item as any).source_reference?.replace('SO-', '')}`}
@@ -1080,14 +1140,14 @@ function GudangPageContent() {
                         <span className="text-blue-600">{item.order_no}</span>
                       )}
                     </td>}
-                    {!hiddenColumns.includes('tanggal') && <td className="px-1 py-1">{item.tanggal.split('T')[0]}</td>}
-                    {!hiddenColumns.includes('tanggal') && <td className="px-1 py-1">{new Date(item.tanggal).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}</td>}
-                    {!hiddenColumns.includes('branch_name') && <td className="px-1 py-1">{item.branch_name}</td>}
-                    {!hiddenColumns.includes('product_name') && <td className="px-1 py-1">{item.product_name}</td>}
-                    {!hiddenColumns.includes('jumlah_masuk') && <td className="px-1 py-1 text-green-600">{item.jumlah_masuk}</td>}
-                    {!hiddenColumns.includes('jumlah_keluar') && <td className="px-1 py-1 text-red-600">{item.jumlah_keluar}</td>}
-                    {!hiddenColumns.includes('total_gudang') && <td className="px-1 py-1 font-medium">{item.total_gudang}</td>}
-                    {!hiddenColumns.includes('nama_pengambil_barang') && <td className="px-1 py-1">{item.nama_pengambil_barang}</td>}
+                    {visibleColumns.includes('tanggal') && <td className="px-1 py-1">{item.tanggal.split('T')[0]}</td>}
+                    {visibleColumns.includes('tanggal') && <td className="px-1 py-1">{new Date(item.tanggal).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}</td>}
+                    {visibleColumns.includes('branch_name') && <td className="px-1 py-1">{item.branch_name}</td>}
+                    {visibleColumns.includes('product_name') && <td className="px-1 py-1">{item.product_name}</td>}
+                    {visibleColumns.includes('jumlah_masuk') && <td className="px-1 py-1 text-green-600">{item.jumlah_masuk}</td>}
+                    {visibleColumns.includes('jumlah_keluar') && <td className="px-1 py-1 text-red-600">{item.jumlah_keluar}</td>}
+                    {visibleColumns.includes('total_gudang') && <td className="px-1 py-1 font-medium">{item.total_gudang}</td>}
+                    {visibleColumns.includes('nama_pengambil_barang') && <td className="px-1 py-1">{item.nama_pengambil_barang}</td>}
                     <td className="px-1 py-1">
                       {(item as any).source_type === 'stock_opname' ? (
                         <span className="px-1 py-0.5 bg-orange-100 text-orange-800 rounded text-xs font-semibold">

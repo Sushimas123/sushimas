@@ -57,6 +57,8 @@ function UsersPageContent() {
   const [userId, setUserId] = useState<number | null>(null);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
+  const [permittedColumns, setPermittedColumns] = useState<string[]>([]);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Get user role
   useEffect(() => {
@@ -72,6 +74,46 @@ function UsersPageContent() {
     fetchUsers();
     fetchBranches();
   }, []);
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  // Get columns based on permissions
+  useEffect(() => {
+    const loadPermittedColumns = async () => {
+      if (users.length > 0) {
+        const allColumns = ['email', 'nama_lengkap', 'no_telp', 'role', 'branches', 'created_at']
+        const permitted = []
+        
+        for (const col of allColumns) {
+          const hasPermission = await canViewColumn(userRole, 'users', col)
+          if (hasPermission) {
+            permitted.push(col)
+          }
+        }
+        
+        setPermittedColumns(permitted)
+      }
+    }
+    
+    loadPermittedColumns()
+  }, [users, userRole])
+  
+  const visibleColumns = permittedColumns.filter(col => !hiddenColumns.includes(col))
+
+  const toggleColumn = async (col: string) => {
+    const hasPermission = await canViewColumn(userRole, 'users', col)
+    if (!hasPermission) {
+      showToast(`You don't have permission to view ${col} column`, 'error')
+      return
+    }
+    
+    setHiddenColumns(prev =>
+      prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
+    )
+  }
 
   const fetchUsers = async () => {
     try {
@@ -377,6 +419,15 @@ function UsersPageContent() {
 
   return (
     <div className="p-1 md:p-2">
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 flex items-center shadow-lg transform transition-all duration-300 ${
+          toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+        }`}>
+          <span className="mr-2">{toast.type === 'success' ? '✅' : '❌'}</span>
+          {toast.message}
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-sm font-bold text-gray-800">👥 User Management</h1>
@@ -558,25 +609,24 @@ function UsersPageContent() {
         <div className="bg-white p-2 rounded-lg shadow mb-1">
           <h3 className="font-medium text-gray-800 mb-2 text-xs">Column Visibility Settings</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 mb-2">
-            {['email', 'nama_lengkap', 'no_telp', 'role', 'branches', 'created_at'].map(col => (
-              <label key={col} className="flex items-center gap-1 text-xs">
-                <input
-                  type="checkbox"
-                  checked={!hiddenColumns.includes(col)}
-                  onChange={() => {
-                    setHiddenColumns(prev => 
-                      prev.includes(col) 
-                        ? prev.filter(c => c !== col)
-                        : [...prev, col]
-                    );
-                  }}
-                  className="rounded text-blue-600 w-3 h-3"
-                />
-                <span className={hiddenColumns.includes(col) ? 'text-gray-500' : 'text-gray-800'}>
-                  {col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                </span>
-              </label>
-            ))}
+            {['email', 'nama_lengkap', 'no_telp', 'role', 'branches', 'created_at'].map(col => {
+              const hasPermission = permittedColumns.includes(col)
+              return (
+                <label key={col} className="flex items-center gap-1 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={!hiddenColumns.includes(col) && hasPermission}
+                    disabled={!hasPermission}
+                    onChange={() => toggleColumn(col)}
+                    className="rounded text-blue-600 w-3 h-3"
+                  />
+                  <span className={hiddenColumns.includes(col) || !hasPermission ? 'text-gray-500' : 'text-gray-800'}>
+                    {col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    {!hasPermission && <span className="text-red-500 text-xs ml-1">(No Access)</span>}
+                  </span>
+                </label>
+              )
+            })}
           </div>
           <div className="flex gap-1">
             <button
@@ -584,14 +634,14 @@ function UsersPageContent() {
               className="px-2 py-1 bg-green-600 text-white rounded-md text-xs hover:bg-green-700 flex items-center gap-1"
             >
               <Eye size={10} />
-              Show All
+              Show All Permitted
             </button>
             <button
-              onClick={() => setHiddenColumns(['email', 'nama_lengkap', 'no_telp', 'role', 'branches', 'created_at'])}
+              onClick={() => setHiddenColumns(permittedColumns)}
               className="px-2 py-1 bg-red-600 text-white rounded-md text-xs hover:bg-red-700 flex items-center gap-1"
             >
               <EyeOff size={10} />
-              Hide All
+              Hide All Permitted
             </button>
           </div>
         </div>
@@ -603,12 +653,12 @@ function UsersPageContent() {
           <table className="w-full text-xs">
             <thead className="bg-gray-100">
               <tr>
-                {!hiddenColumns.includes('email') && <th className="px-1 py-1 text-left font-medium text-gray-700">Email</th>}
-                {!hiddenColumns.includes('nama_lengkap') && <th className="px-1 py-1 text-left font-medium text-gray-700">Nama Lengkap</th>}
-                {!hiddenColumns.includes('no_telp') && <th className="px-1 py-1 text-left font-medium text-gray-700">No Telp</th>}
-                {!hiddenColumns.includes('role') && <th className="px-1 py-1 text-left font-medium text-gray-700">Role</th>}
-                {!hiddenColumns.includes('branches') && <th className="px-1 py-1 text-left font-medium text-gray-700">Branch</th>}
-                {!hiddenColumns.includes('created_at') && <th className="px-1 py-1 text-left font-medium text-gray-700">Created</th>}
+                {visibleColumns.includes('email') && <th className="px-1 py-1 text-left font-medium text-gray-700">Email</th>}
+                {visibleColumns.includes('nama_lengkap') && <th className="px-1 py-1 text-left font-medium text-gray-700">Nama Lengkap</th>}
+                {visibleColumns.includes('no_telp') && <th className="px-1 py-1 text-left font-medium text-gray-700">No Telp</th>}
+                {visibleColumns.includes('role') && <th className="px-1 py-1 text-left font-medium text-gray-700">Role</th>}
+                {visibleColumns.includes('branches') && <th className="px-1 py-1 text-left font-medium text-gray-700">Branch</th>}
+                {visibleColumns.includes('created_at') && <th className="px-1 py-1 text-left font-medium text-gray-700">Created</th>}
                 {(userRole === 'super admin' || userRole === 'admin') && <th className="px-1 py-1 text-left font-medium text-gray-700">Aksi</th>}
               </tr>
             </thead>
@@ -623,16 +673,16 @@ function UsersPageContent() {
               ) : (
                 filteredUsers.map((user) => (
                   <tr key={user.id_user} className="hover:bg-gray-50">
-                    {!hiddenColumns.includes('email') && <td className="px-1 py-1">
+                    {visibleColumns.includes('email') && <td className="px-1 py-1">
                       <div className="font-medium text-blue-600">{user.email}</div>
                     </td>}
-                    {!hiddenColumns.includes('nama_lengkap') && <td className="px-1 py-1">
+                    {visibleColumns.includes('nama_lengkap') && <td className="px-1 py-1">
                       <div className="font-medium text-gray-900">{user.nama_lengkap}</div>
                     </td>}
-                    {!hiddenColumns.includes('no_telp') && <td className="px-1 py-1">
+                    {visibleColumns.includes('no_telp') && <td className="px-1 py-1">
                       <div className="text-gray-900">{user.no_telp || '-'}</div>
                     </td>}
-                    {!hiddenColumns.includes('role') && <td className="px-1 py-1">
+                    {visibleColumns.includes('role') && <td className="px-1 py-1">
                       <span className={`px-1 py-0.5 rounded text-xs font-semibold ${
                         user.role === 'super admin' ? 'bg-red-100 text-red-800' :
                         user.role === 'admin' ? 'bg-blue-100 text-blue-800' :
@@ -643,7 +693,7 @@ function UsersPageContent() {
                         {user.role}
                       </span>
                     </td>}
-                    {!hiddenColumns.includes('branches') && <td className="px-1 py-1">
+                    {visibleColumns.includes('branches') && <td className="px-1 py-1">
                       <div className="text-gray-900">
                         {user.branches && user.branches.length > 0 
                           ? user.branches.map(branchCode => {
@@ -656,7 +706,7 @@ function UsersPageContent() {
                         }
                       </div>
                     </td>}
-                    {!hiddenColumns.includes('created_at') && <td className="px-1 py-1">
+                    {visibleColumns.includes('created_at') && <td className="px-1 py-1">
                       <div className="text-gray-500">
                         {new Date(user.created_at).toLocaleDateString()}
                       </div>

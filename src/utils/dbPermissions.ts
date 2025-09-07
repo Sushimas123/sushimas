@@ -86,7 +86,7 @@ const getDefaultPermissions = (userRole: string) => {
   }
   
   if (userRole === 'staff') {
-    const staffPages = ['ready', 'produksi', 'stock_opname']
+    const staffPages = ['ready', 'produksi', 'stock_opname', 'esb']
     staffPages.forEach(page => {
       permissions[page] = ['*']
     })
@@ -145,6 +145,9 @@ export const clearPermissionsCache = () => {
   permissionsCache = {}
   cacheExpiry = 0
 }
+
+// Clear cache immediately on module load to ensure fresh permissions
+clearPermissionsCache()
 
 // Function to update permissions in database
 export const updatePermissions = async (role: string, page: string, columns: string[], canAccess: boolean = true) => {
