@@ -43,10 +43,18 @@ export default function ProduksiDetailPage() {
   const [recalculateTotal, setRecalculateTotal] = useState(0);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
+  const [userRole, setUserRole] = useState<string>('guest');
 
   useEffect(() => {
     fetchDetails();
     fetchBranches();
+    
+    // Get user role
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      setUserRole(user.role || 'guest');
+    }
     
     // Check for search parameter in URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -393,9 +401,11 @@ export default function ProduksiDetailPage() {
             >
               {isRecalculating ? 'Processing...' : 'Recalculate'}
             </button>
-            <button onClick={handleExport} className="bg-green-600 text-white px-3 py-1 rounded text-xs flex items-center gap-1">
-              <Download size={12} />Export
-            </button>
+            {(userRole === 'super admin' || userRole === 'admin') && (
+              <button onClick={handleExport} className="bg-green-600 text-white px-3 py-1 rounded text-xs flex items-center gap-1">
+                <Download size={12} />Export
+              </button>
+            )}
             <button
               onClick={() => setShowColumnSelector(!showColumnSelector)}
               className="bg-purple-600 text-white px-3 py-1 rounded text-xs flex items-center gap-1"

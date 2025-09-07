@@ -1225,14 +1225,17 @@ function ReadyPageContent() {
                 Input Harian
               </div>
             )}
-            <button
-              onClick={exportToExcel}
-              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
-            >
-              <Download size={16} />
-              Export Excel
-            </button>
-            {canPerformActionSync(userRole, 'ready', 'create') && (
+            
+            {(userRole === 'super admin' || userRole === 'admin') && (
+              <button
+                onClick={exportToExcel}
+                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
+              >
+                <Download size={16} />
+                Export Excel
+              </button>
+            )}
+            {(userRole === 'super admin' || userRole === 'admin') && (
               <label className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1 cursor-pointer">
                 <Upload size={16} />
                 Import Excel

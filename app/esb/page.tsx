@@ -361,13 +361,15 @@ export default function ESBPage() {
             Reset Filter
           </button>
 
-          <button
-            onClick={exportCSV}
-            className="bg-green-600 text-white px-1 py-0.5 rounded-md hover:bg-green-700 text-xs flex items-center gap-0.5"
-          >
-            <Download size={12} />
-            Export CSV
-          </button>
+          {(userRole === 'super admin' || userRole === 'admin') && (
+            <button
+              onClick={exportCSV}
+              className="bg-green-600 text-white px-1 py-0.5 rounded-md hover:bg-green-700 text-xs flex items-center gap-0.5"
+            >
+              <Download size={12} />
+              Export CSV
+            </button>
+          )}
           <button
             onClick={() => setShowColumnSelector(!showColumnSelector)}
             className="bg-purple-600 text-white px-1 py-0.5 rounded-md hover:bg-purple-700 text-xs flex items-center gap-0.5"

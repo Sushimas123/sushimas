@@ -588,10 +588,12 @@ export default function ProduksiPage() {
             <button onClick={recalculateAllTotals} className="bg-purple-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1">
               <RefreshCw size={12} />Recalculate
             </button>
-            <button onClick={handleExport} className="bg-green-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1">
-              <Download size={12} />Export
-            </button>
-            {canPerformActionSync(userRole, 'produksi', 'create') && (
+            {(userRole === 'super admin' || userRole === 'admin') && (
+              <button onClick={handleExport} className="bg-green-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1">
+                <Download size={12} />Export
+              </button>
+            )}
+            {(userRole === 'super admin' || userRole === 'admin') && (
               <label className="bg-orange-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1 cursor-pointer hover:bg-orange-700">
                 <Upload size={12} />Import
                 <input

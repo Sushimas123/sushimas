@@ -432,24 +432,28 @@ export default function RecipesPage() {
             </select>
             
             <div className="flex gap-2">
-              <button
-                onClick={handleExport}
-                className="bg-green-600 text-white px-2 py-1 rounded-md hover:bg-green-700 text-xs flex items-center gap-1"
-              >
-                <Download size={16} />
-                Export
-              </button>
+              {(userRole === 'super admin' || userRole === 'admin') && (
+                <button
+                  onClick={handleExport}
+                  className="bg-green-600 text-white px-2 py-1 rounded-md hover:bg-green-700 text-xs flex items-center gap-1"
+                >
+                  <Download size={16} />
+                  Export
+                </button>
+              )}
               
-              <label className="bg-orange-600 text-white px-2 py-1 rounded-md hover:bg-orange-700 text-xs flex items-center gap-1 cursor-pointer">
-                <Upload size={16} />
-                Import
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleImport}
-                  className="hidden"
-                />
-              </label>
+              {(userRole === 'super admin' || userRole === 'admin') && (
+                <label className="bg-orange-600 text-white px-2 py-1 rounded-md hover:bg-orange-700 text-xs flex items-center gap-1 cursor-pointer">
+                  <Upload size={16} />
+                  Import
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleImport}
+                    className="hidden"
+                  />
+                </label>
+              )}
               
               {canPerformActionSync(userRole, 'recipes', 'create') && (
                 <button

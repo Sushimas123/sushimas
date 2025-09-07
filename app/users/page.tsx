@@ -458,24 +458,28 @@ function UsersPageContent() {
             />
           </div>
           <div className="flex gap-1">
-            <button
-              onClick={handleExport}
-              className="bg-green-600 text-white px-2 py-1 rounded-md hover:bg-green-700 text-xs flex items-center gap-1"
-            >
-              <Download size={12} />
-              Export
-            </button>
-            <label className="bg-orange-600 text-white px-2 py-1 rounded-md hover:bg-orange-700 text-xs flex items-center gap-1 cursor-pointer">
-              <Upload size={12} />
-              Import
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleImport}
-                className="hidden"
-                disabled={importLoading}
-              />
-            </label>
+            {(userRole === 'super admin' || userRole === 'admin') && (
+              <button
+                onClick={handleExport}
+                className="bg-green-600 text-white px-2 py-1 rounded-md hover:bg-green-700 text-xs flex items-center gap-1"
+              >
+                <Download size={12} />
+                Export
+              </button>
+            )}
+            {(userRole === 'super admin' || userRole === 'admin') && (
+              <label className="bg-orange-600 text-white px-2 py-1 rounded-md hover:bg-orange-700 text-xs flex items-center gap-1 cursor-pointer">
+                <Upload size={12} />
+                Import
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleImport}
+                  className="hidden"
+                  disabled={importLoading}
+                />
+              </label>
+            )}
             {(userRole === 'super admin' || userRole === 'admin') && (
               <button
                 onClick={() => setShowAddForm(!showAddForm)}

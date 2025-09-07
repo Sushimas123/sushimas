@@ -70,6 +70,7 @@ export default function AnalysisPage() {
     tolerance_range: true,
     status: true
   });
+  const [userRole, setUserRole] = useState<string>('guest');
 
   // Load column settings on mount
   useEffect(() => {
@@ -85,6 +86,13 @@ export default function AnalysisPage() {
 
   useEffect(() => {
     fetchAnalysisData();
+    
+    // Get user role
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      setUserRole(user.role || 'guest');
+    }
   }, [dateRange]);
 
   // Save column settings whenever they change
@@ -741,12 +749,14 @@ export default function AnalysisPage() {
               >
                 📋
               </button>
-              <button
-                onClick={handleExport}
-                className="bg-green-600 hover:bg-green-700 text-white px-1 py-1 rounded text-xs"
-              >
-                📊
-              </button>
+              {(userRole === 'super admin' || userRole === 'admin') && (
+                <button
+                  onClick={handleExport}
+                  className="bg-green-600 hover:bg-green-700 text-white px-1 py-1 rounded text-xs"
+                >
+                  📊
+                </button>
+              )}
               <button
                 onClick={fetchAnalysisData}
                 className="bg-gray-600 hover:bg-gray-700 text-white px-1 py-1 rounded text-xs"

@@ -37,11 +37,19 @@ export default function StockOpnamePage() {
     dateTo: '',
     pic: ''
   })
+  const [userRole, setUserRole] = useState<string>('guest')
 
   useEffect(() => {
     fetchData()
     fetchBranches()
     fetchUsers()
+    
+    // Get user role
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      const user = JSON.parse(userData)
+      setUserRole(user.role || 'guest')
+    }
     
     // Check for highlight parameter in URL
     const urlParams = new URLSearchParams(window.location.search)
@@ -746,18 +754,22 @@ export default function StockOpnamePage() {
                 </button>
               </>
             )}
-            <button
-              onClick={exportXLSX}
-              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
-            >
-              <Download size={16} />
-              Export Excel
-            </button>
-            <label className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded-md text-xs cursor-pointer flex items-center gap-1">
-              <Upload size={16} />
-              Import Excel
-              <input type="file" accept=".xlsx,.xls" onChange={importXLSX} className="hidden" />
-            </label>
+            {(userRole === 'super admin' || userRole === 'admin') && (
+              <button
+                onClick={exportXLSX}
+                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
+              >
+                <Download size={16} />
+                Export Excel
+              </button>
+            )}
+            {(userRole === 'super admin' || userRole === 'admin') && (
+              <label className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded-md text-xs cursor-pointer flex items-center gap-1">
+                <Upload size={16} />
+                Import Excel
+                <input type="file" accept=".xlsx,.xls" onChange={importXLSX} className="hidden" />
+              </label>
+            )}
             <button
               onClick={() => {
                 fetchData()

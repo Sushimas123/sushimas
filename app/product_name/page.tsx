@@ -518,13 +518,17 @@ export default function ProductPage() {
         
         {/* Secondary Actions */}
         <div className="flex flex-wrap gap-2">
-          <button onClick={exportXLSX} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs">
-            Export Excel
-          </button>
-          <label className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-xs cursor-pointer">
-            Import Excel
-            <input type="file" accept=".xlsx,.xls" onChange={importXLSX} className="hidden" />
-          </label>
+          {(userRole === 'super admin' || userRole === 'admin') && (
+            <button onClick={exportXLSX} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs">
+              Export Excel
+            </button>
+          )}
+          {(userRole === 'super admin' || userRole === 'admin') && (
+            <label className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-xs cursor-pointer">
+              Import Excel
+              <input type="file" accept=".xlsx,.xls" onChange={importXLSX} className="hidden" />
+            </label>
+          )}
           {(search || Object.values(filters).some(f => f)) && (
             <button 
               onClick={resetFilters}
