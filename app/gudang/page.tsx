@@ -14,7 +14,6 @@ import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/a
 import { canViewColumn } from '@/src/utils/dbPermissions';
 
 interface Gudang {
-  uniqueid_gudang: string;
   order_no: number;
   id_product: number;
   tanggal: string;
@@ -28,9 +27,6 @@ interface Gudang {
   created_by: number;
   updated_by: number;
   updated_at?: string;
-  transfer_id?: number;
-  from_cabang?: string;
-  to_cabang?: string;
   product_name?: string;
   branch_name?: string;
 }
@@ -51,6 +47,7 @@ function GudangPageContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [subCategoryFilter, setSubCategoryFilter] = useState('');
+  const [branchFilter, setBranchFilter] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -64,21 +61,19 @@ function GudangPageContent() {
     nama_pengambil_barang: '',
     cabang: '',
     source_type: 'manual',
-    source_reference: '',
-    from_cabang: '',
-    to_cabang: ''
+    source_reference: ''
   });
   const [userCabang, setUserCabang] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('user');
   const [userId, setUserId] = useState<number | null>(null);
   const [userName, setUserName] = useState<string>('');
   const [cabangList, setCabangList] = useState<{id_branch: number, kode_branch: string, nama_branch: string}[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [productSearch, setProductSearch] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const productDropdownRef = useRef<HTMLDivElement>(null);
   const [isRecalculating, setIsRecalculating] = useState(false);
-  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [selectAll, setSelectAll] = useState(false);
   const [saving, setSaving] = useState(false);
   const [permittedColumns, setPermittedColumns] = useState<string[]>([]);
@@ -330,9 +325,7 @@ function GudangPageContent() {
       source_type: formData.source_type || 'manual',
       source_reference: formData.source_reference || null,
       created_by: userId ?? null,
-      updated_by: userId ?? null,
-      from_cabang: formData.from_cabang || null,
-      to_cabang: formData.to_cabang || null
+      updated_by: userId ?? null
     };
 
     try {
@@ -341,7 +334,7 @@ function GudangPageContent() {
         const { error } = await supabase
           .from('gudang')
           .update(submitData)
-          .eq('uniqueid_gudang', editingId);
+          .eq('order_no', editingId);
         if (error) throw error;
         console.log('Updated gudang record:', editingId);
       } else {
@@ -382,9 +375,7 @@ function GudangPageContent() {
       nama_pengambil_barang: userName,
       cabang: userCabang || '',
       source_type: 'manual',
-      source_reference: '',
-      from_cabang: '',
-      to_cabang: ''
+      source_reference: ''
     });
     setProductSearch('');
     setShowAddForm(false);
@@ -405,30 +396,28 @@ function GudangPageContent() {
       nama_pengambil_barang: item.nama_pengambil_barang || '',
       cabang: item.cabang || userCabang,
       source_type: item.source_type || 'manual',
-      source_reference: item.source_reference || '',
-      from_cabang: item.from_cabang || '',
-      to_cabang: item.to_cabang || ''
+      source_reference: item.source_reference || ''
     });
     setProductSearch(item.product_name || '');
-    setEditingId(item.uniqueid_gudang);
+    setEditingId(item.order_no);
     setShowAddForm(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     if (!confirm('Hapus data gudang ini?')) return;
     try {
       // Get the gudang record first to check if it's from SO
       const { data: gudangData } = await supabase
         .from('gudang')
         .select('source_type, source_reference')
-        .eq('uniqueid_gudang', id)
+        .eq('order_no', id)
         .single();
       
       // Delete the gudang record using direct Supabase call
       const { error } = await supabase
         .from('gudang')
         .delete()
-        .eq('uniqueid_gudang', id);
+        .eq('order_no', id);
       if (error) throw error;
       
       // If it's from stock opname, reset the SO status to pending
@@ -472,12 +461,14 @@ function GudangPageContent() {
       
       const matchesDate = !dateFilter || item.tanggal.includes(dateFilter);
       
+      const matchesBranch = !branchFilter || item.cabang === branchFilter;
+      
       // Get sub_category from products array
       const product = products.find(p => p.id_product === item.id_product);
       const itemSubCategory = product?.sub_category || '';
       const matchesSubCategory = !subCategoryFilter || itemSubCategory.toLowerCase().includes(subCategoryFilter.toLowerCase());
       
-      return matchesSearch && matchesDate && matchesSubCategory;
+      return matchesSearch && matchesDate && matchesBranch && matchesSubCategory;
     });
 
     if (sortConfig) {
@@ -573,7 +564,7 @@ function GudangPageContent() {
         await supabase
           .from('gudang')
           .update({ total_gudang: runningTotal })
-          .eq('uniqueid_gudang', record.uniqueid_gudang);
+          .eq('order_no', record.order_no);
       }
     } catch (error) {
       console.error('Error recalculating affected records:', error);
@@ -619,7 +610,7 @@ function GudangPageContent() {
           await supabase
             .from('gudang')
             .update({ total_gudang: runningTotal })
-            .eq('uniqueid_gudang', (record as any).uniqueid_gudang);
+            .eq('order_no', (record as any).order_no);
         }
       }
       
@@ -635,12 +626,12 @@ function GudangPageContent() {
     if (selectAll) {
       setSelectedItems([]);
     } else {
-      setSelectedItems(paginatedGudang.map(item => item.uniqueid_gudang));
+      setSelectedItems(paginatedGudang.map(item => item.order_no));
     }
     setSelectAll(!selectAll);
   };
 
-  const handleSelectItem = (id: string) => {
+  const handleSelectItem = (id: number) => {
     if (selectedItems.includes(id)) {
       setSelectedItems(selectedItems.filter(item => item !== id));
     } else {
@@ -657,14 +648,14 @@ function GudangPageContent() {
         const { data: gudangData } = await supabase
           .from('gudang')
           .select('source_type, source_reference')
-          .eq('uniqueid_gudang', id)
+          .eq('order_no', id)
           .single();
         
         // Delete the gudang record
         await supabase
           .from('gudang')
           .delete()
-          .eq('uniqueid_gudang', id);
+          .eq('order_no', id);
         
         // If it's from stock opname, reset the SO status to pending
         if (gudangData?.source_type === 'stock_opname' && gudangData?.source_reference) {
@@ -830,7 +821,7 @@ function GudangPageContent() {
       </div>
 
       <div className="bg-white p-1 rounded-lg shadow mb-1">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-1 mb-2">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-1 mb-2">
           <input
             type="text"
             placeholder="Search..."
@@ -844,6 +835,18 @@ function GudangPageContent() {
             onChange={(e) => setDateFilter(e.target.value)}
             className="border px-2 py-1 rounded-md text-xs"
           />
+          <select
+            value={branchFilter}
+            onChange={(e) => setBranchFilter(e.target.value)}
+            className="border px-2 py-1 rounded-md text-xs"
+          >
+            <option value="">All Branches</option>
+            {cabangList.map(cabang => (
+              <option key={cabang.kode_branch} value={cabang.kode_branch}>
+                {cabang.nama_branch}
+              </option>
+            ))}
+          </select>
           <select
             value={subCategoryFilter}
             onChange={(e) => setSubCategoryFilter(e.target.value)}
@@ -1070,12 +1073,12 @@ function GudangPageContent() {
                 </tr>
               ) : (
                 paginatedGudang.map((item) => (
-                  <tr key={item.uniqueid_gudang} className="hover:bg-gray-50">
+                  <tr key={item.order_no} className="hover:bg-gray-50">
                     <td className="px-1 py-1 text-center">
                       <input
                         type="checkbox"
-                        checked={selectedItems.includes(item.uniqueid_gudang)}
-                        onChange={() => handleSelectItem(item.uniqueid_gudang)}
+                        checked={selectedItems.includes(item.order_no)}
+                        onChange={() => handleSelectItem(item.order_no)}
                         className="w-3 h-3"
                       />
                     </td>
@@ -1124,7 +1127,7 @@ function GudangPageContent() {
                         )}
                         {canPerformActionSync(userRole, 'gudang', 'delete', userId ?? undefined) && (
                           <button
-                            onClick={() => handleDelete(item.uniqueid_gudang)}
+                            onClick={() => handleDelete(item.order_no)}
                             className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
                             title="Delete"
                           >

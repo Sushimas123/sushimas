@@ -71,7 +71,7 @@ export const insertWithAudit = async (
   // Log audit trail
   if (!result.error && result.data) {
     const record = Array.isArray(result.data) ? result.data[0] : result.data;
-    const recordId = record?.id || record?.id_user || record?.id_branch || record?.id_product || record?.id_ready || record?.uniqueid_gudang || record?.ready_no;
+    const recordId = record?.id || record?.id_user || record?.id_branch || record?.id_product || record?.id_ready || record?.order_no || record?.ready_no;
     if (recordId) {
       await logAuditTrail({
         table_name: tableName,
@@ -121,7 +121,7 @@ export const updateWithAudit = async (
 
   // Log audit trail
   if (!result.error && oldData) {
-    const recordId = oldData.id || oldData.id_user || oldData.id_branch || oldData.id_product || oldData.id_ready || oldData.uniqueid_gudang || oldData.ready_no;
+    const recordId = oldData.id || oldData.id_user || oldData.id_branch || oldData.id_product || oldData.id_ready || oldData.order_no || oldData.ready_no;
     if (recordId) {
       await logAuditTrail({
         table_name: tableName,
@@ -162,7 +162,7 @@ export const deleteWithAudit = async (
 
   // Log audit trail
   if (!result.error && oldData) {
-    const recordId = oldData.id || oldData.id_user || oldData.id_branch || oldData.id_product || oldData.id_ready || oldData.uniqueid_gudang || oldData.ready_no;
+    const recordId = oldData.id || oldData.id_user || oldData.id_branch || oldData.id_product || oldData.id_ready || oldData.order_no || oldData.ready_no;
     if (recordId) {
       await logAuditTrail({
         table_name: tableName,
@@ -190,7 +190,7 @@ export const hardDeleteWithAudit = async (
 
   // Log audit trail first
   if (oldData) {
-    const recordId = oldData.id || oldData.id_user || oldData.id_branch || oldData.id_product || oldData.id_ready || oldData.uniqueid_gudang || oldData.ready_no;
+    const recordId = oldData.id || oldData.id_user || oldData.id_branch || oldData.id_product || oldData.id_ready || oldData.order_no || oldData.ready_no;
     if (recordId) {
       await logAuditTrail({
         table_name: tableName,

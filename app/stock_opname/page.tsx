@@ -450,7 +450,7 @@ export default function StockOpnamePage() {
         await supabase
           .from('gudang')
           .update({ total_gudang: runningTotal })
-          .eq('uniqueid_gudang', record.uniqueid_gudang)
+          .eq('order_no', record.order_no);
       }
     } catch (error) {
       console.error('Error recalculating from date:', error)
