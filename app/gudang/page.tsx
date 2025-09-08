@@ -10,7 +10,7 @@ import PageAccessControl from '../../components/PageAccessControl';
 import { getBranchFilter, applyBranchFilter } from '@/src/utils/branchAccess';
 import { canPerformActionSync, getUserRole, arePermissionsLoaded, reloadPermissions } from '@/src/utils/rolePermissions';
 import { hasPageAccess } from '@/src/utils/permissionChecker';
-import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
+import { insertWithAudit, updateWithAudit, deleteWithAudit, hardDeleteWithAudit } from '@/src/utils/auditTrail';
 import { canViewColumn } from '@/src/utils/dbPermissions';
 
 interface Gudang {
@@ -330,19 +330,11 @@ function GudangPageContent() {
 
     try {
       if (editingId) {
-        // Use direct Supabase update instead of audit function to avoid schema issues
-        const { error } = await supabase
-          .from('gudang')
-          .update(submitData)
-          .eq('order_no', editingId);
+        const { error } = await updateWithAudit('gudang', submitData, { order_no: editingId });
         if (error) throw error;
         console.log('Updated gudang record:', editingId);
       } else {
-        // Use direct Supabase insert instead of audit function to avoid schema issues
-        const { data, error } = await supabase
-          .from('gudang')
-          .insert([submitData])
-          .select();
+        const { data, error } = await insertWithAudit('gudang', submitData);
         if (error) throw error;
         console.log('Inserted new gudang record:', data);
       }
@@ -413,11 +405,8 @@ function GudangPageContent() {
         .eq('order_no', id)
         .single();
       
-      // Delete the gudang record using direct Supabase call
-      const { error } = await supabase
-        .from('gudang')
-        .delete()
-        .eq('order_no', id);
+      // Delete the gudang record using audit trail
+      const { error } = await hardDeleteWithAudit('gudang', { order_no: id });
       if (error) throw error;
       
       // If it's from stock opname, reset the SO status to pending
@@ -651,11 +640,8 @@ function GudangPageContent() {
           .eq('order_no', id)
           .single();
         
-        // Delete the gudang record
-        await supabase
-          .from('gudang')
-          .delete()
-          .eq('order_no', id);
+        // Delete the gudang record using audit trail
+        await hardDeleteWithAudit('gudang', { order_no: id });
         
         // If it's from stock opname, reset the SO status to pending
         if (gudangData?.source_type === 'stock_opname' && gudangData?.source_reference) {
@@ -740,11 +726,10 @@ function GudangPageContent() {
         }
         
         if (importData.length > 0) {
-          const { error } = await supabase
-            .from('gudang')
-            .insert(importData);
-          
-          if (error) throw error;
+          for (const data of importData) {
+            const { error } = await insertWithAudit('gudang', data);
+            if (error) throw error;
+          }
           
           fetchGudang();
           alert(`✅ Imported ${importData.length} transactions successfully`);
@@ -914,6 +899,7 @@ function GudangPageContent() {
               Delete ({selectedItems.length})
             </button>
           )}
+          
         </div>
       </div>
 

@@ -45,6 +45,7 @@ export const logAuditTrail = async (entry: AuditLogEntry) => {
     }
   } catch (error) {
     console.error('Error logging audit trail:', error);
+
   }
 };
 
@@ -191,6 +192,7 @@ export const hardDeleteWithAudit = async (
   // Log audit trail first
   if (oldData) {
     const recordId = oldData.id || oldData.id_user || oldData.id_branch || oldData.id_product || oldData.id_ready || oldData.order_no || oldData.ready_no;
+    
     if (recordId) {
       await logAuditTrail({
         table_name: tableName,
@@ -206,7 +208,6 @@ export const hardDeleteWithAudit = async (
     .from(tableName)
     .delete()
     .match(matchCondition);
-
   return result;
 };
 
