@@ -14,6 +14,8 @@ export default function StockOpnamePage() {
   const [users, setUsers] = useState<any[]>([])
   const [branchProducts, setBranchProducts] = useState<any[]>([])
   const [selectedBranch, setSelectedBranch] = useState("")
+  const [subCategories, setSubCategories] = useState<any[]>([])
+  const [selectedSubCategory, setSelectedSubCategory] = useState("")
   const [loading, setLoading] = useState(true)
   const [loadingBranchData, setLoadingBranchData] = useState(false)
   const [search, setSearch] = useState("")
@@ -43,6 +45,7 @@ export default function StockOpnamePage() {
     fetchData()
     fetchBranches()
     fetchUsers()
+    fetchSubCategories()
     
     // Get user role
     const userData = localStorage.getItem('user')
@@ -94,7 +97,23 @@ export default function StockOpnamePage() {
     }
   }, [])
 
-  const fetchBranchProducts = useCallback(async (branchCode: string) => {
+  const fetchSubCategories = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("nama_product")
+      .select("sub_category")
+      .not("sub_category", "is", null)
+      .order("sub_category")
+    
+    if (error) {
+      console.error('Error fetching sub categories:', error)
+    } else {
+      // Get unique sub categories
+      const uniqueSubCategories = [...new Set(data?.map(item => item.sub_category).filter(Boolean))]
+      setSubCategories(uniqueSubCategories.map(sub => ({ sub_category: sub })))
+    }
+  }, [])
+
+  const fetchBranchProducts = useCallback(async (branchCode: string, subCategory?: string) => {
     if (!branchCode) {
       setBranchProducts([])
       return
@@ -102,32 +121,32 @@ export default function StockOpnamePage() {
     
     setLoadingBranchData(true)
     
-    // Get products assigned to this branch
-    const { data: branchProductsData, error: branchError } = await supabase
-      .from("product_branches")
-      .select(`
-        nama_product(
-          id_product,
-          product_name,
-          unit_kecil
-        )
-      `)
-      .eq("branch_code", branchCode)
+    // Build query for products from Product Management
+    let productQuery = supabase
+      .from("nama_product")
+      .select("id_product, product_name, unit_kecil, sub_category")
     
-    if (branchError) {
-      console.error('Error fetching branch products:', branchError)
+    // Apply sub-category filter if selected
+    if (subCategory) {
+      productQuery = productQuery.eq("sub_category", subCategory)
+    }
+    
+    const { data: productsData, error: productError } = await productQuery.order("product_name")
+    
+    if (productError) {
+      console.error('Error fetching products:', productError)
       setLoadingBranchData(false)
       return
     }
     
-    if (!branchProductsData || branchProductsData.length === 0) {
+    if (!productsData || productsData.length === 0) {
       setBranchProducts([])
       setLoadingBranchData(false)
       return
     }
     
     // Get all product IDs for batch query
-    const productIds = branchProductsData.map(item => item.nama_product.id_product)
+    const productIds = productsData.map(product => product.id_product)
     
     // Get latest stock for all products in one query
     const { data: stockData } = await supabase
@@ -147,10 +166,12 @@ export default function StockOpnamePage() {
     })
     
     // Process data using stock map
-    const processedData = branchProductsData.map(item => ({
-      product_name: item.nama_product.product_name,
-      system_stock: stockMap.get(item.nama_product.id_product) || 0,
-      unit: item.nama_product.unit_kecil || 'pcs'
+    const processedData = productsData.map(product => ({
+      id_product: product.id_product,
+      product_name: product.product_name,
+      system_stock: stockMap.get(product.id_product) || 0,
+      unit: product.unit_kecil || 'pcs',
+      sub_category: product.sub_category
     }))
     
     setBranchProducts(processedData)
@@ -163,7 +184,7 @@ export default function StockOpnamePage() {
     
     if (name === 'branch_code') {
       setSelectedBranch(value)
-      fetchBranchProducts(value)
+      fetchBranchProducts(value, selectedSubCategory)
     }
     
     if (errors[name]) {
@@ -175,10 +196,17 @@ export default function StockOpnamePage() {
     }
   }
 
+  const handleSubCategoryChange = (subCategory: string) => {
+    setSelectedSubCategory(subCategory)
+    if (selectedBranch) {
+      fetchBranchProducts(selectedBranch, subCategory)
+    }
+  }
+
   const handleBranchSelect = (branchCode: string) => {
     setSelectedBranch(branchCode)
     setForm({ ...form, branch_code: branchCode })
-    fetchBranchProducts(branchCode)
+    fetchBranchProducts(branchCode, selectedSubCategory)
   }
 
   const handlePhysicalStockChange = (productName: string, physicalStock: string) => {
@@ -775,6 +803,7 @@ export default function StockOpnamePage() {
                 fetchData()
                 fetchBranches()
                 fetchUsers()
+                fetchSubCategories()
                 showToast("✅ Data refreshed", "success")
               }}
               className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
@@ -870,7 +899,7 @@ export default function StockOpnamePage() {
             </h2>
             
             {/* Header Info */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 p-3 bg-gray-50 rounded">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4 p-3 bg-gray-50 rounded">
               <div>
                 <select
                   name="branch_code"
@@ -888,6 +917,21 @@ export default function StockOpnamePage() {
                   ))}
                 </select>
                 {errors.branch_code && <p className="text-red-500 text-xs mt-0.5">{errors.branch_code}</p>}
+              </div>
+              
+              <div>
+                <select
+                  value={selectedSubCategory}
+                  onChange={(e) => handleSubCategoryChange(e.target.value)}
+                  className="border px-2 py-1 rounded-md text-xs w-full"
+                >
+                  <option value="">All Sub Categories</option>
+                  {subCategories.map((subCat) => (
+                    <option key={subCat.sub_category} value={subCat.sub_category}>
+                      {subCat.sub_category}
+                    </option>
+                  ))}
+                </select>
               </div>
               
               <div>
