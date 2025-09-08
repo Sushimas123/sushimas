@@ -994,9 +994,10 @@ function GudangPageContent() {
               <input
                 type="text"
                 value={formData.nama_pengambil_barang}
-                onChange={(e) => setFormData(prev => ({ ...prev, nama_pengambil_barang: e.target.value }))}
-                className="border px-2 py-1 rounded-md text-xs"
+                className="border px-2 py-1 rounded-md text-xs bg-gray-100"
                 placeholder="Nama Pengambil Barang"
+                disabled
+                readOnly
               />
 
             </div>
