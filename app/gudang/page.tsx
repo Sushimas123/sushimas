@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
-import { Plus, Edit, Trash2, Download, Upload, Settings, Eye, EyeOff, ArrowRightLeft } from 'lucide-react';
+import { Plus, Edit, Trash2, Download, Upload, ArrowRightLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
@@ -39,6 +39,7 @@ interface Product {
   id_product: number;
   product_name: string;
   category: string;
+  sub_category?: string;
 }
 
 function GudangPageContent() {
@@ -49,10 +50,10 @@ function GudangPageContent() {
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('');
-  const [productFilter, setProductFilter] = useState('');
+  const [subCategoryFilter, setSubCategoryFilter] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(20);
+  const [itemsPerPage] = useState(10);
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
     id_product: 0,
@@ -80,8 +81,6 @@ function GudangPageContent() {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [showColumnSelector, setShowColumnSelector] = useState(false);
-  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
   const [permittedColumns, setPermittedColumns] = useState<string[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -128,19 +127,7 @@ function GudangPageContent() {
     loadPermittedColumns()
   }, [gudang, userRole])
   
-  const visibleColumns = permittedColumns.filter(col => !hiddenColumns.includes(col))
-
-  const toggleColumn = async (col: string) => {
-    const hasPermission = await canViewColumn(userRole, 'gudang', col)
-    if (!hasPermission) {
-      showToast(`You don't have permission to view ${col} column`, 'error')
-      return
-    }
-    
-    setHiddenColumns(prev =>
-      prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
-    )
-  }
+  const visibleColumns = permittedColumns
 
 
 
@@ -176,7 +163,6 @@ function GudangPageContent() {
         const pageAccess = await hasPageAccess(userData.role, 'gudang');
         console.log(`Database permission check for ${userData.role} on gudang:`, pageAccess);
         
-        // Always set the access based on database result
         // Always set the access based on database result
         setHasAccess(pageAccess);
         return;
@@ -286,7 +272,7 @@ function GudangPageContent() {
     try {
       const { data, error } = await supabase
         .from('nama_product')
-        .select('id_product, product_name, category')
+        .select('id_product, product_name, category, sub_category')
         .order('product_name');
       
       if (error) throw error;
@@ -484,9 +470,13 @@ function GudangPageContent() {
         (item.nama_pengambil_barang || '').toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesDate = !dateFilter || item.tanggal.includes(dateFilter);
-      const matchesProduct = !productFilter || (item.product_name || '').toLowerCase().includes(productFilter.toLowerCase());
       
-      return matchesSearch && matchesDate && matchesProduct;
+      // Get sub_category from products array
+      const product = products.find(p => p.id_product === item.id_product);
+      const itemSubCategory = product?.sub_category || '';
+      const matchesSubCategory = !subCategoryFilter || itemSubCategory.toLowerCase().includes(subCategoryFilter.toLowerCase());
+      
+      return matchesSearch && matchesDate && matchesSubCategory;
     });
 
     if (sortConfig) {
@@ -515,7 +505,12 @@ function GudangPageContent() {
     currentPage * itemsPerPage
   );
 
-  const uniqueProducts = [...new Set(gudang.map(g => g.product_name).filter(Boolean))];
+  const uniqueSubCategories = [...new Set(
+    gudang.map(g => {
+      const product = products.find(p => p.id_product === g.id_product);
+      return product?.sub_category || '';
+    }).filter(Boolean)
+  )];
 
   const handleExport = () => {
     if (gudang.length === 0) {
@@ -846,41 +841,19 @@ function GudangPageContent() {
             className="border px-2 py-1 rounded-md text-xs"
           />
           <select
-            value={productFilter}
-            onChange={(e) => setProductFilter(e.target.value)}
+            value={subCategoryFilter}
+            onChange={(e) => setSubCategoryFilter(e.target.value)}
             className="border px-2 py-1 rounded-md text-xs"
           >
-            <option value="">All Products</option>
-            {uniqueProducts.map(product => (
-              <option key={product} value={product}>{product}</option>
+            <option value="">All Sub Categories</option>
+            {uniqueSubCategories.map(subCategory => (
+              <option key={subCategory} value={subCategory}>{subCategory}</option>
             ))}
           </select>
         </div>
+
         <div className="flex flex-wrap gap-1">
-          <button 
-            onClick={recalculateAllTotals} 
-            disabled={isRecalculating}
-            className="bg-purple-600 text-white px-2 py-1 rounded-md text-xs disabled:opacity-50"
-          >
-            {isRecalculating ? 'Processing...' : 'Recalculate'}
-          </button>
-          {(userRole === 'super admin' || userRole === 'admin') && (
-            <button onClick={handleExport} className="bg-green-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1">
-              <Download size={12} />Export
-            </button>
-          )}
-          {(userRole === 'super admin' || userRole === 'admin') && (
-            <label className="bg-orange-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1 cursor-pointer hover:bg-orange-700">
-              <Upload size={12} />Import
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleImport}
-                className="hidden"
-              />
-            </label>
-          )}
-          {canPerformActionSync(userRole, 'gudang', 'create') && (
+        {canPerformActionSync(userRole, 'gudang', 'create') && (
             <button
               onClick={() => {
                 setShowAddForm(!showAddForm);
@@ -898,21 +871,34 @@ function GudangPageContent() {
               <Plus size={12} />Add
             </button>
           )}
-          {canPerformActionSync(userRole, 'gudang', 'create') && (
-            <button
-              onClick={() => router.push('/transfer')}
-              className="bg-purple-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1 hover:bg-purple-700"
-            >
-              <ArrowRightLeft size={12} />Transfer
+
+          <button 
+            onClick={recalculateAllTotals} 
+            disabled={isRecalculating}
+            className="bg-purple-600 text-white px-2 py-1 rounded-md text-xs disabled:opacity-50"
+          >
+            {isRecalculating ? 'Processing...' : 'Recalculate'}
+          </button>
+
+          {(userRole === 'super admin' || userRole === 'admin') && (
+            <button onClick={handleExport} className="bg-green-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1">
+              <Download size={12} />Export
             </button>
           )}
-          <button
-            onClick={() => setShowColumnSelector(!showColumnSelector)}
-            className="bg-purple-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
-          >
-            <Settings size={12} />
-            {showColumnSelector ? 'Hide Columns' : 'Show Columns'}
-          </button>
+          
+          {(userRole === 'super admin' || userRole === 'admin') && (
+            <label className="bg-orange-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1 cursor-pointer hover:bg-orange-700">
+              <Upload size={12} />Import
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleImport}
+                className="hidden"
+              />
+            </label>
+          )}
+
+
           {selectedItems.length > 0 && canPerformActionSync(userRole, 'gudang', 'delete') && (
             <button
               onClick={handleBulkDelete}
@@ -978,7 +964,7 @@ function GudangPageContent() {
                           onClick={() => handleProductSelect(product)}
                           className="px-2 py-1 hover:bg-gray-100 cursor-pointer text-xs"
                         >
-                          {product.product_name} ({product.category})
+                          {product.product_name} ({product.sub_category || product.category})
                         </div>
                       ))
                     ) : (
@@ -1026,48 +1012,7 @@ function GudangPageContent() {
         </div>
       )}
 
-      {/* Column Selector */}
-      {showColumnSelector && paginatedGudang.length > 0 && (
-        <div className="bg-white p-2 rounded-lg shadow mb-1">
-          <h3 className="font-medium text-gray-800 mb-2 text-xs">Column Access Control</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 mb-2">
-            {Object.keys(paginatedGudang[0]).filter(col => col !== 'uniqueid_gudang').map(col => {
-              const hasPermission = permittedColumns.includes(col)
-              return (
-                <label key={col} className="flex items-center gap-1 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={!hiddenColumns.includes(col) && hasPermission}
-                    disabled={!hasPermission}
-                    onChange={() => toggleColumn(col)}
-                    className="rounded text-blue-600 w-3 h-3"
-                  />
-                  <span className={hiddenColumns.includes(col) || !hasPermission ? 'text-gray-500' : 'text-gray-800'}>
-                    {col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    {!hasPermission && <span className="text-red-500 text-xs ml-1">(No Access)</span>}
-                  </span>
-                </label>
-              )
-            })}
-          </div>
-          <div className="flex gap-1">
-            <button
-              onClick={() => setHiddenColumns([])}
-              className="px-2 py-1 bg-green-600 text-white rounded-md text-xs hover:bg-green-700 flex items-center gap-1"
-            >
-              <Eye size={10} />
-              Show All Permitted
-            </button>
-            <button
-              onClick={() => setHiddenColumns(permittedColumns)}
-              className="px-2 py-1 bg-red-600 text-white rounded-md text-xs hover:bg-red-700 flex items-center gap-1"
-            >
-              <EyeOff size={10} />
-              Hide All Permitted
-            </button>
-          </div>
-        </div>
-      )}
+
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
