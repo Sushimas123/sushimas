@@ -26,10 +26,21 @@ export const getUserBranches = async (userId: number): Promise<string[]> => {
   const user = getCurrentUser()
   if (!user) return []
   
-  // All roles can see all branches
+  // Super admin and admin can see all branches
+  if (user.role === 'super admin' || user.role === 'admin') {
+    const { data } = await supabase
+      .from('branches')
+      .select('kode_branch')
+      .eq('is_active', true)
+    
+    return data?.map(b => b.kode_branch) || []
+  }
+  
+  // Other roles only see their assigned branches
   const { data } = await supabase
-    .from('branches')
+    .from('user_branches')
     .select('kode_branch')
+    .eq('id_user', userId)
     .eq('is_active', true)
   
   return data?.map(b => b.kode_branch) || []
@@ -40,10 +51,12 @@ export const getBranchFilter = async (): Promise<string[] | null> => {
   const user = getCurrentUser()
   if (!user) return null
   
-  // All roles can see all branches (no branch filter)
-  return null // No filter = see all
+  // Super admin and admin can see all branches
+  if (user.role === 'super admin' || user.role === 'admin') {
+    return null // No filter = see all
+  }
   
-  // Get user's assigned branches
+  // Other roles only see their assigned branches
   return await getUserBranches(user.id_user)
 }
 
@@ -52,12 +65,12 @@ export const getUserDefaultBranch = async (): Promise<string | null> => {
   const user = getCurrentUser()
   if (!user) return null
   
-  // For super admin/admin, return first branch or null (they choose manually)
+  // For super admin/admin, return null (they choose manually)
   if (user.role === 'super admin' || user.role === 'admin') {
     return null
   }
   
-  // For PIC Branch/Staff, return their first assigned branch
+  // For other roles, return their first assigned branch
   const branches = await getUserBranches(user.id_user)
   return branches.length > 0 ? branches[0] : null
 }

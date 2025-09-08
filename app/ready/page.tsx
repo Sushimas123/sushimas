@@ -97,7 +97,7 @@ function ReadyPageContent() {
         getUserDefaultBranch().then(defaultBranch => {
           if (defaultBranch) {
             // Find branch ID from code
-            const branch = branches.find(b => b.nama_branch === defaultBranch)
+            const branch = branches.find(b => b.kode_branch === defaultBranch)
             if (branch) {
               setSelectedBranch(branch.id_branch.toString())
             }
