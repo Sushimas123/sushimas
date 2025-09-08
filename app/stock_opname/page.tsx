@@ -184,7 +184,11 @@ export default function StockOpnamePage() {
     
     if (name === 'branch_code') {
       setSelectedBranch(value)
-      fetchBranchProducts(value, selectedSubCategory)
+      setBranchProducts([])
+      // Only fetch products if both branch and sub-category are selected
+      if (value && selectedSubCategory) {
+        fetchBranchProducts(value, selectedSubCategory)
+      }
     }
     
     if (errors[name]) {
@@ -198,7 +202,9 @@ export default function StockOpnamePage() {
 
   const handleSubCategoryChange = (subCategory: string) => {
     setSelectedSubCategory(subCategory)
-    if (selectedBranch) {
+    setBranchProducts([])
+    // Only fetch products if both branch and sub-category are selected
+    if (selectedBranch && subCategory) {
       fetchBranchProducts(selectedBranch, subCategory)
     }
   }
@@ -206,7 +212,11 @@ export default function StockOpnamePage() {
   const handleBranchSelect = (branchCode: string) => {
     setSelectedBranch(branchCode)
     setForm({ ...form, branch_code: branchCode })
-    fetchBranchProducts(branchCode, selectedSubCategory)
+    setBranchProducts([])
+    // Only fetch products if both branch and sub-category are selected
+    if (branchCode && selectedSubCategory) {
+      fetchBranchProducts(branchCode, selectedSubCategory)
+    }
   }
 
   const handlePhysicalStockChange = (productName: string, physicalStock: string) => {
@@ -983,13 +993,13 @@ export default function StockOpnamePage() {
             </div>
 
             {/* Products Table */}
-            {selectedBranch && (
+            {selectedBranch && selectedSubCategory && (
               <div className="mb-4">
-                <h3 className="font-medium text-sm mb-2">Products in {branches.find(b => b.kode_branch === selectedBranch)?.nama_branch}</h3>
+                <h3 className="font-medium text-sm mb-2">Products in {branches.find(b => b.kode_branch === selectedBranch)?.nama_branch} - {selectedSubCategory}</h3>
                 {loadingBranchData ? (
                   <div className="text-center py-4 text-gray-500">Loading products...</div>
                 ) : branchProducts.length === 0 ? (
-                  <div className="text-center py-4 text-gray-500">No products found in this branch</div>
+                  <div className="text-center py-4 text-gray-500">No products found for this branch and sub-category</div>
                 ) : (
                   <div className="overflow-x-auto border rounded">
                     <table className="w-full text-xs">
@@ -1046,6 +1056,13 @@ export default function StockOpnamePage() {
                     </table>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Message when branch is selected but no sub-category */}
+            {selectedBranch && !selectedSubCategory && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                <p className="text-blue-700 text-sm">Please select a sub-category to view products.</p>
               </div>
             )}
 
