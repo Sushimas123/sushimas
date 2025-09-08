@@ -163,7 +163,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: "Ready Stock", href: "/ready", icon: Package },
     { name: "Production", href: "/produksi", icon: Factory },
     { name: "Production Detail", href: "/produksi_detail", icon: FileText },
-    { name: "Stock Opname", href: "/stock_opname", icon: FileText },
+    { name: "SO Batch", href: "/stock_opname_batch", icon: FileText },
     { name: "Gudang", href: "/gudang", icon: Warehouse },
     { name: "Setting", href: "/product_settings", icon: Settings2Icon },
     { name: "View", href: "/analysis", icon: BarChart3 }
@@ -359,7 +359,7 @@ export default function Layout({ children }: LayoutProps) {
             href="/esb"
             className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all min-h-[60px] justify-center
               ${
-                ['/esb', '/product_name', '/stock_opname', '/ready', '/categories', '/recipes', '/supplier', '/branches', '/users'].includes(pathname)
+                ['/esb', '/product_name', '/stock_opname_batch', '/ready', '/categories', '/recipes', '/supplier', '/branches', '/users'].includes(pathname)
                   ? "bg-gray-700 text-white"
                   : "text-gray-300 hover:text-white"
               }`}
@@ -370,7 +370,7 @@ export default function Layout({ children }: LayoutProps) {
         </div>
         
         {/* Secondary Row for More Items */}
-        {['/esb', '/product_name', '/stock_opname', '/ready', '/categories', '/recipes', '/supplier', '/branches', '/users'].includes(pathname) && (
+        {['/esb', '/product_name', '/stock_opname_batch', '/ready', '/categories', '/recipes', '/supplier', '/branches', '/users'].includes(pathname) && (
           <div className="border-t border-gray-700 bg-gray-700">
             <div className="flex overflow-x-auto py-1 px-1 gap-1">
               {filteredSideMenuItems.map((item) => {

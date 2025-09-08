@@ -18,15 +18,17 @@ export default function PermissionsDBPage() {
     users: ['email', 'nama_lengkap', 'no_telp', 'role', 'cabang', 'created_at'],
     produksi: ['tanggal_produksi', 'product_name', 'quantity', 'status', 'branch', 'notes'],
     analysis: ['date', 'branch', 'product', 'ready_stock', 'production', 'consumption', 'balance'],
-    gudang: ['tanggal_input', 'product_name', 'quantity', 'location', 'branch', 'type'],
+    gudang: ['order_no', 'tanggal', 'id_product', 'jumlah_masuk', 'jumlah_keluar', 'total_gudang', 'cabang', 'source_type'],
     produksi_detail: ['tanggal_produksi', 'item_id', 'quantity_used', 'unit', 'branch'],
-    stock_opname: ['tanggal_opname', 'product_name', 'system_qty', 'actual_qty', 'difference', 'branch'],
+    stock_opname_batch: ['tanggal_opname', 'product_name', 'system_qty', 'actual_qty', 'difference', 'branch'],
+    stock_opname_batch: ['batch_id', 'batch_date', 'branch_code', 'sub_category', 'pic_name', 'status'],
     branches: ['nama_branch', 'kode_branch', 'alamat', 'kota', 'provinsi', 'is_active'],
     categories: ['category_name', 'description', 'is_active', 'created_at'],
     product_name: ['product_name', 'category', 'sub_category', 'unit', 'price', 'is_active'],
     product_settings: ['setting_name', 'setting_value', 'description', 'updated_at'],
     recipes: ['recipe_name', 'ingredients', 'quantity', 'unit', 'instructions'],
-    supplier: ['supplier_name', 'contact_person', 'phone', 'email', 'address', 'is_active']
+    supplier: ['supplier_name', 'contact_person', 'phone', 'email', 'address', 'is_active'],
+    audit_log: ['id', 'table_name', 'record_id', 'action', 'user_id', 'user_name', 'created_at']
   }
 
   const pages = Object.keys(pageColumns)

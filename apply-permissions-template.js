@@ -127,7 +127,7 @@ const exportCSV = () => {
 // - /app/produksi/page.tsx
 // - /app/produksi_detail/page.tsx  
 // - /app/gudang/page.tsx
-// - /app/stock_opname/page.tsx
+// - /app/stock_opname_batch/page.tsx
 // - /app/analysis/page.tsx
 // - /app/product_name/page.tsx
 // - /app/categories/page.tsx
@@ -141,7 +141,7 @@ const PAGE_COLUMN_MAPPING = {
   'ready': ['ready_no', 'tanggal_input', 'branch', 'category', 'product_name', 'quantity', 'unit'],
   'produksi': ['tanggal_produksi', 'product_name', 'quantity', 'status', 'branch', 'notes'],
   'gudang': ['tanggal_input', 'product_name', 'quantity', 'location', 'branch', 'type'],
-  'stock_opname': ['tanggal_opname', 'product_name', 'system_qty', 'actual_qty', 'difference', 'branch'],
+  'stock_opname_batch': ['tanggal_opname', 'product_name', 'system_qty', 'actual_qty', 'difference', 'branch'],
   'analysis': ['date', 'branch', 'product', 'ready_stock', 'production', 'consumption', 'balance'],
   'users': ['email', 'nama_lengkap', 'no_telp', 'role', 'cabang', 'created_at'],
   'branches': ['nama_branch', 'kode_branch', 'alamat', 'kota', 'provinsi', 'is_active'],

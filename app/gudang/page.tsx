@@ -410,10 +410,10 @@ function GudangPageContent() {
       if (error) throw error;
       
       // If it's from stock opname, reset the SO status to pending
-      if (gudangData?.source_type === 'stock_opname' && gudangData?.source_reference) {
+      if (gudangData?.source_type === 'stock_opname_batch' && gudangData?.source_reference) {
         const soId = gudangData.source_reference.replace('SO-', '');
         await supabase
-          .from('stock_opname')
+          .from('stock_opname_batch')
           .update({ status: 'pending' })
           .eq('id_opname', parseInt(soId));
       }
@@ -644,10 +644,10 @@ function GudangPageContent() {
         await hardDeleteWithAudit('gudang', { order_no: id });
         
         // If it's from stock opname, reset the SO status to pending
-        if (gudangData?.source_type === 'stock_opname' && gudangData?.source_reference) {
+        if (gudangData?.source_type === 'stock_opname_batch' && gudangData?.source_reference) {
           const soId = gudangData.source_reference.replace('SO-', '');
           await supabase
-            .from('stock_opname')
+            .from('stock_opname_batch')
             .update({ status: 'pending' })
             .eq('id_opname', parseInt(soId));
         }
@@ -1069,9 +1069,9 @@ function GudangPageContent() {
                       />
                     </td>
                     {visibleColumns.includes('order_no') && <td className="px-1 py-1 font-medium">
-                      {(item as any).source_type === 'stock_opname' ? (
+                      {(item as any).source_type === 'stock_opname_batch' ? (
                         <a 
-                          href={`/stock_opname?highlight=${(item as any).source_reference?.replace('SO-', '')}`}
+                          href={`/stock_opname_batch?highlight=${(item as any).source_reference?.replace('SO-', '')}`}
                           className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
                           title="View related Stock Opname"
                         >
@@ -1090,7 +1090,7 @@ function GudangPageContent() {
                     {visibleColumns.includes('total_gudang') && <td className="px-1 py-1 font-medium">{item.total_gudang}</td>}
                     {visibleColumns.includes('nama_pengambil_barang') && <td className="px-1 py-1">{item.nama_pengambil_barang}</td>}
                     <td className="px-1 py-1">
-                      {(item as any).source_type === 'stock_opname' ? (
+                      {(item as any).source_type === 'stock_opname_batch' ? (
                         <span className="px-1 py-0.5 bg-orange-100 text-orange-800 rounded text-xs font-semibold">
                           📊 SO
                         </span>

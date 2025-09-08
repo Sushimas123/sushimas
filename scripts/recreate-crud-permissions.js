@@ -37,7 +37,7 @@ async function recreateCrudPermissions() {
       { role: 'super admin', page: 'supplier', can_create: true, can_edit: true, can_delete: true },
       { role: 'super admin', page: 'branches', can_create: true, can_edit: true, can_delete: true },
       { role: 'super admin', page: 'users', can_create: true, can_edit: true, can_delete: true },
-      { role: 'super admin', page: 'stock_opname', can_create: true, can_edit: true, can_delete: true },
+      { role: 'super admin', page: 'stock_opname_batch', can_create: true, can_edit: true, can_delete: true },
       { role: 'super admin', page: 'product_settings', can_create: true, can_edit: true, can_delete: true },
       { role: 'super admin', page: 'permissions-db', can_create: true, can_edit: true, can_delete: true },
 
@@ -54,7 +54,7 @@ async function recreateCrudPermissions() {
       { role: 'admin', page: 'supplier', can_create: true, can_edit: true, can_delete: true },
       { role: 'admin', page: 'branches', can_create: true, can_edit: true, can_delete: true },
       { role: 'admin', page: 'users', can_create: true, can_edit: true, can_delete: true },
-      { role: 'admin', page: 'stock_opname', can_create: true, can_edit: true, can_delete: true },
+      { role: 'admin', page: 'stock_opname_batch', can_create: true, can_edit: true, can_delete: true },
       { role: 'admin', page: 'product_settings', can_create: true, can_edit: true, can_delete: true },
       { role: 'admin', page: 'permissions-db', can_create: true, can_edit: true, can_delete: true },
 
@@ -71,7 +71,7 @@ async function recreateCrudPermissions() {
       { role: 'finance', page: 'supplier', can_create: false, can_edit: false, can_delete: false },
       { role: 'finance', page: 'branches', can_create: false, can_edit: false, can_delete: false },
       { role: 'finance', page: 'users', can_create: false, can_edit: false, can_delete: false },
-      { role: 'finance', page: 'stock_opname', can_create: false, can_edit: false, can_delete: false },
+      { role: 'finance', page: 'stock_opname_batch', can_create: false, can_edit: false, can_delete: false },
       { role: 'finance', page: 'product_settings', can_create: false, can_edit: false, can_delete: false },
       { role: 'finance', page: 'permissions-db', can_create: false, can_edit: false, can_delete: false },
 
@@ -88,7 +88,7 @@ async function recreateCrudPermissions() {
       { role: 'pic_branch', page: 'supplier', can_create: false, can_edit: false, can_delete: false },
       { role: 'pic_branch', page: 'branches', can_create: false, can_edit: false, can_delete: false },
       { role: 'pic_branch', page: 'users', can_create: false, can_edit: false, can_delete: false },
-      { role: 'pic_branch', page: 'stock_opname', can_create: true, can_edit: true, can_delete: false },
+      { role: 'pic_branch', page: 'stock_opname_batch', can_create: true, can_edit: true, can_delete: false },
       { role: 'pic_branch', page: 'product_settings', can_create: false, can_edit: false, can_delete: false },
       { role: 'pic_branch', page: 'permissions-db', can_create: false, can_edit: false, can_delete: false },
 
@@ -105,7 +105,7 @@ async function recreateCrudPermissions() {
       { role: 'staff', page: 'supplier', can_create: false, can_edit: false, can_delete: false },
       { role: 'staff', page: 'branches', can_create: false, can_edit: false, can_delete: false },
       { role: 'staff', page: 'users', can_create: false, can_edit: false, can_delete: false },
-      { role: 'staff', page: 'stock_opname', can_create: false, can_edit: false, can_delete: false },
+      { role: 'staff', page: 'stock_opname_batch', can_create: false, can_edit: false, can_delete: false },
       { role: 'staff', page: 'product_settings', can_create: false, can_edit: false, can_delete: false },
       { role: 'staff', page: 'permissions-db', can_create: false, can_edit: false, can_delete: false }
     ];

@@ -20,7 +20,7 @@ const FALLBACK_PERMISSIONS = {
     supplier: { create: true, edit: true, delete: true },
     branches: { create: true, edit: true, delete: true },
     users: { create: true, edit: true, delete: true },
-    stock_opname: { create: true, edit: true, delete: true },
+    stock_opname_batch: { create: true, edit: true, delete: true },
     product_settings: { create: true, edit: true, delete: true },
     'permissions-db': { create: true, edit: true, delete: true }
   },
@@ -37,7 +37,7 @@ const FALLBACK_PERMISSIONS = {
     supplier: { create: true, edit: true, delete: true },
     branches: { create: true, edit: true, delete: true },
     users: { create: true, edit: true, delete: true },
-    stock_opname: { create: true, edit: true, delete: true },
+    stock_opname_batch: { create: true, edit: true, delete: true },
     product_settings: { create: true, edit: true, delete: true },
     'permissions-db': { create: true, edit: true, delete: true }
   },
@@ -54,7 +54,7 @@ const FALLBACK_PERMISSIONS = {
     supplier: { create: false, edit: false, delete: false },
     branches: { create: false, edit: false, delete: false },
     users: { create: false, edit: false, delete: false },
-    stock_opname: { create: false, edit: false, delete: false },
+    stock_opname_batch: { create: false, edit: false, delete: false },
     product_settings: { create: false, edit: false, delete: false },
     'permissions-db': { create: false, edit: false, delete: false }
   },
@@ -71,7 +71,7 @@ const FALLBACK_PERMISSIONS = {
     supplier: { create: true, edit: true, delete: false },
     branches: { create: true, edit: true, delete: false },
     users: { create: true, edit: true, delete: false },
-    stock_opname: { create: true, edit: true, delete: false },
+    stock_opname_batch: { create: true, edit: true, delete: false },
     product_settings: { create: true, edit: true, delete: false },
     'permissions-db': { create: true, edit: true, delete: false }
   },
@@ -88,7 +88,7 @@ const FALLBACK_PERMISSIONS = {
     supplier: { create: false, edit: false, delete: false },
     branches: { create: false, edit: false, delete: false },
     users: { create: false, edit: false, delete: false },
-    stock_opname: { create: false, edit: false, delete: false },
+    stock_opname_batch: { create: false, edit: false, delete: false },
     product_settings: { create: false, edit: false, delete: false },
     'permissions-db': { create: false, edit: false, delete: false }
   }

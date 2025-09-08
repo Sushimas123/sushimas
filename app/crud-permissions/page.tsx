@@ -20,7 +20,8 @@ const ROLES = ['super admin', 'admin', 'finance', 'pic_branch', 'staff'];
 const PAGES = [
   'ready', 'gudang', 'produksi', 'produksi_detail', 'analysis', 'esb', 
   'product_name', 'categories', 'recipes', 'supplier', 'branches', 
-  'users', 'stock_opname', 'product_settings', 'permissions-db'
+  'users', 'stock_opname_batch', 'product_settings', 
+  'permissions-db', 'crud-permissions', 'audit-log'
 ];
 
 export default function CrudPermissionsPage() {

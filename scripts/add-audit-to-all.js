@@ -7,7 +7,7 @@ const path = require('path');
 const pages = [
   'ready', 'gudang', 'produksi', 'produksi_detail', 
   'categories', 'recipes', 'supplier', 'product_name', 
-  'product_settings', 'stock_opname'
+  'product_settings', 'stock_opname_batch'
 ];
 
 const auditImport = `import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';`;

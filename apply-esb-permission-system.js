@@ -161,7 +161,7 @@ const exportCSV = () => {
 // DAFTAR HALAMAN YANG PERLU DIUPDATE:
 const PAGES_TO_UPDATE = [
   { path: '/app/gudang/page.tsx', pageName: 'gudang' },
-  { path: '/app/stock_opname/page.tsx', pageName: 'stock_opname' },
+  { path: '/app/stock_opname_batch/page.tsx', pageName: 'stock_opname_batch' },
   { path: '/app/analysis/page.tsx', pageName: 'analysis' },
   { path: '/app/product_name/page.tsx', pageName: 'product_name' },
   { path: '/app/categories/page.tsx', pageName: 'categories' },

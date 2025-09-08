@@ -13,7 +13,7 @@ INSERT INTO crud_permissions (role, page, can_create, can_edit, can_delete) VALU
 ('super admin', 'supplier', true, true, true),
 ('super admin', 'branches', true, true, true),
 ('super admin', 'users', true, true, true),
-('super admin', 'stock_opname', true, true, true),
+('super admin', 'stock_opname_batch', true, true, true),
 ('super admin', 'product_settings', true, true, true),
 ('super admin', 'permissions-db', true, true, true),
 
@@ -30,7 +30,7 @@ INSERT INTO crud_permissions (role, page, can_create, can_edit, can_delete) VALU
 ('admin', 'supplier', true, true, true),
 ('admin', 'branches', true, true, true),
 ('admin', 'users', true, true, true),
-('admin', 'stock_opname', true, true, true),
+('admin', 'stock_opname_batch', true, true, true),
 ('admin', 'product_settings', true, true, true),
 ('admin', 'permissions-db', true, true, true),
 
@@ -47,7 +47,7 @@ INSERT INTO crud_permissions (role, page, can_create, can_edit, can_delete) VALU
 ('finance', 'supplier', false, false, false),
 ('finance', 'branches', false, false, false),
 ('finance', 'users', false, false, false),
-('finance', 'stock_opname', false, false, false),
+('finance', 'stock_opname_batch', false, false, false),
 ('finance', 'product_settings', false, false, false),
 ('finance', 'permissions-db', false, false, false),
 
@@ -64,7 +64,7 @@ INSERT INTO crud_permissions (role, page, can_create, can_edit, can_delete) VALU
 ('pic_branch', 'supplier', false, false, false),
 ('pic_branch', 'branches', false, false, false),
 ('pic_branch', 'users', false, false, false),
-('pic_branch', 'stock_opname', true, true, false),
+('pic_branch', 'stock_opname_batch', true, true, false),
 ('pic_branch', 'product_settings', false, false, false),
 ('pic_branch', 'permissions-db', false, false, false),
 
@@ -81,7 +81,7 @@ INSERT INTO crud_permissions (role, page, can_create, can_edit, can_delete) VALU
 ('staff', 'supplier', false, false, false),
 ('staff', 'branches', false, false, false),
 ('staff', 'users', false, false, false),
-('staff', 'stock_opname', false, false, false),
+('staff', 'stock_opname_batch', false, false, false),
 ('staff', 'product_settings', false, false, false),
 ('staff', 'permissions-db', false, false, false)
 
