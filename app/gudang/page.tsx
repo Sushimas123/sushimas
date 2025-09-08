@@ -282,12 +282,13 @@ function GudangPageContent() {
     }
   };
 
-  const calculateTotalGudang = async (idProduct: number, tanggal: string) => {
-    // Get the last total_gudang for this product before the current date
+  const calculateTotalGudang = async (idProduct: number, tanggal: string, cabang: string) => {
+    // Get the last total_gudang for this product and branch before the current date
     const { data: lastRecord } = await supabase
       .from('gudang')
       .select('total_gudang')
       .eq('id_product', idProduct)
+      .eq('cabang', cabang)
       .lt('tanggal', tanggal)
       .order('tanggal', { ascending: false })
       .order('order_no', { ascending: false })
@@ -308,8 +309,8 @@ function GudangPageContent() {
     // Combine date and time into timestamp
     const timestamp = `${formData.tanggal}T${formData.waktu}:00.000Z`;
     
-    // Get previous balance for this product and timestamp
-    const previousBalance = await calculateTotalGudang(formData.id_product, timestamp);
+    // Get previous balance for this product, branch and timestamp
+    const previousBalance = await calculateTotalGudang(formData.id_product, timestamp, formData.cabang);
     
     // Only proceed if there's an actual transaction (either in or out)
     if (jumlahMasuk === 0 && jumlahKeluar === 0) {
@@ -355,8 +356,8 @@ function GudangPageContent() {
 
       // Refresh data first to show the new entry immediately
       await fetchGudang();
-      // Then recalculate affected records
-      await recalculateAffectedRecords(formData.id_product, timestamp);
+      // Then recalculate affected records for this product and branch
+      await recalculateAffectedRecords(formData.id_product, timestamp, formData.cabang);
       // Refresh again after recalculation
       await fetchGudang();
       resetForm();
@@ -538,24 +539,26 @@ function GudangPageContent() {
     }
   };
 
-  const recalculateAffectedRecords = async (idProduct: number, fromDate: string) => {
+  const recalculateAffectedRecords = async (idProduct: number, fromDate: string, cabang: string) => {
     try {
-      // Get all records for this product from the affected date onwards
+      // Get all records for this product and branch from the affected date onwards
       const { data: affectedRecords } = await supabase
         .from('gudang')
         .select('*')
         .eq('id_product', idProduct)
+        .eq('cabang', cabang)
         .gte('tanggal', fromDate)
         .order('tanggal', { ascending: true })
         .order('order_no', { ascending: true });
 
       if (!affectedRecords || affectedRecords.length === 0) return;
 
-      // Get the starting balance (last record before the affected date)
+      // Get the starting balance (last record before the affected date for this product and branch)
       const { data: lastRecord } = await supabase
         .from('gudang')
         .select('total_gudang')
         .eq('id_product', idProduct)
+        .eq('cabang', cabang)
         .lt('tanggal', fromDate)
         .order('tanggal', { ascending: false })
         .order('order_no', { ascending: false })
@@ -590,15 +593,16 @@ function GudangPageContent() {
 
       if (!allRecords) return;
 
-      // Group by product
-      const groupedByProduct = allRecords.reduce((acc, record: any) => {
-        if (!acc[record.id_product]) acc[record.id_product] = [];
-        acc[record.id_product].push(record);
+      // Group by product AND branch
+      const groupedByProductAndBranch = allRecords.reduce((acc, record: any) => {
+        const key = `${record.id_product}_${record.cabang}`;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(record);
         return acc;
-      }, {} as Record<number, any[]>);
+      }, {} as Record<string, any[]>);
 
-      // Recalculate each product's running total
-      for (const [productId, records] of Object.entries(groupedByProduct)) {
+      // Recalculate each product-branch combination's running total
+      for (const [key, records] of Object.entries(groupedByProductAndBranch)) {
         let runningTotal = 0;
         
         // Sort records by date and order_no to ensure correct chronological order
