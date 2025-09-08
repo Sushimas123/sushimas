@@ -32,7 +32,7 @@ export default function AuditLogPage() {
   });
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(50);
+  const [itemsPerPage] = useState(5);
 
   useEffect(() => {
     fetchAuditLogs();

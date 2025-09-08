@@ -3,7 +3,7 @@ import { supabase } from '@/src/lib/supabaseClient';
 interface AuditLogEntry {
   table_name: string;
   record_id: number;
-  action: 'INSERT' | 'UPDATE' | 'DELETE';
+  action: 'INSERT' | 'UPDATE' | 'DELETE' | 'EXPORT' | 'IMPORT';
   user_id?: number;
   user_name?: string;
   old_values?: any;
@@ -63,11 +63,8 @@ export const insertWithAudit = async (
     updated_by: currentUser?.id_user || null
   };
 
-  const query = supabase.from(tableName).insert([dataWithAudit]);
-  
-  if (options.select) {
-    query.select(options.select);
-  }
+  // Always select the primary key to get the record ID for audit
+  const query = supabase.from(tableName).insert([dataWithAudit]).select();
 
   const result = await query;
 
@@ -175,6 +172,40 @@ export const deleteWithAudit = async (
       });
     }
   }
+
+  return result;
+};
+
+// Hard delete with audit trail
+export const hardDeleteWithAudit = async (
+  tableName: string,
+  matchCondition: any
+) => {
+  // Get old values first
+  const { data: oldData } = await supabase
+    .from(tableName)
+    .select('*')
+    .match(matchCondition)
+    .single();
+
+  // Log audit trail first
+  if (oldData) {
+    const recordId = oldData.id || oldData.id_user || oldData.id_branch || oldData.id_product || oldData.id_ready || oldData.uniqueid_gudang || oldData.ready_no;
+    if (recordId) {
+      await logAuditTrail({
+        table_name: tableName,
+        record_id: recordId,
+        action: 'DELETE',
+        old_values: oldData
+      });
+    }
+  }
+
+  // Hard delete
+  const result = await supabase
+    .from(tableName)
+    .delete()
+    .match(matchCondition);
 
   return result;
 };

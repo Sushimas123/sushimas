@@ -11,7 +11,7 @@ import { canViewColumn } from '@/src/utils/dbPermissions';
 import { getBranchFilter, getUserDefaultBranch } from '@/src/utils/branchAccess';
 import { canPerformActionSync, getUserRole, arePermissionsLoaded, reloadPermissions } from '@/src/utils/rolePermissions';
 import { hasPageAccess } from '@/src/utils/permissionChecker';
-import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
+import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail, hardDeleteWithAudit } from '@/src/utils/auditTrail';
 
 interface Ready {
   id_ready: number;
@@ -77,7 +77,7 @@ function ReadyPageContent() {
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [permittedColumns, setPermittedColumns] = useState<string[]>([]);
-  const [showTable, setShowTable] = useState(false);
+
 
   // Get user info and check access
   useEffect(() => {
@@ -444,15 +444,13 @@ function ReadyPageContent() {
     if (!editingItem) return;
 
     try {
-      const { error } = await supabase
-        .from('ready')
-        .update({
+      const { error } = await updateWithAudit('ready', 
+        {
           ready: editingItem.ready,
-          waste: editingItem.waste,
-          updated_by: userId,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id_ready', editingItem.id_ready);
+          waste: editingItem.waste
+        },
+        { id_ready: editingItem.id_ready }
+      );
       
       if (error) throw error;
       
@@ -481,12 +479,10 @@ function ReadyPageContent() {
     if (!confirm(`Hapus ${selectedItems.length} data yang dipilih?`)) return;
     
     try {
-      const { error } = await supabase
-        .from('ready')
-        .delete()
-        .in('id_ready', selectedItems);
-      
-      if (error) throw error;
+      for (const id of selectedItems) {
+        const { error } = await hardDeleteWithAudit('ready', { id_ready: id });
+        if (error) throw error;
+      }
       
       setSelectedItems([]);
       await fetchReady();
@@ -798,6 +794,18 @@ function ReadyPageContent() {
         }
       }
       
+      // Log import action to audit trail
+      await logAuditTrail({
+        table_name: 'ready',
+        record_id: 0,
+        action: 'IMPORT',
+        new_values: {
+          action: 'Import Excel',
+          record_count: processedData.length,
+          filename: file.name
+        }
+      });
+      
       setImportProgress({show: true, progress: 95, message: 'Memperbarui tampilan...'});
       await fetchReady();
       
@@ -867,22 +875,39 @@ function ReadyPageContent() {
     currentPage * itemsPerPage
   );
 
-  const exportToExcel = () => {
-    const exportData = filteredAndSortedReady.map(item => ({
-      'Ready No': item.ready_no,
-      'Tanggal': item.tanggal_input,
-      'Cabang': item.branch_name,
-      'Sub Category': item.sub_category,
-      'Product ID': item.id_product,
-      'Product': item.product_name,
-      'Ready': item.ready,
-      'Waste': item.waste
-    }));
+  const exportToExcel = async () => {
+    try {
+      const exportData = filteredAndSortedReady.map(item => ({
+        'Ready No': item.ready_no,
+        'Tanggal': item.tanggal_input,
+        'Cabang': item.branch_name,
+        'Sub Category': item.sub_category,
+        'Product ID': item.id_product,
+        'Product': item.product_name,
+        'Ready': item.ready,
+        'Waste': item.waste
+      }));
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Ready Stock');
-    XLSX.writeFile(wb, `ready_stock_${new Date().toISOString().split('T')[0]}.xlsx`);
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Ready Stock');
+      XLSX.writeFile(wb, `ready_stock_${new Date().toISOString().split('T')[0]}.xlsx`);
+      
+      // Log export action to audit trail
+      await logAuditTrail({
+        table_name: 'ready',
+        record_id: 0,
+        action: 'EXPORT',
+        new_values: {
+          action: 'Export Excel',
+          record_count: exportData.length,
+          filename: `ready_stock_${new Date().toISOString().split('T')[0]}.xlsx`
+        }
+      });
+    } catch (error) {
+      console.error('Error exporting Excel:', error);
+      alert('Gagal export Excel!');
+    }
   };
 
   if (loading || hasAccess === null) {
@@ -1250,12 +1275,7 @@ function ReadyPageContent() {
               <RefreshCw size={16} />
               Refresh
             </button>
-            <button
-              onClick={() => setShowTable(!showTable)}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
-            >
-              {showTable ? 'Hide Table' : 'Show Table'}
-            </button>
+
             {selectedItems.length > 0 && canPerformActionSync(userRole, 'ready', 'delete') && (
               <button
                 onClick={handleDeleteSelected}
@@ -1302,8 +1322,7 @@ function ReadyPageContent() {
         </div>
 
         {/* Data Table */}
-        {showTable && (
-          <div className="overflow-x-auto bg-white rounded-lg shadow">
+        <div className="overflow-x-auto bg-white rounded-lg shadow">
             <table className="w-full text-xs border border-gray-200">
             <thead className="bg-gray-100 text-gray-700">
               <tr>
@@ -1379,10 +1398,7 @@ function ReadyPageContent() {
                               onClick={async () => {
                                 if (confirm('Hapus data ini?')) {
                                   try {
-                                    const { error } = await supabase
-                                      .from('ready')
-                                      .delete()
-                                      .eq('id_ready', item.id_ready);
+                                    const { error } = await hardDeleteWithAudit('ready', { id_ready: item.id_ready });
                                     
                                     if (error) throw error;
                                     
@@ -1410,7 +1426,6 @@ function ReadyPageContent() {
             </tbody>
           </table>
         </div>
-        )}
         {/* Pagination */}
         <div className="flex justify-between items-center mt-4">
           <p className="text-xs text-gray-600">
