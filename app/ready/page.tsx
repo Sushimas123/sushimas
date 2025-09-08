@@ -57,7 +57,7 @@ function ReadyPageContent() {
   const [branchFilter, setBranchFilter] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(20);
+  const [itemsPerPage] = useState(5);
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -77,6 +77,7 @@ function ReadyPageContent() {
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [permittedColumns, setPermittedColumns] = useState<string[]>([]);
+  const [showTable, setShowTable] = useState(false);
 
   // Get user info and check access
   useEffect(() => {
@@ -1249,6 +1250,12 @@ function ReadyPageContent() {
               <RefreshCw size={16} />
               Refresh
             </button>
+            <button
+              onClick={() => setShowTable(!showTable)}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
+            >
+              {showTable ? 'Hide Table' : 'Show Table'}
+            </button>
             {selectedItems.length > 0 && canPerformActionSync(userRole, 'ready', 'delete') && (
               <button
                 onClick={handleDeleteSelected}
@@ -1295,8 +1302,9 @@ function ReadyPageContent() {
         </div>
 
         {/* Data Table */}
-        <div className="overflow-x-auto bg-white rounded-lg shadow">
-          <table className="w-full text-xs border border-gray-200">
+        {showTable && (
+          <div className="overflow-x-auto bg-white rounded-lg shadow">
+            <table className="w-full text-xs border border-gray-200">
             <thead className="bg-gray-100 text-gray-700">
               <tr>
                 <th className="border px-2 py-1 text-center font-medium">
@@ -1402,7 +1410,7 @@ function ReadyPageContent() {
             </tbody>
           </table>
         </div>
-
+        )}
         {/* Pagination */}
         <div className="flex justify-between items-center mt-4">
           <p className="text-xs text-gray-600">
@@ -1442,6 +1450,7 @@ function ReadyPageContent() {
             </button>
           </div>
         </div>
+        
       </div>
   );
 }
