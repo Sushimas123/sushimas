@@ -18,7 +18,7 @@ VALUES ('finance', 'ready', false, true, false)
 ON CONFLICT (role, page) DO UPDATE SET 
 can_create = false, can_edit = true, can_delete = false;
 
--- PIC Branch (with underscore)
+-- pic_branch (with underscore)
 INSERT INTO crud_permissions (role, page, can_create, can_edit, can_delete) 
 VALUES ('pic_branch', 'ready', true, true, false)
 ON CONFLICT (role, page) DO UPDATE SET 

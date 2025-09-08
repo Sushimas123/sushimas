@@ -13,7 +13,7 @@ WHERE table_schema = 'public'
 AND table_name LIKE '%role%' OR table_name LIKE '%permission%';
 
 -- 5. Cek data user yang sedang login (ganti dengan user ID yang sesuai)
-SELECT * FROM users WHERE role = 'pic_branch' OR role = 'pic branch';
+SELECT * FROM users WHERE role = 'pic_branch';
 
 -- 6. Cek apakah ada foreign key atau constraint
 SELECT 

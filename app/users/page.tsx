@@ -559,7 +559,7 @@ function UsersPageContent() {
                 <option value="super admin">Super Admin</option>
                 <option value="admin">Admin</option>
                 <option value="finance">Finance</option>
-                <option value="pic_branch">PIC Branch</option>
+                <option value="pic_branch">pic_branch</option>
               </select>
               <div className="border rounded-md p-2 max-h-24 overflow-y-auto">
                 <div className="text-xs text-gray-600 mb-1">Select Branches:</div>

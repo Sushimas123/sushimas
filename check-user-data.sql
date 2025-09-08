@@ -1,6 +1,6 @@
 -- 1. Cek user yang sedang login (sesuaikan dengan user yang sedang digunakan)
 SELECT id_user, nama_lengkap, role, cabang FROM users 
-WHERE role LIKE '%pic%' OR role = 'pic_branch' OR role = 'pic branch';
+WHERE role LIKE '%pic%' OR role = 'pic_branch';
 
 -- 2. Cek permission berdasarkan user_id (jika ada)
 SELECT cp.*, u.nama_lengkap, u.role as user_role 

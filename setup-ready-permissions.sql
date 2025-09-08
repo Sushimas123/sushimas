@@ -21,7 +21,7 @@ ON CONFLICT (role, page) DO UPDATE SET
 columns = '["ready_no", "tanggal_input", "branch_name", "sub_category", "product_name", "ready"]',
 can_access = true;
 
--- PIC Branch - basic access (no id_product, waste)
+-- pic_branch - basic access (no id_product, waste)
 INSERT INTO user_permissions (role, page, columns, can_access) 
 VALUES ('pic_branch', 'ready', '["ready_no", "tanggal_input", "branch_name", "sub_category", "product_name", "ready"]', true)
 ON CONFLICT (role, page) DO UPDATE SET 

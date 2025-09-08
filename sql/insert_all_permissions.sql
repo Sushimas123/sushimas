@@ -51,7 +51,7 @@ INSERT INTO crud_permissions (role, page, can_create, can_edit, can_delete) VALU
 ('finance', 'product_settings', false, false, false),
 ('finance', 'permissions-db', false, false, false),
 
--- PIC Branch permissions (create + edit, no delete for operational pages)
+-- pic_branch permissions (create + edit, no delete for operational pages)
 ('pic_branch', 'ready', true, true, false),
 ('pic_branch', 'gudang', true, true, false),
 ('pic_branch', 'produksi', true, true, false),

@@ -55,7 +55,7 @@ INSERT INTO user_permissions (role, page, columns, can_access) VALUES
 ('finance', 'recipes', ARRAY['*'], true),
 ('finance', 'supplier', ARRAY['*'], true),
 
--- PIC Branch - Access to operational pages
+-- pic_branch - Access to operational pages
 ('pic_branch', 'esb', ARRAY['*'], true),
 ('pic_branch', 'ready', ARRAY['*'], true),
 ('pic_branch', 'produksi', ARRAY['*'], true),

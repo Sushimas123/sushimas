@@ -11,7 +11,7 @@ INSERT INTO user_permissions (role, page, columns, can_access) VALUES
 ('staff', 'stock_opname', ARRAY['*'], true),
 ('staff', 'analysis', ARRAY['*'], true),
 
--- PIC Branch - akses ke semua halaman operasional + beberapa master data
+-- pic_branch - akses ke semua halaman operasional + beberapa master data
 ('pic_branch', 'esb', ARRAY['*'], true),
 ('pic_branch', 'ready', ARRAY['*'], true),
 ('pic_branch', 'produksi', ARRAY['*'], true),

@@ -6,7 +6,7 @@ Sistem ini telah diperbarui dengan role-based access control (RBAC) yang mengatu
 ## Roles Available
 1. **Admin** - Akses penuh ke semua fitur dan data
 2. **Manager** - Akses ke sebagian besar fitur, terbatas pada beberapa kolom sensitif
-3. **PIC Branch** - Akses terbatas untuk operasional cabang
+3. **pic_branch** - Akses terbatas untuk operasional cabang
 4. **Staff** - Akses paling terbatas, hanya untuk tugas dasar
 
 ## Features Implemented
@@ -23,18 +23,18 @@ Sistem ini telah diperbarui dengan role-based access control (RBAC) yang mengatu
 ### 3. Column-Level Permissions
 - **ESB Report**: 
   - Admin/Manager: Semua kolom
-  - PIC Branch: Tanpa value_total
+  - pic_branch: Tanpa value_total
   - Staff: Tanpa price dan value_total
   
 - **Users Management**:
   - Admin: Semua kolom + CRUD operations
   - Manager: View only, tanpa password dan actions
-  - PIC Branch: Info dasar saja
+  - pic_branch: Info dasar saja
   - Staff: Tidak bisa akses
 
 - **Ready Stock**:
   - Admin/Manager: Semua kolom + CRUD
-  - PIC Branch: Operasional data
+  - pic_branch: Operasional data
   - Staff: View terbatas
 
 ### 4. UI Indicators
