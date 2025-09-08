@@ -35,6 +35,7 @@ interface Product {
 interface Branch {
   id_branch: number;
   nama_branch: string;
+  kode_branch: string;
 }
 
 interface FormProduct {
