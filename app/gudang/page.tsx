@@ -1061,12 +1061,16 @@ function GudangPageContent() {
                 paginatedGudang.map((item) => (
                   <tr key={item.order_no} className="hover:bg-gray-50">
                     <td className="px-1 py-1 text-center">
-                      <input
-                        type="checkbox"
-                        checked={selectedItems.includes(item.order_no)}
-                        onChange={() => handleSelectItem(item.order_no)}
-                        className="w-3 h-3"
-                      />
+                      {(item as any).source_type === 'stock_opname_batch' ? (
+                        <span className="text-gray-400 text-xs">🔒</span>
+                      ) : (
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(item.order_no)}
+                          onChange={() => handleSelectItem(item.order_no)}
+                          className="w-3 h-3"
+                        />
+                      )}
                     </td>
                     {visibleColumns.includes('order_no') && <td className="px-1 py-1 font-medium">
                       {(item as any).source_type === 'stock_opname_batch' ? (
@@ -1102,23 +1106,31 @@ function GudangPageContent() {
                     </td>
                     <td className="px-1 py-1">
                       <div className="flex gap-1">
-                        {canPerformActionSync(userRole, 'gudang', 'edit', userId ?? undefined) && (
-                          <button
-                            onClick={() => handleEdit(item)}
-                            className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                            title="Edit"
-                          >
-                            <Edit size={12} />
-                          </button>
-                        )}
-                        {canPerformActionSync(userRole, 'gudang', 'delete', userId ?? undefined) && (
-                          <button
-                            onClick={() => handleDelete(item.order_no)}
-                            className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
-                            title="Delete"
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                        {(item as any).source_type === 'stock_opname_batch' ? (
+                          <span className="text-xs text-gray-500 italic px-2 py-1">
+                            SO Protected
+                          </span>
+                        ) : (
+                          <>
+                            {canPerformActionSync(userRole, 'gudang', 'edit', userId ?? undefined) && (
+                              <button
+                                onClick={() => handleEdit(item)}
+                                className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                                title="Edit"
+                              >
+                                <Edit size={12} />
+                              </button>
+                            )}
+                            {canPerformActionSync(userRole, 'gudang', 'delete', userId ?? undefined) && (
+                              <button
+                                onClick={() => handleDelete(item.order_no)}
+                                className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
+                                title="Delete"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </td>

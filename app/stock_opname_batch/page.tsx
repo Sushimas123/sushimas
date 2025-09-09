@@ -62,7 +62,7 @@ export default function StockOpnameBatchPage() {
     }
   }, [])
 
-  const fetchBranchProducts = useCallback(async (branchCode: string, subCategory: string, soDate?: string) => {
+  const fetchBranchProducts = useCallback(async (branchCode: string, subCategory: string, soDate?: string, soTime?: string) => {
     if (!branchCode || !subCategory) {
       setBranchProducts([])
       return
@@ -70,51 +70,69 @@ export default function StockOpnameBatchPage() {
     
     setLoadingBranchData(true)
     
-    const { data: productsData, error: productError } = await supabase
-      .from("nama_product")
-      .select("id_product, product_name, unit_kecil, sub_category")
-      .eq("sub_category", subCategory)
-      .order("product_name")
-    
-    if (productError || !productsData) {
-      setBranchProducts([])
-      setLoadingBranchData(false)
-      return
-    }
-    
-    const productIds = productsData.map(product => product.id_product)
-    const cutoffDate = soDate || selectedDate
-    const cutoffDateTime = `${cutoffDate}T23:59:59.999Z`
-    
-    const { data: stockData } = await supabase
-      .from("gudang")
-      .select("id_product, total_gudang")
-      .eq("cabang", branchCode)
-      .in("id_product", productIds)
-      .lte("tanggal", cutoffDateTime)
-      .order("tanggal", { ascending: false })
-      .order("order_no", { ascending: false })
-    
-    const stockMap = new Map()
-    stockData?.forEach(stock => {
-      if (!stockMap.has(stock.id_product)) {
-        stockMap.set(stock.id_product, stock.total_gudang)
+    try {
+      const { data: productsData, error: productError } = await supabase
+        .from("nama_product")
+        .select("id_product, product_name, unit_kecil, sub_category")
+        .eq("sub_category", subCategory)
+        .order("product_name")
+      
+      if (productError || !productsData) {
+        setBranchProducts([])
+        return
       }
-    })
-    
-    const processedData = productsData.map(product => ({
-      id_product: product.id_product,
-      product_name: product.product_name,
-      system_stock: stockMap.get(product.id_product) || 0,
-      unit: product.unit_kecil || 'pcs',
-      sub_category: product.sub_category,
-      physical_stock: 0,
-      notes: ''
-    }))
-    
-    setBranchProducts(processedData)
-    setLoadingBranchData(false)
-  }, [selectedDate])
+      
+      // Gunakan tanggal dan waktu dari parameter atau dari form
+      const cutoffDate = soDate || form.opname_date || selectedDate
+      const cutoffTime = soTime || form.opname_time || '12:00:00'
+      const cutoffDateTime = `${cutoffDate} ${cutoffTime}`
+      
+      const stockPromises = productsData.map(async (product) => {
+        try {
+          const { data: stockData, error } = await supabase
+            .from("gudang")
+            .select("total_gudang")
+            .eq("cabang", branchCode)
+            .eq("id_product", product.id_product)
+            .lte("tanggal", cutoffDateTime) // Gunakan tanggal+waktu sebagai cutoff
+            .order("tanggal", { ascending: false })
+            .order("order_no", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          
+          return {
+            ...product,
+            system_stock: (!error && stockData) ? stockData.total_gudang : 0,
+            physical_stock: 0,
+            notes: ''
+          }
+        } catch {
+          return {
+            ...product,
+            system_stock: 0,
+            physical_stock: 0,
+            notes: ''
+          }
+        }
+      })
+      
+      const processedData = await Promise.all(stockPromises)
+      setBranchProducts(processedData.map(p => ({
+        id_product: p.id_product,
+        product_name: p.product_name,
+        system_stock: p.system_stock,
+        unit: p.unit_kecil || 'pcs',
+        sub_category: p.sub_category,
+        physical_stock: 0,
+        notes: ''
+      })))
+    } catch (error) {
+      setBranchProducts([])
+      showToast('❌ Failed to load products', 'error')
+    } finally {
+      setLoadingBranchData(false)
+    }
+  }, [selectedDate, form.opname_date, form.opname_time])
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
@@ -140,9 +158,10 @@ export default function StockOpnameBatchPage() {
       return
     }
     
+    setLoading(true)
     try {
       if (editingBatchId) {
-        await supabase
+        const { error: updateError } = await supabase
           .from('stock_opname_batch')
           .update({
             batch_date: form.opname_date,
@@ -153,21 +172,26 @@ export default function StockOpnameBatchPage() {
           })
           .eq('batch_id', editingBatchId)
         
-        await supabase.from('stock_opname_detail').delete().eq('batch_id', editingBatchId)
+        if (updateError) throw updateError
+        
+        const { error: deleteError } = await supabase.from('stock_opname_detail').delete().eq('batch_id', editingBatchId)
+        if (deleteError) throw deleteError
         
         const details = productsWithPhysicalStock.map(product => ({
           batch_id: editingBatchId,
           product_name: product.product_name,
-          system_stock: product.system_stock,
+          system_stock: product.system_stock_snapshot || product.system_stock,
           physical_stock: product.physical_stock,
           unit: product.unit,
           notes: product.notes || null
         }))
         
-        await supabase.from('stock_opname_detail').insert(details)
+        const { error: insertError } = await supabase.from('stock_opname_detail').insert(details)
+        if (insertError) throw insertError
+        
         showToast('✅ Batch updated', 'success')
       } else {
-        const { data: batchData } = await supabase
+        const { data: batchData, error: batchError } = await supabase
           .from('stock_opname_batch')
           .insert({
             batch_date: form.opname_date,
@@ -179,6 +203,8 @@ export default function StockOpnameBatchPage() {
           .select('batch_id')
           .single()
         
+        if (batchError || !batchData?.batch_id) throw batchError || new Error('Failed to create batch')
+        
         const details = productsWithPhysicalStock.map(product => ({
           batch_id: batchData.batch_id,
           product_name: product.product_name,
@@ -188,7 +214,9 @@ export default function StockOpnameBatchPage() {
           notes: product.notes || null
         }))
         
-        await supabase.from('stock_opname_detail').insert(details)
+        const { error: insertError } = await supabase.from('stock_opname_detail').insert(details)
+        if (insertError) throw insertError
+        
         showToast('✅ Batch created', 'success')
       }
       
@@ -196,7 +224,9 @@ export default function StockOpnameBatchPage() {
       fetchBatches()
       
     } catch (error: any) {
-      showToast('❌ Failed to save batch', 'error')
+      showToast(`❌ Failed to save batch: ${error.message}`, 'error')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -212,17 +242,31 @@ export default function StockOpnameBatchPage() {
   }
 
   const handleEditBatch = async (batchId: number) => {
+    setLoading(true)
     try {
-      const { data: batchData } = await supabase
+      const { data: batchData, error: batchError } = await supabase
         .from('stock_opname_batch')
         .select('*')
         .eq('batch_id', batchId)
         .single()
       
-      const { data: detailData } = await supabase
+      if (batchError || !batchData) throw new Error('Batch not found')
+      
+      // If approved, revert to pending and delete gudang entries
+      if (batchData.status === 'approved') {
+        if (!confirm('⚠️ This will revert the batch to pending and remove stock adjustments. Continue?')) {
+          setLoading(false)
+          return
+        }
+        await revertApprovedBatch(batchId)
+      }
+      
+      const { data: detailData, error: detailError } = await supabase
         .from('stock_opname_detail')
         .select('*')
         .eq('batch_id', batchId)
+      
+      if (detailError) throw detailError
       
       setForm({
         opname_date: batchData.batch_date,
@@ -236,21 +280,22 @@ export default function StockOpnameBatchPage() {
       setEditing(true)
       setShowAddForm(true)
       
-      await fetchBranchProducts(batchData.branch_code, batchData.sub_category, batchData.batch_date)
+      await fetchBranchProducts(batchData.branch_code, batchData.sub_category, batchData.batch_date, batchData.batch_time)
       
-      setTimeout(() => {
-        setBranchProducts(prev => prev.map(product => {
-          const detail = detailData.find(d => d.product_name === product.product_name)
-          return detail ? {
-            ...product,
-            physical_stock: detail.physical_stock,
-            notes: detail.notes
-          } : product
-        }))
-      }, 500)
+      setBranchProducts(prev => prev.map(product => {
+        const detail = detailData?.find(d => d.product_name === product.product_name)
+        return detail ? {
+          ...product,
+          system_stock_snapshot: detail.system_stock,
+          physical_stock: detail.physical_stock,
+          notes: detail.notes || ''
+        } : product
+      }))
       
-    } catch (error) {
-      showToast('❌ Failed to load batch', 'error')
+    } catch (error: any) {
+      showToast(`❌ Failed to load batch: ${error.message}`, 'error')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -267,60 +312,78 @@ export default function StockOpnameBatchPage() {
   }
 
   const handleApproveBatch = async (batchId: number) => {
-    if (!confirm('Approve this batch?')) return
+    if (!confirm('⚠️ Approve this batch? This will update stock records and cannot be undone.')) return
     
+    setLoading(true)
     try {
-      const { data: batchData } = await supabase
+      const { data: batchData, error: batchError } = await supabase
         .from('stock_opname_batch')
         .select('*')
         .eq('batch_id', batchId)
         .single()
       
-      const { data: detailData } = await supabase
+      if (batchError || !batchData) throw new Error('Batch not found')
+      
+      const { data: detailData, error: detailError } = await supabase
         .from('stock_opname_detail')
         .select('*')
         .eq('batch_id', batchId)
         .gt('physical_stock', 0)
       
-      for (const detail of detailData || []) {
-        if (detail.difference === 0) continue
-        
-        const { data: productData } = await supabase
-          .from('nama_product')
-          .select('id_product')
-          .eq('product_name', detail.product_name)
-          .single()
-        
-        if (!productData) continue
-        
-        const gudangEntry = {
-          id_product: productData.id_product,
-          tanggal: `${batchData.batch_date}T${batchData.batch_time}`,
-          jumlah_masuk: detail.difference > 0 ? Math.abs(detail.difference) : 0,
-          jumlah_keluar: detail.difference < 0 ? Math.abs(detail.difference) : 0,
-          total_gudang: detail.physical_stock,
-          nama_pengambil_barang: `SO Batch by ${batchData.pic_name}`,
-          cabang: batchData.branch_code,
-          source_type: 'stock_opname_batch',
-          source_reference: `BATCH-${batchId}`
+      if (detailError) throw detailError
+      if (!detailData || detailData.length === 0) throw new Error('No detail data found')
+      
+      for (const detail of detailData) {
+        try {
+          const difference = detail.physical_stock - (detail.system_stock || 0)
+          if (difference === 0) continue
+          
+          const { data: productData, error: productError } = await supabase
+            .from('nama_product')
+            .select('id_product')
+            .eq('product_name', detail.product_name)
+            .single()
+          
+          if (productError || !productData) {
+            console.warn(`Product not found: ${detail.product_name}`)
+            continue
+          }
+          
+          const gudangEntry = {
+            id_product: productData.id_product,
+            tanggal: `${batchData.batch_date}T${batchData.batch_time}`,
+            jumlah_masuk: difference > 0 ? Math.abs(difference) : 0,
+            jumlah_keluar: difference < 0 ? Math.abs(difference) : 0,
+            total_gudang: detail.physical_stock,
+            nama_pengambil_barang: `SO Batch by ${batchData.pic_name}`,
+            cabang: batchData.branch_code,
+            source_type: 'stock_opname_batch',
+            source_reference: `BATCH-${batchId}`
+          }
+          
+          const { error: insertError } = await supabase.from('gudang').insert(gudangEntry)
+          if (insertError) throw insertError
+          
+          await recalculateFromDate(productData.id_product, batchData.branch_code, `${batchData.batch_date}T${batchData.batch_time}`)
+        } catch (error: any) {
+          console.error(`Error processing ${detail.product_name}:`, error)
         }
-        
-        await supabase.from('gudang').insert(gudangEntry)
-        
-        // Recalculate records after this SO date
-        await recalculateFromDate(productData.id_product, batchData.branch_code, `${batchData.batch_date}T${batchData.batch_time}`)
       }
       
-      await supabase
+      const { error: statusError } = await supabase
         .from('stock_opname_batch')
         .update({ status: 'approved' })
         .eq('batch_id', batchId)
       
-      showToast('✅ Batch approved', 'success')
+      if (statusError) throw statusError
+      
+      showToast('✅ Batch approved successfully', 'success')
       fetchBatches()
       
-    } catch (error) {
-      showToast('❌ Failed to approve batch', 'error')
+    } catch (error: any) {
+      showToast(`❌ Failed to approve batch: ${error.message}`, 'error')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -357,9 +420,68 @@ export default function StockOpnameBatchPage() {
     ))
   }
 
+  const handleRevertBatch = async (batchId: number) => {
+    if (!confirm('⚠️ Revert this batch to pending? This will remove all stock adjustments.')) return
+    
+    setLoading(true)
+    try {
+      await revertApprovedBatch(batchId)
+      showToast('✅ Batch reverted to pending', 'success')
+      fetchBatches()
+    } catch (error: any) {
+      showToast(`❌ Failed to revert batch: ${error.message}`, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const revertApprovedBatch = async (batchId: number) => {
+    // Delete gudang entries for this batch
+    const { error: deleteError } = await supabase
+      .from('gudang')
+      .delete()
+      .eq('source_reference', `BATCH-${batchId}`)
+    
+    if (deleteError) throw deleteError
+    
+    // Update batch status to pending
+    const { error: statusError } = await supabase
+      .from('stock_opname_batch')
+      .update({ status: 'pending' })
+      .eq('batch_id', batchId)
+    
+    if (statusError) throw statusError
+    
+    // Recalculate all affected products
+    const { data: detailData } = await supabase
+      .from('stock_opname_detail')
+      .select('product_name')
+      .eq('batch_id', batchId)
+    
+    const { data: batchData } = await supabase
+      .from('stock_opname_batch')
+      .select('branch_code, batch_date, batch_time')
+      .eq('batch_id', batchId)
+      .single()
+    
+    if (detailData && batchData) {
+      for (const detail of detailData) {
+        const { data: productData } = await supabase
+          .from('nama_product')
+          .select('id_product')
+          .eq('product_name', detail.product_name)
+          .single()
+        
+        if (productData) {
+          await recalculateFromDate(productData.id_product, batchData.branch_code, `${batchData.batch_date}T${batchData.batch_time}`)
+        }
+      }
+    }
+  }
+
   const recalculateFromDate = async (idProduct: number, branchCode: string, fromDate: string) => {
     try {
-      const { data: affectedRecords } = await supabase
+      const { data: affectedRecords, error: recordsError } = await supabase
         .from('gudang')
         .select('*')
         .eq('id_product', idProduct)
@@ -368,29 +490,42 @@ export default function StockOpnameBatchPage() {
         .order('tanggal', { ascending: true })
         .order('order_no', { ascending: true })
 
+      if (recordsError) throw recordsError
       if (!affectedRecords || affectedRecords.length === 0) return
 
-      const { data: soRecord } = await supabase
+      // Get previous total before the deleted SO record
+      const { data: prevRecord, error: prevError } = await supabase
         .from('gudang')
         .select('total_gudang')
         .eq('id_product', idProduct)
         .eq('cabang', branchCode)
-        .eq('tanggal', fromDate)
-        .eq('source_type', 'stock_opname_batch')
-        .single()
+        .lt('tanggal', fromDate)
+        .order('tanggal', { ascending: false })
+        .order('order_no', { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
-      let runningTotal = soRecord?.total_gudang || 0
+      if (prevError) throw prevError
+      
+      let runningTotal = prevRecord?.total_gudang || 0
 
       for (const record of affectedRecords) {
-        runningTotal = runningTotal + record.jumlah_masuk - record.jumlah_keluar
-        
-        await supabase
-          .from('gudang')
-          .update({ total_gudang: runningTotal })
-          .eq('order_no', record.order_no)
+        try {
+          runningTotal = runningTotal + record.jumlah_masuk - record.jumlah_keluar
+          
+          const { error: updateError } = await supabase
+            .from('gudang')
+            .update({ total_gudang: runningTotal })
+            .eq('order_no', record.order_no)
+          
+          if (updateError) throw updateError
+        } catch (error: any) {
+          console.error(`Error updating record ${record.order_no}:`, error)
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error recalculating from date:', error)
+      throw error
     }
   }
 
@@ -450,7 +585,15 @@ export default function StockOpnameBatchPage() {
                   <input
                     type="time"
                     value={form.opname_time || '12:00'}
-                    onChange={(e) => setForm({...form, opname_time: e.target.value})}
+                    onChange={(e) => {
+                      const newTime = e.target.value;
+                      setForm({...form, opname_time: newTime});
+                      
+                      // Refresh data produk jika branch dan subcategory sudah dipilih
+                      if (selectedBranch && selectedSubCategory) {
+                        fetchBranchProducts(selectedBranch, selectedSubCategory, form.opname_date, newTime);
+                      }
+                    }}
                     className="w-full border px-3 py-2 rounded-md"
                   />
                 </div>
@@ -463,7 +606,7 @@ export default function StockOpnameBatchPage() {
                       setSelectedBranch(e.target.value)
                       setBranchProducts([])
                       if (e.target.value && selectedSubCategory) {
-                        fetchBranchProducts(e.target.value, selectedSubCategory, form.opname_date)
+                        fetchBranchProducts(e.target.value, selectedSubCategory, form.opname_date, form.opname_time)
                       }
                     }}
                     className="w-full border px-3 py-2 rounded-md"
@@ -486,7 +629,7 @@ export default function StockOpnameBatchPage() {
                       setSelectedSubCategory(e.target.value)
                       setBranchProducts([])
                       if (selectedBranch && e.target.value) {
-                        fetchBranchProducts(selectedBranch, e.target.value, form.opname_date)
+                        fetchBranchProducts(selectedBranch, e.target.value, form.opname_date, form.opname_time)
                       }
                     }}
                     className="w-full border px-3 py-2 rounded-md"
@@ -524,7 +667,8 @@ export default function StockOpnameBatchPage() {
                       <thead className="bg-gray-50 sticky top-0">
                         <tr>
                           <th className="px-3 py-2 text-left">Product</th>
-                          <th className="px-3 py-2 text-left">System Stock</th>
+                          <th className="px-3 py-2 text-left">System Stock{editing ? ' (saat SO)' : ''}</th>
+                          {editing && <th className="px-3 py-2 text-left">System Stock (terkini)</th>}
                           <th className="px-3 py-2 text-left">Physical Stock</th>
                           <th className="px-3 py-2 text-left">Difference</th>
                           <th className="px-3 py-2 text-left">Unit</th>
@@ -535,7 +679,12 @@ export default function StockOpnameBatchPage() {
                         {branchProducts.map((product, index) => (
                           <tr key={index} className="border-t">
                             <td className="px-3 py-2 font-medium">{product.product_name}</td>
-                            <td className="px-3 py-2">{product.system_stock}</td>
+                            <td className="px-3 py-2">
+                              {editing && product.system_stock_snapshot !== undefined ? product.system_stock_snapshot : product.system_stock}
+                            </td>
+                            {editing && (
+                              <td className="px-3 py-2 text-blue-600">{product.system_stock}</td>
+                            )}
                             <td className="px-3 py-2">
                               <input
                                 type="number"
@@ -546,10 +695,10 @@ export default function StockOpnameBatchPage() {
                               />
                             </td>
                             <td className={`px-3 py-2 font-medium ${
-                              (product.physical_stock - product.system_stock) > 0 ? 'text-green-600' : 
-                              (product.physical_stock - product.system_stock) < 0 ? 'text-red-600' : 'text-gray-600'
+                              (product.physical_stock - (editing && product.system_stock_snapshot !== undefined ? product.system_stock_snapshot : product.system_stock)) > 0 ? 'text-green-600' : 
+                              (product.physical_stock - (editing && product.system_stock_snapshot !== undefined ? product.system_stock_snapshot : product.system_stock)) < 0 ? 'text-red-600' : 'text-gray-600'
                             }`}>
-                              {product.physical_stock ? (product.physical_stock - product.system_stock).toFixed(2) : '0.00'}
+                              {product.physical_stock ? (product.physical_stock - (editing && product.system_stock_snapshot !== undefined ? product.system_stock_snapshot : product.system_stock)).toFixed(2) : '0.00'}
                             </td>
                             <td className="px-3 py-2">{product.unit}</td>
                             <td className="px-3 py-2">
@@ -658,6 +807,24 @@ export default function StockOpnameBatchPage() {
                                 </button>
                               </>
                             )}
+                            {batch.status === 'approved' && (
+                              <>
+                                <button
+                                  onClick={() => handleEditBatch(batch.batch_id)}
+                                  className="text-orange-600 hover:text-orange-800 p-1"
+                                  title="Edit (will reset to pending)"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleRevertBatch(batch.batch_id)}
+                                  className="text-red-600 hover:text-red-800 p-1 text-xs px-2 py-1 border border-red-600 rounded"
+                                  title="Revert to Pending"
+                                >
+                                  Revert
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -676,20 +843,23 @@ export default function StockOpnameBatchPage() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {batchDetails.map((detail) => (
-                                    <tr key={detail.detail_id} className="border-t">
-                                      <td className="px-2 py-1">{detail.product_name}</td>
-                                      <td className="px-2 py-1">{detail.system_stock}</td>
-                                      <td className="px-2 py-1">{detail.physical_stock}</td>
-                                      <td className={`px-2 py-1 font-medium ${
-                                        detail.difference > 0 ? 'text-green-600' : 
-                                        detail.difference < 0 ? 'text-red-600' : 'text-gray-600'
-                                      }`}>
-                                        {detail.difference}
-                                      </td>
-                                      <td className="px-2 py-1">{detail.notes}</td>
-                                    </tr>
-                                  ))}
+                                  {batchDetails.map((detail) => {
+                                    const difference = detail.physical_stock - (detail.system_stock || 0)
+                                    return (
+                                      <tr key={detail.detail_id} className="border-t">
+                                        <td className="px-2 py-1">{detail.product_name}</td>
+                                        <td className="px-2 py-1">{detail.system_stock}</td>
+                                        <td className="px-2 py-1">{detail.physical_stock}</td>
+                                        <td className={`px-2 py-1 font-medium ${
+                                          difference > 0 ? 'text-green-600' : 
+                                          difference < 0 ? 'text-red-600' : 'text-gray-600'
+                                        }`}>
+                                          {difference.toFixed(2)}
+                                        </td>
+                                        <td className="px-2 py-1">{detail.notes}</td>
+                                      </tr>
+                                    )
+                                  })}
                                 </tbody>
                               </table>
                             </div>
