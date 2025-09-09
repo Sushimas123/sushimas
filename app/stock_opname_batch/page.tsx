@@ -117,15 +117,22 @@ export default function StockOpnameBatchPage() {
       })
       
       const processedData = await Promise.all(stockPromises)
-      setBranchProducts(processedData.map(p => ({
-        id_product: p.id_product,
-        product_name: p.product_name,
-        system_stock: p.system_stock,
-        unit: p.unit_kecil || 'pcs',
-        sub_category: p.sub_category,
-        physical_stock: 0,
-        notes: ''
-      })))
+      setBranchProducts(prev => {
+        const newData = processedData.map(p => {
+          // Preserve existing physical_stock and notes if product already exists
+          const existing = prev.find(existing => existing.id_product === p.id_product)
+          return {
+            id_product: p.id_product,
+            product_name: p.product_name,
+            system_stock: p.system_stock,
+            unit: p.unit_kecil || 'pcs',
+            sub_category: p.sub_category,
+            physical_stock: existing?.physical_stock || 0,
+            notes: existing?.notes || ''
+          }
+        })
+        return newData
+      })
     } catch (error) {
       setBranchProducts([])
       showToast('❌ Failed to load products', 'error')
