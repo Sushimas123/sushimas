@@ -29,6 +29,9 @@ interface Gudang {
   updated_at?: string;
   product_name?: string;
   branch_name?: string;
+  is_locked?: boolean;
+  locked_by_so?: string;
+  locked_date?: string;
 }
 
 interface Product {
@@ -375,6 +378,17 @@ function GudangPageContent() {
   };
 
   const handleEdit = (item: Gudang) => {
+    // Prevent editing if record is locked
+    if (item.is_locked) {
+      alert(`❌ Cannot edit: Record is locked by ${item.locked_by_so}`);
+      return;
+    }
+    
+    // Prevent editing if it's from stock opname
+    if (item.source_type === 'stock_opname_batch') {
+      alert('❌ Cannot edit: This record is from Stock Opname batch');
+      return;
+    }
 
     const [datePart, timePart] = item.tanggal.split('T');
     const timeOnly = timePart ? timePart.split('.')[0].slice(0, 5) : '00:00';
@@ -398,29 +412,34 @@ function GudangPageContent() {
   const handleDelete = async (id: number) => {
     if (!confirm('Hapus data gudang ini?')) return;
     try {
-      // Get the gudang record first to check if it's from SO
+      // Get the gudang record first to check if it's locked or from SO
       const { data: gudangData } = await supabase
         .from('gudang')
-        .select('source_type, source_reference')
+        .select('source_type, source_reference, is_locked, locked_by_so')
         .eq('order_no', id)
         .single();
+      
+      // Prevent deletion if record is locked
+      if (gudangData?.is_locked) {
+        alert(`❌ Cannot delete: Record is locked by ${gudangData.locked_by_so}`);
+        return;
+      }
+      
+      // Prevent deletion if it's from stock opname
+      if (gudangData?.source_type === 'stock_opname_batch') {
+        alert('❌ Cannot delete: This record is from Stock Opname batch');
+        return;
+      }
       
       // Delete the gudang record using audit trail
       const { error } = await hardDeleteWithAudit('gudang', { order_no: id });
       if (error) throw error;
       
-      // If it's from stock opname, reset the SO status to pending
-      if (gudangData?.source_type === 'stock_opname_batch' && gudangData?.source_reference) {
-        const soId = gudangData.source_reference.replace('SO-', '');
-        await supabase
-          .from('stock_opname_batch')
-          .update({ status: 'pending' })
-          .eq('id_opname', parseInt(soId));
-      }
-      
       await fetchGudang();
+      showToast('✅ Record deleted successfully', 'success');
     } catch (error) {
       console.error('Error deleting gudang:', error);
+      showToast('❌ Failed to delete record', 'error');
     }
   };
 
@@ -632,32 +651,40 @@ function GudangPageContent() {
     if (!confirm(`Delete ${selectedItems.length} selected items?`)) return;
     
     try {
+      let deletedCount = 0;
+      let skippedCount = 0;
+      
       for (const id of selectedItems) {
-        // Get the gudang record first to check if it's from SO
+        // Get the gudang record first to check if it's locked or from SO
         const { data: gudangData } = await supabase
           .from('gudang')
-          .select('source_type, source_reference')
+          .select('source_type, source_reference, is_locked, locked_by_so')
           .eq('order_no', id)
           .single();
         
+        // Skip if record is locked or from SO
+        if (gudangData?.is_locked || gudangData?.source_type === 'stock_opname_batch') {
+          skippedCount++;
+          continue;
+        }
+        
         // Delete the gudang record using audit trail
         await hardDeleteWithAudit('gudang', { order_no: id });
-        
-        // If it's from stock opname, reset the SO status to pending
-        if (gudangData?.source_type === 'stock_opname_batch' && gudangData?.source_reference) {
-          const soId = gudangData.source_reference.replace('SO-', '');
-          await supabase
-            .from('stock_opname_batch')
-            .update({ status: 'pending' })
-            .eq('id_opname', parseInt(soId));
-        }
+        deletedCount++;
       }
       
       setSelectedItems([]);
       setSelectAll(false);
       await fetchGudang();
+      
+      if (skippedCount > 0) {
+        showToast(`✅ Deleted ${deletedCount} records, skipped ${skippedCount} locked/protected records`, 'success');
+      } else {
+        showToast(`✅ Deleted ${deletedCount} records successfully`, 'success');
+      }
     } catch (error) {
       console.error('Error bulk deleting:', error);
+      showToast('❌ Failed to delete records', 'error');
     }
   };
 
@@ -1047,13 +1074,14 @@ function GudangPageContent() {
                 </th>}
                 {visibleColumns.includes('nama_pengambil_barang') && <th className="px-1 py-1 text-left font-medium text-gray-700">Pengambil</th>}
                 <th className="px-1 py-1 text-left font-medium text-gray-700">Source</th>
+                <th className="px-1 py-1 text-left font-medium text-gray-700">Status</th>
                 <th className="px-1 py-1 text-left font-medium text-gray-700">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {paginatedGudang.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-1 py-2 text-center text-gray-500 text-xs">
+                  <td colSpan={13} className="px-1 py-2 text-center text-gray-500 text-xs">
                     No data found
                   </td>
                 </tr>
@@ -1061,8 +1089,8 @@ function GudangPageContent() {
                 paginatedGudang.map((item) => (
                   <tr key={item.order_no} className="hover:bg-gray-50">
                     <td className="px-1 py-1 text-center">
-                      {(item as any).source_type === 'stock_opname_batch' ? (
-                        <span className="text-gray-400 text-xs">🔒</span>
+                      {item.is_locked || (item as any).source_type === 'stock_opname_batch' ? (
+                        <span className="text-gray-400 text-xs" title={item.is_locked ? `Locked by ${item.locked_by_so}` : 'SO Protected'}>🔒</span>
                       ) : (
                         <input
                           type="checkbox"
@@ -1105,10 +1133,25 @@ function GudangPageContent() {
                       )}
                     </td>
                     <td className="px-1 py-1">
+                      {item.is_locked ? (
+                        <span className="px-1 py-0.5 bg-red-100 text-red-800 rounded text-xs font-semibold" title={`Locked by ${item.locked_by_so}`}>
+                          🔒 Locked
+                        </span>
+                      ) : (item as any).source_type === 'stock_opname_batch' ? (
+                        <span className="px-1 py-0.5 bg-orange-100 text-orange-800 rounded text-xs font-semibold">
+                          🔒 Protected
+                        </span>
+                      ) : (
+                        <span className="px-1 py-0.5 bg-green-100 text-green-800 rounded text-xs">
+                          ✓ Editable
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-1 py-1">
                       <div className="flex gap-1">
-                        {(item as any).source_type === 'stock_opname_batch' ? (
-                          <span className="text-xs text-gray-500 italic px-2 py-1">
-                            SO Protected
+                        {item.is_locked || (item as any).source_type === 'stock_opname_batch' ? (
+                          <span className="text-xs text-gray-500 italic px-2 py-1" title={item.is_locked ? `Locked by ${item.locked_by_so}` : 'SO Protected'}>
+                            {item.is_locked ? '🔒 Locked' : '📊 SO Protected'}
                           </span>
                         ) : (
                           <>

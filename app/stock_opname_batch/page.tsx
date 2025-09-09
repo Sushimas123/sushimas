@@ -319,7 +319,7 @@ export default function StockOpnameBatchPage() {
   }
 
   const handleApproveBatch = async (batchId: number) => {
-    if (!confirm('⚠️ Approve this batch? This will update stock records and cannot be undone.')) return
+    if (!confirm('⚠️ Approve this batch? This will update stock records and lock previous data.')) return
     
     setLoading(true)
     try {
@@ -340,11 +340,12 @@ export default function StockOpnameBatchPage() {
       if (detailError) throw detailError
       if (!detailData || detailData.length === 0) throw new Error('No detail data found')
       
+      // Lock all records before SO date for affected products
+      const soDateTime = `${batchData.batch_date}T${batchData.batch_time}`
+      const lockReference = `BATCH-${batchId}`
+      
       for (const detail of detailData) {
         try {
-          const difference = detail.physical_stock - (detail.system_stock || 0)
-          if (difference === 0) continue
-          
           const { data: productData, error: productError } = await supabase
             .from('nama_product')
             .select('id_product')
@@ -356,22 +357,41 @@ export default function StockOpnameBatchPage() {
             continue
           }
           
+          // Lock records before SO date that are not already locked
+          const { error: lockError } = await supabase
+            .from('gudang')
+            .update({
+              is_locked: true,
+              locked_by_so: lockReference,
+              locked_date: new Date().toISOString()
+            })
+            .eq('id_product', productData.id_product)
+            .eq('cabang', batchData.branch_code)
+            .lt('tanggal', soDateTime)
+            .eq('is_locked', false)
+          
+          if (lockError) console.warn(`Lock error for ${detail.product_name}:`, lockError)
+          
+          const difference = detail.physical_stock - (detail.system_stock || 0)
+          if (difference === 0) continue
+          
           const gudangEntry = {
             id_product: productData.id_product,
-            tanggal: `${batchData.batch_date}T${batchData.batch_time}`,
+            tanggal: soDateTime,
             jumlah_masuk: difference > 0 ? Math.abs(difference) : 0,
             jumlah_keluar: difference < 0 ? Math.abs(difference) : 0,
             total_gudang: detail.physical_stock,
             nama_pengambil_barang: `SO Batch by ${batchData.pic_name}`,
             cabang: batchData.branch_code,
             source_type: 'stock_opname_batch',
-            source_reference: `BATCH-${batchId}`
+            source_reference: lockReference,
+            is_locked: false
           }
           
           const { error: insertError } = await supabase.from('gudang').insert(gudangEntry)
           if (insertError) throw insertError
           
-          await recalculateFromDate(productData.id_product, batchData.branch_code, `${batchData.batch_date}T${batchData.batch_time}`)
+          await recalculateFromDate(productData.id_product, batchData.branch_code, soDateTime)
         } catch (error: any) {
           console.error(`Error processing ${detail.product_name}:`, error)
         }
@@ -384,7 +404,7 @@ export default function StockOpnameBatchPage() {
       
       if (statusError) throw statusError
       
-      showToast('✅ Batch approved successfully', 'success')
+      showToast('✅ Batch approved and data locked successfully', 'success')
       fetchBatches()
       
     } catch (error: any) {
@@ -443,11 +463,25 @@ export default function StockOpnameBatchPage() {
   }
 
   const revertApprovedBatch = async (batchId: number) => {
+    const lockReference = `BATCH-${batchId}`
+    
+    // Unlock records that were locked by this batch
+    const { error: unlockError } = await supabase
+      .from('gudang')
+      .update({
+        is_locked: false,
+        locked_by_so: null,
+        locked_date: null
+      })
+      .eq('locked_by_so', lockReference)
+    
+    if (unlockError) throw unlockError
+    
     // Delete gudang entries for this batch
     const { error: deleteError } = await supabase
       .from('gudang')
       .delete()
-      .eq('source_reference', `BATCH-${batchId}`)
+      .eq('source_reference', lockReference)
     
     if (deleteError) throw deleteError
     
