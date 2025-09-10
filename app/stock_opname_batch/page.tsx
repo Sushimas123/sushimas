@@ -786,6 +786,7 @@ export default function StockOpnameBatchPage() {
                   <tr>
                     <th className="px-4 py-3 text-left">Batch ID</th>
                     <th className="px-4 py-3 text-left">Date</th>
+                    <th className="px-4 py-3 text-left">Time</th> {/* Tambahkan ini */}
                     <th className="px-4 py-3 text-left">Branch</th>
                     <th className="px-4 py-3 text-left">Sub Category</th>
                     <th className="px-4 py-3 text-left">PIC</th>
@@ -808,6 +809,7 @@ export default function StockOpnameBatchPage() {
                           </button>
                         </td>
                         <td className="px-4 py-3">{batch.batch_date}</td>
+                        <td className="px-4 py-3">{batch.batch_time?.substring(0, 5) || '12:00'}</td> {/* Tambahkan ini */}        
                         <td className="px-4 py-3">{batch.nama_branch}</td>
                         <td className="px-4 py-3">{batch.sub_category}</td>
                         <td className="px-4 py-3">{batch.pic_name}</td>
@@ -870,9 +872,13 @@ export default function StockOpnameBatchPage() {
                         </td>
                       </tr>
                       {expandedBatch === batch.batch_id && (
-                        <tr>
-                          <td colSpan={8} className="px-4 py-2 bg-gray-50">
-                            <div className="max-h-64 overflow-y-auto">
+  <tr>
+    <td colSpan={9} className="px-4 py-2 bg-gray-50">
+      <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
+        <div><strong>Date:</strong> {batch.batch_date}</div>
+        <div><strong>Time:</strong> {batch.batch_time?.substring(0, 5) || '12:00'}</div>
+      </div>
+      <div className="max-h-64 overflow-y-auto">
                               <table className="w-full text-xs">
                                 <thead>
                                   <tr className="bg-gray-100">
