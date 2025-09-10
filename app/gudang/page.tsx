@@ -227,15 +227,33 @@ function GudangPageContent() {
     }
   };
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (selectedBranch?: string) => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('nama_product')
-        .select('id_product, product_name, category, sub_category')
+        .select(`
+          id_product, 
+          product_name, 
+          category, 
+          sub_category,
+          product_branches(branch_code)
+        `)
         .order('product_name');
       
+      const { data, error } = await query;
+      
       if (error) throw error;
-      setProducts(data || []);
+      
+      // Filter produk berdasarkan cabang yang dipilih
+      let filteredProducts = data || [];
+      
+      if (selectedBranch) {
+        filteredProducts = data?.filter(product => 
+          product.product_branches?.some((pb: any) => pb.branch_code === selectedBranch)
+        ) || [];
+      }
+      
+      setProducts(filteredProducts);
     } catch (error) {
       console.error('Error fetching products:', error);
     }
@@ -463,6 +481,9 @@ function GudangPageContent() {
     setProductSearch('');
     setShowAddForm(false);
     setEditingId(null);
+    
+    // Reset product filter to show all products
+    fetchProducts();
   };
 
   const handleEdit = async (item: Gudang) => {
@@ -1043,7 +1064,23 @@ function GudangPageContent() {
               />
               <select
                 value={formData.cabang}
-                onChange={(e) => setFormData(prev => ({ ...prev, cabang: e.target.value }))}
+                onChange={(e) => {
+                  const newBranch = e.target.value;
+                  setFormData(prev => ({ ...prev, cabang: newBranch }));
+                  
+                  // Reset product selection and search
+                  setFormData(prev => ({ ...prev, id_product: 0 }));
+                  setProductSearch('');
+                  
+                  // Fetch products filtered by selected branch
+                  if (newBranch) {
+                    fetchProducts(newBranch);
+                    const branchName = cabangList.find(c => c.kode_branch === newBranch)?.nama_branch;
+                    showToast(`✅ Cabang ${branchName} dipilih - produk difilter otomatis`, "success");
+                  } else {
+                    fetchProducts(); // Fetch all products if no branch selected
+                  }
+                }}
                 className="border px-2 py-1 rounded-md text-xs"
                 required
               >
@@ -1069,6 +1106,11 @@ function GudangPageContent() {
                 />
                 {showProductDropdown && (
                   <div className="absolute z-10 w-full bg-white border rounded-md shadow-lg max-h-32 overflow-y-auto">
+                    {formData.cabang && (
+                      <div className="px-2 py-1 bg-blue-50 border-b text-xs text-blue-800">
+                        📍 {cabangList.find(c => c.kode_branch === formData.cabang)?.nama_branch} - {filteredProducts.length} produk tersedia
+                      </div>
+                    )}
                     {filteredProducts.length > 0 ? (
                       filteredProducts.map((product) => (
                         <div
@@ -1080,7 +1122,17 @@ function GudangPageContent() {
                         </div>
                       ))
                     ) : (
-                      <div className="px-2 py-1 text-xs text-gray-500">No products found</div>
+                      <div className="px-2 py-1 text-xs text-gray-500">
+                        {formData.cabang 
+                          ? (
+                            <div>
+                              <p>Tidak ada produk yang terdaftar untuk cabang {cabangList.find(c => c.kode_branch === formData.cabang)?.nama_branch}</p>
+                              <p className="text-xs mt-1 text-gray-400">Pastikan produk sudah dikonfigurasi di halaman Product Management</p>
+                            </div>
+                          )
+                          : 'No products found'
+                        }
+                      </div>
                     )}
                   </div>
                 )}
@@ -1232,7 +1284,7 @@ function GudangPageContent() {
                         </span>
                       ) : (
                         <span className="px-1 py-0.5 bg-green-100 text-green-800 rounded text-xs">
-                          ✓ Editable
+                          ✓ Open
                         </span>
                       )}
                     </td>

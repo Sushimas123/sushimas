@@ -103,9 +103,16 @@ export default function StockOpnameBatchPage() {
     setLoadingBranchData(true)
     
     try {
+      // Query produk dengan filter cabang dari product_branches
       const { data: productsData, error: productError } = await supabase
         .from("nama_product")
-        .select("id_product, product_name, unit_kecil, sub_category")
+        .select(`
+          id_product, 
+          product_name, 
+          unit_kecil, 
+          sub_category,
+          product_branches(branch_code)
+        `)
         .eq("sub_category", subCategory)
         .order("product_name")
       
@@ -114,12 +121,23 @@ export default function StockOpnameBatchPage() {
         return
       }
       
+      // Filter produk berdasarkan cabang yang dipilih
+      const filteredProducts = productsData.filter(product => 
+        product.product_branches?.some((pb: any) => pb.branch_code === branchCode)
+      )
+      
+      if (filteredProducts.length === 0) {
+        setBranchProducts([])
+        showToast(`ℹ️ Tidak ada produk ${subCategory} yang terdaftar untuk cabang ini`, 'error')
+        return
+      }
+      
       // Gunakan tanggal dan waktu dari parameter atau dari form
       const cutoffDate = soDate || form.opname_date
       const cutoffTime = soTime || form.opname_time || '12:00:00'
       const cutoffDateTime = `${cutoffDate} ${cutoffTime}`
       
-      const stockPromises = productsData.map(async (product) => {
+      const stockPromises = filteredProducts.map(async (product) => {
         try {
           // Stok sistem saat SO (historical)
           const { data: stockData, error } = await supabase
@@ -894,10 +912,17 @@ export default function StockOpnameBatchPage() {
                   <select
                     value={selectedBranch}
                     onChange={(e) => {
-                      setSelectedBranch(e.target.value)
+                      const newBranch = e.target.value
+                      setSelectedBranch(newBranch)
                       setBranchProducts([])
-                      if (e.target.value && selectedSubCategory) {
-                        fetchBranchProducts(e.target.value, selectedSubCategory, form.opname_date, form.opname_time)
+                      
+                      if (newBranch) {
+                        const branchName = branches.find(b => b.kode_branch === newBranch)?.nama_branch
+                        showToast(`✅ Cabang ${branchName} dipilih - produk akan difilter otomatis`, "success")
+                        
+                        if (selectedSubCategory) {
+                          fetchBranchProducts(newBranch, selectedSubCategory, form.opname_date, form.opname_time)
+                        }
                       }
                     }}
                     className="w-full border px-3 py-2 rounded-md"
@@ -955,7 +980,14 @@ export default function StockOpnameBatchPage() {
                 </div>
               ) : branchProducts.length > 0 ? (
                 <div className="mb-4">
-                  <h4 className="font-medium mb-2">Produk ({branchProducts.length})</h4>
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className="font-medium">Produk Stock Opname</h4>
+                    <div className="text-sm text-gray-600">
+                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                        📍 {branches.find(b => b.kode_branch === selectedBranch)?.nama_branch} - {branchProducts.length} produk {selectedSubCategory}
+                      </span>
+                    </div>
+                  </div>
                   <div className="max-h-96 overflow-y-auto border rounded-md">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 sticky top-0">
@@ -1016,7 +1048,10 @@ export default function StockOpnameBatchPage() {
                   {errors.physical_stock && <p className="text-red-500 text-xs mt-1">{errors.physical_stock}</p>}
                 </div>
               ) : selectedBranch && selectedSubCategory ? (
-                <div className="text-center py-4 text-gray-500">Tidak ada produk ditemukan</div>
+                <div className="text-center py-4 text-gray-500">
+                  <p>Tidak ada produk {selectedSubCategory} yang terdaftar untuk cabang {branches.find(b => b.kode_branch === selectedBranch)?.nama_branch}</p>
+                  <p className="text-xs mt-1">Pastikan produk sudah dikonfigurasi di halaman Product Management untuk cabang ini</p>
+                </div>
               ) : null}
 
               <div className="flex gap-2">

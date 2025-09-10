@@ -151,12 +151,12 @@ function ReadyPageContent() {
     loadData();
   }, []);
 
-  // Fetch products when categories change
+  // Fetch products when categories or selected branch change
   useEffect(() => {
     if (selectedCategories.length > 0) {
       fetchMenuProducts();
     }
-  }, [selectedCategories]);
+  }, [selectedCategories, selectedBranch]);
 
   useEffect(() => {
     if (selectedSubCategory && menuProducts.length > 0) {
@@ -293,14 +293,34 @@ function ReadyPageContent() {
 
   const fetchMenuProducts = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('nama_product')
-        .select('id_product, product_name, sub_category, category')
+        .select(`
+          id_product, 
+          product_name, 
+          sub_category, 
+          category,
+          product_branches(branch_code)
+        `)
         .in('category', selectedCategories)
-        .order('product_name');
+      
+      const { data, error } = await query.order('product_name');
       
       if (error) throw error;
-      setMenuProducts(data || []);
+      
+      // Filter produk berdasarkan cabang yang dipilih
+      let filteredProducts = data || [];
+      
+      if (selectedBranch) {
+        const selectedBranchCode = branches.find(b => b.id_branch === parseInt(selectedBranch))?.kode_branch;
+        if (selectedBranchCode) {
+          filteredProducts = data?.filter(product => 
+            product.product_branches?.some((pb: any) => pb.branch_code === selectedBranchCode)
+          ) || [];
+        }
+      }
+      
+      setMenuProducts(filteredProducts);
     } catch (error) {
       console.error('Error fetching menu products:', error);
     }
@@ -979,7 +999,17 @@ function ReadyPageContent() {
                   <label className="block text-xs font-medium mb-1 text-gray-700">Cabang *</label>
                   <select
                     value={selectedBranch}
-                    onChange={(e) => setSelectedBranch(e.target.value)}
+                    onChange={(e) => {
+                      const newBranch = e.target.value
+                      setSelectedBranch(newBranch)
+                      setSelectedSubCategory('')
+                      setFormProducts([])
+                      
+                      if (newBranch) {
+                        const branchName = branches.find(b => b.id_branch === parseInt(newBranch))?.nama_branch
+                        showToast(`✅ Cabang ${branchName} dipilih - produk difilter otomatis`, "success")
+                      }
+                    }}
                     className="border px-2 py-1 rounded-md text-xs w-full"
                     required
                   >
@@ -1023,6 +1053,7 @@ function ReadyPageContent() {
                     ))}
                   </div>
                 </div>
+
                 <div>
                   <label className="block text-xs font-medium mb-1 text-gray-700">Sub Category *</label>
                   <select
@@ -1042,7 +1073,21 @@ function ReadyPageContent() {
               {/* Products Form */}
               {formProducts.length > 0 && (
                 <div className="mb-4">
-                  <h3 className="font-medium text-sm mb-2">Input Ready & Waste untuk {selectedSubCategory}</h3>
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-medium text-sm">Input Ready & Waste untuk {selectedSubCategory}</h3>
+                    <div className="text-xs text-gray-600">
+                      {selectedBranch && (
+                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                          📍 {branches.find(b => b.id_branch === parseInt(selectedBranch))?.nama_branch} - {formProducts.length} produk
+                        </span>
+                      )}
+                      {!selectedBranch && (
+                        <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded">
+                          🌐 Semua Produk - {formProducts.length} produk
+                        </span>
+                      )}
+                    </div>
+                  </div>
                   <div className="overflow-x-auto border rounded">
                     <table className="w-full text-xs">
                       <thead className="bg-gray-100">

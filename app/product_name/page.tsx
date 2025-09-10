@@ -41,6 +41,8 @@ export default function ProductPage() {
   const [selectedSupplierText, setSelectedSupplierText] = useState("")
   const [showAddForm, setShowAddForm] = useState(false)
   const [userRole, setUserRole] = useState<string>('guest')
+  const [submitting, setSubmitting] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
 
   // Get user role
   useEffect(() => {
@@ -59,6 +61,19 @@ export default function ProductPage() {
     fetchBranches()
   }, [])
 
+  // Reset pagination when filters change
+  useEffect(() => {
+    setPage(1)
+  }, [search, filters])
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchTerm)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
   const fetchData = useCallback(async () => {
     setLoading(true)
     const { data, error } = await supabase
@@ -68,7 +83,12 @@ export default function ProductPage() {
         suppliers(nama_supplier),
         product_branches(branches(kode_branch, nama_branch))
       `)
-    if (!error) setData(data || [])
+    if (error) {
+      console.error('Error fetching products:', error)
+      showToast(`Database error: ${error.message}`, "error")
+    } else {
+      setData(data || [])
+    }
     setLoading(false)
   }, [])
 
@@ -130,6 +150,8 @@ export default function ProductPage() {
   }
 
   const handleSubmit = async () => {
+    if (submitting) return;
+    
     const newErrors: Record<string, string> = {};
     
     if (!form.product_name?.trim()) {
@@ -151,6 +173,7 @@ export default function ProductPage() {
     }
     
     setErrors({});
+    setSubmitting(true);
 
     try {
       if (editing) {
@@ -164,7 +187,8 @@ export default function ProductPage() {
           satuan_besar: form.satuan_besar ? parseFloat(form.satuan_besar) : null,
           supplier_id: form.supplier_id ? parseInt(form.supplier_id) : null,
           category: form.category,
-          harga: form.harga ? parseFloat(form.harga) : 0
+          harga: form.harga ? parseFloat(form.harga) : 0,
+          merk: form.merk
         }
         
         const { error } = await supabase.from("nama_product").update(updateData).eq("id_product", form.id_product)
@@ -184,7 +208,8 @@ export default function ProductPage() {
           satuan_besar: form.satuan_besar ? parseFloat(form.satuan_besar) : null,
           supplier_id: form.supplier_id ? parseInt(form.supplier_id) : null,
           category: form.category,
-          harga: form.harga ? parseFloat(form.harga) : 0
+          harga: form.harga ? parseFloat(form.harga) : 0,
+          merk: form.merk
         }
         
         const { error } = await supabase.from("nama_product").insert([insertData])
@@ -226,16 +251,26 @@ export default function ProductPage() {
         }
       }
       
-      setForm({})
-      setSelectedBranches([])
-      setEditing(false)
-      setShowAddForm(false)
+      resetForm()
       fetchData()
     } catch (error) {
       console.error('Save error:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       showToast(`❌ ${errorMessage}`, "error")
+    } finally {
+      setSubmitting(false)
     }
+  }
+
+  const resetForm = () => {
+    setForm({})
+    setEditing(false)
+    setErrors({})
+    setSupplierSearch("")
+    setSelectedSupplierText("")
+    setSelectedBranches([])
+    setShowSupplierDropdown(false)
+    setShowAddForm(false)
   }
 
   const handleEdit = (row: any) => {
@@ -262,11 +297,15 @@ export default function ProductPage() {
   const handleDelete = async (id: number) => {
     try {
       const { error } = await supabase.from("nama_product").delete().eq("id_product", id)
-      if (error) throw error
+      if (error) {
+        console.error('Delete error:', error)
+        throw new Error(error.message || 'Failed to delete product')
+      }
       showToast("✅ Product deleted successfully", "success")
       fetchData()
     } catch (error) {
-      showToast("❌ Failed to delete product", "error")
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      showToast(`❌ Delete failed: ${errorMessage}`, "error")
     } finally {
       setDeleteConfirm({show: false, id: null});
     }
@@ -310,12 +349,27 @@ export default function ProductPage() {
 
   // Export XLSX
   const exportXLSX = () => {
-    if (data.length === 0) {
+    if (filteredData.length === 0) {
       showToast("❌ No data to export", "error")
       return
     }
     
-    const ws = XLSX.utils.json_to_sheet(data)
+    // Include merk field in export - use filtered data
+    const exportData = filteredData.map(item => ({
+      id_product: item.id_product,
+      product_name: item.product_name,
+      sub_category: item.sub_category,
+      unit_kecil: item.unit_kecil,
+      satuan_kecil: item.satuan_kecil,
+      unit_besar: item.unit_besar,
+      satuan_besar: item.satuan_besar,
+      supplier_id: item.supplier_id,
+      category: item.category,
+      harga: item.harga,
+      merk: item.merk
+    }))
+    
+    const ws = XLSX.utils.json_to_sheet(exportData)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, "Products")
     XLSX.writeFile(wb, `products_${new Date().toISOString().split('T')[0]}.xlsx`)
@@ -343,6 +397,7 @@ export default function ProductPage() {
             if (row.sub_category?.toString().trim()) entry.sub_category = row.sub_category.toString().trim()
             if (row.unit_kecil?.toString().trim()) entry.unit_kecil = row.unit_kecil.toString().trim()
             if (row.unit_besar?.toString().trim()) entry.unit_besar = row.unit_besar.toString().trim()
+            if (row.merk?.toString().trim()) entry.merk = row.merk.toString().trim()
             if (row.supplier_id) {
               const supplierId = parseInt(row.supplier_id)
               if (!isNaN(supplierId)) entry.supplier_id = supplierId
@@ -476,8 +531,8 @@ export default function ProductPage() {
         <input
           type="text"
           placeholder="🔍 Search products..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
           className="border px-2 py-1 rounded-md text-xs w-full sm:w-64"
         />
         
@@ -574,6 +629,7 @@ export default function ProductPage() {
             "unit_besar",
             "satuan_besar",
             "harga",
+            "merk",
           ].map((field) => (
             <div key={field}>
               <input
@@ -581,6 +637,11 @@ export default function ProductPage() {
                 value={form[field] || ""}
                 onChange={handleInput}
                 placeholder={toTitleCase(field.replace(/_/g, ' '))}
+                onInput={(e) => {
+                  if (['satuan_kecil', 'satuan_besar', 'harga'].includes(field)) {
+                    (e.target as HTMLInputElement).value = (e.target as HTMLInputElement).value.replace(/[^0-9.]/g, '');
+                  }
+                }}
                 className={`border px-2 py-1 rounded-md text-xs focus:ring focus:ring-blue-200 w-full ${
                   errors[field] ? 'border-red-500' : ''
                 }`}
@@ -592,7 +653,7 @@ export default function ProductPage() {
             <input
               type="text"
               placeholder="Type to search suppliers..."
-              value={selectedSupplierText || supplierSearch}
+              value={editing ? selectedSupplierText : supplierSearch}
               onChange={(e) => {
                 const value = e.target.value
                 setSupplierSearch(value)
@@ -609,6 +670,11 @@ export default function ProductPage() {
               onBlur={() => {
                 // Delay hiding dropdown to allow clicks
                 setTimeout(() => setShowSupplierDropdown(false), 200)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setShowSupplierDropdown(false)
+                }
               }}
               className={`border px-2 py-1 rounded-md text-xs w-full ${
                 errors.supplier_id ? 'border-red-500' : ''
@@ -693,37 +759,25 @@ export default function ProductPage() {
         <div className="flex gap-2 mt-4">
           <button 
             onClick={handleSubmit} 
-            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-xs"
+            disabled={submitting}
+            className={`px-3 py-1 rounded-md text-xs ${
+              submitting 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-green-600 hover:bg-green-700'
+            } text-white`}
           >
-            {editing ? "Update Product" : "Add Product"}
+            {submitting ? 'Saving...' : (editing ? "Update Product" : "Add Product")}
           </button>
           {editing && (
             <button 
-              onClick={() => {
-                setForm({})
-                setEditing(false)
-                setErrors({})
-                setSupplierSearch("")
-                setSelectedSupplierText("")
-                setSelectedBranches([])
-                setShowSupplierDropdown(false)
-              }} 
+              onClick={resetForm} 
               className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-xs"
             >
               Cancel Edit
             </button>
           )}
           <button 
-            onClick={() => {
-              setForm({})
-              setEditing(false)
-              setErrors({})
-              setSupplierSearch("")
-              setSelectedSupplierText("")
-              setSelectedBranches([])
-              setShowSupplierDropdown(false)
-              setShowAddForm(false)
-            }} 
+            onClick={resetForm} 
             className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-xs"
           >
             Cancel
@@ -748,7 +802,8 @@ export default function ProductPage() {
                 { key: "supplier", label: "Supplier" },
                 { key: "harga", label: "Harga" },
                 { key: "category", label: "Category" },
-                { key: "branches", label: "Branches" }
+                { key: "branches", label: "Branches" }, 
+                { key: "merk", label:"Merk"}
               ].map((col) => (
                 <th
                   key={col.key}
@@ -795,7 +850,9 @@ export default function ProductPage() {
                   <td className="border px-1 py-1 truncate">{toTitleCase(row.satuan_kecil)}</td>
                   <td className="border px-1 py-1 truncate">{toTitleCase(row.unit_besar)}</td>
                   <td className="border px-1 py-1 truncate">{toTitleCase(row.satuan_besar)}</td>
-                  <td className="border px-1 py-1 truncate">{toTitleCase(row.suppliers?.nama_supplier || 'No Supplier')}</td>
+                  <td className="border px-1 py-1 truncate">
+                    {row.suppliers ? toTitleCase(row.suppliers.nama_supplier) : 'No Supplier'}
+                  </td>
                   <td className="border px-1 py-1 truncate">{row.harga}</td>
                   <td className="border px-1 py-1 text-center">
                     <span className={`px-1 py-0.5 rounded text-xs font-semibold ${
@@ -809,13 +866,14 @@ export default function ProductPage() {
                   </td>
                   <td className="border px-1 py-1">
                     <div className="flex flex-wrap gap-1">
-                      {row.product_branches?.map((pb: any) => (
+                      {row.product_branches?.filter((pb: any) => pb.branches).map((pb: any) => (
                         <span key={pb.branches.kode_branch} className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
                           {pb.branches.nama_branch}
                         </span>
                       )) || <span className="text-gray-400 text-xs">No branches</span>}
                     </div>
                   </td>
+                  <td className="border px-1 py-1 truncate">{toTitleCase(row.merk)}</td>
                   <td className="border px-1 py-1">
                     <div className="flex gap-1">
                       {canPerformActionSync(userRole, 'product_name', 'edit') && (
@@ -865,9 +923,21 @@ export default function ProductPage() {
           >
             Prev
           </button>
-          <span className="px-2 py-0.5 border rounded text-xs">
-            Page {page} of {totalPages || 1}
-          </span>
+          <div className="flex items-center gap-1">
+            <span className="text-xs">Page</span>
+            <input
+              type="number"
+              min="1"
+              max={totalPages}
+              value={page}
+              onChange={(e) => {
+                const newPage = Math.max(1, Math.min(totalPages, Number(e.target.value)))
+                setPage(newPage)
+              }}
+              className="w-12 px-1 py-0.5 border rounded text-xs text-center"
+            />
+            <span className="text-xs">of {totalPages || 1}</span>
+          </div>
           <button 
             disabled={page === totalPages || totalPages === 0} 
             onClick={() => setPage(p => p + 1)}
