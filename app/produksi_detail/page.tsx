@@ -44,6 +44,12 @@ export default function ProduksiDetailPage() {
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
   const [userRole, setUserRole] = useState<string>('guest');
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     fetchDetails();
@@ -82,31 +88,14 @@ export default function ProduksiDetailPage() {
 
   const fetchDetails = async () => {
     try {
-      // Fetch all data using pagination
-      let allData: any[] = [];
-      let from = 0;
-      const batchSize = 1000;
-      let hasMore = true;
+      // Fetch limited data to prevent memory leak
+      const { data: allData, error } = await supabase
+        .from('produksi_detail')
+        .select('*')
+        .order('tanggal_input', { ascending: false })
+        .limit(5000); // Reasonable limit to prevent memory issues
 
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('produksi_detail')
-          .select('*')
-          .order('tanggal_input', { ascending: false })
-          .range(from, from + batchSize - 1);
-
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          allData = [...allData, ...data];
-          from += batchSize;
-          hasMore = data.length === batchSize;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      const data = allData;
+      if (error) throw error;
       
       if (!allData || allData.length === 0) {
         setDetails([]);
@@ -147,16 +136,16 @@ export default function ProduksiDetailPage() {
         console.error('Error fetching branches:', branchResult.error);
       }
       
-      // Create lookup maps
+      // Create lookup maps with proper fallbacks
       const productMap = new Map(productResult.data?.map(p => [p.id_product, p.product_name]) || []);
       const branchMap = new Map(branchResult.data?.map(b => [b.kode_branch, b.nama_branch]) || []);
       
       // Map details with product names and branch names
       const detailsWithNames = allData.map(detail => ({
         ...detail,
-        product_name: productMap.get(detail.id_product) || '',
-        item_name: productMap.get(detail.item_id) || '',
-        branch_name: branchMap.get(detail.branch) || detail.branch || ''
+        product_name: productMap.get(detail.id_product) || 'Unknown Product',
+        item_name: productMap.get(detail.item_id) || 'Unknown Item',
+        branch_name: branchMap.get(detail.branch) || detail.branch || 'Unknown Branch'
       }));
       
       setDetails(detailsWithNames);
@@ -217,12 +206,12 @@ export default function ProduksiDetailPage() {
 
       if (recipeError) {
         console.error('Error fetching recipes:', recipeError);
-        alert('Error accessing recipes table. Please check database schema.');
+        showToast('❌ Error accessing recipes table', 'error');
         return;
       }
       
       if (!recipes || recipes.length === 0) {
-        alert(`No recipes found for product ID: ${produksi.id_product}. Please add recipes for this product first.`);
+        showToast(`❌ No recipes found for product ID: ${produksi.id_product}`, 'error');
         return;
       }
       
@@ -254,9 +243,10 @@ export default function ProduksiDetailPage() {
       }
 
       await fetchDetails();
+      showToast('✅ Production details generated successfully', 'success');
     } catch (error) {
       console.error('Error generating details:', error);
-      alert(`Failed to generate production details: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showToast(`❌ Failed to generate production details: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
     }
   };
 
@@ -297,10 +287,10 @@ export default function ProduksiDetailPage() {
         setRecalculateProgress(i + 1);
       }
       
-      // Recalculation completed silently
+      showToast('✅ All production details recalculated successfully', 'success');
     } catch (error) {
       console.error('Error recalculating:', error);
-      alert('Failed to recalculate details');
+      showToast('❌ Failed to recalculate details', 'error');
     } finally {
       setIsRecalculating(false);
       setRecalculateProgress(0);
@@ -390,6 +380,13 @@ export default function ProduksiDetailPage() {
     <Layout>
       <PageAccessControl pageName="produksi_detail">
         <div className="p-2">
+        {toast && (
+          <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 ${
+            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+          }`}>
+            {toast.message}
+          </div>
+        )}
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-lg font-bold text-gray-800">🏭 Production Details</h1>
           <div className="flex gap-2">
