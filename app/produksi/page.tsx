@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
-import { Plus, Edit, Trash2, Download, Upload, RefreshCw, Settings, Eye, EyeOff } from 'lucide-react';
+import { Plus, Edit, Trash2, Download, Upload } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { canPerformActionSync, getUserRole } from '@/src/utils/rolePermissions';
-import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
+import { insertWithAudit, updateWithAudit, deleteWithAudit, hardDeleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
 import PageAccessControl from '../../components/PageAccessControl';
 import { canViewColumn } from '@/src/utils/dbPermissions';
 import { getBranchFilter } from '@/src/utils/branchAccess';
@@ -61,11 +61,11 @@ export default function ProduksiPage() {
   const productDropdownRef = useRef<HTMLDivElement>(null);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [branches, setBranches] = useState<string[]>([]);
-  const [showColumnSelector, setShowColumnSelector] = useState(false);
-  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
   const [userRole, setUserRole] = useState<string>('guest');
-  const [permittedColumns, setPermittedColumns] = useState<string[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     fetchProduksi();
@@ -81,45 +81,17 @@ export default function ProduksiPage() {
     }
   }, []);
 
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, dateFilter, divisiFilter, branchFilter]);
+
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
   }
 
-  // Get columns based on permissions
-  useEffect(() => {
-    const loadPermittedColumns = async () => {
-      if (produksi.length > 0) {
-        const allColumns = Object.keys(produksi[0])
-        const permitted = []
-        
-        for (const col of allColumns) {
-          const hasPermission = await canViewColumn(userRole, 'produksi', col)
-          if (hasPermission) {
-            permitted.push(col)
-          }
-        }
-        
-        setPermittedColumns(permitted)
-      }
-    }
-    
-    loadPermittedColumns()
-  }, [produksi, userRole])
-  
-  const visibleColumns = permittedColumns.filter(col => !hiddenColumns.includes(col))
 
-  const toggleColumn = async (col: string) => {
-    const hasPermission = await canViewColumn(userRole, 'produksi', col)
-    if (!hasPermission) {
-      showToast(`You don't have permission to view ${col} column`, 'error')
-      return
-    }
-    
-    setHiddenColumns(prev =>
-      prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
-    )
-  }
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -143,12 +115,21 @@ export default function ProduksiPage() {
 
   const fetchProduksi = async () => {
     try {
+      console.log('Fetching produksi data...');
       const [produksiData, productsData] = await Promise.all([
         supabase.from('produksi').select('*').order('tanggal_input', { ascending: false }),
         supabase.from('nama_product').select('id_product, product_name')
       ]);
 
-      if (produksiData.error) throw produksiData.error;
+      if (produksiData.error) {
+        console.error('Produksi data error:', produksiData.error);
+        throw produksiData.error;
+      }
+      
+      if (productsData.error) {
+        console.error('Products data error:', productsData.error);
+        throw productsData.error;
+      }
       
       const productMap = new Map(productsData.data?.map(p => [p.id_product, p.product_name]) || []);
       
@@ -157,9 +138,11 @@ export default function ProduksiPage() {
         product_name: productMap.get(item.id_product) || ''
       }));
       
+      console.log('Fetched produksi records:', produksiWithNames.length);
       setProduksi(produksiWithNames);
     } catch (error) {
       console.error('Error fetching produksi:', error);
+      showToast('❌ Gagal memuat data produksi', 'error');
     } finally {
       setLoading(false);
     }
@@ -173,7 +156,11 @@ export default function ProduksiPage() {
         .eq('category', 'WIP')
         .order('product_name');
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching WIP products:', error);
+        showToast('❌ Gagal memuat data produk', 'error');
+        throw error;
+      }
       setWipProducts(data || []);
     } catch (error) {
       console.error('Error fetching WIP products:', error);
@@ -188,7 +175,11 @@ export default function ProduksiPage() {
         .eq('category', 'WIP')
         .not('sub_category', 'is', null);
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching sub categories:', error);
+        showToast('❌ Gagal memuat data sub kategori', 'error');
+        throw error;
+      }
       
       const uniqueSubCategories = [...new Set(data?.map(item => item.sub_category).filter(Boolean))] as string[];
       setSubCategories(uniqueSubCategories);
@@ -205,7 +196,11 @@ export default function ProduksiPage() {
         .eq('is_active', true)
         .order('nama_branch');
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching branches:', error);
+        showToast('❌ Gagal memuat data cabang', 'error');
+        throw error;
+      }
       setBranches(data?.map(b => b.nama_branch) || []);
     } catch (error) {
       console.error('Error fetching branches:', error);
@@ -215,11 +210,24 @@ export default function ProduksiPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.production_no.trim() || !formData.divisi.trim() || !formData.branch.trim()) {
-      alert('Production No, Divisi, dan Branch wajib diisi');
+      showToast('❌ Production No, Divisi, dan Branch wajib diisi', 'error');
+      return;
+    }
+
+    if (formData.id_product === 0) {
+      showToast('❌ Product harus dipilih', 'error');
       return;
     }
 
     const jumlahBuat = parseFloat(formData.jumlah_buat as string) || 0;
+    if (jumlahBuat <= 0) {
+      showToast('❌ Jumlah buat harus lebih dari 0', 'error');
+      return;
+    }
+
+    if (submitting) return; // Prevent double submission
+    setSubmitting(true);
+
     const konversi = parseFloat(formData.konversi as string) || 0;
     
     const submitData = {
@@ -229,24 +237,67 @@ export default function ProduksiPage() {
       divisi: formData.divisi,
       branch: formData.branch,
       jumlah_buat: jumlahBuat,
-      konversi: konversi,
+      konversi: konversi
+      // total_konversi removed - likely computed column
     };
 
     try {
       if (editingId) {
-        await updateWithAudit('produksi', submitData, { id: editingId });
-        alert('Produksi berhasil diupdate!');
+        console.log('Updating produksi with ID:', editingId, 'Data:', submitData);
+        
+        // Direct update without audit trail columns that don't exist
+        const { error } = await supabase
+          .from('produksi')
+          .update(submitData)
+          .eq('id', editingId);
+        
+        if (error) {
+          throw new Error(error.message);
+        }
+        
+        // Manual audit log
+        await logAuditTrail({
+          table_name: 'produksi',
+          record_id: editingId,
+          action: 'UPDATE',
+          new_values: submitData
+        });
+        
+        showToast('✅ Produksi berhasil diupdate!', 'success');
       } else {
-        await insertWithAudit('produksi', submitData);
-        alert('Produksi berhasil ditambahkan!');
+        console.log('Inserting new produksi:', submitData);
+        const result = await insertWithAudit('produksi', submitData);
+        console.log('Insert result:', result);
+        
+        if (result.error) {
+          throw new Error(result.error.message);
+        }
+        
+        showToast('✅ Produksi berhasil ditambahkan!', 'success');
       }
 
+      // Reset form first
       resetForm();
+      
+      // Force refresh data
+      console.log('Refreshing data...');
       await fetchProduksi();
+      
+      // Clear any filters that might hide the updated record
+      if (editingId) {
+        setSearchTerm('');
+        setDateFilter('');
+        setDivisiFilter('');
+        setBranchFilter('');
+        setCurrentPage(1);
+      }
+      
     } catch (error) {
       console.error('Error saving produksi:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      alert(`Gagal menyimpan produksi: ${errorMessage}`);
+      showToast(`❌ Gagal menyimpan produksi: ${errorMessage}`, 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -283,12 +334,12 @@ export default function ProduksiPage() {
   const handleDelete = async (id: number) => {
     if (!confirm('Hapus produksi ini?')) return;
     try {
-      await deleteWithAudit('produksi', { id });
+      await hardDeleteWithAudit('produksi', { id });
       await fetchProduksi();
-      alert('Produksi berhasil dihapus!');
+      showToast('✅ Produksi berhasil dihapus!', 'success');
     } catch (error) {
       console.error('Error deleting produksi:', error);
-      alert('Gagal menghapus produksi');
+      showToast('❌ Gagal menghapus produksi', 'error');
     }
   };
 
@@ -312,17 +363,29 @@ export default function ProduksiPage() {
     if (selectedItems.length === 0) return;
     if (!confirm(`Hapus ${selectedItems.length} produksi yang dipilih?`)) return;
     
+    setDeleting(true);
     try {
-      for (const id of selectedItems) {
-        await deleteWithAudit('produksi', { id });
-      }
+      const { error } = await supabase
+        .from('produksi')
+        .delete()
+        .in('id', selectedItems);
+      
+      if (error) throw error;
+      
+      // Audit trail untuk bulk delete
+      await insertWithAudit('produksi_bulk_delete', {
+        deleted_ids: selectedItems,
+        deleted_count: selectedItems.length
+      });
       
       setSelectedItems([]);
       await fetchProduksi();
-      alert(`${selectedItems.length} produksi berhasil dihapus!`);
+      showToast(`✅ ${selectedItems.length} produksi berhasil dihapus!`, 'success');
     } catch (error) {
       console.error('Error bulk deleting:', error);
-      alert('Gagal menghapus produksi');
+      showToast('❌ Gagal menghapus produksi', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -363,7 +426,7 @@ export default function ProduksiPage() {
       
       const matchesDate = !dateFilter || item.tanggal_input.includes(dateFilter);
       const matchesDivisi = !divisiFilter || item.divisi.toLowerCase().includes(divisiFilter.toLowerCase());
-      const matchesBranch = !branchFilter || item.branch === branchFilter;
+      const matchesBranch = !branchFilter || item.branch.toLowerCase() === branchFilter.toLowerCase();
       
       return matchesSearch && matchesDate && matchesDivisi && matchesBranch;
     });
@@ -417,6 +480,7 @@ export default function ProduksiPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     
+    setImporting(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
@@ -435,8 +499,11 @@ export default function ProduksiPage() {
         
         // Convert Excel date if needed
         if (typeof tanggalInput === 'number') {
+          // Convert Excel serial date to JS Date (Excel uses 1900 date system with known bug)
           const excelEpoch = new Date(1900, 0, 1);
-          const date = new Date(excelEpoch.getTime() + (tanggalInput - 2) * 24 * 60 * 60 * 1000);
+          // Adjust for Excel's incorrect leap year assumption (1900 was not a leap year)
+          const days = tanggalInput - (tanggalInput > 59 ? 1 : 0); // Adjust for Excel's 1900 leap year bug
+          const date = new Date(excelEpoch.getTime() + (days - 1) * 24 * 60 * 60 * 1000);
           tanggalInput = date.toISOString().split('T')[0];
         } else if (tanggalInput) {
           tanggalInput = tanggalInput.toString().trim();
@@ -487,7 +554,7 @@ export default function ProduksiPage() {
       if (duplicateCount > 0) {
         message += ` (${duplicateCount} duplicates skipped)`;
       }
-      alert(message);
+      showToast(message, 'success');
       
       if (importCount > 0) {
         await fetchProduksi();
@@ -495,39 +562,15 @@ export default function ProduksiPage() {
       
     } catch (error) {
       console.error('Import error:', error);
-      alert('❌ Failed to import Excel file');
+      showToast('❌ Failed to import Excel file', 'error');
+    } finally {
+      setImporting(false);
     }
     
     e.target.value = '';
   };
 
-  const recalculateAllTotals = async () => {
-    try {
-      // Get all production records
-      const { data: allRecords, error } = await supabase
-        .from('produksi')
-        .select('id, jumlah_buat, konversi');
-      
-      if (error) throw error;
-      
-      // Update total_konversi for each record
-      for (const record of allRecords || []) {
-        const totalKonversi = record.jumlah_buat * record.konversi;
-        
-        await supabase
-          .from('produksi')
-          .update({ total_konversi: totalKonversi })
-          .eq('id', record.id);
-      }
-      
-      alert('✅ All totals recalculated successfully');
-      await fetchProduksi();
-      
-    } catch (error) {
-      console.error('Recalculate error:', error);
-      alert('❌ Failed to recalculate totals');
-    }
-  };
+
 
   if (loading) {
     return (
@@ -544,6 +587,13 @@ export default function ProduksiPage() {
     <Layout>
       <PageAccessControl pageName="produksi">
         <div className="p-1 md:p-2">
+        {toast && (
+          <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 ${
+            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+          }`}>
+            {toast.message}
+          </div>
+        )}
         <div className="flex items-center gap-3 mb-1">
           <h1 className="text-sm font-bold text-gray-800">🏭 Production</h1>
         </div>
@@ -585,21 +635,19 @@ export default function ProduksiPage() {
             </select>
           </div>
           <div className="flex flex-wrap gap-1">
-            <button onClick={recalculateAllTotals} className="bg-purple-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1">
-              <RefreshCw size={12} />Recalculate
-            </button>
             {(userRole === 'super admin' || userRole === 'admin') && (
               <button onClick={handleExport} className="bg-green-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1">
                 <Download size={12} />Export
               </button>
             )}
             {(userRole === 'super admin' || userRole === 'admin') && (
-              <label className="bg-orange-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1 cursor-pointer hover:bg-orange-700">
-                <Upload size={12} />Import
+              <label className={`bg-orange-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1 cursor-pointer hover:bg-orange-700 ${importing ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <Upload size={12} />{importing ? 'Importing...' : 'Import'}
                 <input
                   type="file"
                   accept=".xlsx,.xls"
                   onChange={handleImport}
+                  disabled={importing}
                   className="hidden"
                 />
               </label>
@@ -607,9 +655,10 @@ export default function ProduksiPage() {
             {selectedItems.length > 0 && canPerformActionSync(userRole, 'produksi', 'delete') && (
               <button
                 onClick={handleBulkDelete}
-                className="bg-red-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
+                disabled={deleting}
+                className="bg-red-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Trash2 size={12} />Delete ({selectedItems.length})
+                <Trash2 size={12} />{deleting ? 'Deleting...' : `Delete (${selectedItems.length})`}
               </button>
             )}
             {canPerformActionSync(userRole, 'produksi', 'create') && (
@@ -625,13 +674,7 @@ export default function ProduksiPage() {
                 <Plus size={12} />Add
               </button>
             )}
-            <button
-              onClick={() => setShowColumnSelector(!showColumnSelector)}
-              className="bg-purple-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
-            >
-              <Settings size={12} />
-              {showColumnSelector ? 'Hide Columns' : 'Show Columns'}
-            </button>
+
           </div>
         </div>
 
@@ -730,8 +773,12 @@ export default function ProduksiPage() {
                 />
               </div>
               <div className="flex gap-1">
-                <button type="submit" className="bg-green-600 text-white px-3 py-1 rounded-md text-xs">
-                  {editingId ? 'Update' : 'Save'}
+                <button 
+                  type="submit" 
+                  disabled={submitting}
+                  className="bg-green-600 text-white px-3 py-1 rounded-md text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? 'Saving...' : (editingId ? 'Update' : 'Save')}
                 </button>
                 <button type="button" onClick={resetForm} className="bg-gray-600 text-white px-3 py-1 rounded-md text-xs">
                   Cancel
@@ -741,49 +788,7 @@ export default function ProduksiPage() {
           </div>
         )}
 
-        {/* Column Selector */}
-        {showColumnSelector && paginatedProduksi.length > 0 && (
-          <div className="bg-white p-2 rounded-lg shadow mb-1">
-            <h3 className="font-medium text-gray-800 mb-2 text-xs">Column Visibility Settings</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 mb-2">
-              {Object.keys(paginatedProduksi[0]).filter(col => col !== 'id').map(col => (
-                <label key={col} className="flex items-center gap-1 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={!hiddenColumns.includes(col)}
-                    onChange={() => {
-                      setHiddenColumns(prev => 
-                        prev.includes(col) 
-                          ? prev.filter(c => c !== col)
-                          : [...prev, col]
-                      );
-                    }}
-                    className="rounded text-blue-600 w-3 h-3"
-                  />
-                  <span className={hiddenColumns.includes(col) ? 'text-gray-500' : 'text-gray-800'}>
-                    {col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                  </span>
-                </label>
-              ))}
-            </div>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setHiddenColumns([])}
-                className="px-2 py-1 bg-green-600 text-white rounded-md text-xs hover:bg-green-700 flex items-center gap-1"
-              >
-                <Eye size={10} />
-                Show All
-              </button>
-              <button
-                onClick={() => setHiddenColumns(Object.keys(paginatedProduksi[0]).filter(col => col !== 'id'))}
-                className="px-2 py-1 bg-red-600 text-white rounded-md text-xs hover:bg-red-700 flex items-center gap-1"
-              >
-                <EyeOff size={10} />
-                Hide All
-              </button>
-            </div>
-          </div>
-        )}
+
 
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
@@ -798,30 +803,30 @@ export default function ProduksiPage() {
                       className="rounded"
                     />
                   </th>
-                  {!hiddenColumns.includes('production_no') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('production_no')}>
+                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('production_no')}>
                     Production No {sortConfig?.key === 'production_no' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>}
-                  {!hiddenColumns.includes('tanggal_input') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>
+                  </th>
+                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>
                     Date {sortConfig?.key === 'tanggal_input' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>}
-                  {!hiddenColumns.includes('divisi') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('divisi')}>
+                  </th>
+                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('divisi')}>
                     Divisi {sortConfig?.key === 'divisi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>}
-                  {!hiddenColumns.includes('branch') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch')}>
+                  </th>
+                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch')}>
                     Branch {sortConfig?.key === 'branch' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>}
-                  {!hiddenColumns.includes('product_name') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>
+                  </th>
+                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>
                     Product {sortConfig?.key === 'product_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>}
-                  {!hiddenColumns.includes('jumlah_buat') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jumlah_buat')}>
+                  </th>
+                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jumlah_buat')}>
                     Qty {sortConfig?.key === 'jumlah_buat' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>}
-                  {!hiddenColumns.includes('konversi') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('konversi')}>
+                  </th>
+                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('konversi')}>
                     Konversi {sortConfig?.key === 'konversi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>}
-                  {!hiddenColumns.includes('total_konversi') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_konversi')}>
+                  </th>
+                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_konversi')}>
                     Total {sortConfig?.key === 'total_konversi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>}
+                  </th>
                   <th className="px-1 py-1 text-left font-medium text-gray-700">Action</th>
                 </tr>
               </thead>
@@ -843,21 +848,21 @@ export default function ProduksiPage() {
                           className="rounded"
                         />
                       </td>
-                      {!hiddenColumns.includes('production_no') && <td className="px-1 py-1 font-medium">
+                      <td className="px-1 py-1 font-medium">
                         <button
                           onClick={() => router.push(`/produksi_detail?search=${item.production_no}`)}
                           className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
                         >
                           {item.production_no}
                         </button>
-                      </td>}
-                      {!hiddenColumns.includes('tanggal_input') && <td className="px-1 py-1">{item.tanggal_input}</td>}
-                      {!hiddenColumns.includes('divisi') && <td className="px-1 py-1">{item.divisi}</td>}
-                      {!hiddenColumns.includes('branch') && <td className="px-1 py-1">{item.branch}</td>}
-                      {!hiddenColumns.includes('product_name') && <td className="px-1 py-1">{item.product_name}</td>}
-                      {!hiddenColumns.includes('jumlah_buat') && <td className="px-1 py-1">{item.jumlah_buat}</td>}
-                      {!hiddenColumns.includes('konversi') && <td className="px-1 py-1">{item.konversi}</td>}
-                      {!hiddenColumns.includes('total_konversi') && <td className="px-1 py-1 font-medium">{item.total_konversi}</td>}
+                      </td>
+                      <td className="px-1 py-1">{item.tanggal_input}</td>
+                      <td className="px-1 py-1">{item.divisi}</td>
+                      <td className="px-1 py-1">{item.branch}</td>
+                      <td className="px-1 py-1">{item.product_name}</td>
+                      <td className="px-1 py-1">{item.jumlah_buat}</td>
+                      <td className="px-1 py-1">{item.konversi}</td>
+                      <td className="px-1 py-1 font-medium">{item.total_konversi}</td>
                       <td className="px-1 py-1">
                         <div className="flex gap-1">
                           {canPerformActionSync(userRole, 'produksi', 'edit') && (
