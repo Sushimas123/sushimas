@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { useState, useEffect } from "react"
+import { usePathname, useRouter } from "next/navigation"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import {
   BarChart3,
   Package,
@@ -17,10 +17,25 @@ import {
   X,
   Settings2Icon,
   User,
-  LogOut
+  LogOut,
+  Home,
+  Search,
+  Bell,
+  ChevronDown,
+  ChevronRight,
+  Calendar,
+  HelpCircle,
+  Sun,
+  Moon,
+  LayoutDashboard,
+  Clock
 } from "lucide-react"
 import { canAccessPage } from '@/src/utils/dbPermissions'
 import { supabase } from '@/src/lib/supabaseClient'
+import { useDebounce } from '@/hooks/useDebounce'
+import { useClickOutside } from '@/hooks/useClickOutside'
+import { MenuItem, AppRoutes, BreadcrumbItem, SearchResult } from '@/types/layout'
+import SidebarItem from './SidebarItem'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -28,9 +43,78 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const [userRole, setUserRole] = useState<string>('')
   const [userBranches, setUserBranches] = useState<string[]>([])
   const [userName, setUserName] = useState<string>('')
+  const [userEmail, setUserEmail] = useState<string>('')
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [darkMode, setDarkMode] = useState(false)
+  const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [recentPages, setRecentPages] = useState<string[]>([])
+  const [notifications, setNotifications] = useState<any[]>([])
+  const profileDropdownRef = useRef<HTMLDivElement>(null)
+  const debouncedSearch = useDebounce(searchQuery, 300)
+
+  // Menu items structure - memoized for performance
+  const menuItems = useMemo<MenuItem[]>(() => [
+    {
+      id: 'dashboard',
+      name: 'Dashboard',
+      href: AppRoutes.DASHBOARD,
+      icon: LayoutDashboard,
+    },
+    {
+      id: 'operations',
+      name: 'Operations',
+      icon: Package,
+      submenu: [
+        { name: "Ready Stock", href: AppRoutes.READY_STOCK, icon: Package },
+        { name: "Production", href: AppRoutes.PRODUCTION, icon: Factory },
+        { name: "Production Detail", href: AppRoutes.PRODUCTION_DETAIL, icon: FileText },
+        { name: "SO Batch", href: AppRoutes.SO_BATCH, icon: FileText },
+        { name: "Gudang", href: AppRoutes.GUDANG, icon: Warehouse },
+      ]
+    },
+    {
+      id: 'reports',
+      name: 'Reports',
+      icon: BarChart3,
+      submenu: [
+        { name: "Esb Report", href: AppRoutes.ESB, icon: BarChart3 },
+        { name: "Product Name Report", href: AppRoutes.PRODUCT_NAME, icon: Package },
+        { name: "Analysis", href: AppRoutes.ANALYSIS, icon: BarChart3 },
+      ]
+    },
+    {
+      id: 'master-data',
+      name: 'Master Data',
+      icon: BookOpen,
+      submenu: [
+        { name: "Categories", href: AppRoutes.CATEGORIES, icon: BookOpen },
+        { name: "Recipes", href: AppRoutes.RECIPES, icon: BookOpen },
+        { name: "Supplier", href: AppRoutes.SUPPLIER, icon: Truck },
+        { name: "Branches", href: AppRoutes.BRANCHES, icon: Store },
+        { name: "Users", href: AppRoutes.USERS, icon: Users },
+      ]
+    },
+    {
+      id: 'settings',
+      name: 'Settings',
+      icon: Settings2Icon,
+      submenu: [
+        { name: "Product Settings", href: AppRoutes.PRODUCT_SETTINGS, icon: Settings2Icon },
+        { name: "Permissions", href: AppRoutes.PERMISSIONS_DB, icon: Settings2Icon },
+        { name: "CRUD Permissions", href: AppRoutes.CRUD_PERMISSIONS, icon: Settings2Icon },
+        { name: "Audit Log", href: AppRoutes.AUDIT_LOG, icon: FileText },
+      ]
+    },
+  ], [])
 
   const handleLogout = () => {
     localStorage.removeItem('user')
@@ -38,18 +122,85 @@ export default function Layout({ children }: LayoutProps) {
   }
 
   useEffect(() => {
-    const user = localStorage.getItem('user')
-    if (user) {
-      const userData = JSON.parse(user)
-      setUserRole(userData.role || 'guest')
-      setUserName(userData.nama_lengkap || userData.email || '')
-      
-      // Get user's branches from user_branches table
-      if (userData.id_user) {
-        fetchUserBranches(userData.id_user, userData.role)
+    const initializeLayout = async () => {
+      const user = localStorage.getItem('user')
+      if (user) {
+        const userData = JSON.parse(user)
+        setUserRole(userData.role || 'guest')
+        setUserName(userData.nama_lengkap || userData.email || '')
+        setUserEmail(userData.email || '')
+        
+        if (userData.id_user) {
+          await fetchUserBranches(userData.id_user, userData.role)
+        }
+      }
+
+      // Check for dark mode preference
+      if (localStorage.getItem('darkMode') === 'true') {
+        setDarkMode(true)
+        document.documentElement.classList.add('dark')
+      }
+
+      // Load recent pages
+      const recent = JSON.parse(localStorage.getItem('recentPages') || '[]')
+      setRecentPages(recent)
+
+      setIsLoading(false)
+    }
+
+    initializeLayout()
+  }, [])
+
+  // Track page visits
+  useEffect(() => {
+    if (!isLoading && pathname) {
+      const currentPage = getCurrentPageInfo()
+      if (currentPage) {
+        const updated = [currentPage.name, ...recentPages.filter(p => p !== currentPage.name)].slice(0, 5)
+        setRecentPages(updated)
+        localStorage.setItem('recentPages', JSON.stringify(updated))
       }
     }
+  }, [pathname, isLoading])
+
+  // Search functionality
+  useEffect(() => {
+    if (debouncedSearch) {
+      handleSearch(debouncedSearch)
+    } else {
+      setSearchResults([])
+    }
+  }, [debouncedSearch])
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsSidebarOpen(false)
+        setIsProfileDropdownOpen(false)
+        setSearchQuery('')
+      }
+      if (e.ctrlKey && e.key === 'k') {
+        e.preventDefault()
+        document.getElementById('search-input')?.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  const toggleDarkMode = () => {
+    const newDarkMode = !darkMode
+    setDarkMode(newDarkMode)
+    localStorage.setItem('darkMode', newDarkMode.toString())
+    
+    if (newDarkMode) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  }
 
   const fetchUserBranches = async (userId: number, role: string) => {
     try {
@@ -75,326 +226,480 @@ export default function Layout({ children }: LayoutProps) {
     }
   }
 
-  // Permission-based menu filtering with database check for non-super admin
-  const getFilteredMenuItems = async (items: any[], role: string) => {
-    // Super admin gets full access without database check
-    if (role === 'super admin') {
-      return items
-    }
+  const handleSearch = useCallback((query: string) => {
+    const results = menuItems.flatMap((item) => {
+      const matches: SearchResult[] = []
+      if (item.name.toLowerCase().includes(query.toLowerCase())) {
+        matches.push({ ...item, type: 'menu' as const })
+      }
+      if (item.submenu) {
+        item.submenu.forEach((sub) => {
+          if (sub.name.toLowerCase().includes(query.toLowerCase())) {
+            matches.push({ 
+              ...sub, 
+              id: `${item.id}-${sub.name}`, 
+              type: 'submenu' as const, 
+              parent: item.name 
+            })
+          }
+        })
+      }
+      return matches
+    })
+    setSearchResults(results.slice(0, 5))
+  }, [menuItems])
 
-    const filteredItems = []
-    for (const item of items) {
-      try {
-        const pagePath = item.href.replace('/', '')
-        
-        // Check role-based permissions from user_permissions table
-        const { data, error } = await supabase
-          .from('user_permissions')
-          .select('can_access')
-          .eq('role', role)
-          .eq('page', pagePath)
-          .single()
-
-        let hasAccess = false
-        if (data && !error) {
-          // Role permission found - use it (true or false)
-          hasAccess = data.can_access
-        } else {
-          // No database permission found - default to false
-          hasAccess = false
-        }
-        
-        if (hasAccess) {
-          filteredItems.push(item)
-        }
-      } catch (error) {
-        console.error('Error checking access for', item.href, error)
+  const getCurrentPageInfo = useCallback(() => {
+    for (const item of menuItems) {
+      if (item.href === pathname) return item
+      if (item.submenu) {
+        const subItem = item.submenu.find((sub) => sub.href === pathname)
+        if (subItem) return subItem
       }
     }
-    return filteredItems
+    return null
+  }, [menuItems, pathname])
+
+  const getBreadcrumbs = useCallback((): BreadcrumbItem[] => {
+    const breadcrumbs: BreadcrumbItem[] = [{ name: 'Home', href: AppRoutes.DASHBOARD }]
+    
+    for (const item of menuItems) {
+      if (item.href === pathname) {
+        breadcrumbs.push({ name: item.name, href: item.href })
+        break
+      }
+      if (item.submenu) {
+        const subItem = item.submenu.find((sub) => sub.href === pathname)
+        if (subItem) {
+          breadcrumbs.push({ name: item.name, href: item.href || '#' })
+          breadcrumbs.push({ name: subItem.name, href: subItem.href })
+          break
+        }
+      }
+    }
+    
+    return breadcrumbs
+  }, [menuItems, pathname])
+
+  // Close dropdown when clicking outside
+  useClickOutside(profileDropdownRef as React.RefObject<HTMLElement>, useCallback(() => {
+    setIsProfileDropdownOpen(false)
+  }, []))
+
+  const toggleSubmenu = useCallback((menuId: string) => {
+    setActiveSubmenu(prev => prev === menuId ? null : menuId)
+  }, [])
+
+  const isActiveMenu = useCallback((href: string) => {
+    return pathname === href
+  }, [pathname])
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 animate-pulse">
+        <div className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"></div>
+        <div className="flex">
+          <div className="w-64 h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700"></div>
+          <div className="flex-1 p-6">
+            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
+            <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
-  const [filteredTopMenuItems, setFilteredTopMenuItems] = useState<any[]>([])
-  const [filteredSideMenuItems, setFilteredSideMenuItems] = useState<any[]>([])
-  const [menuLoading, setMenuLoading] = useState(true)
-
-
-  useEffect(() => {
-    if (userRole) {
-      setMenuLoading(true)
-      
-      // Super admin gets immediate access without any database check
-      if (userRole === 'super admin') {
-        setFilteredTopMenuItems(topMenuItems)
-        setFilteredSideMenuItems(sideMenuItems)
-        setMenuLoading(false)
-        return
-      }
-      
-      // Set timeout to prevent infinite loading
-      const timeoutId = setTimeout(() => {
-        console.warn('Menu loading timeout - no fallback, showing empty')
-        setFilteredTopMenuItems([])
-        setFilteredSideMenuItems([])
-        setMenuLoading(false)
-      }, 3000) // 3 second timeout
-      
-      // Database check for other roles
-      Promise.all([
-        getFilteredMenuItems(topMenuItems, userRole),
-        getFilteredMenuItems(sideMenuItems, userRole)
-      ]).then(([topItems, sideItems]) => {
-        clearTimeout(timeoutId)
-        setFilteredTopMenuItems(topItems)
-        setFilteredSideMenuItems(sideItems)
-        setMenuLoading(false)
-      }).catch(error => {
-        clearTimeout(timeoutId)
-        console.error('Error loading menu items:', error)
-        // No fallback - show empty on error
-        setFilteredTopMenuItems([])
-        setFilteredSideMenuItems([])
-        setMenuLoading(false)
-      })
-    }
-  }, [userRole])
-
-  const topMenuItems = [
-    { name: "Ready Stock", href: "/ready", icon: Package },
-    { name: "Production", href: "/produksi", icon: Factory },
-    { name: "Production Detail", href: "/produksi_detail", icon: FileText },
-    { name: "SO Batch", href: "/stock_opname_batch", icon: FileText },
-    { name: "Gudang", href: "/gudang", icon: Warehouse },
-    { name: "Setting", href: "/product_settings", icon: Settings2Icon },
-    { name: "View", href: "/analysis", icon: BarChart3 }
-  ]
-
-  const sideMenuItems = [
-    { name: "Esb Report", href: "/esb", icon: BarChart3 },
-    { name: "Product Name Report", href: "/product_name", icon: Package }, 
-    { name: "Categories", href: "/categories", icon: BookOpen },
-    { name: "Recipes", href: "/recipes", icon: BookOpen },
-    { name: "Supplier", href: "/supplier", icon: Truck },
-    { name: "Branches", href: "/branches", icon: Store },
-    { name: "Users", href: "/users", icon: Users },
-    { name: "Permissions", href: "/permissions-db", icon: Settings2Icon },
-    { name: "CRUD Permissions", href: "/crud-permissions", icon: Settings2Icon },
-    { name: "Audit Log", href: "/audit-log", icon: FileText }
-  ]
-
-
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Top Bar - Desktop */}
-      <header className="hidden md:block bg-gray-800 text-white shadow-sm">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="text-xl font-bold hover:text-white/90 transition-colors">
-              📦 Sushimas Inventory
-            </Link>
-            <div className="flex items-center gap-4">
-              {userRole && (
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 bg-gray-700 px-3 py-1 rounded-full">
-                    <User size={14} />
-                    <div className="flex flex-col">
-                      <span className="text-xs font-medium capitalize">{userRole}</span>
-                      <span className="text-xs text-gray-300 truncate max-w-32" title={userBranches.join(', ')}>
-                        {userBranches.length > 0 ? userBranches.join(', ') : 'Loading...'}
-                      </span>
-                    </div>
+    <div className={`min-h-screen flex flex-col ${darkMode ? 'dark bg-gray-900' : 'bg-gray-50'}`}>
+      {/* Top Navigation Bar */}
+      <header className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            {/* Left side - Logo and menu toggle */}
+            <div className="flex items-center">
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="mr-2 p-2 rounded-md text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 lg:hidden"
+              >
+                <Menu size={24} />
+              </button>
+              <Link href="/" className="flex items-center">
+                <div className="flex-shrink-0 flex items-center">
+                  <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold mr-2">
+                    SM
                   </div>
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-1 px-3 py-1 bg-red-600 hover:bg-red-700 rounded-lg transition-colors text-sm"
-                    title="Logout"
-                  >
-                    <LogOut size={14} />
-                    <span className="hidden lg:block">Logout</span>
-                  </button>
-                </div>
-              )}
-              <nav className="flex items-center gap-2">
-              {filteredTopMenuItems.map((item) => {
-                const Icon = item.icon
-                const isActive = pathname === item.href
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium
-                      ${
-                        isActive
-                          ? "bg-gray-100 text-gray-800"
-                          : "text-gray-300 hover:bg-gray-700 hover:text-white"
-                      }`}
-                  >
-                    <Icon size={16} />
-                    <span className="hidden lg:block">{item.name}</span>
-                  </Link>
-                )
-              })}
-              </nav>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Mobile Header */}
-      <header className="md:hidden bg-gray-800 text-white shadow-sm">
-        <div className="px-4 py-3 flex items-center justify-between">
-          <Link href="/" className="text-lg font-bold">
-            📦 Sushimas Inventory
-          </Link>
-          {userRole && (
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 bg-gray-700 px-2 py-1 rounded-full">
-                <User size={12} />
-                <div className="flex flex-col">
-                  <span className="text-xs font-medium capitalize">{userRole}</span>
-                  <span className="text-xs text-gray-300 truncate max-w-20" title={userBranches.join(', ')}>
-                    {userBranches.length > 0 ? userBranches[0] : 'Loading...'}
+                  <span className="text-xl font-bold text-gray-800 dark:text-white hidden sm:block">
+                    Sushimas Inventory
                   </span>
                 </div>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="p-1 bg-red-600 hover:bg-red-700 rounded transition-colors"
-                title="Logout"
-              >
-                <LogOut size={12} />
-              </button>
+              </Link>
             </div>
-          )}
+
+            {/* Center - Search bar (desktop only) */}
+            <div className="hidden md:flex flex-1 max-w-2xl mx-8">
+              <div className="relative w-full">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search size={20} className="text-gray-400" />
+                </div>
+                <input
+                  id="search-input"
+                  type="text"
+                  placeholder="Search inventory... (Ctrl+K)"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                
+                {/* Search Results Dropdown */}
+                {searchResults.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50">
+                    {searchResults.map((result, index) => (
+                      <Link
+                        key={index}
+                        href={result.href || '#'}
+                        onClick={() => setSearchQuery('')}
+                        className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                      >
+                        <div className="flex items-center">
+                          <result.icon size={16} className="mr-2 text-gray-400" />
+                          <div>
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">{result.name}</div>
+                            {result.parent && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400">{result.parent}</div>
+                            )}
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right side - User menu and actions */}
+            <div className="flex items-center">
+              {/* Dark mode toggle */}
+              <button
+                onClick={toggleDarkMode}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mr-2"
+                aria-label="Toggle dark mode"
+              >
+                {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+              </button>
+
+              {/* Notifications */}
+              <button className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mr-2 relative">
+                <Bell size={20} />
+                {notifications.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {notifications.length}
+                  </span>
+                )}
+              </button>
+
+              {/* User profile dropdown */}
+              <div className="relative ml-3" ref={profileDropdownRef}>
+                <div>
+                  <button
+                    onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                    className="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    id="user-menu-button"
+                    aria-expanded="false"
+                    aria-haspopup="true"
+                  >
+                    <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-medium">
+                      {userName ? userName.charAt(0).toUpperCase() : 'U'}
+                    </div>
+                    <div className="ml-2 hidden md:block">
+                      <div className="text-left">
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{userName}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{userRole}</p>
+                      </div>
+                    </div>
+                    <ChevronDown size={16} className="ml-1 text-gray-400 hidden md:block" />
+                  </button>
+                </div>
+
+                {/* Profile dropdown menu */}
+                {isProfileDropdownOpen && (
+                  <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 focus:outline-none z-50">
+                    <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                      <p className="text-sm font-medium text-gray-800 dark:text-white">{userName}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{userEmail}</p>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 capitalize mt-1">{userRole}</p>
+                    </div>
+                    <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Branches:</p>
+                      {userBranches.map((branch, index) => (
+                        <p key={index} className="text-xs text-gray-600 dark:text-gray-300 truncate">
+                          {branch}
+                        </p>
+                      ))}
+                    </div>
+                    {recentPages.length > 0 && (
+                      <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 flex items-center">
+                          <Clock size={12} className="mr-1" /> Recent Pages
+                        </p>
+                        {recentPages.slice(0, 3).map((page, index) => (
+                          <p key={index} className="text-xs text-gray-600 dark:text-gray-300 truncate py-1">
+                            {page}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    <Link
+                      href="/profile"
+                      className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      Your Profile
+                    </Link>
+                    <Link
+                      href="/settings"
+                      className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      Settings
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 
-      <div className="flex min-h-[calc(100vh-80px)]">
-        {/* Desktop Sidebar */}
-        <aside className="hidden md:flex w-64 bg-gray-800 text-white shadow-sm flex-col">
-          {/* Menu */}
-          <nav className="flex-1 p-4 space-y-2">
-            {menuLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
+        <div className={`
+          fixed inset-y-0 left-0 z-30 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-300 ease-in-out lg:static lg:translate-x-0
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}>
+          <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700 lg:hidden">
+            <div className="flex items-center">
+              <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold mr-2">
+                SM
               </div>
-            ) : (
-              filteredSideMenuItems.map((item) => {
-                const Icon = item.icon
-                const isActive = pathname === item.href
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-sm font-medium
-                      ${
-                        isActive
-                          ? "bg-gray-100 text-gray-800"
-                          : "text-gray-300 hover:bg-gray-700 hover:text-white"
-                      }`}
-                  >
-                    <Icon size={18} />
-                    <span>{item.name}</span>
-                  </Link>
-                )
-              })
-            )}
-          </nav>
-
-          {/* Footer */}
-          <div className="p-4 border-t border-gray-700 text-xs text-gray-400">
-            © 2025 Sushimas | All rights reserved.
+              <span className="text-xl font-bold text-gray-800 dark:text-white">Sushimas</span>
+            </div>
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              className="p-2 rounded-md text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              <X size={24} />
+            </button>
           </div>
-        </aside>
 
-        {/* Content Area */}
-        <main className="flex-1 bg-white md:pb-0 pb-24">
-          <div className="md:pb-0 pb-4">
-            {children}
+          <nav className="mt-8 px-4">
+            <div className="space-y-1">
+              {menuItems.map((item) => (
+                <div key={item.id}>
+                  {item.submenu ? (
+                    <div>
+                      <button
+                        onClick={() => toggleSubmenu(item.id)}
+                        className={`group flex items-center w-full px-3 py-2 text-sm font-medium rounded-md transition-colors
+                          ${activeSubmenu === item.id || item.submenu.some(sub => isActiveMenu(sub.href)) 
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' 
+                            : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                          }`}
+                      >
+                        <item.icon
+                          size={18}
+                          className={`mr-3 flex-shrink-0 
+                            ${activeSubmenu === item.id || item.submenu.some(sub => isActiveMenu(sub.href))
+                              ? 'text-blue-600 dark:text-blue-400'
+                              : 'text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300'
+                            }`}
+                        />
+                        <span className="flex-1 text-left">{item.name}</span>
+                        {activeSubmenu === item.id ? (
+                          <ChevronDown size={16} className="text-gray-400" />
+                        ) : (
+                          <ChevronRight size={16} className="text-gray-400" />
+                        )}
+                      </button>
+                      
+                      {/* Submenu items */}
+                      {activeSubmenu === item.id && (
+                        <div className="mt-1 ml-4 space-y-1">
+                          {item.submenu.map((subItem) => {
+                            const SubIcon = subItem.icon;
+                            return (
+                              <Link
+                                key={subItem.href}
+                                href={subItem.href}
+                                onClick={() => setIsSidebarOpen(false)}
+                                className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors
+                                  ${isActiveMenu(subItem.href)
+                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' 
+                                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
+                                  }`}
+                              >
+                                <SubIcon
+                                  size={16}
+                                  className={`mr-3 flex-shrink-0 
+                                    ${isActiveMenu(subItem.href)
+                                      ? 'text-blue-600 dark:text-blue-400'
+                                      : 'text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-400'
+                                    }`}
+                                />
+                                {subItem.name}
+                              </Link>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <Link
+                      href={item.href || '#'}
+                      onClick={() => setIsSidebarOpen(false)}
+                      className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors
+                        ${isActiveMenu(item.href || '')
+                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' 
+                          : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                        }`}
+                    >
+                      <item.icon
+                        size={18}
+                        className={`mr-3 flex-shrink-0 
+                          ${isActiveMenu(item.href || '')
+                            ? 'text-blue-600 dark:text-blue-400'
+                            : 'text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300'
+                          }`}
+                      />
+                      {item.name}
+                    </Link>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Help section */}
+            <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
+              <Link
+                href="/help"
+                className="group flex items-center px-3 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+              >
+                <HelpCircle size={18} className="mr-3 text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-400" />
+                Help & Support
+              </Link>
+            </div>
+          </nav>
+        </div>
+
+        {/* Main content */}
+        <main className="flex-1 overflow-auto focus:outline-none">
+          <div className="py-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              {/* Page title and breadcrumbs */}
+              <div className="mb-6">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {getCurrentPageInfo()?.name || 'Dashboard'}
+                </h1>
+                <nav className="flex mt-2" aria-label="Breadcrumb">
+                  <ol className="flex items-center space-x-2">
+                    {getBreadcrumbs().map((crumb, index) => (
+                      <li key={index}>
+                        <div className="flex items-center">
+                          {index > 0 && <ChevronRight size={16} className="text-gray-400 mx-2" />}
+                          {crumb.href !== '#' ? (
+                            <Link 
+                              href={crumb.href} 
+                              className="text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                            >
+                              {crumb.name}
+                            </Link>
+                          ) : (
+                            <span className={`text-sm font-medium ${
+                              index === getBreadcrumbs().length - 1 
+                                ? 'text-gray-700 dark:text-gray-300' 
+                                : 'text-gray-500 dark:text-gray-400'
+                            }`}>
+                              {crumb.name}
+                            </span>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </nav>
+              </div>
+
+              {/* Content */}
+              <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+                {children}
+              </div>
+            </div>
           </div>
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-gray-800 text-white shadow-lg border-t border-gray-700 z-50 safe-area-inset-bottom">
-        <div className="grid grid-cols-5 gap-1 py-3 px-2">
-          {/* Dashboard */}
+      {/* Mobile bottom navigation */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-40 safe-area-inset-bottom">
+        <div className="grid grid-cols-5 gap-1 py-2 px-1">
           <Link
             href="/"
-            className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all min-h-[60px] justify-center
-              ${
-                pathname === "/"
-                  ? "bg-gray-700 text-white"
-                  : "text-gray-300 hover:text-white"
+            className={`flex flex-col items-center p-2 rounded-lg transition-colors
+              ${pathname === "/" 
+                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" 
+                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
               }`}
           >
-            <BarChart3 size={16} />
-            <span className="text-xs font-medium">Home</span>
+            <LayoutDashboard size={20} />
+            <span className="text-xs mt-1">Home</span>
           </Link>
           
-          {/* Top Menu Items */}
-          {filteredTopMenuItems.slice(0, 3).map((item) => {
-            const Icon = item.icon
-            const isActive = pathname === item.href
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all min-h-[60px] justify-center
-                  ${
-                    isActive
-                      ? "bg-gray-700 text-white"
-                      : "text-gray-300 hover:text-white"
-                  }`}
-              >
-                <Icon size={16} />
-                <span className="text-xs font-medium">{item.name?.split(' ')[0]}</span>
-              </Link>
-            )
-          })}
-          
-          {/* More Menu */}
           <Link
-            href="/esb"
-            className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all min-h-[60px] justify-center
-              ${
-                ['/esb', '/product_name', '/stock_opname_batch', '/ready', '/categories', '/recipes', '/supplier', '/branches', '/users'].includes(pathname)
-                  ? "bg-gray-700 text-white"
-                  : "text-gray-300 hover:text-white"
+            href="/ready"
+            className={`flex flex-col items-center p-2 rounded-lg transition-colors
+              ${pathname === "/ready" 
+                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" 
+                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
               }`}
           >
-            <Menu size={16} />
-            <span className="text-xs font-medium">More</span>
+            <Package size={20} />
+            <span className="text-xs mt-1">Stock</span>
           </Link>
+          
+          <Link
+            href="/produksi"
+            className={`flex flex-col items-center p-2 rounded-lg transition-colors
+              ${pathname === "/produksi" 
+                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" 
+                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+              }`}
+          >
+            <Factory size={20} />
+            <span className="text-xs mt-1">Production</span>
+          </Link>
+          
+          <Link
+            href="/analysis"
+            className={`flex flex-col items-center p-2 rounded-lg transition-colors
+              ${pathname === "/analysis" 
+                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" 
+                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+              }`}
+          >
+            <BarChart3 size={20} />
+            <span className="text-xs mt-1">Reports</span>
+          </Link>
+          
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="flex flex-col items-center p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+          >
+            <Menu size={20} />
+            <span className="text-xs mt-1">Menu</span>
+          </button>
         </div>
-        
-        {/* Secondary Row for More Items */}
-        {['/esb', '/product_name', '/stock_opname_batch', '/ready', '/categories', '/recipes', '/supplier', '/branches', '/users'].includes(pathname) && (
-          <div className="border-t border-gray-700 bg-gray-700">
-            <div className="flex overflow-x-auto py-1 px-1 gap-1">
-              {filteredSideMenuItems.map((item) => {
-                const Icon = item.icon
-                const isActive = pathname === item.href
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`flex flex-col items-center gap-1 px-2 py-1 rounded-lg transition-all whitespace-nowrap
-                      ${
-                        isActive
-                          ? "bg-gray-600 text-white"
-                          : "text-gray-300 hover:text-white"
-                      }`}
-                  >
-                    <Icon size={12} />
-                    <span className="text-xs">{item.name.split(' ')[0]}</span>
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        )}
       </nav>
     </div>
   )
