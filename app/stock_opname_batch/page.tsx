@@ -28,12 +28,38 @@ export default function StockOpnameBatchPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [processingBatch, setProcessingBatch] = useState<number | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterBranch, setFilterBranch] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage] = useState(10)
 
   useEffect(() => {
     fetchBatches()
     fetchBranches()
     fetchSubCategories()
   }, [])
+
+  const filteredBatches = batches.filter(batch => {
+    const matchesSearch = searchTerm === '' || 
+      batch.batch_id.toString().includes(searchTerm) ||
+      batch.pic_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      batch.sub_category.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const matchesBranch = filterBranch === '' || batch.branch_code === filterBranch
+    const matchesStatus = filterStatus === '' || batch.status === filterStatus
+    
+    return matchesSearch && matchesBranch && matchesStatus
+  })
+
+  const totalPages = Math.ceil(filteredBatches.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedBatches = filteredBatches.slice(startIndex, startIndex + itemsPerPage)
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, filterBranch, filterStatus])
 
   const fetchBatches = useCallback(async () => {
     setLoading(true)
@@ -765,6 +791,65 @@ export default function StockOpnameBatchPage() {
             </button>
           </div>
 
+          {/* Filter Section */}
+          <div className="bg-white p-4 rounded-lg shadow mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">🔍 Cari</label>
+                <input
+                  type="text"
+                  placeholder="Cari batch ID, PIC, atau sub kategori..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full border px-3 py-2 rounded-md text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">🏢 Cabang</label>
+                <select
+                  value={filterBranch}
+                  onChange={(e) => setFilterBranch(e.target.value)}
+                  className="w-full border px-3 py-2 rounded-md text-sm"
+                >
+                  <option value="">Semua Cabang</option>
+                  {branches.map(branch => (
+                    <option key={branch.kode_branch} value={branch.kode_branch}>
+                      {branch.nama_branch}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">📋 Status</label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full border px-3 py-2 rounded-md text-sm"
+                >
+                  <option value="">Semua Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={() => {
+                    setSearchTerm('')
+                    setFilterBranch('')
+                    setFilterStatus('')
+                  }}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 text-sm"
+                >
+                  Reset Filter
+                </button>
+              </div>
+            </div>
+            <div className="mt-2 text-sm text-gray-600">
+              Menampilkan {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredBatches.length)} dari {filteredBatches.length} batch (Total: {batches.length})
+            </div>
+          </div>
+
           {showAddForm && (
             <div className="bg-white p-6 rounded-lg shadow mb-6">
               <h3 className="text-lg font-semibold mb-4">
@@ -973,14 +1058,14 @@ export default function StockOpnameBatchPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {batches.length === 0 ? (
+                  {paginatedBatches.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="px-4 py-4 text-center text-gray-500">
-                        Tidak ada data batch
+                        {batches.length === 0 ? 'Tidak ada data batch' : 'Tidak ada batch yang sesuai dengan filter'}
                       </td>
                     </tr>
                   ) : (
-                    batches.map((batch) => (
+                    paginatedBatches.map((batch) => (
                       <React.Fragment key={batch.batch_id}>
                         <tr className="border-t hover:bg-gray-50">
                           <td className="px-4 py-3">
@@ -1139,6 +1224,59 @@ export default function StockOpnameBatchPage() {
                 </tbody>
               </table>
             </div>
+            
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t">
+                <div className="text-sm text-gray-700">
+                  Halaman {currentPage} dari {totalPages}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  >
+                    ← Sebelumnya
+                  </button>
+                  
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum
+                    if (totalPages <= 5) {
+                      pageNum = i + 1
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i
+                    } else {
+                      pageNum = currentPage - 2 + i
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`px-3 py-1 border rounded ${
+                          currentPage === pageNum 
+                            ? 'bg-blue-600 text-white' 
+                            : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    )
+                  })}
+                  
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  >
+                    Selanjutnya →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </Layout>
