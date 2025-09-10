@@ -2,15 +2,15 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
-import { Plus, Edit, Trash2, Download, Upload, ArrowRightLeft } from 'lucide-react';
+import { Plus, Edit, Trash2, Download, Upload } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import PageAccessControl from '../../components/PageAccessControl';
-import { getBranchFilter, applyBranchFilter } from '@/src/utils/branchAccess';
-import { canPerformActionSync, getUserRole, arePermissionsLoaded, reloadPermissions } from '@/src/utils/rolePermissions';
+import { getBranchFilter } from '@/src/utils/branchAccess';
+import { canPerformActionSync, arePermissionsLoaded, reloadPermissions } from '@/src/utils/rolePermissions';
 import { hasPageAccess } from '@/src/utils/permissionChecker';
-import { insertWithAudit, updateWithAudit, deleteWithAudit, hardDeleteWithAudit } from '@/src/utils/auditTrail';
+import { insertWithAudit, updateWithAudit, hardDeleteWithAudit } from '@/src/utils/auditTrail';
 import { canViewColumn } from '@/src/utils/dbPermissions';
 
 interface Gudang {
@@ -75,7 +75,6 @@ function GudangPageContent() {
   const [productSearch, setProductSearch] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const productDropdownRef = useRef<HTMLDivElement>(null);
-  const [isRecalculating, setIsRecalculating] = useState(false);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [selectAll, setSelectAll] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -85,16 +84,13 @@ function GudangPageContent() {
   useEffect(() => {
     fetchUserInfo();
     
-    // Only fetch data if user has access
     if (hasAccess === true) {
       fetchCabang();
       fetchGudang();
       fetchProducts();
     }
     
-    // Force reload permissions if not loaded
     if (!arePermissionsLoaded()) {
-      console.log('Permissions not loaded, reloading...');
       reloadPermissions();
     }
   }, [hasAccess]);
@@ -104,7 +100,6 @@ function GudangPageContent() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  // Get columns based on permissions
   useEffect(() => {
     const loadPermittedColumns = async () => {
       if (gudang.length > 0) {
@@ -127,8 +122,6 @@ function GudangPageContent() {
   
   const visibleColumns = permittedColumns
 
-
-
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (productDropdownRef.current && !productDropdownRef.current.contains(event.target as Node)) {
@@ -141,7 +134,6 @@ function GudangPageContent() {
 
   const fetchUserInfo = async () => {
     try {
-      // Try to get user from localStorage first (for direct DB login)
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
         const userData = JSON.parse(storedUser);
@@ -150,23 +142,12 @@ function GudangPageContent() {
         setUserId(userData.id_user || null);
         setUserName(userData.nama_lengkap || 'Current User');
         
-        // Force reload permissions after user info is set
-        console.log('Forcing permission reload for role:', userData.role);
         await reloadPermissions();
-        
-        // Force clear permission cache and reload
-        await reloadPermissions();
-        
-        // Check if user has any access to gudang page from database
         const pageAccess = await hasPageAccess(userData.role, 'gudang');
-        console.log(`Database permission check for ${userData.role} on gudang:`, pageAccess);
-        
-        // Always set the access based on database result
         setHasAccess(pageAccess);
         return;
       }
       
-      // Fallback to Supabase auth
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: userData } = await supabase
@@ -180,19 +161,8 @@ function GudangPageContent() {
           setUserRole(userData.role || 'user');
           setUserName(userData.nama_lengkap || 'Current User');
           
-          // Force reload permissions after user info is set
-          console.log('Forcing permission reload for role:', userData.role);
           await reloadPermissions();
-          
-          // Force clear permission cache and reload
-          await reloadPermissions();
-          
-          // Check if user has any access to gudang page from database
           const pageAccess = await hasPageAccess(userData.role, 'gudang');
-          console.log(`Database permission check for ${userData.role} on gudang:`, pageAccess);
-          
-          // Always set the access based on database result
-          // Always set the access based on database result
           setHasAccess(pageAccess);
         }
       }
@@ -212,7 +182,6 @@ function GudangPageContent() {
       
       if (error) throw error;
       
-      // Apply branch filtering based on user role
       let filteredBranches = data || [];
       const branchFilter = await getBranchFilter();
       if (branchFilter && branchFilter.length > 0) {
@@ -226,7 +195,6 @@ function GudangPageContent() {
 
   const fetchGudang = async () => {
     try {
-      // Fetch all data in parallel
       const [gudangData, productsData, branchesData] = await Promise.all([
         supabase.from('gudang').select('*').order('tanggal', { ascending: false }),
         supabase.from('nama_product').select('id_product, product_name'),
@@ -235,27 +203,20 @@ function GudangPageContent() {
 
       if (gudangData.error) throw gudangData.error;
       
-      // Create lookup maps
       const productMap = new Map(productsData.data?.map(p => [p.id_product, p.product_name]) || []);
       const branchMap = new Map(branchesData.data?.map(b => [b.kode_branch, b.nama_branch]) || []);
       
-      // Transform data using lookup maps
       let gudangWithNames = (gudangData.data || []).map((item: any) => ({
         ...item,
         product_name: productMap.get(item.id_product) || '',
         branch_name: branchMap.get(item.cabang) || item.cabang
       }));
       
-      // Apply branch filter based on user access
       const branchFilter = await getBranchFilter();
-      console.log('Branch filter applied:', branchFilter);
-      console.log('Total records before filter:', gudangWithNames.length);
-      
       if (branchFilter && branchFilter.length > 0) {
         gudangWithNames = gudangWithNames.filter(item => 
           branchFilter.includes(item.cabang) || branchFilter.includes(item.branch_name)
         );
-        console.log('Records after branch filter:', gudangWithNames.length);
       }
       
       setGudang(gudangWithNames);
@@ -280,19 +241,111 @@ function GudangPageContent() {
     }
   };
 
+  const getBaselineFromLockedRecord = async (idProduct: number, cabang: string, targetDate: string) => {
+    try {
+      // Cari record terkunci TERAKHIR sebelum tanggal target
+      const { data: lockedRecord, error } = await supabase
+        .from('gudang')
+        .select('total_gudang, tanggal')
+        .eq('id_product', idProduct)
+        .eq('cabang', cabang)
+        .lte('tanggal', targetDate)
+        .eq('is_locked', true)
+        .order('tanggal', { ascending: false })
+        .order('order_no', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      
+      return lockedRecord ? {
+        baseline: lockedRecord.total_gudang,
+        lockedDate: lockedRecord.tanggal
+      } : null;
+    } catch (error) {
+      console.error('Error getting baseline from locked record:', error);
+      return null;
+    }
+  };
+
   const calculateTotalGudang = async (idProduct: number, tanggal: string, cabang: string) => {
-    // Get the last total_gudang for this product and branch before the current date
-    const { data: lastRecord } = await supabase
-      .from('gudang')
-      .select('total_gudang')
-      .eq('id_product', idProduct)
-      .eq('cabang', cabang)
-      .lt('tanggal', tanggal)
-      .order('tanggal', { ascending: false })
-      .order('order_no', { ascending: false })
-      .limit(1);
-    
-    return lastRecord?.[0]?.total_gudang || 0;
+    try {
+      // Cari record TERAKHIR sebelum tanggal yang diberikan yang TIDAK terkunci
+      const { data: lastRecord, error } = await supabase
+        .from('gudang')
+        .select('total_gudang')
+        .eq('id_product', idProduct)
+        .eq('cabang', cabang)
+        .lt('tanggal', tanggal)
+        .order('tanggal', { ascending: false })
+        .order('order_no', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      
+      // Jika tidak ditemukan record sebelumnya, mulai dari 0
+      return lastRecord?.total_gudang || 0;
+    } catch (error) {
+      console.error('Error calculating total gudang:', error);
+      return 0;
+    }
+  };
+
+  const recalculateAffectedRecords = async (idProduct: number, fromDate: string, cabang: string) => {
+    try {
+      // Dapatkan semua record untuk produk dan cabang ini dari tanggal yang ditentukan ke atas
+      const { data: affectedRecords, error } = await supabase
+        .from('gudang')
+        .select('*')
+        .eq('id_product', idProduct)
+        .eq('cabang', cabang)
+        .gte('tanggal', fromDate)
+        .order('tanggal', { ascending: true })
+        .order('order_no', { ascending: true });
+
+      if (error) throw error;
+      if (!affectedRecords || affectedRecords.length === 0) return;
+
+      // Temukan record TERAKHIR sebelum fromDate
+      const { data: lastRecord } = await supabase
+        .from('gudang')
+        .select('total_gudang')
+        .eq('id_product', idProduct)
+        .eq('cabang', cabang)
+        .lt('tanggal', fromDate)
+        .order('tanggal', { ascending: false })
+        .order('order_no', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let runningTotal = lastRecord?.total_gudang || 0;
+
+      // Recalculate hanya record yang TIDAK terkunci
+      for (const record of affectedRecords) {
+        // Jika record terkunci, gunakan total_gudang-nya sebagai baseline baru
+        if (record.is_locked) {
+          runningTotal = record.total_gudang;
+          continue;
+        }
+
+        // Hitung total baru hanya untuk record yang tidak terkunci
+        runningTotal = runningTotal + record.jumlah_masuk - record.jumlah_keluar;
+        
+        // Update hanya jika berbeda dengan nilai sebelumnya
+        if (runningTotal !== record.total_gudang) {
+          const { error: updateError } = await supabase
+            .from('gudang')
+            .update({ total_gudang: runningTotal })
+            .eq('order_no', record.order_no);
+          
+          if (updateError) throw updateError;
+        }
+      }
+    } catch (error) {
+      console.error('Error recalculating affected records:', error);
+      throw error;
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -304,18 +357,42 @@ function GudangPageContent() {
     const jumlahMasuk = parseFloat(formData.jumlah_masuk as string) || 0;
     const jumlahKeluar = parseFloat(formData.jumlah_keluar as string) || 0;
     
-    // Combine date and time into timestamp
     const timestamp = `${formData.tanggal}T${formData.waktu}:00.000Z`;
     
-    // Get previous balance for this product, branch and timestamp
-    const previousBalance = await calculateTotalGudang(formData.id_product, timestamp, formData.cabang);
+    // Validasi lock hanya untuk record baru (bukan edit)
+    if (!editingId) {
+      const { data: lockedRecords, error: lockCheckError } = await supabase
+        .from('gudang')
+        .select('tanggal, locked_by_so')
+        .eq('id_product', formData.id_product)
+        .eq('cabang', formData.cabang)
+        .lte('tanggal', timestamp)
+        .eq('is_locked', true)
+        .order('tanggal', { ascending: false })
+        .limit(1);
+
+      if (lockCheckError) {
+        console.error('Error checking locked records:', lockCheckError);
+        setSaving(false);
+        return;
+      }
+
+      if (lockedRecords && lockedRecords.length > 0) {
+        const lockedRecord = lockedRecords[0];
+        alert(`❌ Cannot add transaction: Data is locked by ${lockedRecord.locked_by_so} at ${lockedRecord.tanggal.split('T')[0]}`);
+        setSaving(false);
+        return;
+      }
+    }
     
-    // Only proceed if there's an actual transaction (either in or out)
     if (jumlahMasuk === 0 && jumlahKeluar === 0) {
       alert('Please enter either Jumlah Masuk or Jumlah Keluar');
       setSaving(false);
       return;
     }
+
+    // Get previous balance for this product, branch and timestamp
+    const previousBalance = await calculateTotalGudang(formData.id_product, timestamp, formData.cabang);
 
     const submitData = {
       id_product: formData.id_product,
@@ -349,12 +426,13 @@ function GudangPageContent() {
       // Refresh again after recalculation
       await fetchGudang();
       resetForm();
+      showToast(editingId ? '✅ Record updated successfully' : '✅ Record added successfully', 'success');
     } catch (error) {
       console.error('Error saving gudang:', error);
       const errorMessage = error instanceof Error ? error.message : 
                           error && typeof error === 'object' && 'message' in error ? (error as any).message :
                           JSON.stringify(error);
-      alert(`Failed to save: ${errorMessage}`);
+      showToast(`❌ Failed to save: ${errorMessage}`, 'error');
     } finally {
       setSaving(false);
     }
@@ -377,16 +455,31 @@ function GudangPageContent() {
     setEditingId(null);
   };
 
-  const handleEdit = (item: Gudang) => {
-    // Prevent editing if record is locked
+  const handleEdit = async (item: Gudang) => {
     if (item.is_locked) {
       alert(`❌ Cannot edit: Record is locked by ${item.locked_by_so}`);
       return;
     }
     
-    // Prevent editing if it's from stock opname
     if (item.source_type === 'stock_opname_batch') {
       alert('❌ Cannot edit: This record is from Stock Opname batch');
+      return;
+    }
+
+    // Check if there are locked records after this timestamp
+    const { data: lockedAfter } = await supabase
+      .from('gudang')
+      .select('tanggal, locked_by_so')
+      .eq('id_product', item.id_product)
+      .eq('cabang', item.cabang)
+      .gt('tanggal', item.tanggal)
+      .eq('is_locked', true)
+      .order('tanggal', { ascending: true })
+      .limit(1);
+    
+    if (lockedAfter && lockedAfter.length > 0) {
+      const lockDate = new Date(lockedAfter[0].tanggal).toLocaleDateString();
+      alert(`❌ Cannot edit: Period is locked by ${lockedAfter[0].locked_by_so} starting from ${lockDate}`);
       return;
     }
 
@@ -412,26 +505,39 @@ function GudangPageContent() {
   const handleDelete = async (id: number) => {
     if (!confirm('Hapus data gudang ini?')) return;
     try {
-      // Get the gudang record first to check if it's locked or from SO
       const { data: gudangData } = await supabase
         .from('gudang')
-        .select('source_type, source_reference, is_locked, locked_by_so')
+        .select('source_type, source_reference, is_locked, locked_by_so, id_product, cabang, tanggal')
         .eq('order_no', id)
         .single();
       
-      // Prevent deletion if record is locked
       if (gudangData?.is_locked) {
         alert(`❌ Cannot delete: Record is locked by ${gudangData.locked_by_so}`);
         return;
       }
       
-      // Prevent deletion if it's from stock opname
       if (gudangData?.source_type === 'stock_opname_batch') {
         alert('❌ Cannot delete: This record is from Stock Opname batch');
         return;
       }
+
+      // Check if there are locked records after this timestamp
+      const { data: lockedAfter } = await supabase
+        .from('gudang')
+        .select('tanggal, locked_by_so')
+        .eq('id_product', gudangData.id_product)
+        .eq('cabang', gudangData.cabang)
+        .gt('tanggal', gudangData.tanggal)
+        .eq('is_locked', true)
+        .order('tanggal', { ascending: true })
+        .limit(1);
       
-      // Delete the gudang record using audit trail
+      if (lockedAfter && lockedAfter.length > 0) {
+        const lockDate = new Date(lockedAfter[0].tanggal).toLocaleDateString();
+        alert(`❌ Cannot delete: Period is locked by ${lockedAfter[0].locked_by_so} starting from ${lockDate}`);
+        return;
+      }
+      
       const { error } = await hardDeleteWithAudit('gudang', { order_no: id });
       if (error) throw error;
       
@@ -471,7 +577,6 @@ function GudangPageContent() {
       
       const matchesBranch = !branchFilter || item.cabang === branchFilter;
       
-      // Get sub_category from products array
       const product = products.find(p => p.id_product === item.id_product);
       const itemSubCategory = product?.sub_category || '';
       const matchesSubCategory = !subCategoryFilter || itemSubCategory.toLowerCase().includes(subCategoryFilter.toLowerCase());
@@ -538,98 +643,6 @@ function GudangPageContent() {
     }
   };
 
-  const recalculateAffectedRecords = async (idProduct: number, fromDate: string, cabang: string) => {
-    try {
-      // Get all records for this product and branch from the affected date onwards
-      const { data: affectedRecords } = await supabase
-        .from('gudang')
-        .select('*')
-        .eq('id_product', idProduct)
-        .eq('cabang', cabang)
-        .gte('tanggal', fromDate)
-        .order('tanggal', { ascending: true })
-        .order('order_no', { ascending: true });
-
-      if (!affectedRecords || affectedRecords.length === 0) return;
-
-      // Get the starting balance (last record before the affected date for this product and branch)
-      const { data: lastRecord } = await supabase
-        .from('gudang')
-        .select('total_gudang')
-        .eq('id_product', idProduct)
-        .eq('cabang', cabang)
-        .lt('tanggal', fromDate)
-        .order('tanggal', { ascending: false })
-        .order('order_no', { ascending: false })
-        .limit(1);
-
-      let runningTotal = lastRecord?.[0]?.total_gudang || 0;
-
-      // Recalculate all affected records
-      for (const record of affectedRecords) {
-        runningTotal = runningTotal + record.jumlah_masuk - record.jumlah_keluar;
-        
-        await supabase
-          .from('gudang')
-          .update({ total_gudang: runningTotal })
-          .eq('order_no', record.order_no);
-      }
-    } catch (error) {
-      console.error('Error recalculating affected records:', error);
-    }
-  };
-
-  const recalculateAllTotals = async () => {
-    setIsRecalculating(true);
-    
-    try {
-      // Get all records ordered by date and order_no
-      const { data: allRecords } = await supabase
-        .from('gudang')
-        .select('*')
-        .order('tanggal', { ascending: true })
-        .order('order_no', { ascending: true });
-
-      if (!allRecords) return;
-
-      // Group by product AND branch
-      const groupedByProductAndBranch = allRecords.reduce((acc, record: any) => {
-        const key = `${record.id_product}_${record.cabang}`;
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(record);
-        return acc;
-      }, {} as Record<string, any[]>);
-
-      // Recalculate each product-branch combination's running total
-      for (const [key, records] of Object.entries(groupedByProductAndBranch)) {
-        let runningTotal = 0;
-        
-        // Sort records by date and order_no to ensure correct chronological order
-        const sortedRecords = (records as any[]).sort((a: any, b: any) => {
-          const dateA = new Date(a.tanggal).getTime();
-          const dateB = new Date(b.tanggal).getTime();
-          if (dateA !== dateB) return dateA - dateB;
-          return (a.order_no || 0) - (b.order_no || 0);
-        });
-        
-        for (const record of sortedRecords) {
-          runningTotal = runningTotal + (record as any).jumlah_masuk - (record as any).jumlah_keluar;
-          
-          await supabase
-            .from('gudang')
-            .update({ total_gudang: runningTotal })
-            .eq('order_no', (record as any).order_no);
-        }
-      }
-      
-      await fetchGudang();
-    } catch (error) {
-      console.error('Error recalculating:', error);
-    } finally {
-      setIsRecalculating(false);
-    }
-  };
-
   const handleSelectAll = () => {
     if (selectAll) {
       setSelectedItems([]);
@@ -655,20 +668,32 @@ function GudangPageContent() {
       let skippedCount = 0;
       
       for (const id of selectedItems) {
-        // Get the gudang record first to check if it's locked or from SO
         const { data: gudangData } = await supabase
           .from('gudang')
-          .select('source_type, source_reference, is_locked, locked_by_so')
+          .select('source_type, source_reference, is_locked, locked_by_so, id_product, cabang, tanggal')
           .eq('order_no', id)
           .single();
         
-        // Skip if record is locked or from SO
         if (gudangData?.is_locked || gudangData?.source_type === 'stock_opname_batch') {
           skippedCount++;
           continue;
         }
+
+        // Check if there are locked records after this timestamp
+        const { data: lockedAfter } = await supabase
+          .from('gudang')
+          .select('tanggal')
+          .eq('id_product', gudangData.id_product)
+          .eq('cabang', gudangData.cabang)
+          .gt('tanggal', gudangData.tanggal)
+          .eq('is_locked', true)
+          .limit(1);
         
-        // Delete the gudang record using audit trail
+        if (lockedAfter && lockedAfter.length > 0) {
+          skippedCount++;
+          continue;
+        }
+        
         await hardDeleteWithAudit('gudang', { order_no: id });
         deletedCount++;
       }
@@ -685,6 +710,67 @@ function GudangPageContent() {
     } catch (error) {
       console.error('Error bulk deleting:', error);
       showToast('❌ Failed to delete records', 'error');
+    }
+  };
+
+  const recalculateAllTotals = async () => {
+    setLoading(true);
+    
+    try {
+      // Get all records ordered by date and order_no
+      const { data: allRecords } = await supabase
+        .from('gudang')
+        .select('*')
+        .order('tanggal', { ascending: true })
+        .order('order_no', { ascending: true });
+
+      if (!allRecords) return;
+
+      // Group by product AND branch
+      const groupedByProductAndBranch = allRecords.reduce((acc, record: any) => {
+        const key = `${record.id_product}_${record.cabang}`;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(record);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      // Recalculate each product-branch combination with checkpoint system
+      for (const [key, records] of Object.entries(groupedByProductAndBranch)) {
+        let runningTotal = 0;
+        
+        // Sort records by date and order_no to ensure correct chronological order
+        const sortedRecords = (records as any[]).sort((a: any, b: any) => {
+          const dateA = new Date(a.tanggal).getTime();
+          const dateB = new Date(b.tanggal).getTime();
+          if (dateA !== dateB) return dateA - dateB;
+          return (a.order_no || 0) - (b.order_no || 0);
+        });
+        
+        for (const record of sortedRecords) {
+          // If record is locked, use it as checkpoint
+          if (record.is_locked) {
+            runningTotal = record.total_gudang;
+            continue;
+          }
+
+          // Calculate new total for unlocked records
+          runningTotal = runningTotal + (record as any).jumlah_masuk - (record as any).jumlah_keluar;
+          
+          // Only update unlocked records
+          await supabase
+            .from('gudang')
+            .update({ total_gudang: runningTotal })
+            .eq('order_no', (record as any).order_no);
+        }
+      }
+      
+      await fetchGudang();
+      showToast('✅ Recalculation completed (locked records preserved)', 'success');
+    } catch (error) {
+      console.error('Error recalculating:', error);
+      showToast('❌ Recalculation failed', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -708,12 +794,9 @@ function GudangPageContent() {
           const jumlahKeluar = parseFloat(row['jumlah_keluar']) || 0;
           const namaPengambil = row['nama_pengambil_barang']?.toString().trim() || 'Imported';
           
-          // Convert Excel date serial number to proper date
           if (typeof tanggal === 'number') {
-            // Use XLSX library's built-in date conversion
             const excelDate = XLSX.SSF.parse_date_code(tanggal);
             if (excelDate) {
-              // Format date as YYYY-MM-DD directly from components
               const year = excelDate.y;
               const month = String(excelDate.m).padStart(2, '0');
               const day = String(excelDate.d).padStart(2, '0');
@@ -730,10 +813,8 @@ function GudangPageContent() {
           );
           
           if (product && tanggal) {
-            // Convert date-only format to timestamp with current time
             const timestamp = tanggal.includes('T') ? tanggal : `${tanggal}T${new Date().toTimeString().slice(0, 8)}.000Z`;
             
-            // Only import if there's an actual transaction
             if (jumlahMasuk > 0 || jumlahKeluar > 0) {
               importData.push({
                 id_product: product.id_product,
@@ -759,12 +840,13 @@ function GudangPageContent() {
           }
           
           fetchGudang();
-          alert(`✅ Imported ${importData.length} transactions successfully`);
+          showToast(`✅ Imported ${importData.length} transactions successfully`, 'success');
         } else {
-          alert('⚠️ No valid transactions found in the file');
+          showToast('⚠️ No valid transactions found in the file', 'error');
         }
       } catch (err: any) {
         console.error('Import error:', err.message);
+        showToast('❌ Failed to import data', 'error');
       }
     };
     reader.readAsArrayBuffer(file);
@@ -782,7 +864,6 @@ function GudangPageContent() {
     );
   }
 
-  // Block access if user doesn't have permission
   if (hasAccess === false) {
     return (
       <div className="p-2">
@@ -819,7 +900,6 @@ function GudangPageContent() {
 
   return (
     <div className="p-1 md:p-2">
-      {/* Toast Notification */}
       {toast && (
         <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 flex items-center shadow-lg transform transition-all duration-300 ${
           toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
@@ -872,12 +952,11 @@ function GudangPageContent() {
         </div>
 
         <div className="flex flex-wrap gap-1">
-        {canPerformActionSync(userRole, 'gudang', 'create') && (
+          {canPerformActionSync(userRole, 'gudang', 'create') && (
             <button
               onClick={() => {
                 setShowAddForm(!showAddForm);
                 if (!showAddForm) {
-                  // Auto-fill user's name and branch when opening add form
                   setFormData(prev => ({ 
                     ...prev, 
                     nama_pengambil_barang: userName,
@@ -893,10 +972,10 @@ function GudangPageContent() {
 
           <button 
             onClick={recalculateAllTotals} 
-            disabled={isRecalculating}
+            disabled={loading}
             className="bg-purple-600 text-white px-2 py-1 rounded-md text-xs disabled:opacity-50"
           >
-            {isRecalculating ? 'Processing...' : 'Recalculate'}
+            {loading ? 'Processing...' : 'Recalculate'}
           </button>
 
           {(userRole === 'super admin' || userRole === 'admin') && (
@@ -917,7 +996,6 @@ function GudangPageContent() {
             </label>
           )}
 
-
           {selectedItems.length > 0 && canPerformActionSync(userRole, 'gudang', 'delete') && (
             <button
               onClick={handleBulkDelete}
@@ -926,7 +1004,6 @@ function GudangPageContent() {
               Delete ({selectedItems.length})
             </button>
           )}
-          
         </div>
       </div>
 
@@ -1019,7 +1096,6 @@ function GudangPageContent() {
                 disabled
                 readOnly
               />
-
             </div>
             <div className="flex gap-1">
               <button type="submit" disabled={saving} className="bg-green-600 text-white px-3 py-1 rounded-md text-xs disabled:opacity-50">
@@ -1032,8 +1108,6 @@ function GudangPageContent() {
           </form>
         </div>
       )}
-
-
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
@@ -1103,7 +1177,7 @@ function GudangPageContent() {
                     {visibleColumns.includes('order_no') && <td className="px-1 py-1 font-medium">
                       {(item as any).source_type === 'stock_opname_batch' ? (
                         <a 
-                          href={`/stock_opname_batch?highlight=${(item as any).source_reference?.replace('SO-', '')}`}
+                          href={`/stock_opname_batch?highlight=${(item as any).source_reference?.replace('BATCH-', '')}`}
                           className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
                           title="View related Stock Opname"
                         >
