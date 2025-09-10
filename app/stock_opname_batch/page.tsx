@@ -5,6 +5,7 @@ import { supabase } from "@/src/lib/supabaseClient"
 import { Edit2, Trash2, Plus, ChevronDown, ChevronRight, Loader2, FileText } from "lucide-react"
 import Layout from '../../components/Layout'
 import PageAccessControl from '../../components/PageAccessControl'
+import jsPDF from 'jspdf'
 
 export default function StockOpnameBatchPage() {
   const [batches, setBatches] = useState<any[]>([])
@@ -591,120 +592,85 @@ export default function StockOpnameBatchPage() {
         .order('product_name')
       
       if (detailError) throw detailError
+
+      const pdf = new jsPDF()
       
-      // Create HTML content for PDF
-      const currentDate = new Date().toLocaleDateString('id-ID')
-      const currentTime = new Date().toLocaleTimeString('id-ID')
+      // Add title
+      pdf.setFontSize(16)
+      pdf.text('LAPORAN STOCK OPNAME', 105, 15, { align: 'center' })
+      pdf.setFontSize(14)
+      pdf.text(`BATCH-${batchId}`, 105, 25, { align: 'center' })
       
-      let htmlContent = `
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }
-            .header { text-align: center; margin-bottom: 20px; }
-            .info { margin-bottom: 15px; }
-            .info-row { margin-bottom: 3px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            th, td { border: 1px solid #000; padding: 5px; text-align: left; }
-            th { background-color: #f0f0f0; font-weight: bold; }
-            .text-right { text-align: right; }
-            .text-center { text-align: center; }
-            .footer { margin-top: 20px; }
-            .signature { margin-top: 30px; display: flex; justify-content: space-between; }
-            .signature-box { text-align: center; width: 200px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h2>LAPORAN STOCK OPNAME</h2>
-            <h3>BATCH-${batchId}</h3>
-          </div>
-          
-          <div class="info">
-            <div class="info-row"><strong>Tanggal SO:</strong> ${batchData.batch_date}</div>
-            <div class="info-row"><strong>Waktu SO:</strong> ${batchData.batch_time?.substring(0, 5) || '12:00'}</div>
-            <div class="info-row"><strong>Cabang:</strong> ${batchData.nama_branch}</div>
-            <div class="info-row"><strong>Sub Kategori:</strong> ${batchData.sub_category}</div>
-            <div class="info-row"><strong>PIC:</strong> ${batchData.pic_name}</div>
-            <div class="info-row"><strong>Status:</strong> ${batchData.status}</div>
-            <div class="info-row"><strong>Dicetak:</strong> ${currentDate} ${currentTime}</div>
-          </div>
-          
-          <table>
-            <thead>
-              <tr>
-                <th class="text-center">No</th>
-                <th>Nama Produk</th>
-                <th class="text-center">Stok Sistem</th>
-                <th class="text-center">Stok Fisik</th>
-                <th class="text-center">Selisih</th>
-                <th class="text-center">Satuan</th>
-                <th>Catatan</th>
-              </tr>
-            </thead>
-            <tbody>
-      `
+      // Add batch info
+      pdf.setFontSize(10)
+      let yPosition = 40
       
+      pdf.text(`Tanggal SO: ${batchData.batch_date}`, 14, yPosition)
+      pdf.text(`Waktu SO: ${batchData.batch_time?.substring(0, 5) || '12:00'}`, 14, yPosition + 6)
+      pdf.text(`Cabang: ${batchData.nama_branch}`, 14, yPosition + 12)
+      pdf.text(`Sub Kategori: ${batchData.sub_category}`, 14, yPosition + 18)
+      pdf.text(`PIC: ${batchData.pic_name}`, 14, yPosition + 24)
+      pdf.text(`Status: ${batchData.status}`, 14, yPosition + 30)
+      
+      // Add table headers
+      yPosition += 45
+      pdf.setFillColor(240, 240, 240)
+      pdf.rect(14, yPosition - 5, 182, 8, 'F')
+      
+      pdf.text('No', 16, yPosition)
+      pdf.text('Nama Produk', 25, yPosition)
+      pdf.text('Stok Sistem', 100, yPosition)
+      pdf.text('Stok Fisik', 125, yPosition)
+      pdf.text('Selisih', 150, yPosition)
+      pdf.text('Satuan', 170, yPosition)
+      pdf.text('Catatan', 185, yPosition)
+      
+      // Add table rows
+      yPosition += 8
       detailData?.forEach((detail, index) => {
+        if (yPosition > 270) { // New page if needed
+          pdf.addPage()
+          yPosition = 20
+        }
+        
         const difference = detail.physical_stock - (detail.system_stock || 0)
-        htmlContent += `
-          <tr>
-            <td class="text-center">${index + 1}</td>
-            <td>${detail.product_name}</td>
-            <td class="text-right">${detail.system_stock}</td>
-            <td class="text-right">${detail.physical_stock}</td>
-            <td class="text-right">${difference.toFixed(2)}</td>
-            <td class="text-center">${detail.unit}</td>
-            <td>${detail.notes || '-'}</td>
-          </tr>
-        `
+        
+        pdf.text((index + 1).toString(), 16, yPosition)
+        // Limit product name length to fit
+        const productName = detail.product_name.length > 25 ? 
+          detail.product_name.substring(0, 25) + '...' : detail.product_name
+        pdf.text(productName, 25, yPosition)
+        pdf.text(detail.system_stock.toString(), 100, yPosition)
+        pdf.text(detail.physical_stock.toString(), 125, yPosition)
+        pdf.text(difference.toFixed(2), 150, yPosition)
+        pdf.text(detail.unit, 170, yPosition)
+        pdf.text(detail.notes || '-', 185, yPosition)
+        
+        yPosition += 6
       })
       
-      htmlContent += `
-            </tbody>
-          </table>
-          
-          <div class="footer">
-            <p><strong>Total Produk:</strong> ${detailData?.length || 0}</p>
-            <p><strong>Produk dengan Selisih:</strong> ${detailData?.filter(d => d.physical_stock !== d.system_stock).length || 0}</p>
-          </div>
-          
-          <div class="signature">
-            <div class="signature-box">
-              <p>Dibuat Oleh:</p>
-              <br><br><br>
-              <p>_________________</p>
-              <p>${batchData.pic_name}</p>
-            </div>
-            <div class="signature-box">
-              <p>Disetujui Oleh:</p>
-              <br><br><br>
-              <p>_________________</p>
-              <p>Manager</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `
+      // Add footer info
+      yPosition += 10
+      pdf.text(`Total Produk: ${detailData?.length || 0}`, 14, yPosition)
+      pdf.text(`Produk dengan Selisih: ${detailData?.filter(d => d.physical_stock !== d.system_stock).length || 0}`, 14, yPosition + 6)
       
-      // Create PDF using print functionality
-      const printWindow = window.open('', '_blank')
-      if (!printWindow) {
-        showToast('❌ Popup diblokir, silakan izinkan popup', 'error')
-        return
-      }
+      // Add signature section
+      yPosition += 20
+      pdf.text('Dibuat Oleh:', 30, yPosition)
+      pdf.text('Disetujui Oleh:', 130, yPosition)
       
-      printWindow.document.write(htmlContent)
-      printWindow.document.close()
+      yPosition += 25
+      pdf.text('_________________', 30, yPosition)
+      pdf.text('_________________', 130, yPosition)
       
-      // Auto print to PDF
-      printWindow.onload = () => {
-        printWindow.print()
-        setTimeout(() => printWindow.close(), 1000)
-      }
+      yPosition += 8
+      pdf.text(batchData.pic_name, 30, yPosition)
+      pdf.text('Manager', 130, yPosition)
       
-      showToast('✅ PDF siap untuk diprint/save', 'success')
+      // Save the PDF
+      pdf.save(`Laporan-Stock-Opname-BATCH-${batchId}.pdf`)
+      
+      showToast('✅ PDF berhasil diunduh', 'success')
       
     } catch (error: any) {
       showToast(`❌ Gagal export PDF: ${error.message}`, 'error')
