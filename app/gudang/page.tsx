@@ -361,14 +361,15 @@ function GudangPageContent() {
     
     // Validasi lock hanya untuk record baru (bukan edit)
     if (!editingId) {
+      // Check if input timestamp is BEFORE any locked record
       const { data: lockedRecords, error: lockCheckError } = await supabase
         .from('gudang')
         .select('tanggal, locked_by_so')
         .eq('id_product', formData.id_product)
         .eq('cabang', formData.cabang)
-        .lte('tanggal', timestamp)
+        .gt('tanggal', timestamp)
         .eq('is_locked', true)
-        .order('tanggal', { ascending: false })
+        .order('tanggal', { ascending: true })
         .limit(1);
 
       if (lockCheckError) {
@@ -379,7 +380,7 @@ function GudangPageContent() {
 
       if (lockedRecords && lockedRecords.length > 0) {
         const lockedRecord = lockedRecords[0];
-        alert(`❌ Cannot add transaction: Data is locked by ${lockedRecord.locked_by_so} at ${lockedRecord.tanggal.split('T')[0]}`);
+        alert(`❌ Cannot add transaction: Period is locked by ${lockedRecord.locked_by_so} starting from ${lockedRecord.tanggal.split('T')[0]}`);
         setSaving(false);
         return;
       }
