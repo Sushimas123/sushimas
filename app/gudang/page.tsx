@@ -511,12 +511,17 @@ function GudangPageContent() {
         .eq('order_no', id)
         .single();
       
-      if (gudangData?.is_locked) {
+      if (!gudangData) {
+        alert('❌ Record not found');
+        return;
+      }
+      
+      if (gudangData.is_locked) {
         alert(`❌ Cannot delete: Record is locked by ${gudangData.locked_by_so}`);
         return;
       }
       
-      if (gudangData?.source_type === 'stock_opname_batch') {
+      if (gudangData.source_type === 'stock_opname_batch') {
         alert('❌ Cannot delete: This record is from Stock Opname batch');
         return;
       }
@@ -674,7 +679,7 @@ function GudangPageContent() {
           .eq('order_no', id)
           .single();
         
-        if (gudangData?.is_locked || gudangData?.source_type === 'stock_opname_batch') {
+        if (!gudangData || gudangData.is_locked || gudangData.source_type === 'stock_opname_batch') {
           skippedCount++;
           continue;
         }
