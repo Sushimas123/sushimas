@@ -94,6 +94,7 @@ export default function StockOpnameBatchPage() {
       
       const stockPromises = productsData.map(async (product) => {
         try {
+          // Stok sistem saat SO (historical)
           const { data: stockData, error } = await supabase
             .from("gudang")
             .select("total_gudang")
@@ -105,9 +106,21 @@ export default function StockOpnameBatchPage() {
             .limit(1)
             .maybeSingle()
           
+          // Stok sistem terkini (real-time)
+          const { data: currentStockData, error: currentError } = await supabase
+            .from("gudang")
+            .select("total_gudang")
+            .eq("cabang", branchCode)
+            .eq("id_product", product.id_product)
+            .order("tanggal", { ascending: false })
+            .order("order_no", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          
           return {
             ...product,
             system_stock: (!error && stockData) ? stockData.total_gudang : 0,
+            current_system_stock: (!currentError && currentStockData) ? currentStockData.total_gudang : 0,
             physical_stock: 0,
             notes: ''
           }
@@ -115,6 +128,7 @@ export default function StockOpnameBatchPage() {
           return {
             ...product,
             system_stock: 0,
+            current_system_stock: 0,
             physical_stock: 0,
             notes: ''
           }
@@ -130,6 +144,7 @@ export default function StockOpnameBatchPage() {
             id_product: p.id_product,
             product_name: p.product_name,
             system_stock: p.system_stock,
+            current_system_stock: p.current_system_stock,
             unit: p.unit_kecil || 'pcs',
             sub_category: p.sub_category,
             physical_stock: existing?.physical_stock || 0,
@@ -756,7 +771,7 @@ export default function StockOpnameBatchPage() {
                         <tr>
                           <th className="px-3 py-2 text-left">Produk</th>
                           <th className="px-3 py-2 text-left">Stok Sistem{editing ? ' (saat SO)' : ''}</th>
-                          {editing && <th className="px-3 py-2 text-left">Stok Sistem (terkini)</th>}
+                          <th className="px-3 py-2 text-left">Stok Sistem (terkini)</th>
                           <th className="px-3 py-2 text-left">Stok Fisik</th>
                           <th className="px-3 py-2 text-left">Selisih</th>
                           <th className="px-3 py-2 text-left">Satuan</th>
@@ -774,9 +789,7 @@ export default function StockOpnameBatchPage() {
                             <tr key={index} className="border-t">
                               <td className="px-3 py-2 font-medium">{product.product_name}</td>
                               <td className="px-3 py-2">{systemStock}</td>
-                              {editing && (
-                                <td className="px-3 py-2 text-blue-600">{product.system_stock}</td>
-                              )}
+                              <td className="px-3 py-2 text-blue-600">{product.current_system_stock || product.system_stock}</td>
                               <td className="px-3 py-2">
                                 <input
                                   type="number"
