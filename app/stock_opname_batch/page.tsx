@@ -592,47 +592,122 @@ export default function StockOpnameBatchPage() {
       
       if (detailError) throw detailError
       
-      // Create CSV content for simple export
+      // Create HTML content for PDF
       const currentDate = new Date().toLocaleDateString('id-ID')
       const currentTime = new Date().toLocaleTimeString('id-ID')
       
-      let csvContent = "\uFEFF" // BOM for UTF-8
-      csvContent += "LAPORAN STOCK OPNAME\n"
-      csvContent += `BATCH-${batchId}\n\n`
-      
-      csvContent += `Tanggal SO:,${batchData.batch_date}\n`
-      csvContent += `Waktu SO:,${batchData.batch_time?.substring(0, 5) || '12:00'}\n`
-      csvContent += `Cabang:,${batchData.nama_branch}\n`
-      csvContent += `Sub Kategori:,${batchData.sub_category}\n`
-      csvContent += `PIC:,${batchData.pic_name}\n`
-      csvContent += `Status:,${batchData.status}\n`
-      csvContent += `Dicetak:,${currentDate} ${currentTime}\n\n`
-      
-      csvContent += "No,Nama Produk,Stok Sistem,Stok Fisik,Selisih,Satuan,Catatan\n"
+      let htmlContent = `
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .info { margin-bottom: 15px; }
+            .info-row { margin-bottom: 3px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            th, td { border: 1px solid #000; padding: 5px; text-align: left; }
+            th { background-color: #f0f0f0; font-weight: bold; }
+            .text-right { text-align: right; }
+            .text-center { text-align: center; }
+            .footer { margin-top: 20px; }
+            .signature { margin-top: 30px; display: flex; justify-content: space-between; }
+            .signature-box { text-align: center; width: 200px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2>LAPORAN STOCK OPNAME</h2>
+            <h3>BATCH-${batchId}</h3>
+          </div>
+          
+          <div class="info">
+            <div class="info-row"><strong>Tanggal SO:</strong> ${batchData.batch_date}</div>
+            <div class="info-row"><strong>Waktu SO:</strong> ${batchData.batch_time?.substring(0, 5) || '12:00'}</div>
+            <div class="info-row"><strong>Cabang:</strong> ${batchData.nama_branch}</div>
+            <div class="info-row"><strong>Sub Kategori:</strong> ${batchData.sub_category}</div>
+            <div class="info-row"><strong>PIC:</strong> ${batchData.pic_name}</div>
+            <div class="info-row"><strong>Status:</strong> ${batchData.status}</div>
+            <div class="info-row"><strong>Dicetak:</strong> ${currentDate} ${currentTime}</div>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th class="text-center">No</th>
+                <th>Nama Produk</th>
+                <th class="text-center">Stok Sistem</th>
+                <th class="text-center">Stok Fisik</th>
+                <th class="text-center">Selisih</th>
+                <th class="text-center">Satuan</th>
+                <th>Catatan</th>
+              </tr>
+            </thead>
+            <tbody>
+      `
       
       detailData?.forEach((detail, index) => {
         const difference = detail.physical_stock - (detail.system_stock || 0)
-        csvContent += `${index + 1},"${detail.product_name}",${detail.system_stock},${detail.physical_stock},${difference.toFixed(2)},${detail.unit},"${detail.notes || '-'}"\n`
+        htmlContent += `
+          <tr>
+            <td class="text-center">${index + 1}</td>
+            <td>${detail.product_name}</td>
+            <td class="text-right">${detail.system_stock}</td>
+            <td class="text-right">${detail.physical_stock}</td>
+            <td class="text-right">${difference.toFixed(2)}</td>
+            <td class="text-center">${detail.unit}</td>
+            <td>${detail.notes || '-'}</td>
+          </tr>
+        `
       })
       
-      csvContent += `\nTotal Produk:,${detailData?.length || 0}\n`
-      csvContent += `Produk dengan Selisih:,${detailData?.filter(d => d.physical_stock !== d.system_stock).length || 0}\n`
+      htmlContent += `
+            </tbody>
+          </table>
+          
+          <div class="footer">
+            <p><strong>Total Produk:</strong> ${detailData?.length || 0}</p>
+            <p><strong>Produk dengan Selisih:</strong> ${detailData?.filter(d => d.physical_stock !== d.system_stock).length || 0}</p>
+          </div>
+          
+          <div class="signature">
+            <div class="signature-box">
+              <p>Dibuat Oleh:</p>
+              <br><br><br>
+              <p>_________________</p>
+              <p>${batchData.pic_name}</p>
+            </div>
+            <div class="signature-box">
+              <p>Disetujui Oleh:</p>
+              <br><br><br>
+              <p>_________________</p>
+              <p>Manager</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
       
-      // Create and download file
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', `SO_BATCH-${batchId}_${batchData.batch_date}.csv`)
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
+      // Create PDF using print functionality
+      const printWindow = window.open('', '_blank')
+      if (!printWindow) {
+        showToast('❌ Popup diblokir, silakan izinkan popup', 'error')
+        return
+      }
       
-      showToast('✅ File berhasil didownload', 'success')
+      printWindow.document.write(htmlContent)
+      printWindow.document.close()
+      
+      // Auto print to PDF
+      printWindow.onload = () => {
+        printWindow.print()
+        setTimeout(() => printWindow.close(), 1000)
+      }
+      
+      showToast('✅ PDF siap untuk diprint/save', 'success')
       
     } catch (error: any) {
-      showToast(`❌ Gagal export file: ${error.message}`, 'error')
+      showToast(`❌ Gagal export PDF: ${error.message}`, 'error')
     } finally {
       setProcessingBatch(null)
     }
@@ -992,7 +1067,7 @@ export default function StockOpnameBatchPage() {
                                     onClick={() => exportToPDF(batch.batch_id)}
                                     disabled={processingBatch === batch.batch_id}
                                     className="text-purple-600 hover:text-purple-800 p-1 disabled:opacity-50"
-                                    title="Export CSV"
+                                    title="Export PDF"
                                   >
                                     {processingBatch === batch.batch_id ? 
                                       <Loader2 size={14} className="animate-spin" /> : 
@@ -1025,7 +1100,7 @@ export default function StockOpnameBatchPage() {
                                     onClick={() => exportToPDF(batch.batch_id)}
                                     disabled={processingBatch === batch.batch_id}
                                     className="text-purple-600 hover:text-purple-800 p-1 disabled:opacity-50"
-                                    title="Export CSV"
+                                    title="Export PDF"
                                   >
                                     {processingBatch === batch.batch_id ? 
                                       <Loader2 size={14} className="animate-spin" /> : 
