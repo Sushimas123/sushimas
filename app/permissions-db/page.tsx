@@ -13,22 +13,28 @@ export default function PermissionsDBPage() {
   const roles = ['super admin', 'admin', 'finance', 'pic_branch', 'staff']
   
   const pageColumns = {
-    esb: ['id', 'sales_date', 'branch', 'product', 'product_code', 'category', 'sub_category', 'unit', 'qty_total', 'value_total', 'product_id'],
-    ready: ['ready_no', 'tanggal_input', 'branch_name', 'sub_category', 'product_name', 'id_product', 'ready', 'waste'],
-    users: ['email', 'nama_lengkap', 'no_telp', 'role', 'cabang', 'created_at'],
-    produksi: ['tanggal_produksi', 'product_name', 'quantity', 'status', 'branch', 'notes'],
-    analysis: ['date', 'branch', 'product', 'ready_stock', 'production', 'consumption', 'balance'],
-    gudang: ['order_no', 'tanggal', 'id_product', 'jumlah_masuk', 'jumlah_keluar', 'total_gudang', 'cabang', 'source_type'],
-    produksi_detail: ['tanggal_produksi', 'item_id', 'quantity_used', 'unit', 'branch'],
-    stock_opname_batch: ['tanggal_opname', 'product_name', 'system_qty', 'actual_qty', 'difference', 'branch'],
-    stock_opname_batch: ['batch_id', 'batch_date', 'branch_code', 'sub_category', 'pic_name', 'status'],
-    branches: ['nama_branch', 'kode_branch', 'alamat', 'kota', 'provinsi', 'is_active'],
-    categories: ['category_name', 'description', 'is_active', 'created_at'],
-    product_name: ['product_name', 'category', 'sub_category', 'unit', 'price', 'is_active'],
-    product_settings: ['setting_name', 'setting_value', 'description', 'updated_at'],
-    recipes: ['recipe_name', 'ingredients', 'quantity', 'unit', 'instructions'],
-    supplier: ['supplier_name', 'contact_person', 'phone', 'email', 'address', 'is_active'],
-    audit_log: ['id', 'table_name', 'record_id', 'action', 'user_id', 'user_name', 'created_at']
+    esb: ['id', 'sales_date', 'branch', 'product', 'product_code', 'category', 'sub_category', 'unit', 'qty_total', 'value_total', 'product_id', 'created_at', 'updated_at'],
+    ready: ['id', 'ready_no', 'tanggal_input', 'branch_name', 'sub_category', 'product_name', 'id_product', 'ready', 'waste', 'created_by', 'updated_by', 'created_at', 'updated_at'],
+    users: ['id_user', 'email', 'nama_lengkap', 'no_telp', 'role', 'cabang', 'is_active', 'password_hash', 'created_by', 'updated_by', 'created_at', 'updated_at'],
+    produksi: ['id', 'tanggal_produksi', 'product_name', 'quantity', 'status', 'branch', 'notes', 'created_by', 'updated_by', 'created_at', 'updated_at'],
+    analysis: ['id', 'date', 'branch', 'product', 'ready_stock', 'production', 'consumption', 'balance', 'variance', 'created_at'],
+    gudang: ['id', 'order_no', 'tanggal', 'id_product', 'jumlah_masuk', 'jumlah_keluar', 'total_gudang', 'cabang', 'source_type', 'is_locked', 'locked_by_so', 'locked_date', 'created_by', 'updated_by', 'created_at', 'updated_at'],
+    produksi_detail: ['id', 'produksi_id', 'tanggal_produksi', 'item_id', 'quantity_used', 'unit', 'branch', 'cost', 'created_by', 'updated_by', 'created_at', 'updated_at'],
+    stock_opname_batch: ['batch_id', 'batch_date', 'batch_time', 'branch_code', 'sub_category', 'pic_name', 'status', 'created_at', 'updated_at'],
+    stock_opname_detail: ['detail_id', 'batch_id', 'product_name', 'system_stock', 'physical_stock', 'difference', 'unit', 'notes'],
+    branches: ['id_branch', 'nama_branch', 'kode_branch', 'alamat', 'kota', 'provinsi', 'kode_pos', 'tanggal_berdiri', 'parent_branch_id', 'branch_level', 'timezone', 'currency', 'tax_rate', 'delivery_radius', 'max_staff', 'monthly_target', 'status', 'notes', 'is_active', 'created_by', 'updated_by', 'created_at', 'updated_at'],
+    categories: ['id', 'category_name', 'description', 'is_active', 'created_by', 'updated_by', 'created_at', 'updated_at'],
+    product_name: ['id', 'product_name', 'category', 'sub_category', 'unit', 'price', 'is_active', 'created_by', 'updated_by', 'created_at', 'updated_at'],
+    product_settings: ['id', 'setting_name', 'setting_value', 'description', 'data_type', 'created_at', 'updated_at'],
+    recipes: ['id', 'recipe_name', 'ingredients', 'quantity', 'unit', 'instructions', 'cost', 'prep_time', 'created_by', 'updated_by', 'created_at', 'updated_at'],
+    supplier: ['id', 'supplier_name', 'contact_person', 'phone', 'email', 'address', 'city', 'province', 'postal_code', 'tax_id', 'payment_terms', 'is_active', 'created_by', 'updated_by', 'created_at', 'updated_at'],
+    audit_log: ['id', 'table_name', 'record_id', 'action', 'user_id', 'user_name', 'branch_id', 'old_values', 'new_values', 'created_at'],
+    branch_settings: ['id', 'branch_id', 'setting_key', 'setting_value', 'data_type', 'created_at', 'updated_at'],
+    branch_transfers: ['id', 'transfer_no', 'from_branch_id', 'to_branch_id', 'product_id', 'quantity', 'unit_price', 'total_value', 'status', 'request_date', 'approved_date', 'shipped_date', 'received_date', 'notes', 'created_by', 'approved_by', 'created_at', 'updated_at'],
+    branch_notifications: ['id', 'branch_id', 'notification_type', 'title', 'message', 'priority', 'is_read', 'read_by', 'read_at', 'expires_at', 'created_at'],
+    user_branches: ['id', 'id_user', 'kode_branch', 'is_active', 'created_at', 'updated_at'],
+    user_permissions: ['id', 'role', 'page', 'columns', 'can_access', 'created_at', 'updated_at'],
+    crud_permissions: ['id', 'user_id', 'role', 'page', 'can_create', 'can_read', 'can_update', 'can_delete', 'created_at', 'updated_at']
   }
 
   const pages = Object.keys(pageColumns)
