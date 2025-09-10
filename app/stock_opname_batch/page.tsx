@@ -683,7 +683,7 @@ export default function StockOpnameBatchPage() {
       // Add signature section
       yPosition += 20
       pdf.text('Dibuat Oleh:', 30, yPosition)
-      pdf.text('Disetujui Oleh:', 130, yPosition)
+      pdf.text('PIC Cabang:', 130, yPosition)
       
       yPosition += 25
       pdf.text('_________________', 30, yPosition)
@@ -691,7 +691,7 @@ export default function StockOpnameBatchPage() {
       
       yPosition += 8
       pdf.text(batchData.pic_name, 30, yPosition)
-      pdf.text('Manager', 130, yPosition)
+      
       
       // Save the PDF
       pdf.save(`Laporan-Stock-Opname-BATCH-${batchId}.pdf`)
@@ -795,7 +795,6 @@ export default function StockOpnameBatchPage() {
           <div className="bg-white p-4 rounded-lg shadow mb-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">🔍 Cari</label>
                 <input
                   type="text"
                   placeholder="Cari batch ID, PIC, atau sub kategori..."
@@ -805,7 +804,6 @@ export default function StockOpnameBatchPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">🏢 Cabang</label>
                 <select
                   value={filterBranch}
                   onChange={(e) => setFilterBranch(e.target.value)}
@@ -820,7 +818,6 @@ export default function StockOpnameBatchPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">📋 Status</label>
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
