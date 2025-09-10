@@ -53,6 +53,7 @@ export default function ProductSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [branchFilter, setBranchFilter] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -151,15 +152,45 @@ export default function ProductSettingsPage() {
     }
   };
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (selectedBranch?: string) => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('nama_product')
-        .select('id_product, product_name, category')
+        .select(`
+          id_product, 
+          product_name, 
+          category,
+          product_branches(branch_code)
+        `)
         .order('product_name');
       
+      const { data, error } = await query;
+      
       if (error) throw error;
-      setProducts(data || []);
+      
+      // Filter produk berdasarkan cabang yang dipilih
+      let filteredProducts = data || [];
+      
+      if (selectedBranch) {
+        // Convert branch ID to branch code for filtering
+        const selectedBranchData = branches.find(b => b.id_branch.toString() === selectedBranch);
+        if (selectedBranchData) {
+          // Get branch code from branches table
+          const { data: branchData } = await supabase
+            .from('branches')
+            .select('kode_branch')
+            .eq('id_branch', selectedBranchData.id_branch)
+            .single();
+          
+          if (branchData) {
+            filteredProducts = data?.filter(product => 
+              product.product_branches?.some((pb: any) => pb.branch_code === branchData.kode_branch)
+            ) || [];
+          }
+        }
+      }
+      
+      setProducts(filteredProducts);
     } catch (error) {
       console.error('Error fetching products:', error);
     }
@@ -502,7 +533,8 @@ export default function ProductSettingsPage() {
       const matchesSearch = item.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.category.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = !categoryFilter || item.category === categoryFilter;
-      return matchesSearch && matchesCategory;
+      const matchesBranch = !branchFilter || item.branch_settings.some(bs => bs.id_branch.toString() === branchFilter);
+      return matchesSearch && matchesCategory && matchesBranch;
     });
 
     if (sortConfig) {
@@ -611,7 +643,13 @@ export default function ProductSettingsPage() {
           
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => setShowAddForm(!showAddForm)}
+              onClick={() => {
+                setShowAddForm(!showAddForm);
+                // If branch filter is active, apply it to products when opening form
+                if (!showAddForm && branchFilter) {
+                  fetchProducts(branchFilter);
+                }
+              }}
               className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
             >
               <Plus size={16} />
@@ -675,8 +713,9 @@ export default function ProductSettingsPage() {
         {/* Filters */}
         {showFilters && (
           <div className="bg-white p-4 rounded-lg shadow mb-4">
-            <div className="flex items-end gap-4">
-              <div className="flex-1">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label className="block text-xs font-medium mb-1 text-gray-700">Category</label>
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
@@ -688,20 +727,65 @@ export default function ProductSettingsPage() {
                   ))}
                 </select>
               </div>
-              <button
-                onClick={() => {
-                  setCategoryFilter('');
-                  setSearchTerm('');
-                  showToast('Filters cleared', 'success');
-                }}
-                className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1 px-3 py-2 rounded hover:bg-red-50 border border-red-200"
-              >
-                <X size={16} />
-                Clear All
-              </button>
+              <div>
+                <label className="block text-xs font-medium mb-1 text-gray-700">Branch</label>
+                <select
+                  value={branchFilter}
+                  onChange={(e) => {
+                    const newBranch = e.target.value;
+                    setBranchFilter(newBranch);
+                    
+                    // Also filter products in the form
+                    if (showAddForm) {
+                      fetchProducts(newBranch);
+                      if (newBranch) {
+                        const branchName = branches.find(b => b.id_branch.toString() === newBranch)?.nama_branch;
+                        showToast(`✅ Filter aktif untuk cabang ${branchName}`, "success");
+                      }
+                    }
+                  }}
+                  className="border border-gray-300 px-3 py-2 rounded-md text-sm w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">All Branches</option>
+                  {branches.map(branch => (
+                    <option key={branch.id_branch} value={branch.id_branch}>
+                      {branch.nama_branch}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={() => {
+                    setCategoryFilter('');
+                    setBranchFilter('');
+                    setSearchTerm('');
+                    fetchProducts(); // Reset to all products
+                    showToast('Filters cleared', 'success');
+                  }}
+                  className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1 px-3 py-2 rounded hover:bg-red-50 border border-red-200"
+                >
+                  <X size={16} />
+                  Clear All
+                </button>
+              </div>
             </div>
             <div className="mt-3 pt-3 border-t border-gray-200 text-sm text-gray-600">
-              Showing <span className="font-medium">{filteredAndSortedData.length}</span> of <span className="font-medium">{data.length}</span> products
+              <div className="flex justify-between items-center">
+                <div>
+                  Showing <span className="font-medium">{filteredAndSortedData.length}</span> of <span className="font-medium">{data.length}</span> products
+                  {branchFilter && (
+                    <span className="ml-2 text-blue-600">
+                      (filtered by {branches.find(b => b.id_branch.toString() === branchFilter)?.nama_branch})
+                    </span>
+                  )}
+                </div>
+                {branchFilter && (
+                  <div className="text-xs text-blue-600">
+                    📍 {products.length} produk tersedia untuk cabang ini
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -715,20 +799,43 @@ export default function ProductSettingsPage() {
             <form onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                 <div>
-                  <label className="block text-xs font-medium mb-1 text-gray-700">Product *</label>
+                  <label className="block text-xs font-medium mb-1 text-gray-700">
+                    Product * 
+                    {branchFilter && (
+                      <span className="text-blue-600 font-normal">
+                        - {products.length} produk untuk {branches.find(b => b.id_branch.toString() === branchFilter)?.nama_branch}
+                      </span>
+                    )}
+                  </label>
                   <select
                     value={formData.id_product}
                     onChange={(e) => handleProductSelect(parseInt(e.target.value))}
                     className="border px-2 py-1 rounded-md text-xs w-full"
                     required
                   >
-                    <option value="">Select Product</option>
-                    {products.map(product => (
-                      <option key={product.id_product} value={product.id_product}>
-                        {product.product_name} ({product.category})
+                    <option value="">
+                      {branchFilter 
+                        ? `Select Product (${products.length} available for this branch)`
+                        : 'Select Product'
+                      }
+                    </option>
+                    {products.length === 0 && branchFilter ? (
+                      <option value="" disabled>
+                        No products available for {branches.find(b => b.id_branch.toString() === branchFilter)?.nama_branch}
                       </option>
-                    ))}
+                    ) : (
+                      products.map(product => (
+                        <option key={product.id_product} value={product.id_product}>
+                          {product.product_name} ({product.category})
+                        </option>
+                      ))
+                    )}
                   </select>
+                  {branchFilter && products.length === 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Tidak ada produk yang terdaftar untuk cabang ini. Konfigurasi produk di halaman Product Management.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1 text-gray-700">Tolerance % *</label>
@@ -879,7 +986,12 @@ export default function ProductSettingsPage() {
                         className="rounded"
                       />
                     </td>
-                    <td className="border px-2 py-1 font-medium">{toTitleCase(item.product_name)}</td>
+                    <td className="border px-2 py-1 font-medium">
+                      {toTitleCase(item.product_name)}
+                      {branchFilter && !item.branch_settings.some(bs => bs.id_branch.toString() === branchFilter) && (
+                        <span className="ml-2 text-xs text-gray-400">(not in filtered branch)</span>
+                      )}
+                    </td>
                     <td className="border px-2 py-1">
                       <span className={`px-1 py-0.5 rounded text-xs font-semibold ${
                         item.category === 'Menu' ? 'bg-blue-100 text-blue-800' :
