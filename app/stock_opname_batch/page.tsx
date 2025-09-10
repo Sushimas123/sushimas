@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react"
 import { supabase } from "@/src/lib/supabaseClient"
-import { Edit2, Trash2, Plus, ChevronDown, ChevronRight } from "lucide-react"
+import { Edit2, Trash2, Plus, ChevronDown, ChevronRight, Loader2 } from "lucide-react"
 import Layout from '../../components/Layout'
 import PageAccessControl from '../../components/PageAccessControl'
 
@@ -20,10 +20,13 @@ export default function StockOpnameBatchPage() {
   const [editingBatchId, setEditingBatchId] = useState<number | null>(null)
   const [expandedBatch, setExpandedBatch] = useState<number | null>(null)
   const [batchDetails, setBatchDetails] = useState<any[]>([])
-  const [form, setForm] = useState<any>({})
+  const [form, setForm] = useState<any>({
+    opname_date: new Date().toISOString().split('T')[0],
+    opname_time: '12:00'
+  })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [processingBatch, setProcessingBatch] = useState<number | null>(null)
 
   useEffect(() => {
     fetchBatches()
@@ -36,6 +39,8 @@ export default function StockOpnameBatchPage() {
     const { data, error } = await supabase
       .from("stock_opname_batch_summary")
       .select("*")
+      .order("batch_date", { ascending: false })
+      .order("batch_id", { ascending: false })
     if (!error) setBatches(data || [])
     setLoading(false)
   }, [])
@@ -83,7 +88,7 @@ export default function StockOpnameBatchPage() {
       }
       
       // Gunakan tanggal dan waktu dari parameter atau dari form
-      const cutoffDate = soDate || form.opname_date || selectedDate
+      const cutoffDate = soDate || form.opname_date
       const cutoffTime = soTime || form.opname_time || '12:00:00'
       const cutoffDateTime = `${cutoffDate} ${cutoffTime}`
       
@@ -94,7 +99,7 @@ export default function StockOpnameBatchPage() {
             .select("total_gudang")
             .eq("cabang", branchCode)
             .eq("id_product", product.id_product)
-            .lte("tanggal", cutoffDateTime) // Gunakan tanggal+waktu sebagai cutoff
+            .lte("tanggal", cutoffDateTime)
             .order("tanggal", { ascending: false })
             .order("order_no", { ascending: false })
             .limit(1)
@@ -135,38 +140,48 @@ export default function StockOpnameBatchPage() {
       })
     } catch (error) {
       setBranchProducts([])
-      showToast('❌ Failed to load products', 'error')
+      showToast('❌ Gagal memuat produk', 'error')
     } finally {
       setLoadingBranchData(false)
     }
-  }, [selectedDate, form.opname_date, form.opname_time])
+  }, [form.opname_date, form.opname_time])
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
   }
 
-  const handleSubmit = async () => {
+  const validateForm = () => {
     const newErrors: Record<string, string> = {}
     
-    if (!selectedBranch) newErrors.branch_code = "Branch is required"
-    if (!selectedSubCategory) newErrors.sub_category = "Sub category is required"
-    if (!form.opname_date) newErrors.opname_date = "Date is required"
-    if (!form.pic_name?.trim()) newErrors.pic_name = "PIC is required"
+    if (!selectedBranch) newErrors.branch_code = "Cabang harus dipilih"
+    if (!selectedSubCategory) newErrors.sub_category = "Sub kategori harus dipilih"
+    if (!form.opname_date) newErrors.opname_date = "Tanggal harus diisi"
+    if (!form.pic_name?.trim()) newErrors.pic_name = "Nama PIC harus diisi"
     
-    const productsWithPhysicalStock = branchProducts.filter(p => p.physical_stock > 0)
+    const productsWithPhysicalStock = branchProducts.filter(p => p.physical_stock > 0 || p.physical_stock === 0)
     
     if (productsWithPhysicalStock.length === 0) {
-      newErrors.physical_stock = "At least one product physical stock is required"
+      newErrors.physical_stock = "Minimal satu produk harus memiliki stok fisik"
     }
     
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors)
-      return
+    // Validasi stok fisik tidak boleh negatif
+    const hasNegativeStock = branchProducts.some(p => p.physical_stock < 0)
+    if (hasNegativeStock) {
+      newErrors.physical_stock = "Stok fisik tidak boleh negatif"
     }
+    
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleSubmit = async () => {
+    if (!validateForm()) return
     
     setLoading(true)
     try {
+      const productsWithPhysicalStock = branchProducts.filter(p => p.physical_stock > 0 || p.physical_stock === 0)
+      
       if (editingBatchId) {
         const { error: updateError } = await supabase
           .from('stock_opname_batch')
@@ -196,7 +211,7 @@ export default function StockOpnameBatchPage() {
         const { error: insertError } = await supabase.from('stock_opname_detail').insert(details)
         if (insertError) throw insertError
         
-        showToast('✅ Batch updated', 'success')
+        showToast('✅ Batch berhasil diperbarui', 'success')
       } else {
         const { data: batchData, error: batchError } = await supabase
           .from('stock_opname_batch')
@@ -205,12 +220,13 @@ export default function StockOpnameBatchPage() {
             batch_time: form.opname_time || '12:00:00',
             branch_code: selectedBranch,
             sub_category: selectedSubCategory,
-            pic_name: form.pic_name.trim()
+            pic_name: form.pic_name.trim(),
+            status: 'pending'
           })
           .select('batch_id')
           .single()
         
-        if (batchError || !batchData?.batch_id) throw batchError || new Error('Failed to create batch')
+        if (batchError || !batchData?.batch_id) throw batchError || new Error('Gagal membuat batch')
         
         const details = productsWithPhysicalStock.map(product => ({
           batch_id: batchData.batch_id,
@@ -224,21 +240,24 @@ export default function StockOpnameBatchPage() {
         const { error: insertError } = await supabase.from('stock_opname_detail').insert(details)
         if (insertError) throw insertError
         
-        showToast('✅ Batch created', 'success')
+        showToast('✅ Batch berhasil dibuat', 'success')
       }
       
       resetForm()
       fetchBatches()
       
     } catch (error: any) {
-      showToast(`❌ Failed to save batch: ${error.message}`, 'error')
+      showToast(`❌ Gagal menyimpan batch: ${error.message}`, 'error')
     } finally {
       setLoading(false)
     }
   }
 
   const resetForm = () => {
-    setForm({})
+    setForm({
+      opname_date: new Date().toISOString().split('T')[0],
+      opname_time: '12:00'
+    })
     setSelectedBranch('')
     setSelectedSubCategory('')
     setBranchProducts([])
@@ -257,11 +276,11 @@ export default function StockOpnameBatchPage() {
         .eq('batch_id', batchId)
         .single()
       
-      if (batchError || !batchData) throw new Error('Batch not found')
+      if (batchError || !batchData) throw new Error('Batch tidak ditemukan')
       
       // If approved, revert to pending and delete gudang entries
       if (batchData.status === 'approved') {
-        if (!confirm('⚠️ This will revert the batch to pending and remove stock adjustments. Continue?')) {
+        if (!confirm('⚠️ Batch yang sudah disetujui akan dikembalikan ke status pending dan penyesuaian stok akan dihapus. Lanjutkan?')) {
           setLoading(false)
           return
         }
@@ -275,9 +294,12 @@ export default function StockOpnameBatchPage() {
       
       if (detailError) throw detailError
       
+      // Format time correctly for input[type="time"]
+      const batchTime = batchData.batch_time ? batchData.batch_time.substring(0, 5) : '12:00'
+      
       setForm({
         opname_date: batchData.batch_date,
-        opname_time: batchData.batch_time,
+        opname_time: batchTime,
         pic_name: batchData.pic_name
       })
       
@@ -289,39 +311,46 @@ export default function StockOpnameBatchPage() {
       
       await fetchBranchProducts(batchData.branch_code, batchData.sub_category, batchData.batch_date, batchData.batch_time)
       
-      setBranchProducts(prev => prev.map(product => {
-        const detail = detailData?.find(d => d.product_name === product.product_name)
-        return detail ? {
-          ...product,
-          system_stock_snapshot: detail.system_stock,
-          physical_stock: detail.physical_stock,
-          notes: detail.notes || ''
-        } : product
-      }))
+      // Give time for products to load before setting details
+      setTimeout(() => {
+        setBranchProducts(prev => prev.map(product => {
+          const detail = detailData?.find(d => d.product_name === product.product_name)
+          return detail ? {
+            ...product,
+            system_stock_snapshot: detail.system_stock,
+            physical_stock: detail.physical_stock,
+            notes: detail.notes || ''
+          } : product
+        }))
+      }, 300)
       
     } catch (error: any) {
-      showToast(`❌ Failed to load batch: ${error.message}`, 'error')
+      showToast(`❌ Gagal memuat batch: ${error.message}`, 'error')
     } finally {
       setLoading(false)
     }
   }
 
   const handleDeleteBatch = async (batchId: number) => {
-    if (!confirm('Delete this batch?')) return
+    if (!confirm('Hapus batch ini?')) return
     
     try {
+      setProcessingBatch(batchId)
       await supabase.from('stock_opname_batch').delete().eq('batch_id', batchId)
-      showToast('✅ Batch deleted', 'success')
+      showToast('✅ Batch berhasil dihapus', 'success')
       fetchBatches()
     } catch (error) {
-      showToast('❌ Failed to delete batch', 'error')
+      showToast('❌ Gagal menghapus batch', 'error')
+    } finally {
+      setProcessingBatch(null)
     }
   }
 
   const handleApproveBatch = async (batchId: number) => {
-    if (!confirm('⚠️ Approve this batch? This will update stock records and lock previous data.')) return
+    if (!confirm('⚠️ Setujui batch ini? Tindakan ini akan memperbarui catatan stok dan mengunci data sebelumnya.')) return
     
     setLoading(true)
+    setProcessingBatch(batchId)
     try {
       const { data: batchData, error: batchError } = await supabase
         .from('stock_opname_batch')
@@ -329,7 +358,7 @@ export default function StockOpnameBatchPage() {
         .eq('batch_id', batchId)
         .single()
       
-      if (batchError || !batchData) throw new Error('Batch not found')
+      if (batchError || !batchData) throw new Error('Batch tidak ditemukan')
       
       const { data: detailData, error: detailError } = await supabase
         .from('stock_opname_detail')
@@ -338,7 +367,7 @@ export default function StockOpnameBatchPage() {
         .gt('physical_stock', 0)
       
       if (detailError) throw detailError
-      if (!detailData || detailData.length === 0) throw new Error('No detail data found')
+      if (!detailData || detailData.length === 0) throw new Error('Tidak ada data detail yang ditemukan')
       
       // Lock all records before SO date for affected products
       const soDateTime = `${batchData.batch_date}T${batchData.batch_time}`
@@ -353,7 +382,7 @@ export default function StockOpnameBatchPage() {
             .single()
           
           if (productError || !productData) {
-            console.warn(`Product not found: ${detail.product_name}`)
+            console.warn(`Produk tidak ditemukan: ${detail.product_name}`)
             continue
           }
           
@@ -370,7 +399,7 @@ export default function StockOpnameBatchPage() {
             .lt('tanggal', soDateTime)
             .eq('is_locked', false)
           
-          if (lockError) console.warn(`Lock error for ${detail.product_name}:`, lockError)
+          if (lockError) console.warn(`Error kunci untuk ${detail.product_name}:`, lockError)
           
           const difference = detail.physical_stock - (detail.system_stock || 0)
           if (difference === 0) continue
@@ -381,7 +410,7 @@ export default function StockOpnameBatchPage() {
             jumlah_masuk: difference > 0 ? Math.abs(difference) : 0,
             jumlah_keluar: difference < 0 ? Math.abs(difference) : 0,
             total_gudang: detail.physical_stock,
-            nama_pengambil_barang: `SO Batch by ${batchData.pic_name}`,
+            nama_pengambil_barang: `SO Batch oleh ${batchData.pic_name}`,
             cabang: batchData.branch_code,
             source_type: 'stock_opname_batch',
             source_reference: lockReference,
@@ -393,7 +422,7 @@ export default function StockOpnameBatchPage() {
           
           await recalculateFromDate(productData.id_product, batchData.branch_code, soDateTime)
         } catch (error: any) {
-          console.error(`Error processing ${detail.product_name}:`, error)
+          console.error(`Error memproses ${detail.product_name}:`, error)
         }
       }
       
@@ -404,13 +433,14 @@ export default function StockOpnameBatchPage() {
       
       if (statusError) throw statusError
       
-      showToast('✅ Batch approved and data locked successfully', 'success')
+      showToast('✅ Batch disetujui dan data berhasil dikunci', 'success')
       fetchBatches()
       
     } catch (error: any) {
-      showToast(`❌ Failed to approve batch: ${error.message}`, 'error')
+      showToast(`❌ Gagal menyetujui batch: ${error.message}`, 'error')
     } finally {
       setLoading(false)
+      setProcessingBatch(null)
     }
   }
 
@@ -432,9 +462,12 @@ export default function StockOpnameBatchPage() {
   }
 
   const handlePhysicalStockChange = (productName: string, value: string) => {
+    const numValue = parseFloat(value)
+    if (isNaN(numValue) || numValue < 0) return
+    
     setBranchProducts(prev => prev.map(p => 
       p.product_name === productName 
-        ? { ...p, physical_stock: parseFloat(value) || 0 }
+        ? { ...p, physical_stock: numValue }
         : p
     ))
   }
@@ -448,17 +481,19 @@ export default function StockOpnameBatchPage() {
   }
 
   const handleRevertBatch = async (batchId: number) => {
-    if (!confirm('⚠️ Revert this batch to pending? This will remove all stock adjustments.')) return
+    if (!confirm('⚠️ Kembalikan batch ini ke status pending? Tindakan ini akan menghapus semua penyesuaian stok.')) return
     
     setLoading(true)
+    setProcessingBatch(batchId)
     try {
       await revertApprovedBatch(batchId)
-      showToast('✅ Batch reverted to pending', 'success')
+      showToast('✅ Batch berhasil dikembalikan ke pending', 'success')
       fetchBatches()
     } catch (error: any) {
-      showToast(`❌ Failed to revert batch: ${error.message}`, 'error')
+      showToast(`❌ Gagal mengembalikan batch: ${error.message}`, 'error')
     } finally {
       setLoading(false)
+      setProcessingBatch(null)
     }
   }
 
@@ -561,7 +596,7 @@ export default function StockOpnameBatchPage() {
           
           if (updateError) throw updateError
         } catch (error: any) {
-          console.error(`Error updating record ${record.order_no}:`, error)
+          console.error(`Error memperbarui record ${record.order_no}:`, error)
         }
       }
     } catch (error: any) {
@@ -574,7 +609,10 @@ export default function StockOpnameBatchPage() {
     return (
       <Layout>
         <div className="p-4">
-          <div className="text-center">Loading...</div>
+          <div className="flex justify-center items-center h-64">
+            <Loader2 className="animate-spin h-8 w-8 text-blue-600" />
+            <span className="ml-2">Memuat data...</span>
+          </div>
         </div>
       </Layout>
     )
@@ -599,33 +637,39 @@ export default function StockOpnameBatchPage() {
               className="bg-blue-600 text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-blue-700"
             >
               <Plus size={16} />
-              Add Batch
+              Tambah Batch
             </button>
           </div>
 
           {showAddForm && (
             <div className="bg-white p-6 rounded-lg shadow mb-6">
               <h3 className="text-lg font-semibold mb-4">
-                {editing ? 'Edit Batch' : 'Add New Batch'}
+                {editing ? 'Edit Batch' : 'Tambah Batch Baru'}
               </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Date *</label>
+                  <label className="block text-sm font-medium mb-1">Tanggal *</label>
                   <input
                     type="date"
-                    value={form.opname_date || selectedDate}
-                    onChange={(e) => setForm({...form, opname_date: e.target.value})}
+                    value={form.opname_date}
+                    onChange={(e) => {
+                      setForm({...form, opname_date: e.target.value})
+                      // Refresh produk jika branch dan subcategory sudah dipilih
+                      if (selectedBranch && selectedSubCategory) {
+                        fetchBranchProducts(selectedBranch, selectedSubCategory, e.target.value, form.opname_time)
+                      }
+                    }}
                     className="w-full border px-3 py-2 rounded-md"
                   />
                   {errors.opname_date && <p className="text-red-500 text-xs mt-1">{errors.opname_date}</p>}
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Time</label>
+                  <label className="block text-sm font-medium mb-1">Waktu</label>
                   <input
                     type="time"
-                    value={form.opname_time || '12:00'}
+                    value={form.opname_time}
                     onChange={(e) => {
                       const newTime = e.target.value;
                       setForm({...form, opname_time: newTime});
@@ -640,7 +684,7 @@ export default function StockOpnameBatchPage() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Branch *</label>
+                  <label className="block text-sm font-medium mb-1">Cabang *</label>
                   <select
                     value={selectedBranch}
                     onChange={(e) => {
@@ -652,7 +696,7 @@ export default function StockOpnameBatchPage() {
                     }}
                     className="w-full border px-3 py-2 rounded-md"
                   >
-                    <option value="">Select Branch</option>
+                    <option value="">Pilih Cabang</option>
                     {branches.map(branch => (
                       <option key={branch.kode_branch} value={branch.kode_branch}>
                         {branch.nama_branch}
@@ -663,7 +707,7 @@ export default function StockOpnameBatchPage() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Sub Category *</label>
+                  <label className="block text-sm font-medium mb-1">Sub Kategori *</label>
                   <select
                     value={selectedSubCategory}
                     onChange={(e) => {
@@ -675,7 +719,7 @@ export default function StockOpnameBatchPage() {
                     }}
                     className="w-full border px-3 py-2 rounded-md"
                   >
-                    <option value="">Select Sub Category</option>
+                    <option value="">Pilih Sub Kategori</option>
                     {subCategories.map(sub => (
                       <option key={sub.sub_category} value={sub.sub_category}>
                         {sub.sub_category}
@@ -687,93 +731,104 @@ export default function StockOpnameBatchPage() {
               </div>
               
               <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">PIC Name *</label>
+                <label className="block text-sm font-medium mb-1">Nama PIC *</label>
                 <input
                   type="text"
                   value={form.pic_name || ''}
                   onChange={(e) => setForm({...form, pic_name: e.target.value})}
                   className="w-full border px-3 py-2 rounded-md"
-                  placeholder="Person in charge"
+                  placeholder="Nama penanggung jawab"
                 />
                 {errors.pic_name && <p className="text-red-500 text-xs mt-1">{errors.pic_name}</p>}
               </div>
 
               {loadingBranchData ? (
-                <div className="text-center py-4">Loading products...</div>
+                <div className="flex justify-center items-center py-4">
+                  <Loader2 className="animate-spin h-5 w-5 mr-2" />
+                  Memuat produk...
+                </div>
               ) : branchProducts.length > 0 ? (
                 <div className="mb-4">
-                  <h4 className="font-medium mb-2">Products ({branchProducts.length})</h4>
+                  <h4 className="font-medium mb-2">Produk ({branchProducts.length})</h4>
                   <div className="max-h-96 overflow-y-auto border rounded-md">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 sticky top-0">
                         <tr>
-                          <th className="px-3 py-2 text-left">Product</th>
-                          <th className="px-3 py-2 text-left">System Stock{editing ? ' (saat SO)' : ''}</th>
-                          {editing && <th className="px-3 py-2 text-left">System Stock (terkini)</th>}
-                          <th className="px-3 py-2 text-left">Physical Stock</th>
-                          <th className="px-3 py-2 text-left">Difference</th>
-                          <th className="px-3 py-2 text-left">Unit</th>
-                          <th className="px-3 py-2 text-left">Notes</th>
+                          <th className="px-3 py-2 text-left">Produk</th>
+                          <th className="px-3 py-2 text-left">Stok Sistem{editing ? ' (saat SO)' : ''}</th>
+                          {editing && <th className="px-3 py-2 text-left">Stok Sistem (terkini)</th>}
+                          <th className="px-3 py-2 text-left">Stok Fisik</th>
+                          <th className="px-3 py-2 text-left">Selisih</th>
+                          <th className="px-3 py-2 text-left">Satuan</th>
+                          <th className="px-3 py-2 text-left">Catatan</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {branchProducts.map((product, index) => (
-                          <tr key={index} className="border-t">
-                            <td className="px-3 py-2 font-medium">{product.product_name}</td>
-                            <td className="px-3 py-2">
-                              {editing && product.system_stock_snapshot !== undefined ? product.system_stock_snapshot : product.system_stock}
-                            </td>
-                            {editing && (
-                              <td className="px-3 py-2 text-blue-600">{product.system_stock}</td>
-                            )}
-                            <td className="px-3 py-2">
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={product.physical_stock || ''}
-                                onChange={(e) => handlePhysicalStockChange(product.product_name, e.target.value)}
-                                className="w-20 border px-2 py-1 rounded text-center"
-                              />
-                            </td>
-                            <td className={`px-3 py-2 font-medium ${
-                              (product.physical_stock - (editing && product.system_stock_snapshot !== undefined ? product.system_stock_snapshot : product.system_stock)) > 0 ? 'text-green-600' : 
-                              (product.physical_stock - (editing && product.system_stock_snapshot !== undefined ? product.system_stock_snapshot : product.system_stock)) < 0 ? 'text-red-600' : 'text-gray-600'
-                            }`}>
-                              {product.physical_stock ? (product.physical_stock - (editing && product.system_stock_snapshot !== undefined ? product.system_stock_snapshot : product.system_stock)).toFixed(2) : '0.00'}
-                            </td>
-                            <td className="px-3 py-2">{product.unit}</td>
-                            <td className="px-3 py-2">
-                              <input
-                                type="text"
-                                value={product.notes || ''}
-                                onChange={(e) => handleNotesChange(product.product_name, e.target.value)}
-                                className="w-32 border px-2 py-1 rounded text-xs"
-                                placeholder="Notes"
-                              />
-                            </td>
-                          </tr>
-                        ))}
+                        {branchProducts.map((product, index) => {
+                          const systemStock = editing && product.system_stock_snapshot !== undefined 
+                            ? product.system_stock_snapshot 
+                            : product.system_stock
+                          const difference = product.physical_stock - systemStock
+                          
+                          return (
+                            <tr key={index} className="border-t">
+                              <td className="px-3 py-2 font-medium">{product.product_name}</td>
+                              <td className="px-3 py-2">{systemStock}</td>
+                              {editing && (
+                                <td className="px-3 py-2 text-blue-600">{product.system_stock}</td>
+                              )}
+                              <td className="px-3 py-2">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={product.physical_stock || ''}
+                                  onChange={(e) => handlePhysicalStockChange(product.product_name, e.target.value)}
+                                  className="w-20 border px-2 py-1 rounded text-center"
+                                />
+                              </td>
+                              <td className={`px-3 py-2 font-medium ${
+                                difference > 0 ? 'text-green-600' : 
+                                difference < 0 ? 'text-red-600' : 'text-gray-600'
+                              }`}>
+                                {difference.toFixed(2)}
+                              </td>
+                              <td className="px-3 py-2">{product.unit}</td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  value={product.notes || ''}
+                                  onChange={(e) => handleNotesChange(product.product_name, e.target.value)}
+                                  className="w-32 border px-2 py-1 rounded text-xs"
+                                  placeholder="Catatan"
+                                />
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
                   {errors.physical_stock && <p className="text-red-500 text-xs mt-1">{errors.physical_stock}</p>}
                 </div>
               ) : selectedBranch && selectedSubCategory ? (
-                <div className="text-center py-4 text-gray-500">No products found</div>
+                <div className="text-center py-4 text-gray-500">Tidak ada produk ditemukan</div>
               ) : null}
 
               <div className="flex gap-2">
                 <button
                   onClick={handleSubmit}
-                  className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+                  disabled={loading}
+                  className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 flex items-center"
                 >
-                  {editing ? 'Update Batch' : 'Save Batch'}
+                  {loading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+                  {editing ? 'Perbarui Batch' : 'Simpan Batch'}
                 </button>
                 <button
                   onClick={resetForm}
                   className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
                 >
-                  Cancel
+                  Batal
                 </button>
               </div>
             </div>
@@ -784,137 +839,159 @@ export default function StockOpnameBatchPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th className="px-4 py-3 text-left">Batch ID</th>
-                    <th className="px-4 py-3 text-left">Date</th>
-                    <th className="px-4 py-3 text-left">Time</th> {/* Tambahkan ini */}
-                    <th className="px-4 py-3 text-left">Branch</th>
-                    <th className="px-4 py-3 text-left">Sub Category</th>
+                    <th className="px-4 py-3 text-left">ID Batch</th>
+                    <th className="px-4 py-3 text-left">Tanggal</th>
+                    <th className="px-4 py-3 text-left">Waktu</th>
+                    <th className="px-4 py-3 text-left">Cabang</th>
+                    <th className="px-4 py-3 text-left">Sub Kategori</th>
                     <th className="px-4 py-3 text-left">PIC</th>
-                    <th className="px-4 py-3 text-left">Products</th>
+                    <th className="px-4 py-3 text-left">Produk</th>
                     <th className="px-4 py-3 text-left">Status</th>
-                    <th className="px-4 py-3 text-left">Actions</th>
+                    <th className="px-4 py-3 text-left">Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {batches.map((batch) => (
-                    <React.Fragment key={batch.batch_id}>
-                      <tr className="border-t hover:bg-gray-50">
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => toggleBatchExpansion(batch.batch_id)}
-                            className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
-                          >
-                            {expandedBatch === batch.batch_id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                            BATCH-{batch.batch_id}
-                          </button>
-                        </td>
-                        <td className="px-4 py-3">{batch.batch_date}</td>
-                        <td className="px-4 py-3">{batch.batch_time?.substring(0, 5) || '12:00'}</td> {/* Tambahkan ini */}        
-                        <td className="px-4 py-3">{batch.nama_branch}</td>
-                        <td className="px-4 py-3">{batch.sub_category}</td>
-                        <td className="px-4 py-3">{batch.pic_name}</td>
-                        <td className="px-4 py-3">{batch.products_counted}/{batch.total_products}</td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            batch.status === 'approved' ? 'bg-green-100 text-green-800' :
-                            batch.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {batch.status_icon} {batch.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-1">
-                            {batch.status === 'pending' && (
-                              <>
-                                <button
-                                  onClick={() => handleEditBatch(batch.batch_id)}
-                                  className="text-blue-600 hover:text-blue-800 p-1"
-                                  title="Edit"
-                                >
-                                  <Edit2 size={14} />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteBatch(batch.batch_id)}
-                                  className="text-red-600 hover:text-red-800 p-1"
-                                  title="Delete"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                                <button
-                                  onClick={() => handleApproveBatch(batch.batch_id)}
-                                  className="text-green-600 hover:text-green-800 p-1 text-xs px-2 py-1 border border-green-600 rounded"
-                                  title="Approve"
-                                >
-                                  Approve
-                                </button>
-                              </>
-                            )}
-                            {batch.status === 'approved' && (
-                              <>
-                                <button
-                                  onClick={() => handleEditBatch(batch.batch_id)}
-                                  className="text-orange-600 hover:text-orange-800 p-1"
-                                  title="Edit (will reset to pending)"
-                                >
-                                  <Edit2 size={14} />
-                                </button>
-                                <button
-                                  onClick={() => handleRevertBatch(batch.batch_id)}
-                                  className="text-red-600 hover:text-red-800 p-1 text-xs px-2 py-1 border border-red-600 rounded"
-                                  title="Revert to Pending"
-                                >
-                                  Revert
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                      {expandedBatch === batch.batch_id && (
-  <tr>
-    <td colSpan={9} className="px-4 py-2 bg-gray-50">
-      <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
-        <div><strong>Date:</strong> {batch.batch_date}</div>
-        <div><strong>Time:</strong> {batch.batch_time?.substring(0, 5) || '12:00'}</div>
-      </div>
-      <div className="max-h-64 overflow-y-auto">
-                              <table className="w-full text-xs">
-                                <thead>
-                                  <tr className="bg-gray-100">
-                                    <th className="px-2 py-1 text-left">Product</th>
-                                    <th className="px-2 py-1 text-left">System</th>
-                                    <th className="px-2 py-1 text-left">Physical</th>
-                                    <th className="px-2 py-1 text-left">Difference</th>
-                                    <th className="px-2 py-1 text-left">Notes</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {batchDetails.map((detail) => {
-                                    const difference = detail.physical_stock - (detail.system_stock || 0)
-                                    return (
-                                      <tr key={detail.detail_id} className="border-t">
-                                        <td className="px-2 py-1">{detail.product_name}</td>
-                                        <td className="px-2 py-1">{detail.system_stock}</td>
-                                        <td className="px-2 py-1">{detail.physical_stock}</td>
-                                        <td className={`px-2 py-1 font-medium ${
-                                          difference > 0 ? 'text-green-600' : 
-                                          difference < 0 ? 'text-red-600' : 'text-gray-600'
-                                        }`}>
-                                          {difference.toFixed(2)}
-                                        </td>
-                                        <td className="px-2 py-1">{detail.notes}</td>
-                                      </tr>
-                                    )
-                                  })}
-                                </tbody>
-                              </table>
+                  {batches.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-4 text-center text-gray-500">
+                        Tidak ada data batch
+                      </td>
+                    </tr>
+                  ) : (
+                    batches.map((batch) => (
+                      <React.Fragment key={batch.batch_id}>
+                        <tr className="border-t hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => toggleBatchExpansion(batch.batch_id)}
+                              className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                            >
+                              {expandedBatch === batch.batch_id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                              BATCH-{batch.batch_id}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3">{batch.batch_date}</td>
+                          <td className="px-4 py-3">{batch.batch_time?.substring(0, 5) || '12:00'}</td>        
+                          <td className="px-4 py-3">{batch.nama_branch}</td>
+                          <td className="px-4 py-3">{batch.sub_category}</td>
+                          <td className="px-4 py-3">{batch.pic_name}</td>
+                          <td className="px-4 py-3">{batch.products_counted}/{batch.total_products}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              batch.status === 'approved' ? 'bg-green-100 text-green-800' :
+                              batch.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {batch.status_icon} {batch.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-1">
+                              {batch.status === 'pending' && (
+                                <>
+                                  <button
+                                    onClick={() => handleEditBatch(batch.batch_id)}
+                                    className="text-blue-600 hover:text-blue-800 p-1"
+                                    title="Edit"
+                                  >
+                                    <Edit2 size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteBatch(batch.batch_id)}
+                                    disabled={processingBatch === batch.batch_id}
+                                    className="text-red-600 hover:text-red-800 p-1 disabled:opacity-50"
+                                    title="Hapus"
+                                  >
+                                    {processingBatch === batch.batch_id ? 
+                                      <Loader2 size={14} className="animate-spin" /> : 
+                                      <Trash2 size={14} />
+                                    }
+                                  </button>
+                                  <button
+                                    onClick={() => handleApproveBatch(batch.batch_id)}
+                                    disabled={processingBatch === batch.batch_id}
+                                    className="text-green-600 hover:text-green-800 p-1 text-xs px-2 py-1 border border-green-600 rounded disabled:opacity-50"
+                                    title="Setujui"
+                                  >
+                                    {processingBatch === batch.batch_id ? 
+                                      <Loader2 size={12} className="animate-spin inline mr-1" /> : 
+                                      'Setujui'
+                                    }
+                                  </button>
+                                </>
+                              )}
+                              {batch.status === 'approved' && (
+                                <>
+                                  <button
+                                    onClick={() => handleEditBatch(batch.batch_id)}
+                                    className="text-orange-600 hover:text-orange-800 p-1"
+                                    title="Edit (akan mengembalikan ke pending)"
+                                  >
+                                    <Edit2 size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleRevertBatch(batch.batch_id)}
+                                    disabled={processingBatch === batch.batch_id}
+                                    className="text-red-600 hover:text-red-800 p-1 text-xs px-2 py-1 border border-red-600 rounded disabled:opacity-50"
+                                    title="Kembalikan ke Pending"
+                                  >
+                                    {processingBatch === batch.batch_id ? 
+                                      <Loader2 size={12} className="animate-spin inline mr-1" /> : 
+                                      'Kembalikan'
+                                    }
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
-                      )}
-                    </React.Fragment>
-                  ))}
+                        {expandedBatch === batch.batch_id && (
+                          <tr>
+                            <td colSpan={9} className="px-4 py-2 bg-gray-50">
+                              <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
+                                <div><strong>Tanggal:</strong> {batch.batch_date}</div>
+                                <div><strong>Waktu:</strong> {batch.batch_time?.substring(0, 5) || '12:00'}</div>
+                                <div><strong>Cabang:</strong> {batch.nama_branch}</div>
+                                <div><strong>Sub Kategori:</strong> {batch.sub_category}</div>
+                              </div>
+                              <div className="max-h-64 overflow-y-auto">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="bg-gray-100">
+                                      <th className="px-2 py-1 text-left">Produk</th>
+                                      <th className="px-2 py-1 text-left">Sistem</th>
+                                      <th className="px-2 py-1 text-left">Fisik</th>
+                                      <th className="px-2 py-1 text-left">Selisih</th>
+                                      <th className="px-2 py-1 text-left">Catatan</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {batchDetails.map((detail) => {
+                                      const difference = detail.physical_stock - (detail.system_stock || 0)
+                                      return (
+                                        <tr key={detail.detail_id} className="border-t">
+                                          <td className="px-2 py-1">{detail.product_name}</td>
+                                          <td className="px-2 py-1">{detail.system_stock}</td>
+                                          <td className="px-2 py-1">{detail.physical_stock}</td>
+                                          <td className={`px-2 py-1 font-medium ${
+                                            difference > 0 ? 'text-green-600' : 
+                                            difference < 0 ? 'text-red-600' : 'text-gray-600'
+                                          }`}>
+                                            {difference.toFixed(2)}
+                                          </td>
+                                          <td className="px-2 py-1">{detail.notes || '-'}</td>
+                                        </tr>
+                                      )
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
