@@ -270,22 +270,31 @@ function GudangPageContent() {
 
   const calculateTotalGudang = async (idProduct: number, tanggal: string, cabang: string) => {
     try {
-      // Cari record TERAKHIR sebelum tanggal yang diberikan yang TIDAK terkunci
-      const { data: lastRecord, error } = await supabase
+      // Dapatkan SEMUA record sebelum tanggal yang diberikan dengan urutan kronologis
+      const { data: previousRecords, error } = await supabase
         .from('gudang')
-        .select('total_gudang')
+        .select('*')
         .eq('id_product', idProduct)
         .eq('cabang', cabang)
         .lt('tanggal', tanggal)
-        .order('tanggal', { ascending: false })
-        .order('order_no', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order('tanggal', { ascending: true })
+        .order('order_no', { ascending: true });
 
       if (error) throw error;
+      if (!previousRecords || previousRecords.length === 0) return 0;
+
+      // Hitung running total dengan checkpoint system
+      let runningTotal = 0;
       
-      // Jika tidak ditemukan record sebelumnya, mulai dari 0
-      return lastRecord?.total_gudang || 0;
+      for (const record of previousRecords) {
+        if (record.is_locked) {
+          runningTotal = record.total_gudang; // Checkpoint
+        } else {
+          runningTotal = runningTotal + record.jumlah_masuk - record.jumlah_keluar;
+        }
+      }
+
+      return runningTotal;
     } catch (error) {
       console.error('Error calculating total gudang:', error);
       return 0;
@@ -294,45 +303,45 @@ function GudangPageContent() {
 
   const recalculateAffectedRecords = async (idProduct: number, fromDate: string, cabang: string) => {
     try {
-      // Dapatkan semua record untuk produk dan cabang ini dari tanggal yang ditentukan ke atas
-      const { data: affectedRecords, error } = await supabase
+      // Dapatkan SEMUA record untuk produk+cabang ini dengan urutan KRONOLOGIS
+      const { data: allRecords, error } = await supabase
         .from('gudang')
         .select('*')
         .eq('id_product', idProduct)
         .eq('cabang', cabang)
-        .gte('tanggal', fromDate)
         .order('tanggal', { ascending: true })
         .order('order_no', { ascending: true });
 
       if (error) throw error;
-      if (!affectedRecords || affectedRecords.length === 0) return;
+      if (!allRecords || allRecords.length === 0) return;
 
-      // Temukan record TERAKHIR sebelum fromDate
-      const { data: lastRecord } = await supabase
-        .from('gudang')
-        .select('total_gudang')
-        .eq('id_product', idProduct)
-        .eq('cabang', cabang)
-        .lt('tanggal', fromDate)
-        .order('tanggal', { ascending: false })
-        .order('order_no', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Gunakan LOGIKA CHECKPOINT yang sama seperti recalculateAllTotals
+      let runningTotal = 0;
+      let foundStart = false;
 
-      let runningTotal = lastRecord?.total_gudang || 0;
-
-      // Recalculate hanya record yang TIDAK terkunci
-      for (const record of affectedRecords) {
-        // Jika record terkunci, gunakan total_gudang-nya sebagai baseline baru
-        if (record.is_locked) {
-          runningTotal = record.total_gudang;
+      for (const record of allRecords) {
+        // Jika kita belum mencapai start date, hitung sampai sana dulu
+        if (!foundStart && record.tanggal < fromDate) {
+          if (record.is_locked) {
+            runningTotal = record.total_gudang; // Checkpoint
+          } else {
+            runningTotal = runningTotal + record.jumlah_masuk - record.jumlah_keluar;
+          }
           continue;
         }
 
-        // Hitung total baru hanya untuk record yang tidak terkunci
+        foundStart = true;
+
+        // Setelah start date, proses dengan checkpoint system
+        if (record.is_locked) {
+          runningTotal = record.total_gudang; // Checkpoint
+          continue;
+        }
+
+        // Hitung untuk record tidak terkunci
         runningTotal = runningTotal + record.jumlah_masuk - record.jumlah_keluar;
         
-        // Update hanya jika berbeda dengan nilai sebelumnya
+        // Update hanya jika berbeda
         if (runningTotal !== record.total_gudang) {
           const { error: updateError } = await supabase
             .from('gudang')
