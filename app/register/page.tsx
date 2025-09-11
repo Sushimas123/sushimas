@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/src/lib/supabaseClient'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -56,10 +57,19 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
       <div className="max-w-md w-full space-y-8">
         <div>
+          <div className="flex justify-center mb-6">
+            <Image 
+              src="/sushimas-logo.png"
+              alt="Sushimas Logo"
+              width={300}
+              height={300}
+              className="rounded-lg"
+            />
+          </div>
           <h1 className="text-center text-3xl font-extrabold text-gray-900">
-            📦 Sushimas Inventory
+            Sushimas
           </h1>
-          <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
+          <h2 className="mt-6 text-center text-2xl font-bold text-gray-900">
             Create new account
           </h2>
         </div>
