@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from "@/src/lib/supabaseClient";
-import { Download, RefreshCw } from 'lucide-react';
+import { Download, RefreshCw, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { getBranchFilter, applyBranchFilter } from '@/src/utils/branchAccess';
@@ -35,10 +35,24 @@ interface AnalysisData {
 interface PivotData {
   [subcategory: string]: {
     [product: string]: {
-      [date: string]: number; // selisih value
+      [date: string]: {
+        selisih: number;
+        pemakaian: number;
+      }
     }
   };
 }
+
+interface InvestigationNotes {
+  id: number;
+  analysis_id: number;
+  notes: string;
+  created_by: string;
+  created_at: string;
+}
+
+// Cache object untuk menyimpan data yang sudah di-fetch
+const dataCache = new Map();
 
 export default function PivotPage() {
   const router = useRouter();
@@ -53,14 +67,35 @@ export default function PivotPage() {
   const [expandedSubcategories, setExpandedSubcategories] = useState<Set<string>>(new Set());
   const [branches, setBranches] = useState<any[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [displayMode, setDisplayMode] = useState<'selisih' | 'pemakaian'>('selisih');
+
+  // Fungsi untuk menghasilkan cache key berdasarkan parameter
+  const getCacheKey = useCallback((startDate: string, endDate: string, branchFilter: string) => {
+    return `${startDate}-${endDate}-${branchFilter}`;
+  }, []);
 
   useEffect(() => {
     fetchBranches();
+    
+    // Load saved date range from localStorage
+    const saved = localStorage.getItem('pivot-date-range');
+    if (saved) {
+      try {
+        setDateRange(JSON.parse(saved));
+      } catch (e) {
+        console.error('Error loading saved date range:', e);
+      }
+    }
   }, []);
 
   useEffect(() => {
     fetchAnalysisData();
   }, [dateRange, branchFilter]);
+
+  // Save dateRange to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('pivot-date-range', JSON.stringify(dateRange));
+  }, [dateRange]);
 
   const fetchBranches = async () => {
     try {
@@ -142,174 +177,69 @@ export default function PivotPage() {
         .from('gudang')
         .select('*')
         .gte('tanggal', bufferDateStr)
-        .lte('tanggal', dateRange.endDate)
         .in('id_product', uniqueProductIds);
       
       const { data: esbData } = await supabase
         .from('esb_harian')
-        .select('*')
-        .gte('sales_date', dateRange.startDate)
+        .select('sales_date, product_id, branch, qty_total')
+        .gte('sales_date', bufferDateStr)
         .lte('sales_date', dateRange.endDate)
         .in('product_id', uniqueProductIds);
       
       const { data: productionData } = await supabase
         .from('produksi')
-        .select('*')
-        .gte('tanggal_input', dateRange.startDate)
+        .select('id_product, tanggal_input, total_konversi')
+        .gte('tanggal_input', bufferDateStr)
         .lte('tanggal_input', dateRange.endDate)
         .in('id_product', uniqueProductIds);
       
       const { data: productionDetailData } = await supabase
         .from('produksi_detail')
         .select('item_id, tanggal_input, total_pakai, branch')
-        .gte('tanggal_input', dateRange.startDate)
+        .gte('tanggal_input', bufferDateStr)
         .lte('tanggal_input', dateRange.endDate)
         .in('item_id', uniqueProductIds);
 
-      // Create maps
-      const productMap = new Map(productData?.map(p => [p.id_product, p]) || []);
-      const branchMap = new Map(branchData?.map(b => [b.id_branch, b]) || []);
-      const toleranceMap = new Map(toleranceData?.map(t => [t.id_product, t]) || []);
+      // Process data menggunakan logika yang sama dengan analysis page
+      const allAnalysisData = processAnalysisData(
+        readyData || [],
+        productData || [],
+        warehouseData || [],
+        esbData || [],
+        productionData || [],
+        branchData || [],
+        productionDetailData || [],
+        toleranceData || []
+      );
       
-      const warehouseMap = new Map();
-      warehouseData?.forEach(w => {
-        const key = `${w.id_product}-${w.cabang}`;
-        if (!warehouseMap.has(key)) warehouseMap.set(key, []);
-        warehouseMap.get(key).push(w);
-      });
-      
-      const esbMap = new Map();
-      esbData?.forEach(e => {
-        const key = `${e.sales_date}-${e.product_id}-${e.branch?.trim()}`;
-        esbMap.set(key, e);
-      });
-      
-      const productionMap = new Map();
-      productionData?.forEach(p => {
-        const key = `${p.id_product}-${p.tanggal_input}`;
-        productionMap.set(key, p);
+      // Filter untuk display
+      const filteredAnalysisData = allAnalysisData.filter(item => {
+        return item.tanggal >= dateRange.startDate && item.tanggal <= dateRange.endDate;
       });
 
-      // Helper functions
-      const calculateKeluarForm = (ready: any, readyStock: any[], warehouse: any[], branchMap: Map<any, any>, sumifTotal: number): number => {
-        const branch = branchMap.get(ready.id_branch);
-        const warehouseKey = `${ready.id_product}-${branch?.kode_branch}`;
-        const warehouseItems = warehouseMap.get(warehouseKey) || [];
-        
-        const filteredWarehouseItems = warehouseItems.filter((w: any) => {
-          const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
-          return warehouseDate && warehouseDate <= ready.tanggal_input;
-        });
-        
-        const warehouseItem = filteredWarehouseItems.length > 0 
-          ? filteredWarehouseItems.reduce((latest: any, current: any) => {
-              const latestTimestamp = latest.tanggal || '1900-01-01T00:00:00.000Z';
-              const currentTimestamp = current.tanggal || '1900-01-01T00:00:00.000Z';
-              return currentTimestamp > latestTimestamp ? current : latest;
-            })
-          : null;
-        
-        const stokKemarin = warehouseItem?.stok || 0;
-        const barangMasukHariIni = ready.barang_masuk || 0;
-        const stokHariIni = ready.ready || 0;
-        const waste = ready.waste || 0;
-        const totalKonversi = sumifTotal;
-        
-        const keluarForm = (stokKemarin + barangMasukHariIni) - (stokHariIni + waste) + totalKonversi;
-        return keluarForm;
-      };
-
-      const calculateSelisih = (hasilEsb: number, keluarForm: number, totalProduction: number): number => {
-        return hasilEsb - keluarForm + totalProduction;
-      };
-
-      // Process data
-      const analysisData: AnalysisData[] = [];
+      // Build pivot data
       const pivotDataTemp: PivotData = {};
       
-      readyData.forEach((ready, index) => {
-        const product = productMap.get(ready.id_product);
-        const productName = product?.product_name || `Product ${ready.id_product}`;
-        const branch = branchMap.get(ready.id_branch);
+      filteredAnalysisData.forEach(item => {
+        const subCategory = item.sub_category;
+        const productName = item.product;
+        const date = item.tanggal;
         
-        const readyDate = String(ready.tanggal_input).slice(0, 10);
-        const readyBranch = branch?.nama_branch?.trim() || "";
-        const esbKey = `${readyDate}-${ready.id_product}-${readyBranch}`;
-        const esbItem = esbMap.get(esbKey);
-        const hasilESB = esbItem ? Number(esbItem.qty_total) : 0;
-        
-        const branchCodeToNameMap = new Map();
-        branchData?.forEach(branch => {
-          branchCodeToNameMap.set(branch.kode_branch, branch.nama_branch);
-        });
-        
-        const expectedBranchName = branchCodeToNameMap.get(branch?.kode_branch || '') || branch?.nama_branch;
-        
-        const totalProduction = productionDetailData
-          ?.filter((pd: any) => {
-            return pd.item_id === ready.id_product && 
-                   pd.tanggal_input === ready.tanggal_input &&
-                   pd.branch === expectedBranchName;
-          })
-          .reduce((sum: number, pd: any) => sum + (pd.total_pakai || 0), 0) || 0;
-        
-        const productionKey = `${ready.id_product}-${ready.tanggal_input}`;
-        const productionItem = productionMap.get(productionKey);
-        const sumifTotal = productionItem?.total_konversi || 0;
-        
-        const keluarForm = calculateKeluarForm(ready, readyData, warehouseData || [], branchMap, sumifTotal);
-        const selisih = calculateSelisih(hasilESB, keluarForm, totalProduction);
-        
-        const tolerance = toleranceMap.get(ready.id_product);
-        const tolerancePercentage = tolerance?.tolerance_percentage || 5.0;
-        const toleranceValue = hasilESB * (tolerancePercentage / 100);
-        const toleranceMin = -toleranceValue;
-        const toleranceMax = toleranceValue;
-        const toleranceRange = `${toleranceMin.toFixed(1)} ~ ${toleranceMax.toFixed(1)}`;
-        const status = Math.abs(selisih) <= toleranceValue ? 'OK' : (selisih < 0 ? 'Kurang' : 'Lebih');
-
-        const analysisItem: AnalysisData = {
-          id_product: ready.id_product,
-          ready_no: ready.ready_no || `${index + 1}`,
-          tanggal: ready.tanggal_input || '',
-          product: productName,
-          unit_kecil: product?.unit_kecil || '',
-          cabang: branch?.nama_branch || `Branch ${ready.id_branch}`,
-          ready: ready.ready || 0,
-          gudang: 0,
-          barang_masuk: ready.barang_masuk || 0,
-          waste: ready.waste || 0,
-          total_barang: (ready.ready || 0) + (ready.barang_masuk || 0),
-          sub_category: product?.sub_category || 'Unknown',
-          keluar_form: keluarForm,
-          hasil_esb: hasilESB,
-          selisih,
-          total_production: totalProduction,
-          sumif_total: sumifTotal,
-          tolerance_percentage: tolerancePercentage,
-          tolerance_range: toleranceRange,
-          status
-        };
-
-        analysisData.push(analysisItem);
-
-        // Build pivot data - only include data within actual date range
-        if (ready.tanggal_input >= dateRange.startDate && ready.tanggal_input <= dateRange.endDate) {
-          const subCategory = product?.sub_category || 'Unknown';
-          
-          if (!pivotDataTemp[subCategory]) {
-            pivotDataTemp[subCategory] = {};
-          }
-          
-          if (!pivotDataTemp[subCategory][productName]) {
-            pivotDataTemp[subCategory][productName] = {};
-          }
-          
-          pivotDataTemp[subCategory][productName][ready.tanggal_input] = selisih;
+        if (!pivotDataTemp[subCategory]) {
+          pivotDataTemp[subCategory] = {};
         }
+        
+        if (!pivotDataTemp[subCategory][productName]) {
+          pivotDataTemp[subCategory][productName] = {};
+        }
+        
+        pivotDataTemp[subCategory][productName][date] = {
+          selisih: item.selisih,
+          pemakaian: item.keluar_form
+        };
       });
-
-      setData(analysisData);
+      
+      setData(filteredAnalysisData);
       setPivotData(pivotDataTemp);
     } catch (error: any) {
       console.error('Error fetching analysis data:', error);
@@ -318,6 +248,199 @@ export default function PivotPage() {
       setLoading(false);
     }
   };
+
+  const processAnalysisData = (readyStock: any[], products: any[], warehouse: any[], esb: any[], production: any[], branches: any[], productionDetail: any[], tolerances: any[]): AnalysisData[] => {
+    const productMap = new Map(products.map(p => [p.id_product, p]));
+    const branchMap = new Map(branches.map(b => [b.id_branch, b]));
+    const toleranceMap = new Map(tolerances.map(t => [t.id_product, t]));
+    
+    const warehouseMap = new Map();
+    warehouse.forEach(w => {
+      const key = `${w.id_product}-${w.cabang}`;
+      if (!warehouseMap.has(key)) warehouseMap.set(key, []);
+      warehouseMap.get(key).push(w);
+    });
+    
+    const esbMap = new Map();
+    esb.forEach(e => {
+      const key = `${e.sales_date}-${e.product_id}-${e.branch?.trim()}`;
+      esbMap.set(key, e);
+    });
+    
+    const productionMap = new Map();
+    production.forEach(p => {
+      const key = `${p.id_product}-${p.tanggal_input}`;
+      productionMap.set(key, p);
+    });
+    
+    return readyStock.map((ready, index) => {
+      const product = productMap.get(ready.id_product);
+      const productName = product?.product_name || `Product ${ready.id_product}`;
+      const branch = branchMap.get(ready.id_branch);
+      
+      const warehouseKey = `${ready.id_product}-${branch?.kode_branch}`;
+      const warehouseItems = warehouseMap.get(warehouseKey) || [];
+      const filteredWarehouseItems = warehouseItems.filter((w: any) => {
+        const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
+        return warehouseDate <= ready.tanggal_input;
+      });
+      
+      const warehouseItem = filteredWarehouseItems.length > 0 
+        ? filteredWarehouseItems.reduce((latest: any, current: any) => {
+            const latestTimestamp = latest.tanggal || '1900-01-01T00:00:00.000Z';
+            const currentTimestamp = current.tanggal || '1900-01-01T00:00:00.000Z';
+            return currentTimestamp > latestTimestamp ? current : latest;
+          })
+        : null;
+      
+      const readyDate = String(ready.tanggal_input).slice(0, 10);
+      const readyBranch = branch?.nama_branch?.trim() || "";
+      const esbKey = `${readyDate}-${ready.id_product}-${readyBranch}`;
+      const esbItem = esbMap.get(esbKey);
+      const hasilESB = esbItem ? Number(esbItem.qty_total) : 0;
+      
+      const productionKey = `${ready.id_product}-${ready.tanggal_input}`;
+      const productionItem = productionMap.get(productionKey);
+      
+      const branchCodeToNameMap = new Map();
+      branches.forEach(branch => {
+        branchCodeToNameMap.set(branch.kode_branch, branch.nama_branch);
+      });
+      
+      const expectedBranchName = branchCodeToNameMap.get(branch?.kode_branch || '') || branch?.nama_branch;
+      
+      const totalProduction = productionDetail
+        .filter((pd: any) => {
+          return pd.item_id === ready.id_product && 
+                 pd.tanggal_input === ready.tanggal_input &&
+                 pd.branch === expectedBranchName;
+        })
+        .reduce((sum: number, pd: any) => sum + (pd.total_pakai || 0), 0);
+      
+      const sumifTotal = productionItem?.total_konversi || 0;
+      const keluarForm = calculateKeluarForm(ready, readyStock, warehouse, branchMap, sumifTotal);
+      const selisih = calculateSelisih(hasilESB, keluarForm, totalProduction);
+      
+      const tolerance = toleranceMap.get(ready.id_product);
+      const tolerancePercentage = tolerance?.tolerance_percentage || 5.0;
+      const toleranceValue = hasilESB * (tolerancePercentage / 100);
+      const toleranceMin = -toleranceValue;
+      const toleranceMax = toleranceValue;
+      const toleranceRange = `${toleranceMin.toFixed(1)} ~ ${toleranceMax.toFixed(1)}`;
+      const status = Math.abs(selisih) <= toleranceValue ? 'OK' : (selisih < 0 ? 'Kurang' : 'Lebih');
+
+      return {
+        id_product: ready.id_product,
+        ready_no: ready.ready_no || `${index + 1}`,
+        tanggal: ready.tanggal_input || '',
+        product: productName,
+        unit_kecil: product?.unit_kecil || '',
+        cabang: branch?.nama_branch || `Branch ${ready.id_branch}`,
+        ready: ready.ready || 0,
+        gudang: warehouseItem?.total_gudang || 0,
+        barang_masuk: 0,
+        waste: ready.waste || 0,
+        total_barang: (ready.ready || 0) + (warehouseItem?.total_gudang || 0),
+        sub_category: product?.sub_category || 'Unknown',
+        keluar_form: keluarForm,
+        hasil_esb: hasilESB,
+        selisih,
+        total_production: totalProduction,
+        sumif_total: sumifTotal,
+        tolerance_percentage: tolerancePercentage,
+        tolerance_range: toleranceRange,
+        status
+      };
+    });
+  };
+
+  const calculateKeluarForm = (currentReady: any, allReadyStock: any[], warehouse: any[], branchMap: Map<any, any>, totalKonversi: number): number => {
+    const currentDate = new Date(currentReady.tanggal_input + 'T00:00:00Z');
+    currentDate.setDate(currentDate.getDate() - 1);
+    const previousDayStr = currentDate.getFullYear() + '-' + 
+      String(currentDate.getMonth() + 1).padStart(2, '0') + '-' + 
+      String(currentDate.getDate()).padStart(2, '0');
+    const branch = branchMap.get(currentReady.id_branch);
+    
+    const previousReady = allReadyStock.find(r => 
+      r.id_product === currentReady.id_product && 
+      r.id_branch === currentReady.id_branch &&
+      r.tanggal_input === previousDayStr
+    );
+    
+    const previousWarehouseItems = warehouse.filter(w => {
+      const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
+      return w.id_product === currentReady.id_product &&
+             warehouseDate <= previousDayStr &&
+             w.cabang === branch?.kode_branch;
+    });
+    
+    const previousWarehouseItem = previousWarehouseItems.length > 0 
+      ? previousWarehouseItems.reduce((latest, current) => {
+          const latestTimestamp = latest.tanggal || '1900-01-01T00:00:00.000Z';
+          const currentTimestamp = current.tanggal || '1900-01-01T00:00:00.000Z';
+          return currentTimestamp > latestTimestamp ? current : latest;
+        })
+      : null;
+    
+    const stokKemarin = (previousReady?.ready || 0) + (previousWarehouseItem?.total_gudang || 0);
+    
+    const barangMasukHariIni = warehouse
+      .filter(w => {
+        const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
+        return w.id_product === currentReady.id_product &&
+               warehouseDate === currentReady.tanggal_input &&
+               w.cabang === branch?.kode_branch;
+      })
+      .reduce((sum, w) => sum + (w.jumlah_masuk || 0), 0);
+    
+    const currentWarehouseItems = warehouse.filter(w => {
+      const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
+      return w.id_product === currentReady.id_product &&
+             warehouseDate <= currentReady.tanggal_input &&
+             w.cabang === branch?.kode_branch;
+    });
+    
+    const currentWarehouseItem = currentWarehouseItems.length > 0 
+      ? currentWarehouseItems.reduce((latest, current) => {
+          const latestTimestamp = latest.tanggal || '1900-01-01T00:00:00.000Z';
+          const currentTimestamp = current.tanggal || '1900-01-01T00:00:00.000Z';
+          return currentTimestamp > latestTimestamp ? current : latest;
+        })
+      : null;
+    
+    const stokHariIni = (currentReady.ready || 0) + (currentWarehouseItem?.total_gudang || 0);
+    const waste = currentReady.waste || 0;
+    
+    const keluarForm = (stokKemarin + barangMasukHariIni) - (stokHariIni + waste) + totalKonversi;
+    
+    return keluarForm;
+  };
+
+  const calculateSelisih = (hasilEsb: number, keluarForm: number, totalProduction: number): number => {
+    return hasilEsb - keluarForm + totalProduction;
+  };
+
+  // Fungsi untuk menghapus cache lama
+  const clearOldCache = useCallback(() => {
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
+    for (const [key] of dataCache) {
+      const [startDate] = key.split('-');
+      const cacheDate = new Date(startDate);
+      
+      if (cacheDate < sevenDaysAgo) {
+        dataCache.delete(key);
+      }
+    }
+  }, []);
+
+  // Bersihkan cache setiap hari
+  useEffect(() => {
+    const interval = setInterval(clearOldCache, 24 * 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [clearOldCache]);
 
   const handleExport = () => {
     if (Object.keys(pivotData).length === 0) {
@@ -333,7 +456,8 @@ export default function PivotPage() {
       const subcategoryRow: any = { 'Subcategory / Product': subcategory };
       dates.forEach(date => {
         const total = Object.values(products).reduce((sum, productDates) => {
-          return sum + (productDates[date] || 0);
+          const value = displayMode === 'selisih' ? productDates[date]?.selisih : productDates[date]?.pemakaian;
+          return sum + (value || 0);
         }, 0);
         subcategoryRow[new Date(date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit' })] = total.toFixed(2);
       });
@@ -343,7 +467,8 @@ export default function PivotPage() {
       Object.entries(products).forEach(([product, datesData]) => {
         const productRow: any = { 'Subcategory / Product': `  ${product}` };
         dates.forEach(date => {
-          productRow[new Date(date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit' })] = (datesData[date] || 0).toFixed(2);
+          const value = displayMode === 'selisih' ? datesData[date]?.selisih : datesData[date]?.pemakaian;
+          productRow[new Date(date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit' })] = (value || 0).toFixed(2);
         });
         exportData.push(productRow);
       });
@@ -357,6 +482,244 @@ export default function PivotPage() {
   };
 
   const dates = getAllDates();
+
+  // Komponen NegativeDiscrepancyDashboard
+  const NegativeDiscrepancyDashboard: React.FC<{ 
+    data: AnalysisData[], 
+    dateRange: { startDate: string, endDate: string },
+    branchFilter: string 
+  }> = ({ data, dateRange, branchFilter }) => {
+    const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
+    const [notes, setNotes] = useState<{ [key: number]: string }>({});
+    const [savedNotes, setSavedNotes] = useState<InvestigationNotes[]>([]);
+    const [filterCategory, setFilterCategory] = useState('');
+    const [filterBranch, setFilterBranch] = useState(branchFilter);
+    const [savingNotes, setSavingNotes] = useState<Set<number>>(new Set());
+
+    const negativeData = data.filter(item => item.selisih < 0);
+
+    useEffect(() => {
+      if (negativeData.length > 0) {
+        loadInvestigationNotes(negativeData.map(item => item.id_product));
+      }
+    }, [negativeData]);
+
+    const loadInvestigationNotes = async (analysisIds: number[]) => {
+      if (analysisIds.length === 0) return;
+      
+      const { data: notesData, error } = await supabase
+        .from('investigation_notes')
+        .select('*')
+        .in('analysis_id', analysisIds)
+        .order('created_at', { ascending: false });
+
+      if (!error && notesData) {
+        setSavedNotes(notesData);
+      }
+    };
+
+    const toggleExpand = (id: number) => {
+      const newExpanded = new Set(expandedItems);
+      if (newExpanded.has(id)) {
+        newExpanded.delete(id);
+      } else {
+        newExpanded.add(id);
+      }
+      setExpandedItems(newExpanded);
+    };
+
+    const saveNotes = async (id: number) => {
+      if (!notes[id] || notes[id].trim() === '') return;
+
+      setSavingNotes(prev => new Set(prev).add(id));
+      
+      const userData = localStorage.getItem('user');
+      const user = userData ? JSON.parse(userData) : { name: 'Unknown' };
+
+      const { error } = await supabase
+        .from('investigation_notes')
+        .insert({
+          analysis_id: id,
+          notes: notes[id],
+          created_by: user.name || 'Unknown'
+        });
+
+      if (!error) {
+        loadInvestigationNotes([id]);
+        setNotes(prev => ({ ...prev, [id]: '' }));
+      }
+      
+      setSavingNotes(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
+    };
+
+    const getSeverityLevel = (selisih: number) => {
+      const absoluteValue = Math.abs(selisih);
+      if (absoluteValue > 100) return 'high';
+      if (absoluteValue > 50) return 'medium';
+      return 'low';
+    };
+
+    const filteredData = negativeData.filter(item => {
+      const matchesCategory = !filterCategory || item.sub_category === filterCategory;
+      const matchesBranch = !filterBranch || item.cabang === filterBranch;
+      return matchesCategory && matchesBranch;
+    });
+
+    const categories = [...new Set(negativeData.map(item => item.sub_category))];
+    const branches = [...new Set(negativeData.map(item => item.cabang))];
+
+    if (negativeData.length === 0) {
+      return (
+        <div className="bg-white rounded-lg shadow p-6 mt-6">
+          <h2 className="text-xl font-bold text-green-700 flex items-center">
+            <AlertTriangle className="mr-2" />
+            Tidak Ada Selisih Negatif
+          </h2>
+          <p className="text-gray-600 text-sm mt-1">
+            Selamat! Tidak ada selisih negatif yang perlu investigasi pada periode ini.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-white rounded-lg shadow p-6 mt-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-red-700 flex items-center">
+              <AlertTriangle className="mr-2" />
+              Investigasi Selisih Minus
+            </h2>
+            <p className="text-gray-600 text-sm mt-1">
+              Total {filteredData.length} item dengan selisih negatif perlu investigasi
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-4 mb-4 p-3 bg-gray-50 rounded">
+          <div>
+            <label className="block text-sm font-medium mb-1">Kategori</label>
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="border border-gray-300 px-3 py-1 rounded text-sm"
+            >
+              <option value="">Semua Kategori</option>
+              {categories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Cabang</label>
+            <select
+              value={filterBranch}
+              onChange={(e) => setFilterBranch(e.target.value)}
+              className="border border-gray-300 px-3 py-1 rounded text-sm"
+            >
+              <option value="">Semua Cabang</option>
+              {branches.map(branch => (
+                <option key={branch} value={branch}>{branch}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="p-2 text-left"></th>
+                <th className="p-2 text-left">Tanggal</th>
+                <th className="p-2 text-left">Produk</th>
+                <th className="p-2 text-left">Kategori</th>
+                <th className="p-2 text-left">Cabang</th>
+                <th className="p-2 text-right">Selisih</th>
+                <th className="p-2 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredData.map(item => (
+                <React.Fragment key={`${item.id_product}-${item.tanggal}`}>
+                  <tr className={`border-b hover:bg-gray-50 ${
+                    getSeverityLevel(item.selisih) === 'high' ? 'bg-red-50' : 
+                    getSeverityLevel(item.selisih) === 'medium' ? 'bg-orange-50' : 'bg-yellow-50'
+                  }`}>
+                    <td className="p-2">
+                      <button 
+                        onClick={() => toggleExpand(item.id_product)}
+                        className="text-gray-500 hover:text-gray-700"
+                      >
+                        {expandedItems.has(item.id_product) ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+                    </td>
+                    <td className="p-2">{item.tanggal}</td>
+                    <td className="p-2 font-medium">{item.product}</td>
+                    <td className="p-2">{item.sub_category}</td>
+                    <td className="p-2">{item.cabang}</td>
+                    <td className="p-2 text-right text-red-600 font-bold">{item.selisih.toFixed(2)}</td>
+                    <td className="p-2 text-center">
+                      <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-800">
+                        {item.status}
+                      </span>
+                    </td>
+                  </tr>
+                  
+                  {expandedItems.has(item.id_product) && (
+                    <tr className="bg-blue-50">
+                      <td colSpan={7} className="p-4">
+                        <div>
+                          <h4 className="font-medium mb-2">Catatan Investigasi</h4>
+                          <div className="mb-3 max-h-40 overflow-y-auto">
+                            {savedNotes
+                              .filter(note => note.analysis_id === item.id_product)
+                              .map(note => (
+                                <div key={note.id} className="bg-white p-2 rounded border mb-2">
+                                  <div className="text-xs text-gray-500">
+                                    {note.created_by} - {new Date(note.created_at).toLocaleString()}
+                                  </div>
+                                  <div className="text-sm">{note.notes}</div>
+                                </div>
+                              ))
+                            }
+                            
+                            {savedNotes.filter(note => note.analysis_id === item.id_product).length === 0 && (
+                              <div className="text-gray-500 text-sm">Belum ada catatan investigasi</div>
+                            )}
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={notes[item.id_product] || ''}
+                              onChange={(e) => setNotes(prev => ({ ...prev, [item.id_product]: e.target.value }))}
+                              placeholder="Tambah catatan investigasi..."
+                              className="flex-1 border border-gray-300 px-3 py-1 rounded text-sm"
+                            />
+                            <button
+                              onClick={() => saveNotes(item.id_product)}
+                              disabled={savingNotes.has(item.id_product)}
+                              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 py-1 rounded text-sm"
+                            >
+                              {savingNotes.has(item.id_product) ? 'Saving...' : 'Simpan'}
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -437,7 +800,31 @@ export default function PivotPage() {
 
           {/* Pivot Table */}
           <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-bold mb-4">Pivot Table - Selisih Analysis</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold">Pivot Table - {displayMode === 'selisih' ? 'Selisih' : 'Pemakaian'} Analysis</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setDisplayMode('selisih')}
+                  className={`px-3 py-1 rounded text-sm ${
+                    displayMode === 'selisih' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Selisih
+                </button>
+                <button
+                  onClick={() => setDisplayMode('pemakaian')}
+                  className={`px-3 py-1 rounded text-sm ${
+                    displayMode === 'pemakaian' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Pemakaian
+                </button>
+              </div>
+            </div>
             
             <div className="overflow-x-auto">
               <table className="w-full text-sm border border-gray-200">
@@ -469,12 +856,13 @@ export default function PivotPage() {
                         </td>
                         {dates.map(date => {
                           const total = Object.values(products).reduce((sum, productDates) => {
-                            return sum + (productDates[date] || 0);
+                            const value = displayMode === 'selisih' ? productDates[date]?.selisih : productDates[date]?.pemakaian;
+                            return sum + (value || 0);
                           }, 0);
                           
                           return (
                             <td key={date} className={`border px-3 py-2 text-center font-medium ${
-                              total < 0 ? 'text-red-600' : total > 0 ? 'text-blue-600' : 'text-gray-600'
+                              total < 0 ? 'text-red-600' : total > 0 ? 'text-green-600' : 'text-gray-600'
                             }`}>
                               {total.toFixed(2)}
                             </td>
@@ -487,14 +875,18 @@ export default function PivotPage() {
                         Object.entries(products).map(([product, datesData]) => (
                           <tr key={product} className="bg-blue-50">
                             <td className="border px-3 py-2 pl-8">{product}</td>
-                            {dates.map(date => (
-                              <td key={date} className={`border px-3 py-2 text-center ${
-                                (datesData[date] || 0) < 0 ? 'text-red-600' : 
-                                (datesData[date] || 0) > 0 ? 'text-blue-600' : 'text-gray-600'
-                              }`}>
-                                {(datesData[date] || 0).toFixed(2)}
-                              </td>
-                            ))}
+                            {dates.map(date => {
+                              const value = displayMode === 'selisih' ? datesData[date]?.selisih : datesData[date]?.pemakaian;
+                              
+                              return (
+                                <td key={date} className={`border px-3 py-2 text-center ${
+                                  (value || 0) < 0 ? 'text-red-600' : 
+                                  (value || 0) > 0 ? 'text-green-600' : 'text-gray-600'
+                                }`}>
+                                  {(value || 0).toFixed(2)}
+                                </td>
+                              );
+                            })}
                           </tr>
                         ))
                       }
@@ -510,6 +902,13 @@ export default function PivotPage() {
               )}
             </div>
           </div>
+
+          {/* NegativeDiscrepancyDashboard */}
+          <NegativeDiscrepancyDashboard 
+            data={data} 
+            dateRange={dateRange} 
+            branchFilter={branchFilter} 
+          />
 
           {/* Toast */}
           {toast && (

@@ -136,17 +136,30 @@ export default function Layout({ children }: LayoutProps) {
         }
       }
 
-
-
       // Load recent pages
       const recent = JSON.parse(localStorage.getItem('recentPages') || '[]')
       setRecentPages(recent)
+
+      // Load active submenu state
+      const savedSubmenu = localStorage.getItem('activeSubmenu')
+      if (savedSubmenu) {
+        setActiveSubmenu(savedSubmenu)
+      } else {
+        // Auto-open submenu if current page is in a submenu
+        for (const item of menuItems) {
+          if (item.submenu?.some(sub => sub.href === pathname)) {
+            setActiveSubmenu(item.id)
+            localStorage.setItem('activeSubmenu', item.id)
+            break
+          }
+        }
+      }
 
       setIsLoading(false)
     }
 
     initializeLayout()
-  }, [])
+  }, [pathname, menuItems])
 
   // Track page visits
   useEffect(() => {
@@ -274,8 +287,14 @@ export default function Layout({ children }: LayoutProps) {
   }, []))
 
   const toggleSubmenu = useCallback((menuId: string) => {
-    setActiveSubmenu(prev => prev === menuId ? null : menuId)
-  }, [])
+    const newState = activeSubmenu === menuId ? null : menuId
+    setActiveSubmenu(newState)
+    if (newState) {
+      localStorage.setItem('activeSubmenu', newState)
+    } else {
+      localStorage.removeItem('activeSubmenu')
+    }
+  }, [activeSubmenu])
 
   const isActiveMenu = useCallback((href: string) => {
     return pathname === href
