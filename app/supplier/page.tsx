@@ -31,6 +31,7 @@ interface Supplier {
   divisi: string | null;
   created_by: string | null;
   nama_barang: string | null;
+  merk: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -59,7 +60,8 @@ export default function SuppliersPage() {
     estimasi_pengiriman: 1,
     divisi: '',
     created_by: '',
-    nama_barang: ''
+    nama_barang: '',
+    merk: ''
   });
   const [userRole, setUserRole] = useState<string>('guest');
 
@@ -195,7 +197,8 @@ export default function SuppliersPage() {
         estimasi_pengiriman: parseInt(row.estimasi_pengiriman) || 1,
         divisi: row.divisi?.toString().trim() || null,
         created_by: row.created_by?.toString().trim() || null,
-        nama_barang: row.nama_barang?.toString().trim() || null
+        nama_barang: row.nama_barang?.toString().trim() || null,
+        merk: row.merk?.toString().trim() || null
       })).filter((item: any) => item.nama_supplier);
 
       // Remove duplicates
@@ -277,7 +280,8 @@ export default function SuppliersPage() {
       supplier.nomor_rekening?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       supplier.bank_penerima?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       supplier.divisi?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      supplier.nama_barang?.toLowerCase().includes(searchTerm.toLowerCase())
+      supplier.nama_barang?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      supplier.merk?.toLowerCase().includes(searchTerm.toLowerCase())
     )
     .sort((a, b) => {
       if (!sortConfig) return 0;
@@ -412,6 +416,14 @@ export default function SuppliersPage() {
                 className="border px-2 py-1 rounded-md text-xs w-full"
                 placeholder="Nama Barang"
               />
+              <input
+                type="text"
+                name="merk"
+                value={formData.merk}
+                onChange={handleInputChange}
+                className="border px-2 py-1 rounded-md text-xs w-full"
+                placeholder="Merk"
+              />
             </div>
             <div className="flex gap-2">
               <button
@@ -435,7 +447,8 @@ export default function SuppliersPage() {
                     estimasi_pengiriman: 1,
                     divisi: '',
                     created_by: '',
-                    nama_barang: ''
+                    nama_barang: '',
+                    merk: ''
                   });
                 }}
                 className="bg-gray-600 text-white px-3 py-1 rounded-md hover:bg-gray-700 text-xs"
@@ -539,6 +552,15 @@ export default function SuppliersPage() {
                     <ArrowUpDown size={8} />
                   </div>
                 </th>
+                <th 
+                  className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200"
+                  onClick={() => handleSort('merk')}
+                >
+                  <div className="flex items-center gap-1">
+                    Merk
+                    <ArrowUpDown size={8} />
+                  </div>
+                </th>
                 <th className="px-1 py-1 text-left font-medium text-gray-700">Rekening</th>
                 <th className="px-1 py-1 text-left font-medium text-gray-700">Bank</th>
                 <th className="px-1 py-1 text-left font-medium text-gray-700">Penerima</th>
@@ -575,7 +597,7 @@ export default function SuppliersPage() {
             <tbody className="divide-y divide-gray-200">
               {paginatedSuppliers.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-1 py-2 text-center text-gray-500">
+                  <td colSpan={10} className="px-1 py-2 text-center text-gray-500">
                     {searchTerm ? 'No suppliers found' : 'No suppliers yet'}
                   </td>
                 </tr>
@@ -584,6 +606,7 @@ export default function SuppliersPage() {
                   <tr key={supplier.id_supplier} className="hover:bg-gray-50">
                     <td className="px-1 py-1 font-medium text-gray-900">{toTitleCase(supplier.nama_supplier)}</td>
                     <td className="px-1 py-1 text-gray-600">{toTitleCase(supplier.nama_barang) || '-'}</td>
+                    <td className="px-1 py-1 text-gray-600">{toTitleCase(supplier.merk) || '-'}</td>
                     <td className="px-1 py-1 text-gray-600">{toTitleCase(supplier.nomor_rekening) || '-'}</td>
                     <td className="px-1 py-1 text-gray-600">{toTitleCase(supplier.bank_penerima) || '-'}</td>
                     <td className="px-1 py-1 text-gray-600">{toTitleCase(supplier.nama_penerima) || '-'}</td>
@@ -604,7 +627,8 @@ export default function SuppliersPage() {
                                 estimasi_pengiriman: supplier.estimasi_pengiriman,
                                 divisi: supplier.divisi || '',
                                 created_by: supplier.created_by || '',
-                                nama_barang: supplier.nama_barang || ''
+                                nama_barang: supplier.nama_barang || '',
+                                merk: supplier.merk || ''
                               });
                               setEditingId(supplier.id_supplier);
                               setShowAddForm(true);
@@ -687,7 +711,8 @@ export default function SuppliersPage() {
                                     estimasi_pengiriman: item.estimasi_pengiriman,
                                     divisi: item.divisi || '',
                                     created_by: item.created_by || '',
-                                    nama_barang: item.nama_barang || ''
+                                    nama_barang: item.nama_barang || '',
+                                    merk: item.merk || ''
                                   });
                                   setEditingId(item.id_supplier);
                                   setShowAddForm(true);

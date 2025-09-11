@@ -1,5 +1,5 @@
 "use client"
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/src/lib/supabaseClient'
 import Link from 'next/link'
@@ -11,10 +11,21 @@ export default function RegisterPage() {
     email: '',
     password: '',
     nama_lengkap: '',
-    role: 'staff'
+    role: 'staff',
+    cabang: ''
   })
+  const [branches, setBranches] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    fetchBranches()
+  }, [])
+
+  const fetchBranches = async () => {
+    const { data } = await supabase.from('branches').select('*').order('nama_branch')
+    setBranches(data || [])
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,6 +49,7 @@ export default function RegisterPage() {
           password_hash: formData.password,
           nama_lengkap: formData.nama_lengkap,
           role: formData.role,
+          cabang: formData.cabang,
           is_active: true
         }])
 
@@ -61,8 +73,8 @@ export default function RegisterPage() {
             <Image 
               src="/sushimas-logo.png"
               alt="Sushimas Logo"
-              width={300}
-              height={300}
+              width={200}
+              height={200}
               className="rounded-lg"
             />
           </div>
@@ -105,15 +117,19 @@ export default function RegisterPage() {
               onChange={(e) => setFormData({...formData, nama_lengkap: e.target.value})}
             />
             <select
+              required
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
-              value={formData.role}
-              onChange={(e) => setFormData({...formData, role: e.target.value})}
+              value={formData.cabang}
+              onChange={(e) => setFormData({...formData, cabang: e.target.value})}
             >
-              <option value="staff">Staff</option>
-              <option value="pic_branch">pic_branch</option>
-              <option value="manager">Manager</option>
-              <option value="admin">Admin</option>
+              <option value="">Pilih Cabang</option>
+              {branches.map(branch => (
+                <option key={branch.id_branch} value={branch.kode_branch}>
+                  {branch.nama_branch}
+                </option>
+              ))}
             </select>
+            
           </div>
           <button
             type="submit"

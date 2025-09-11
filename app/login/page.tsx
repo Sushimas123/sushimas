@@ -94,8 +94,8 @@ export default function LoginPage() {
             <Image 
               src="/sushimas-logo.png" // File berada di public/sushimas-logo.png
               alt="Sushimas Logo"
-              width={300}
-              height={300}
+              width={200}
+              height={200}
               className="rounded-lg"
             />
           </div>
