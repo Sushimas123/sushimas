@@ -155,6 +155,15 @@ export default function AnalysisPage() {
     router.push(`/produksi_detail?${params.toString()}`);
   };
 
+  const handleTotalKonversiClick = (tanggal: string, cabang: string, productName: string) => {
+    const params = new URLSearchParams({
+      date: tanggal,
+      branch: cabang,
+      product: productName
+    });
+    router.push(`/produksi?${params.toString()}`);
+  };
+
   const handleToleranceUpdate = async (productId: number, newValue: string) => {
     const tolerance = parseFloat(newValue);
     if (isNaN(tolerance) || tolerance < 0 || tolerance > 100) {
@@ -414,7 +423,7 @@ export default function AnalysisPage() {
         })
         .reduce((sum: number, w: any) => sum + (w.jumlah_masuk || 0), 0);
       const waste = ready.waste || 0;
-      const totalBarang = (ready.ready || 0) + gudang + barangMasuk;
+      const totalBarang = (ready.ready || 0) + gudang;
       // Total Production - sum production detail for this product, date, and branch
       // Map branch names: production detail uses full names, ready uses branch codes
       const branchCodeToNameMap = new Map();
@@ -935,7 +944,17 @@ export default function AnalysisPage() {
                         </button>
                       </td>
                     )}
-                    {visibleColumns.sumif_total && <td className="border px-2 py-1 text-center">{item.sumif_total.toFixed(2)}</td>}
+                    {visibleColumns.sumif_total && (
+                      <td className="border px-2 py-1 text-center">
+                        <button
+                          onClick={() => handleTotalKonversiClick(item.tanggal, item.cabang, item.product)}
+                          className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                          title="Click to view produksi details"
+                        >
+                          {item.sumif_total.toFixed(2)}
+                        </button>
+                      </td>
+                    )}
                     {visibleColumns.tolerance_percentage && <td className="border px-2 py-1 text-center">
                       {editingTolerance?.id === item.id_product ? (
                         <div className="flex items-center gap-1">

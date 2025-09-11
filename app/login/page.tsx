@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/src/lib/supabaseClient'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -88,10 +89,20 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
+          <div className="flex justify-center mb-6">
+            {/* Logo dari folder public */}
+            <Image 
+              src="/sushimas-logo.png" // File berada di public/sushimas-logo.png
+              alt="Sushimas Logo"
+              width={80}
+              height={80}
+              className="rounded-lg"
+            />
+          </div>
           <h1 className="text-center text-3xl font-extrabold text-gray-900">
-            📦 Sushimas Inventory
+            Sushimas
           </h1>
-          <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
+          <h2 className="mt-6 text-center text-2xl font-bold text-gray-900">
             Sign in to your account
           </h2>
         </div>
