@@ -94,13 +94,13 @@ export default function LoginPage() {
             <Image 
               src="/sushimas-logo.png" // File berada di public/sushimas-logo.png
               alt="Sushimas Logo"
-              width={80}
-              height={80}
+              width={300}
+              height={300}
               className="rounded-lg"
             />
           </div>
           <h1 className="text-center text-3xl font-extrabold text-gray-900">
-            Sushimas
+            - Sushimas -
           </h1>
           <h2 className="mt-6 text-center text-2xl font-bold text-gray-900">
             Sign in to your account
