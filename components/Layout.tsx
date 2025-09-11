@@ -76,9 +76,8 @@ export default function Layout({ children }: LayoutProps) {
       submenu: [
         { name: "Ready Stock", href: AppRoutes.READY_STOCK, icon: Package },
         { name: "Production", href: AppRoutes.PRODUCTION, icon: Factory },
-        { name: "Production Detail", href: AppRoutes.PRODUCTION_DETAIL, icon: FileText },
-        { name: "SO Batch", href: AppRoutes.SO_BATCH, icon: FileText },
         { name: "Gudang", href: AppRoutes.GUDANG, icon: Warehouse },
+        { name: "SO Batch", href: AppRoutes.SO_BATCH, icon: FileText },
       ]
     },
     {
@@ -86,9 +85,10 @@ export default function Layout({ children }: LayoutProps) {
       name: 'Reports',
       icon: BarChart3,
       submenu: [
-        { name: "Esb Report", href: AppRoutes.ESB, icon: BarChart3 },
-        { name: "Product Name Report", href: AppRoutes.PRODUCT_NAME, icon: Package },
         { name: "Analysis", href: AppRoutes.ANALYSIS, icon: BarChart3 },
+        { name: "Pivot Analysis", href: "/pivot", icon: BarChart3 },
+        { name: "Esb Report", href: AppRoutes.ESB, icon: BarChart3 },
+        { name: "Production Detail", href: AppRoutes.PRODUCTION_DETAIL, icon: FileText },
       ]
     },
     {
@@ -96,6 +96,7 @@ export default function Layout({ children }: LayoutProps) {
       name: 'Master Data',
       icon: BookOpen,
       submenu: [
+        { name: "Product Name Report", href: AppRoutes.PRODUCT_NAME, icon: Package },
         { name: "Categories", href: AppRoutes.CATEGORIES, icon: BookOpen },
         { name: "Recipes", href: AppRoutes.RECIPES, icon: BookOpen },
         { name: "Supplier", href: AppRoutes.SUPPLIER, icon: Truck },
@@ -135,11 +136,7 @@ export default function Layout({ children }: LayoutProps) {
         }
       }
 
-      // Check for dark mode preference
-      if (localStorage.getItem('darkMode') === 'true') {
-        setDarkMode(true)
-        document.documentElement.classList.add('dark')
-      }
+
 
       // Load recent pages
       const recent = JSON.parse(localStorage.getItem('recentPages') || '[]')
@@ -190,17 +187,7 @@ export default function Layout({ children }: LayoutProps) {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const toggleDarkMode = () => {
-    const newDarkMode = !darkMode
-    setDarkMode(newDarkMode)
-    localStorage.setItem('darkMode', newDarkMode.toString())
-    
-    if (newDarkMode) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-  }
+
 
   const fetchUserBranches = async (userId: number, role: string) => {
     try {
@@ -325,12 +312,10 @@ export default function Layout({ children }: LayoutProps) {
               </button>
               <Link href="/" className="flex items-center">
                 <div className="flex-shrink-0 flex items-center">
-                  <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold mr-2">
-                    SM
+                  <div className="h-8 w-20 bg-red-600 rounded-lg flex items-center justify-center text-white font-bold mr-2">
+                    Home
                   </div>
-                  <span className="text-xl font-bold text-gray-800 dark:text-white hidden sm:block">
-                    Sushimas Inventory
-                  </span>
+
                 </div>
               </Link>
             </div>
@@ -378,14 +363,6 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Right side - User menu and actions */}
             <div className="flex items-center">
-              {/* Dark mode toggle */}
-              <button
-                onClick={toggleDarkMode}
-                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mr-2"
-                aria-label="Toggle dark mode"
-              >
-                {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-              </button>
 
               {/* Notifications */}
               <button className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mr-2 relative">
@@ -436,18 +413,7 @@ export default function Layout({ children }: LayoutProps) {
                         </p>
                       ))}
                     </div>
-                    {recentPages.length > 0 && (
-                      <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 flex items-center">
-                          <Clock size={12} className="mr-1" /> Recent Pages
-                        </p>
-                        {recentPages.slice(0, 3).map((page, index) => (
-                          <p key={index} className="text-xs text-gray-600 dark:text-gray-300 truncate py-1">
-                            {page}
-                          </p>
-                        ))}
-                      </div>
-                    )}
+            
                     <Link
                       href="/profile"
                       className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -681,15 +647,15 @@ export default function Layout({ children }: LayoutProps) {
           </Link>
           
           <Link
-            href="/analysis"
+            href="/gudang"
             className={`flex flex-col items-center p-2 rounded-lg transition-colors
-              ${pathname === "/analysis" 
+              ${pathname === "/gudang" 
                 ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" 
                 : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
               }`}
           >
-            <BarChart3 size={20} />
-            <span className="text-xs mt-1">Reports</span>
+            <Warehouse size={20} />
+            <span className="text-xs mt-1">Gudang</span>
           </Link>
           
           <button

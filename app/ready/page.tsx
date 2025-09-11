@@ -1309,7 +1309,7 @@ function ReadyPageContent() {
                 }}
               >
                 <Plus size={16} />
-                Input Harian
+                Input
               </div>
             )}
             
