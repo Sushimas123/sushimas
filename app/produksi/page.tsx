@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
 import { Plus, Edit, Trash2, Download, Upload } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -32,7 +32,7 @@ interface Product {
   satuan_besar: number | null;
 }
 
-export default function ProduksiPage() {
+function ProduksiPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [produksi, setProduksi] = useState<Produksi[]>([]);
@@ -600,8 +600,6 @@ export default function ProduksiPage() {
   }
 
   return (
-    <Layout>
-      <PageAccessControl pageName="produksi">
         <div className="p-1 md:p-2">
         {toast && (
           <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 ${
@@ -939,6 +937,16 @@ export default function ProduksiPage() {
           </div>
         )}
         </div>
+  );
+}
+
+export default function ProduksiPage() {
+  return (
+    <Layout>
+      <PageAccessControl pageName="produksi">
+        <Suspense fallback={<div className="p-4">Loading...</div>}>
+          <ProduksiPageContent />
+        </Suspense>
       </PageAccessControl>
     </Layout>
   );

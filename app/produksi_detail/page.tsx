@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
 import { Download, ArrowUpDown, Settings, Eye, EyeOff } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -26,7 +26,7 @@ interface ProduksiDetail {
 
 
 
-export default function ProduksiDetailPage() {
+function ProduksiDetailPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [details, setDetails] = useState<ProduksiDetail[]>([]);
@@ -399,8 +399,6 @@ export default function ProduksiDetailPage() {
   }
 
   return (
-    <Layout>
-      <PageAccessControl pageName="produksi_detail">
         <div className="p-2">
         {toast && (
           <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 ${
@@ -618,6 +616,16 @@ export default function ProduksiDetailPage() {
           </div>
         )}
         </div>
+  );
+}
+
+export default function ProduksiDetailPage() {
+  return (
+    <Layout>
+      <PageAccessControl pageName="produksi_detail">
+        <Suspense fallback={<div className="p-4">Loading...</div>}>
+          <ProduksiDetailPageContent />
+        </Suspense>
       </PageAccessControl>
     </Layout>
   );

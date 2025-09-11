@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
 import { Plus, Edit, Trash2, Download, Upload } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -1379,7 +1379,9 @@ export default function GudangPage() {
   return (
     <PageAccessControl pageName="gudang">
       <Layout>
-        <GudangPageContent />
+        <Suspense fallback={<div className="p-4">Loading...</div>}>
+          <GudangPageContent />
+        </Suspense>
       </Layout>
     </PageAccessControl>
   );

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo, useCallback } from "react"
+import { useEffect, useState, useMemo, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/src/lib/supabaseClient"
 import { ArrowUpDown, Filter, X, Download, Settings, Eye, EyeOff } from "lucide-react"
@@ -18,7 +18,7 @@ const toTitleCase = (str: any) => {
     .replace(/\b\w/g, (l) => l.toUpperCase())
 }
 
-export default function ESBPage() {
+function ESBPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [data, setData] = useState<any[]>([])
@@ -277,8 +277,6 @@ export default function ESBPage() {
   }
 
   return (
-    <Layout>
-      <PageAccessControl pageName="esb">
         <div className="p-1 md:p-2 text-xs">
       {/* Toast Notification */}
       {toast && (
@@ -578,6 +576,16 @@ export default function ESBPage() {
         </>
       )}
         </div>
+  )
+}
+
+export default function ESBPage() {
+  return (
+    <Layout>
+      <PageAccessControl pageName="esb">
+        <Suspense fallback={<div className="p-4">Loading...</div>}>
+          <ESBPageContent />
+        </Suspense>
       </PageAccessControl>
     </Layout>
   )
