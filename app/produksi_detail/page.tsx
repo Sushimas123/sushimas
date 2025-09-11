@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
 import { Download, ArrowUpDown, Settings, Eye, EyeOff } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import PageAccessControl from '../../components/PageAccessControl';
@@ -28,6 +28,7 @@ interface ProduksiDetail {
 
 export default function ProduksiDetailPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [details, setDetails] = useState<ProduksiDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -70,6 +71,21 @@ export default function ProduksiDetailPage() {
     }
   }, []);
 
+  // Handle URL parameters from Analysis page
+  useEffect(() => {
+    const date = searchParams.get('date');
+    const branch = searchParams.get('branch');
+    const product = searchParams.get('product');
+    
+    if (date || branch || product) {
+      if (date) setDateFilter(date);
+      if (branch) setBranchFilter(branch);
+      if (product) setProductFilter(product);
+      
+      showToast(`Filtered by: ${[date, branch, product].filter(Boolean).join(', ')}`, 'success');
+    }
+  }, [searchParams]);
+
   const fetchBranches = async () => {
     try {
       const { data, error } = await supabase
@@ -78,7 +94,13 @@ export default function ProduksiDetailPage() {
         .order('nama_branch');
       
       if (error) throw error;
-      setBranches(data || []);
+      
+      // Remove duplicates based on kode_branch
+      const uniqueBranches = (data || []).filter((branch, index, self) => 
+        index === self.findIndex(b => b.kode_branch === branch.kode_branch)
+      );
+      
+      setBranches(uniqueBranches);
     } catch (error) {
       console.error('Error fetching branches:', error);
     }
@@ -313,8 +335,8 @@ export default function ProduksiDetailPage() {
         (detail.item_name || '').toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesDate = !dateFilter || detail.tanggal_input.includes(dateFilter);
-      const matchesProduct = !productFilter || (detail.product_name || '').toLowerCase().includes(productFilter.toLowerCase());
-      const matchesBranch = !branchFilter || detail.branch === branchFilter || (detail.branch_name || '').toLowerCase().includes(branchFilter.toLowerCase());
+      const matchesProduct = !productFilter || (detail.product_name || '').toLowerCase().includes(productFilter.toLowerCase()) || (detail.item_name || '').toLowerCase().includes(productFilter.toLowerCase());
+      const matchesBranch = !branchFilter || detail.branch === branchFilter || (detail.branch_name || '').toLowerCase().includes(branchFilter.toLowerCase()) || (detail.branch_name || '') === branchFilter;
       
       return matchesSearch && matchesDate && matchesProduct && matchesBranch;
     });

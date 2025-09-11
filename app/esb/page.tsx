@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useMemo, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/src/lib/supabaseClient"
 import { ArrowUpDown, Filter, X, Download, Settings, Eye, EyeOff } from "lucide-react"
 import Layout from '../../components/Layout'
@@ -20,6 +20,7 @@ const toTitleCase = (str: any) => {
 
 export default function ESBPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -58,6 +59,21 @@ export default function ESBPage() {
       setUserId(user.id_user || null)
     }
   }, [])
+
+  // Handle URL parameters from Analysis page
+  useEffect(() => {
+    const date = searchParams.get('date')
+    const branch = searchParams.get('branch')
+    const product = searchParams.get('product')
+    
+    if (date || branch || product) {
+      if (date) setTanggal(date)
+      if (branch) setCabang(branch)
+      if (product) setProduk(product)
+      
+      showToast(`Filtered by: ${[date, branch, product].filter(Boolean).join(', ')}`, 'success')
+    }
+  }, [searchParams])
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })

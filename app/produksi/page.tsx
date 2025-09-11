@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
 import { Plus, Edit, Trash2, Download, Upload } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { canPerformActionSync, getUserRole } from '@/src/utils/rolePermissions';
@@ -34,6 +34,7 @@ interface Product {
 
 export default function ProduksiPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [produksi, setProduksi] = useState<Produksi[]>([]);
   const [wipProducts, setWipProducts] = useState<Product[]>([]);
   const [subCategories, setSubCategories] = useState<string[]>([]);
@@ -80,6 +81,21 @@ export default function ProduksiPage() {
       setUserRole(user.role || 'guest');
     }
   }, []);
+
+  // Handle URL parameters from Analysis page
+  useEffect(() => {
+    const date = searchParams.get('date');
+    const branch = searchParams.get('branch');
+    const product = searchParams.get('product');
+    
+    if (date || branch || product) {
+      if (date) setDateFilter(date);
+      if (branch) setBranchFilter(branch);
+      if (product) setSearchTerm(product);
+      
+      showToast(`Filtered by: ${[date, branch, product].filter(Boolean).join(', ')}`, 'success');
+    }
+  }, [searchParams]);
 
   // Reset pagination when filters change
   useEffect(() => {

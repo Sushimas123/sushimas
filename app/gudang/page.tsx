@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
 import { Plus, Edit, Trash2, Download, Upload } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import PageAccessControl from '../../components/PageAccessControl';
@@ -43,6 +43,7 @@ interface Product {
 
 function GudangPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [gudang, setGudang] = useState<Gudang[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,6 +95,21 @@ function GudangPageContent() {
       reloadPermissions();
     }
   }, [hasAccess]);
+
+  // Handle URL parameters from Analysis page
+  useEffect(() => {
+    const date = searchParams.get('date');
+    const branch = searchParams.get('branch');
+    const product = searchParams.get('product');
+    
+    if (date || branch || product) {
+      if (date) setDateFilter(date);
+      if (branch) setBranchFilter(branch);
+      if (product) setSearchTerm(product);
+      
+      showToast(`Filtered by: ${[date, branch, product].filter(Boolean).join(', ')}`, 'success');
+    }
+  }, [searchParams]);
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
@@ -611,7 +627,7 @@ function GudangPageContent() {
       
       const matchesDate = !dateFilter || item.tanggal.includes(dateFilter);
       
-      const matchesBranch = !branchFilter || item.cabang === branchFilter;
+      const matchesBranch = !branchFilter || item.cabang === branchFilter || item.branch_name === branchFilter;
       
       const product = products.find(p => p.id_product === item.id_product);
       const itemSubCategory = product?.sub_category || '';
@@ -970,7 +986,7 @@ function GudangPageContent() {
           >
             <option value="">All Branches</option>
             {cabangList.map(cabang => (
-              <option key={cabang.kode_branch} value={cabang.kode_branch}>
+              <option key={cabang.kode_branch} value={cabang.nama_branch}>
                 {cabang.nama_branch}
               </option>
             ))}

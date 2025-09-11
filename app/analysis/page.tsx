@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from "@/src/lib/supabaseClient";
 import { Download, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -33,6 +34,7 @@ interface AnalysisData {
 }
 
 export default function AnalysisPage() {
+  const router = useRouter();
   const [data, setData] = useState<AnalysisData[]>([]);
   const [loading, setLoading] = useState(true);
   const [productFilter, setProductFilter] = useState('');
@@ -57,16 +59,16 @@ export default function AnalysisPage() {
     cabang: true,
     ready: true,
     gudang: true,
-    barang_masuk: false,
+    barang_masuk: true,
     waste: true,
-    total_barang: false,
+    total_barang: true,
     sub_category: false,
     keluar_form: true,
     hasil_esb: true,
     selisih: true,
     total_production: true,
-    sumif_total: false,
-    tolerance_percentage: false,
+    sumif_total: true,
+    tolerance_percentage: true,
     tolerance_range: true,
     status: true
   });
@@ -115,6 +117,42 @@ export default function AnalysisPage() {
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleReadyClick = (tanggal: string, cabang: string, productName: string) => {
+    const params = new URLSearchParams({
+      date: tanggal,
+      branch: cabang,
+      product: productName
+    });
+    router.push(`/ready?${params.toString()}`);
+  };
+
+  const handleGudangClick = (tanggal: string, cabang: string, productName: string) => {
+    const params = new URLSearchParams({
+      date: tanggal,
+      branch: cabang,
+      product: productName
+    });
+    router.push(`/gudang?${params.toString()}`);
+  };
+
+  const handleEsbClick = (tanggal: string, cabang: string, productName: string) => {
+    const params = new URLSearchParams({
+      date: tanggal,
+      branch: cabang,
+      product: productName
+    });
+    router.push(`/esb?${params.toString()}`);
+  };
+
+  const handleProductionClick = (tanggal: string, cabang: string, productName: string) => {
+    const params = new URLSearchParams({
+      date: tanggal,
+      branch: cabang,
+      product: productName
+    });
+    router.push(`/produksi_detail?${params.toString()}`);
   };
 
   const handleToleranceUpdate = async (productId: number, newValue: string) => {
@@ -205,9 +243,9 @@ export default function AnalysisPage() {
         .order('tanggal_input', { ascending: false })
         .limit(1000);
 
-      if (readyError) {
-        throw new Error(`Failed to fetch ready data: ${readyError.message}`);
-      }
+        if (readyError || !readyData) {
+          throw new Error(`Failed to fetch ready data: ${readyError?.message || 'No data returned'}`);
+        }
 
       const { data: productData } = await supabase.from('nama_product').select('*');
       const { data: branchData } = await supabase.from('branches').select('*');
@@ -379,16 +417,12 @@ export default function AnalysisPage() {
       const totalBarang = (ready.ready || 0) + gudang + barangMasuk;
       // Total Production - sum production detail for this product, date, and branch
       // Map branch names: production detail uses full names, ready uses branch codes
-      const branchNameMap: { [key: string]: string } = {
-        'JAK279': 'Sushimas Depok',
-        'JAK280': 'Sushimas Harapan Indah', 
-        'JAK281': 'Sushimas Grand Wisata',
-        'JAK282': 'Sushimas Grand Galaxy',
-        'JAK283': 'Sushimas Condet',
-        'JAK284': 'Sushimas Serpong'
-      };
+      const branchCodeToNameMap = new Map();
+      branches.forEach(branch => {
+        branchCodeToNameMap.set(branch.kode_branch, branch.nama_branch);
+      });
       
-      const expectedBranchName = branchNameMap[branch?.kode_branch || ''] || branch?.nama_branch;
+      const expectedBranchName = branchCodeToNameMap.get(branch?.kode_branch || '') || branch?.nama_branch;
       
       const totalProduction = productionDetail
         .filter((pd: any) => {
@@ -410,7 +444,7 @@ export default function AnalysisPage() {
       
       // Calculate status based on selisih and tolerance
       // Tolerance dikalikan dengan Hasil ESB sebagai base value
-      const toleranceValue = Math.abs(hasilESB) * (tolerancePercentage / 100);
+      const toleranceValue = hasilESB * (tolerancePercentage / 100);
       const toleranceMin = -toleranceValue;
       const toleranceMax = toleranceValue;
       const toleranceRange = `${toleranceMin.toFixed(1)} ~ ${toleranceMax.toFixed(1)}`;
@@ -445,8 +479,7 @@ export default function AnalysisPage() {
   // Rumus: (Stok Kemarin + Barang Masuk Hari Ini) - (Stok Hari Ini + Waste) + Total Konversi
   const calculateKeluarForm = (currentReady: any, allReadyStock: any[], warehouse: any[], branchMap: Map<any, any>, totalKonversi: number): number => {
     // Calculate previous day - simple string manipulation to avoid timezone issues
-    const [year, month, day] = currentReady.tanggal_input.split('-').map(Number);
-    const currentDate = new Date(year, month - 1, day); // month is 0-indexed
+    const currentDate = new Date(currentReady.tanggal_input + 'T00:00:00Z');
     currentDate.setDate(currentDate.getDate() - 1);
     const previousDayStr = currentDate.getFullYear() + '-' + 
       String(currentDate.getMonth() + 1).padStart(2, '0') + '-' + 
@@ -848,20 +881,60 @@ export default function AnalysisPage() {
                     {visibleColumns.product && <td className="border px-2 py-1 font-medium">{item.product}</td>}
                     {visibleColumns.unit_kecil && <td className="border px-2 py-1 text-center">{item.unit_kecil}</td>}
                     {visibleColumns.cabang && <td className="border px-2 py-1">{item.cabang}</td>}
-                    {visibleColumns.ready && <td className="border px-2 py-1 text-center">{item.ready.toFixed(2)}</td>}
-                    {visibleColumns.gudang && <td className="border px-2 py-1 text-center">{item.gudang.toFixed(2)}</td>}
+                    {visibleColumns.ready && (
+                      <td className="border px-2 py-1 text-center">
+                        <button
+                          onClick={() => handleReadyClick(item.tanggal, item.cabang, item.product)}
+                          className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                          title="Click to view ready stock details"
+                        >
+                          {item.ready.toFixed(2)}
+                        </button>
+                      </td>
+                    )}
+                    {visibleColumns.gudang && (
+                      <td className="border px-2 py-1 text-center">
+                        <button
+                          onClick={() => handleGudangClick(item.tanggal, item.cabang, item.product)}
+                          className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                          title="Click to view gudang details"
+                        >
+                          {item.gudang.toFixed(2)}
+                        </button>
+                      </td>
+                    )}
                     {visibleColumns.barang_masuk && <td className="border px-2 py-1 text-center">{item.barang_masuk.toFixed(2)}</td>}
                     {visibleColumns.waste && <td className="border px-2 py-1 text-center">{item.waste.toFixed(2)}</td>}
                     {visibleColumns.total_barang && <td className="border px-2 py-1 text-center font-medium">{item.total_barang.toFixed(2)}</td>}
                     {visibleColumns.sub_category && <td className="border px-2 py-1">{item.sub_category}</td>}
                     {visibleColumns.keluar_form && <td className="border px-2 py-1 text-center">{item.keluar_form.toFixed(2)}</td>}
-                    {visibleColumns.hasil_esb && <td className="border px-2 py-1 text-center">{item.hasil_esb.toFixed(2)}</td>}
+                    {visibleColumns.hasil_esb && (
+                      <td className="border px-2 py-1 text-center">
+                        <button
+                          onClick={() => handleEsbClick(item.tanggal, item.cabang, item.product)}
+                          className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                          title="Click to view ESB details"
+                        >
+                          {item.hasil_esb.toFixed(2)}
+                        </button>
+                      </td>
+                    )}
                     {visibleColumns.selisih && <td className={`border px-2 py-1 text-center font-medium ${
                       item.selisih > 0 ? 'text-green-600' : item.selisih < 0 ? 'text-red-600' : 'text-gray-600'
                     }`}>
                       {item.selisih.toFixed(2)}
                     </td>}
-                    {visibleColumns.total_production && <td className="border px-2 py-1 text-center">{item.total_production.toFixed(2)}</td>}
+                    {visibleColumns.total_production && (
+                      <td className="border px-2 py-1 text-center">
+                        <button
+                          onClick={() => handleProductionClick(item.tanggal, item.cabang, item.product)}
+                          className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                          title="Click to view production details"
+                        >
+                          {item.total_production.toFixed(2)}
+                        </button>
+                      </td>
+                    )}
                     {visibleColumns.sumif_total && <td className="border px-2 py-1 text-center">{item.sumif_total.toFixed(2)}</td>}
                     {visibleColumns.tolerance_percentage && <td className="border px-2 py-1 text-center">
                       {editingTolerance?.id === item.id_product ? (

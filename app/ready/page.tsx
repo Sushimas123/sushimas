@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
 import { Plus, Edit, Trash2, Download, Upload, RefreshCw } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import PageAccessControl from '../../components/PageAccessControl';
@@ -47,6 +47,7 @@ interface FormProduct {
 
 function ReadyPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [ready, setReady] = useState<Ready[]>([]);
   const [menuProducts, setMenuProducts] = useState<Product[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -147,9 +148,33 @@ function ReadyPageContent() {
       await fetchSubCategories();
       await fetchBranches();
       await fetchCategories();
+      
+      // Handle URL parameters from Analysis page
+      const urlDate = searchParams.get('date');
+      const urlBranch = searchParams.get('branch');
+      const urlProduct = searchParams.get('product');
+      
+      if (urlDate) {
+        setDateFilter(urlDate);
+      }
+      
+      if (urlBranch) {
+        setBranchFilter(urlBranch);
+      }
+      
+      if (urlProduct) {
+        setSearchTerm(urlProduct);
+      }
+      
+      // Show toast if filters were applied from URL
+      if (urlDate || urlBranch || urlProduct) {
+        setTimeout(() => {
+          showToast(`🔍 Auto-filtered: ${[urlDate, urlBranch, urlProduct].filter(Boolean).join(', ')}`, 'success');
+        }, 1000);
+      }
     };
     loadData();
-  }, []);
+  }, [searchParams]);
 
   // Fetch products when categories or selected branch change
   useEffect(() => {
