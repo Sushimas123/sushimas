@@ -16,26 +16,21 @@ import {
   Menu,
   X,
   Settings2Icon,
-  User,
-  LogOut,
-  Home,
+
   Search,
   Bell,
   ChevronDown,
   ChevronRight,
-  Calendar,
-  HelpCircle,
-  Sun,
-  Moon,
+
   LayoutDashboard,
-  Clock
+
 } from "lucide-react"
 import { canAccessPage } from '@/src/utils/dbPermissions'
 import { supabase } from '@/src/lib/supabaseClient'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useClickOutside } from '@/hooks/useClickOutside'
 import { MenuItem, AppRoutes, BreadcrumbItem, SearchResult } from '@/types/layout'
-import SidebarItem from './SidebarItem'
+
 
 interface LayoutProps {
   children: React.ReactNode
@@ -50,8 +45,7 @@ export default function Layout({ children }: LayoutProps) {
   const [userEmail, setUserEmail] = useState<string>('')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false)
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [darkMode, setDarkMode] = useState(false)
+
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -316,7 +310,7 @@ export default function Layout({ children }: LayoutProps) {
   }
 
   return (
-    <div className={`min-h-screen flex flex-col ${darkMode ? 'dark bg-gray-900' : 'bg-gray-50'}`}>
+    <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Top Navigation Bar */}
       <header className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
         <div className="px-4 sm:px-6 lg:px-8">
