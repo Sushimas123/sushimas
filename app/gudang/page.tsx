@@ -627,7 +627,9 @@ function GudangPageContent() {
       
       const matchesDate = !dateFilter || item.tanggal.includes(dateFilter);
       
-      const matchesBranch = !branchFilter || item.cabang === branchFilter || item.branch_name === branchFilter;
+      const matchesBranch = !branchFilter || 
+        (item.branch_name || '').toLowerCase().includes(branchFilter.toLowerCase()) ||
+        (item.cabang || '').toLowerCase().includes(branchFilter.toLowerCase());
       
       const product = products.find(p => p.id_product === item.id_product);
       const itemSubCategory = product?.sub_category || '';

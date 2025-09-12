@@ -868,7 +868,7 @@ export default function AnalysisPage() {
                 {visibleColumns.total_barang && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_barang')}>Total Barang</th>}
                 {visibleColumns.sub_category && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sub_category')}>Sub Category</th>}
                 {visibleColumns.keluar_form && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('keluar_form')}>Pemakaian</th>}
-                {visibleColumns.hasil_esb && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('hasil_esb')}>Penjualan</th>}
+                {visibleColumns.hasil_esb && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('hasil_esb')}>ESB</th>}
                 {visibleColumns.selisih && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('selisih')}>Selisih</th>}
                 {visibleColumns.total_production && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_production')}>Total Production</th>}
                 {visibleColumns.sumif_total && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sumif_total')}>Total Konversi</th>}
