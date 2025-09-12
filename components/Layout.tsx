@@ -711,7 +711,7 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Mobile bottom navigation */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-40 safe-area-inset-bottom">
-        <div className="grid grid-cols-4 gap-1 py-2 px-1">
+        <div className="grid grid-cols-5 gap-1 py-2 px-1">
           <Link
             href={AppRoutes.DASHBOARD}
             className={`flex flex-col items-center p-2 rounded-lg transition-colors
@@ -733,9 +733,20 @@ export default function Layout({ children }: LayoutProps) {
               }`}
           >
             <Package size={20} />
-            <span className="text-xs mt-1">Stock</span>
+            <span className="text-xs mt-1">Ready</span>
           </Link>
           
+          <Link
+            href={AppRoutes.GUDANG}
+            className={`flex flex-col items-center p-2 rounded-lg transition-colors
+              {pathname === AppRoutes.GUDANG 
+                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" 
+                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+              }`}
+          >
+            <Package size={20} />
+            <span className="text-xs mt-1">Gudang</span>
+          </Link>          
           <Link
             href={AppRoutes.PRODUCTION}
             className={`flex flex-col items-center p-2 rounded-lg transition-colors

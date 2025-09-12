@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/src/lib/supabaseClient"
-import { ArrowUpDown, Filter, X, Download, Settings, Eye, EyeOff } from "lucide-react"
+import { ArrowUpDown, Filter, X, Download } from "lucide-react"
 import Layout from '../../components/Layout'
 import { canViewColumn } from '@/src/utils/dbPermissions'
 import { getBranchFilter } from '@/src/utils/branchAccess'
@@ -45,7 +45,6 @@ function ESBPageContent() {
 
   // kolom hide/show
   const [hiddenColumns, setHiddenColumns] = useState<string[]>(["id", "product_code"])
-  const [showColumnSelector, setShowColumnSelector] = useState(false)
   const [userRole, setUserRole] = useState<string>('guest')
 
   const [userId, setUserId] = useState<number | null>(null)
@@ -174,32 +173,7 @@ function ESBPageContent() {
     setSortConfig({ key: column, direction })
   }
 
-  const toggleColumn = async (col: string) => {
-    // Check if user has permission to view this column
-    const hasPermission = await canViewColumn(userRole, 'esb', col)
-    if (!hasPermission) {
-      showToast(`You don't have permission to view ${col} column`, 'error')
-      return
-    }
-    
-    setHiddenColumns(prev =>
-      prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
-    )
-  }
 
-  const selectAllColumns = () => {
-    if (data.length > 0) {
-      setHiddenColumns([]) // tampilkan semua
-      showToast("All columns shown", 'success')
-    }
-  }
-
-  const deselectAllColumns = () => {
-    if (permittedColumns.length > 0) {
-      setHiddenColumns(permittedColumns) // sembunyikan semua yang diizinkan
-      showToast("All permitted columns hidden", 'success')
-    }
-  }
 
   const resetFilters = () => {
     setTanggal("")
@@ -384,53 +358,11 @@ function ESBPageContent() {
               Export CSV
             </button>
           )}
-          <button
-            onClick={() => setShowColumnSelector(!showColumnSelector)}
-            className="bg-purple-600 text-white px-1 py-0.5 rounded-md hover:bg-purple-700 text-xs flex items-center gap-0.5"
-          >
-            <Settings size={12} />
-            {showColumnSelector ? 'Sembunyikan Kolom' : 'Pengaturan Kolom'}
-          </button>
+
         </div>
       </div>
 
-      {/* Column Selector */}
-      {showColumnSelector && data.length > 0 && (
-        <div className="bg-white p-1 rounded-lg shadow mb-1">
-          <h3 className="font-medium text-gray-800 mb-1 text-xs">Pengaturan Kolom Tampilan</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1 mb-1">
-            {Object.keys(data[0]).map(col => (
-              <label key={col} className="flex items-center gap-1 text-xs">
-                <input
-                  type="checkbox"
-                  checked={!hiddenColumns.includes(col)}
-                  onChange={() => toggleColumn(col)}
-                  className="rounded text-blue-600"
-                />
-                <span className={hiddenColumns.includes(col) ? 'text-gray-500' : 'text-gray-800'}>
-                  {toTitleCase(col)}
-                </span>
-              </label>
-            ))}
-          </div>
-          <div className="flex gap-1">
-            <button
-              onClick={selectAllColumns}
-              className="px-1 py-0.5 bg-green-600 text-white rounded-md text-xs hover:bg-green-700 flex items-center gap-0.5"
-            >
-              <Eye size={10} />
-              Tampilkan Semua
-            </button>
-            <button
-              onClick={deselectAllColumns}
-              className="px-1 py-0.5 bg-red-600 text-white rounded-md text-xs hover:bg-red-700 flex items-center gap-0.5"
-            >
-              <EyeOff size={10} />
-              Sembunyikan Semua
-            </button>
-          </div>
-        </div>
-      )}
+
 
       {/* Summary Card */}
       {data.length > 0 && (

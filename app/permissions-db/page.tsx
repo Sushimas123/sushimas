@@ -34,7 +34,9 @@ export default function PermissionsDBPage() {
     branch_notifications: ['id', 'branch_id', 'notification_type', 'title', 'message', 'priority', 'is_read', 'read_by', 'read_at', 'expires_at', 'created_at'],
     user_branches: ['id', 'id_user', 'kode_branch', 'is_active', 'created_at', 'updated_at'],
     user_permissions: ['id', 'role', 'page', 'columns', 'can_access', 'created_at', 'updated_at'],
-    crud_permissions: ['id', 'user_id', 'role', 'page', 'can_create', 'can_read', 'can_update', 'can_delete', 'created_at', 'updated_at']
+    crud_permissions: ['id', 'user_id', 'role', 'page', 'can_create', 'can_read', 'can_update', 'can_delete', 'created_at', 'updated_at'],
+    pivot: ['id', 'date', 'subcategory', 'product', 'selisih', 'pemakaian', 'branch', 'analysis_data', 'created_at'],
+    dashboard: ['id', 'widget_type', 'widget_data', 'user_id', 'position', 'is_visible', 'created_at', 'updated_at'],
   }
 
   const pages = Object.keys(pageColumns)

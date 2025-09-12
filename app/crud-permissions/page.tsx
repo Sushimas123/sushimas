@@ -22,7 +22,8 @@ const PAGES = [
   'product_name', 'categories', 'recipes', 'supplier', 'branches', 
   'users', 'stock_opname_batch', 'stock_opname_detail', 'product_settings', 
   'permissions-db', 'crud-permissions', 'audit-log', 'branch_settings',
-  'branch_transfers', 'branch_notifications', 'user_branches', 'user_permissions'
+  'branch_transfers', 'branch_notifications', 'user_branches', 'user_permissions',
+  'pivot', 'dashboard', 'login', 'register'
 ];
 
 export default function CrudPermissionsPage() {
