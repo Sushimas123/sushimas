@@ -175,28 +175,29 @@ export default function AnalysisPage() {
     try {
       console.log('Updating tolerance:', { productId, tolerance });
       
-      // Try update first
-      const { data: updateData, error: updateError } = await supabase
-        .from('product_tolerances')
-        .update({ tolerance_percentage: tolerance })
-        .eq('id_product', productId)
-        .select();
+      // Update tolerance in all branch settings for this product
+      const { data: branchSettings } = await supabase
+        .from('product_branch_settings')
+        .select('id_setting')
+        .eq('id_product', productId);
       
-      if (updateError || !updateData || updateData.length === 0) {
-        console.log('Update failed, trying insert:', updateError);
-        // If update failed, try insert
-        const { data: insertData, error: insertError } = await supabase
-          .from('product_tolerances')
-          .insert({
-            id_product: productId,
-            tolerance_percentage: tolerance
-          })
-          .select();
-        
-        if (insertError) {
-          console.error('Insert error:', insertError);
-          throw insertError;
+      if (branchSettings && branchSettings.length > 0) {
+        // Update existing settings
+        for (const setting of branchSettings) {
+          const { error: updateError } = await supabase
+            .from('product_branch_settings')
+            .update({ tolerance_percentage: tolerance })
+            .eq('id_setting', setting.id_setting);
+          
+          if (updateError) {
+            console.error('Update error:', updateError);
+            throw updateError;
+          }
         }
+      } else {
+        showToast('No branch settings found for this product. Please configure in Product Settings first.', 'error');
+        setEditingTolerance(null);
+        return;
       }
       
       // Update local data and recalculate status
@@ -258,7 +259,10 @@ export default function AnalysisPage() {
 
       const { data: productData } = await supabase.from('nama_product').select('*');
       const { data: branchData } = await supabase.from('branches').select('*');
-      const { data: toleranceData } = await supabase.from('product_tolerances').select('*');
+      // Fetch tolerance data from product_branch_settings
+      const { data: toleranceData } = await supabase
+        .from('product_branch_settings')
+        .select('id_product, id_branch, tolerance_percentage');
       
       // Get unique products and dates for optimized queries
       const uniqueProductIds = [...new Set(readyData?.map(r => r.id_product) || [])];
@@ -343,7 +347,13 @@ export default function AnalysisPage() {
     // Create lookup maps for better performance
     const productMap = new Map(products.map(p => [p.id_product, p]));
     const branchMap = new Map(branches.map(b => [b.id_branch, b]));
-    const toleranceMap = new Map(tolerances.map(t => [t.id_product, t]));
+    
+    // Create tolerance map by product and branch
+    const toleranceMap = new Map();
+    tolerances.forEach(t => {
+      const key = `${t.id_product}-${t.id_branch}`;
+      toleranceMap.set(key, t);
+    });
     
     // Group warehouse data by product and branch for faster lookup
     const warehouseMap = new Map();
@@ -447,8 +457,9 @@ export default function AnalysisPage() {
 
       const selisih = calculateSelisih(productName, hasilESB, keluarForm, totalProduction);
       
-      // Get tolerance using map
-      const tolerance = toleranceMap.get(ready.id_product);
+      // Get tolerance using product and branch
+      const toleranceKey = `${ready.id_product}-${ready.id_branch}`;
+      const tolerance = toleranceMap.get(toleranceKey);
       const tolerancePercentage = tolerance?.tolerance_percentage || 5.0;
       
       // Calculate status based on selisih and tolerance

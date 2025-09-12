@@ -23,7 +23,7 @@ import {
   ChevronRight,
 
   LayoutDashboard,
-
+HelpCircle
 } from "lucide-react"
 import { canAccessPage } from '@/src/utils/dbPermissions'
 import { supabase } from '@/src/lib/supabaseClient'

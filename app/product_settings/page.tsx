@@ -95,14 +95,7 @@ export default function ProductSettingsPage() {
 
       if (productsError) throw productsError;
 
-      // Fetch tolerances separately
-      const { data: tolerancesData, error: tolerancesError } = await supabase
-        .from('product_tolerances')
-        .select('id_product, tolerance_percentage');
-
-      if (tolerancesError) throw tolerancesError;
-
-      // Fetch branch settings
+      // Fetch branch settings with tolerance
       const { data: branchSettingsData, error: branchSettingsError } = await supabase
         .from('product_branch_settings')
         .select(`
@@ -111,21 +104,22 @@ export default function ProductSettingsPage() {
           id_branch,
           safety_stock,
           reorder_point,
+          tolerance_percentage,
           branches(nama_branch)
         `);
 
       if (branchSettingsError) throw branchSettingsError;
 
-      console.log('Tolerances data:', tolerancesData);
+      console.log('Products data:', productsData?.length, 'products');
+      console.log('Branch settings data:', branchSettingsData?.length, 'settings');
       
       const formattedData = productsData?.map(product => {
-        const tolerance = tolerancesData?.find(t => t.id_product === product.id_product);
         const branchSettings = branchSettingsData?.filter(bs => bs.id_product === product.id_product) || [];
         
-        console.log(`Product ${product.id_product} tolerance:`, tolerance?.tolerance_percentage);
+        // Get tolerance from first branch setting or default to 5
+        const toleranceValue = branchSettings.length > 0 ? branchSettings[0].tolerance_percentage : 5;
         
-        const toleranceValue = tolerance?.tolerance_percentage;
-        console.log(`Product ${product.id_product} raw tolerance:`, toleranceValue, typeof toleranceValue);
+        console.log(`Product ${product.id_product} (${product.product_name}) tolerance:`, toleranceValue);
         
         return {
           id_product: product.id_product,
@@ -263,26 +257,7 @@ export default function ProductSettingsPage() {
         tolerance_percentage: formData.tolerance_percentage
       });
       
-      // Check if tolerance exists
-      const { data: existingTolerance } = await supabase
-        .from('product_tolerances')
-        .select('id_product')
-        .eq('id_product', formData.id_product)
-        .single();
-      
-      if (existingTolerance) {
-        await updateWithAudit('product_tolerances', {
-          tolerance_percentage: formData.tolerance_percentage,
-          updated_at: new Date().toISOString()
-        }, { id_product: formData.id_product });
-      } else {
-        await insertWithAudit('product_tolerances', {
-          id_product: formData.id_product,
-          tolerance_percentage: formData.tolerance_percentage
-        });
-      }
-
-      // Save branch settings
+      // Save branch settings with tolerance
       for (const branchSetting of formData.branch_settings) {
         const { data: existingSetting } = await supabase
           .from('product_branch_settings')
@@ -296,6 +271,7 @@ export default function ProductSettingsPage() {
           id_branch: branchSetting.id_branch,
           safety_stock: branchSetting.safety_stock,
           reorder_point: branchSetting.reorder_point,
+          tolerance_percentage: formData.tolerance_percentage,
           updated_at: new Date().toISOString()
         };
         
@@ -349,10 +325,7 @@ export default function ProductSettingsPage() {
 
   const handleDelete = async (id: number) => {
     try {
-      // Delete tolerance
-      await deleteWithAudit('product_tolerances', { id_product: id });
-
-      // Delete branch settings
+      // Delete branch settings (which now includes tolerance)
       const { data: branchSettings } = await supabase
         .from('product_branch_settings')
         .select('id_setting')
@@ -435,18 +408,7 @@ export default function ProductSettingsPage() {
             .eq('id_product', product.id_product)
             .single();
           
-          const toleranceData = {
-            id_product: product.id_product,
-            tolerance_percentage: parseFloat(row['Tolerance %']) || 5
-          };
-          
-          if (existingTolerance) {
-            await updateWithAudit('product_tolerances', toleranceData, { id_product: product.id_product });
-          } else {
-            await insertWithAudit('product_tolerances', toleranceData);
-          }
-
-          // Save branch setting
+          // Save branch setting with tolerance
           const { data: existingSetting } = await supabase
             .from('product_branch_settings')
             .select('id_setting')
@@ -458,7 +420,8 @@ export default function ProductSettingsPage() {
             id_product: product.id_product,
             id_branch: branch.id_branch,
             safety_stock: parseFloat(row['Safety Stock']) || 10,
-            reorder_point: parseFloat(row['Reorder Point']) || 20
+            reorder_point: parseFloat(row['Reorder Point']) || 20,
+            tolerance_percentage: parseFloat(row['Tolerance %']) || 5
           };
           
           if (existingSetting) {
@@ -505,10 +468,7 @@ export default function ProductSettingsPage() {
 
     try {
       for (const id of selectedItems) {
-        // Delete tolerance
-        await deleteWithAudit('product_tolerances', { id_product: id });
-        
-        // Delete branch settings
+        // Delete branch settings (which includes tolerance)
         const { data: branchSettings } = await supabase
           .from('product_branch_settings')
           .select('id_setting')
