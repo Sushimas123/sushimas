@@ -225,7 +225,7 @@ export default function FinishPO() {
               .insert({
                 tanggal: formData.tanggal_barang_sampai,
                 id_barang: poItem.product_id,
-                jumlah: receivedData.qty,
+                jumlah: parseFloat(receivedData.qty.toString()),
                 harga: receivedData.harga,
                 id_supplier: poData.supplier_id,
                 id_branch: poData.cabang_id,
@@ -403,6 +403,7 @@ export default function FinishPO() {
                           <input
                             type="number"
                             min="0"
+                            step="0.01"
                             value={receivedItems[item.id]?.qty || 0}
                             onChange={(e) => handleReceivedItemChange(item.id, 'qty', e.target.value)}
                             className="w-20 border border-gray-300 rounded px-2 py-1"

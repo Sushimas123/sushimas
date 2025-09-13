@@ -159,11 +159,14 @@ function CreatePurchaseOrder() {
   }
 
   const addProductToPO = (product: Product, supplier: Supplier) => {
-    const existingItem = poItems.find(item => item.product_id === product.id_product)
+    const existingItem = poItems.find(item => 
+      item.product_id === product.id_product && 
+      item.supplier_name === supplier.nama_supplier
+    )
     
     if (existingItem) {
       setPOItems(poItems.map(item => 
-        item.product_id === product.id_product 
+        item.product_id === product.id_product && item.supplier_name === supplier.nama_supplier
           ? { 
               ...item, 
               qty: item.qty + 1
@@ -191,17 +194,17 @@ function CreatePurchaseOrder() {
     setSelectedProductSupplier(null)
   }
 
-  const updatePOItem = (productId: number, field: string, value: number | string) => {
+  const updatePOItem = (productId: number, supplierName: string, field: string, value: number | string) => {
     setPOItems(poItems.map(item => {
-      if (item.product_id === productId) {
+      if (item.product_id === productId && item.supplier_name === supplierName) {
         return { ...item, [field]: value }
       }
       return item
     }))
   }
 
-  const removePOItem = (productId: number) => {
-    setPOItems(poItems.filter(item => item.product_id !== productId))
+  const removePOItem = (productId: number, supplierName: string) => {
+    setPOItems(poItems.filter(item => !(item.product_id === productId && item.supplier_name === supplierName)))
   }
 
   const groupedItems = poItems.reduce((groups, item) => {

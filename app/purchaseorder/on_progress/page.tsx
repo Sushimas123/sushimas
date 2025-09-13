@@ -174,12 +174,17 @@ function OnProgressPO() {
         }
 
         // Fetch supplier data
-        const { data: supplierData } = await supabase
+        console.log('Fetching supplier with ID:', po.supplier_id)
+        const { data: supplierData, error: supplierError } = await supabase
           .from('suppliers')
-          .select('id_supplier, nama_supplier, alamat, telp, email, termin_tempo')
+          .select('id_supplier, nama_supplier, nomor_rekening, bank_penerima, nama_penerima, termin_tempo, estimasi_pengiriman, divisi')
           .eq('id_supplier', po.supplier_id)
           .single()
 
+        if (supplierError) {
+          console.error('Supplier fetch error:', supplierError)
+        }
+        console.log('Supplier data:', supplierData)
         setSupplier(supplierData)
       }
     } catch (error) {
