@@ -291,22 +291,39 @@ function CreatePurchaseOrder() {
         const poItemsData = items.map(item => ({
           po_id: poData.id,
           product_id: item.product_id,
-          qty: item.qty,
-          unit_besar: item.unit_besar
+          qty: parseFloat(item.qty.toString()), // Keep as decimal
+          unit_besar: item.unit_besar || '',
+          keterangan: item.keterangan || ''
         }))
 
         console.log('Inserting PO items:', poItemsData)
         
-        const { error: itemsError } = await supabase
+        // Check table structure first
+        const { data: tableInfo, error: tableError } = await supabase
+          .from('po_items')
+          .select('*')
+          .limit(1)
+        
+        if (tableError) {
+          console.error('Table access error:', tableError)
+        }
+        
+        const { data: insertedItems, error: itemsError } = await supabase
           .from('po_items')
           .insert(poItemsData)
+          .select()
 
         if (itemsError) {
           console.error('PO items insert error:', itemsError)
           console.error('Items error message:', itemsError.message)
           console.error('Items error code:', itemsError.code)
+          console.error('Items error details:', itemsError.details)
+          console.error('Items error hint:', itemsError.hint)
+          console.error('Data being inserted:', JSON.stringify(poItemsData, null, 2))
           throw new Error(`Failed to insert PO items: ${itemsError.message || 'Unknown database error'}`)
         }
+        
+        console.log('PO items inserted successfully:', insertedItems)
       }
 
       console.log('All POs saved successfully, redirecting...')
@@ -489,10 +506,11 @@ function CreatePurchaseOrder() {
                             <td className="p-3 text-center">
                               <input
                                 type="number"
+                                step="0.01"
                                 value={item.qty}
-                                onChange={(e) => updatePOItem(item.product_id, item.supplier_name, 'qty', parseInt(e.target.value) || 0)}
+                                onChange={(e) => updatePOItem(item.product_id, item.supplier_name, 'qty', parseFloat(e.target.value) || 0)}
                                 className="w-16 border rounded px-2 py-1 text-center"
-                                min="1"
+                                min="0.01"
                               />
                             </td>
                             <td className="p-3 text-center">

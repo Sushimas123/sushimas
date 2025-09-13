@@ -91,8 +91,8 @@ export default function AddBarangMasukPage() {
       const selectedProduct = products.find(p => p.id_product === parseInt(formData.id_barang))
       if (selectedProduct && selectedProduct.satuan_kecil && selectedProduct.satuan_besar) {
         const ratio = selectedProduct.satuan_kecil / selectedProduct.satuan_besar
-        const unitKecil = parseInt(formData.jumlah) * ratio
-        const roundedUnitKecil = Math.round(unitKecil).toString()
+        const unitKecil = parseFloat(formData.jumlah) * ratio
+        const roundedUnitKecil = unitKecil.toFixed(2)
         
         setFormData(prev => ({ 
           ...prev, 
@@ -391,10 +391,10 @@ export default function AddBarangMasukPage() {
       const insertData = {
         tanggal: formData.tanggal,
         id_barang: parseInt(formData.id_barang),
-        jumlah: formData.total_real ? parseInt(formData.total_real) : parseInt(formData.jumlah), // Use total_real as jumlah
-        qty_po: parseInt(formData.jumlah), // Original PO quantity
-        unit_kecil: formData.unit_kecil ? parseInt(formData.unit_kecil) : null,
-        unit_besar: formData.unit_besar ? parseInt(formData.unit_besar) : null,
+        jumlah: formData.total_real ? parseFloat(formData.total_real) : parseFloat(formData.jumlah), // Use total_real as jumlah
+        qty_po: parseFloat(formData.jumlah), // Original PO quantity
+        unit_kecil: formData.unit_kecil ? parseFloat(formData.unit_kecil) : null,
+        unit_besar: formData.unit_besar ? parseFloat(formData.unit_besar) : null,
         satuan_kecil: formData.satuan_kecil || null,
         satuan_besar: formData.satuan_besar || null,
         harga: 0, // Default harga to 0 since field is removed
@@ -602,8 +602,8 @@ export default function AddBarangMasukPage() {
                       const selectedProduct = products.find(p => p.id_product === parseInt(formData.id_barang))
                       if (selectedProduct && selectedProduct.satuan_kecil && selectedProduct.satuan_besar) {
                         const ratio = selectedProduct.satuan_kecil / selectedProduct.satuan_besar
-                        const unitKecil = parseInt(value) * ratio
-                        const roundedUnitKecil = Math.round(unitKecil).toString()
+                        const unitKecil = parseFloat(value) * ratio
+                        const roundedUnitKecil = unitKecil.toFixed(2)
                         setFormData(prev => ({ 
                           ...prev, 
                           unit_kecil: roundedUnitKecil,
@@ -612,7 +612,8 @@ export default function AddBarangMasukPage() {
                       }
                     }}
                     className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
-                    min="1"
+                    step="0.01"
+                    min="0.01"
                     required
                   />
                   <input
@@ -680,6 +681,7 @@ export default function AddBarangMasukPage() {
                     onChange={handleChange}
                     className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
                     min="0"
+                    step="0.1"
                     required
                   />
                   <input

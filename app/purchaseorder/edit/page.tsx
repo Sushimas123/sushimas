@@ -456,10 +456,11 @@ function EditPurchaseOrder() {
                       <td className="p-3 text-center">
                         <input
                           type="number"
+                          step="0.01"
                           value={item.qty}
-                          onChange={(e) => updatePOItem(item.product_id, 'qty', parseInt(e.target.value) || 0)}
+                          onChange={(e) => updatePOItem(item.product_id, 'qty', parseFloat(e.target.value) || 0)}
                           className="w-16 border rounded px-2 py-1 text-center"
-                          min="1"
+                          min="0.01"
                         />
                       </td>
                       <td className="p-3 text-center">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
 import { Eye, Download, RefreshCw } from 'lucide-react';
 import Layout from '../../components/Layout';
@@ -12,7 +12,7 @@ interface AuditLog {
   table_name: string;
   record_id: number;
   action: string;
-  user_id: number | null;
+  user_id: string | null; // Changed to string for UUID
   user_name: string;
   old_values: any;
   new_values: any;
@@ -33,21 +33,32 @@ export default function AuditLogPage() {
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
+  const [exporting, setExporting] = useState(false);
 
+  // Reset to first page when filters change
   useEffect(() => {
-    fetchAuditLogs();
-  }, [dateRange]);
+    setCurrentPage(1);
+  }, [searchTerm, tableFilter, actionFilter, userFilter, dateRange]);
 
-  const fetchAuditLogs = async () => {
+  const fetchAuditLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Create date objects with proper timezone handling
+      const startDate = new Date(dateRange.startDate);
+      startDate.setHours(0, 0, 0, 0);
+      
+      const endDate = new Date(dateRange.endDate);
+      endDate.setHours(23, 59, 59, 999);
+
+      let query = supabase
         .from('audit_log')
         .select('*')
-        .gte('created_at', dateRange.startDate + 'T00:00:00')
-        .lte('created_at', dateRange.endDate + 'T23:59:59')
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString())
         .order('created_at', { ascending: false })
-        .limit(1000);
+        .limit(500); // Reduced limit for better performance
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setLogs(data || []);
@@ -56,41 +67,54 @@ export default function AuditLogPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange]);
 
-  const handleExport = () => {
+  useEffect(() => {
+    fetchAuditLogs();
+  }, [fetchAuditLogs]);
+
+  const handleExport = async () => {
     if (filteredLogs.length === 0) return;
     
-    const exportData = filteredLogs.map(log => ({
-      'Date': new Date(log.created_at).toLocaleString(),
-      'Table': log.table_name,
-      'Record ID': log.record_id,
-      'Action': log.action,
-      'User': log.user_name,
-      'Old Values': JSON.stringify(log.old_values),
-      'New Values': JSON.stringify(log.new_values)
-    }));
+    setExporting(true);
+    try {
+      // For large datasets, consider streaming or paginated export
+      const exportData = filteredLogs.map(log => ({
+        'Date': new Date(log.created_at).toLocaleString(),
+        'Table': log.table_name,
+        'Record ID': log.record_id,
+        'Action': log.action,
+        'User': log.user_name,
+        'Old Values': JSON.stringify(log.old_values),
+        'New Values': JSON.stringify(log.new_values)
+      }));
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Audit Log");
-    XLSX.writeFile(wb, `audit_log_${new Date().toISOString().split('T')[0]}.xlsx`);
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Audit Log");
+      XLSX.writeFile(wb, `audit_log_${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (error) {
+      console.error('Error exporting data:', error);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const filteredLogs = logs.filter(log => {
     const matchesSearch = !searchTerm || 
       log.table_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.user_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (log.user_name && log.user_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
       log.action.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesTable = !tableFilter || log.table_name === tableFilter;
     const matchesAction = !actionFilter || log.action === actionFilter;
-    const matchesUser = !userFilter || log.user_name.toLowerCase().includes(userFilter.toLowerCase());
+    const matchesUser = !userFilter || 
+      (log.user_name && log.user_name.toLowerCase().includes(userFilter.toLowerCase()));
     
     return matchesSearch && matchesTable && matchesAction && matchesUser;
   });
 
-  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage) || 1;
   const paginatedLogs = filteredLogs.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
@@ -117,17 +141,19 @@ export default function AuditLogPage() {
           <div className="flex gap-2">
             <button
               onClick={fetchAuditLogs}
-              className="bg-gray-600 text-white px-3 py-2 rounded-md text-sm flex items-center gap-2"
+              disabled={loading}
+              className="bg-gray-600 text-white px-3 py-2 rounded-md text-sm flex items-center gap-2 disabled:opacity-50"
             >
-              <RefreshCw size={16} />
-              Refresh
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+              {loading ? 'Loading...' : 'Refresh'}
             </button>
             <button
               onClick={handleExport}
-              className="bg-green-600 text-white px-3 py-2 rounded-md text-sm flex items-center gap-2"
+              disabled={exporting || filteredLogs.length === 0}
+              className="bg-green-600 text-white px-3 py-2 rounded-md text-sm flex items-center gap-2 disabled:opacity-50"
             >
               <Download size={16} />
-              Export
+              {exporting ? 'Exporting...' : 'Export'}
             </button>
           </div>
         </div>
@@ -225,7 +251,7 @@ export default function AuditLogPage() {
                 ) : paginatedLogs.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                      No audit logs found
+                      {logs.length === 0 ? 'No audit logs found' : 'No logs match your filters'}
                     </td>
                   </tr>
                 ) : (
@@ -251,7 +277,7 @@ export default function AuditLogPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="text-gray-900">{log.user_name}</div>
+                        <div className="text-gray-900">{log.user_name || 'N/A'}</div>
                         {log.user_id && (
                           <div className="text-gray-500 text-xs">ID: {log.user_id}</div>
                         )}
@@ -274,44 +300,46 @@ export default function AuditLogPage() {
         </div>
 
         {/* Pagination */}
-        <div className="flex justify-between items-center mt-4">
-          <p className="text-sm text-gray-600">
-            Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredLogs.length)} of {filteredLogs.length} entries
-          </p>
-          <div className="flex gap-1">
-            <button 
-              disabled={currentPage === 1} 
-              onClick={() => setCurrentPage(1)}
-              className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
-            >
-              First
-            </button>
-            <button 
-              disabled={currentPage === 1} 
-              onClick={() => setCurrentPage(p => p - 1)}
-              className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
-            >
-              Prev
-            </button>
-            <span className="px-3 py-1 border rounded text-sm bg-blue-50">
-              Page {currentPage} of {totalPages || 1}
-            </span>
-            <button 
-              disabled={currentPage === totalPages || totalPages === 0} 
-              onClick={() => setCurrentPage(p => p + 1)}
-              className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
-            >
-              Next
-            </button>
-            <button 
-              disabled={currentPage === totalPages || totalPages === 0} 
-              onClick={() => setCurrentPage(totalPages)}
-              className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
-            >
-              Last
-            </button>
+        {filteredLogs.length > 0 && (
+          <div className="flex justify-between items-center mt-4">
+            <p className="text-sm text-gray-600">
+              Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredLogs.length)} of {filteredLogs.length} entries
+            </p>
+            <div className="flex gap-1">
+              <button 
+                disabled={currentPage === 1} 
+                onClick={() => setCurrentPage(1)}
+                className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
+              >
+                First
+              </button>
+              <button 
+                disabled={currentPage === 1} 
+                onClick={() => setCurrentPage(p => p - 1)}
+                className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
+              >
+                Prev
+              </button>
+              <span className="px-3 py-1 border rounded text-sm bg-blue-50">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button 
+                disabled={currentPage === totalPages} 
+                onClick={() => setCurrentPage(p => p + 1)}
+                className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
+              >
+                Next
+              </button>
+              <button 
+                disabled={currentPage === totalPages} 
+                onClick={() => setCurrentPage(totalPages)}
+                className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
+              >
+                Last
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Detail Modal */}
         {selectedLog && (
@@ -334,7 +362,7 @@ export default function AuditLogPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">User</label>
-                  <p className="text-sm text-gray-900">{selectedLog.user_name} (ID: {selectedLog.user_id})</p>
+                  <p className="text-sm text-gray-900">{selectedLog.user_name || 'N/A'} {selectedLog.user_id && `(ID: ${selectedLog.user_id})`}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Table</label>
@@ -348,7 +376,7 @@ export default function AuditLogPage() {
                 </div>
               </div>
 
-              {selectedLog.old_values && (
+              {selectedLog.old_values && Object.keys(selectedLog.old_values).length > 0 && (
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Old Values</label>
                   <pre className="bg-gray-100 p-3 rounded text-xs overflow-x-auto">
@@ -357,7 +385,7 @@ export default function AuditLogPage() {
                 </div>
               )}
 
-              {selectedLog.new_values && (
+              {selectedLog.new_values && Object.keys(selectedLog.new_values).length > 0 && (
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">New Values</label>
                   <pre className="bg-gray-100 p-3 rounded text-xs overflow-x-auto">
