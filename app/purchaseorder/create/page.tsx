@@ -386,9 +386,9 @@ function CreatePurchaseOrder() {
                 onChange={(e) => setFormData({...formData, priority: e.target.value})}
                 className="w-full border border-gray-300 rounded-md px-3 py-2"
               >
-                <option value="tinggi">Tinggi</option>
-                <option value="sedang">Sedang</option>
                 <option value="biasa">Biasa</option>
+                <option value="sedang">Sedang</option>
+                <option value="tinggi">Tinggi</option>
               </select>
             </div>
 
@@ -490,7 +490,7 @@ function CreatePurchaseOrder() {
                               <input
                                 type="number"
                                 value={item.qty}
-                                onChange={(e) => updatePOItem(item.product_id, 'qty', parseInt(e.target.value) || 0)}
+                                onChange={(e) => updatePOItem(item.product_id, item.supplier_name, 'qty', parseInt(e.target.value) || 0)}
                                 className="w-16 border rounded px-2 py-1 text-center"
                                 min="1"
                               />
@@ -502,14 +502,14 @@ function CreatePurchaseOrder() {
                               <input
                                 type="text"
                                 value={item.keterangan}
-                                onChange={(e) => updatePOItem(item.product_id, 'keterangan', e.target.value)}
+                                onChange={(e) => updatePOItem(item.product_id, item.supplier_name, 'keterangan', e.target.value)}
                                 className="w-full border rounded px-2 py-1 text-sm"
                                 placeholder="Keterangan..."
                               />
                             </td>
                             <td className="p-3 text-center">
                               <button
-                                onClick={() => removePOItem(item.product_id)}
+                                onClick={() => removePOItem(item.product_id, item.supplier_name)}
                                 className="text-red-600 hover:text-red-800"
                               >
                                 <Minus size={16} />

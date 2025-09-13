@@ -12,11 +12,13 @@ interface BarangMasuk {
   id_barang: number
   product_name: string
   jumlah: number
+  qty_po: number
   unit_kecil: number
   unit_besar: number
   satuan_kecil: string
   satuan_besar: string
   total_real: number
+  harga: number
   id_supplier: number
   supplier_name: string
   id_branch: number
@@ -81,6 +83,8 @@ export default function BarangMasukPage() {
 
   const fetchBarangMasuk = async () => {
     try {
+      console.log('Fetching barang masuk data...')
+      
       // Get total count first
       let countQuery = supabase
         .from('barang_masuk')
@@ -92,6 +96,7 @@ export default function BarangMasukPage() {
       
       const { count } = await countQuery
       setTotalCount(count || 0)
+      console.log('Total barang masuk count:', count)
       
       // Get paginated data
       const from = (currentPage - 1) * itemsPerPage
@@ -114,7 +119,10 @@ export default function BarangMasukPage() {
         throw error
       }
 
+      console.log('Raw barang masuk data:', data)
+
       if (!data || data.length === 0) {
+        console.log('No barang masuk data found')
         setBarangMasuk([])
         return
       }
@@ -192,11 +200,13 @@ export default function BarangMasukPage() {
             id_barang: item.id_barang,
             product_name: productName,
             jumlah: item.jumlah,
-            unit_kecil: item.unit_kecil || 0,
-            unit_besar: item.unit_besar || 0,
-            satuan_kecil: productData?.unit_kecil || item.satuan_kecil || '',
-            satuan_besar: productData?.unit_besar || item.satuan_besar || '',
-            total_real: item.total_real || 0,
+            qty_po: item.qty_po || 0,
+            unit_kecil: item.unit_kecil || productData?.satuan_kecil || 0,
+            unit_besar: item.unit_besar || productData?.satuan_besar || 0,
+            satuan_kecil: item.satuan_kecil || productData?.unit_kecil || '',
+            satuan_besar: item.satuan_besar || productData?.unit_besar || '',
+            total_real: item.jumlah || 0, // jumlah is the actual received amount
+            harga: item.harga || 0,
             id_supplier: item.id_supplier,
             supplier_name: supplierName,
             id_branch: item.id_branch,
@@ -235,7 +245,7 @@ export default function BarangMasukPage() {
       }
     }
     groups[key].items.push(item)
-    groups[key].total_qty += item.total_real || 0
+    groups[key].total_qty += item.jumlah || 0 // Use jumlah as total_real
     return groups
   }, {})
 
@@ -285,6 +295,15 @@ export default function BarangMasukPage() {
                     </option>
                   ))}
                 </select>
+                <button
+                  onClick={() => {
+                    console.log('Manual refresh triggered')
+                    fetchBarangMasuk()
+                  }}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                >
+                  Refresh
+                </button>
               </div>
             </div>
           </div>
@@ -319,12 +338,7 @@ export default function BarangMasukPage() {
                         </div>
                       )}
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-500">Total Qty Real</p>
-                      <p className="font-semibold text-green-600">
-                        {poGroup.total_qty.toLocaleString('id-ID')}
-                      </p>
-                    </div>
+
                   </div>
                 </div>
                 
@@ -332,10 +346,11 @@ export default function BarangMasukPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50 border-b">
+                        <th className="p-3 text-left font-medium text-gray-700">Tanggal</th>
                         <th className="p-3 text-left font-medium text-gray-700">Nama Barang</th>
                         <th className="p-3 text-center font-medium text-gray-700">Jumlah PO</th>
-                        <th className="p-3 text-center font-medium text-gray-700">Total Real</th>
-                        <th className="p-3 text-center font-medium text-gray-700">Unit</th>
+                        <th className="p-3 text-center font-medium text-gray-700">Barang Masuk Gudang</th>                        
+                        <th className="p-3 text-center font-medium text-gray-700">Invoice</th>
                         <th className="p-3 text-left font-medium text-gray-700">Keterangan</th>
                         <th className="p-3 text-center font-medium text-gray-700">Aksi</th>
                       </tr>
@@ -343,10 +358,19 @@ export default function BarangMasukPage() {
                     <tbody>
                       {poGroup.items.map((item) => (
                         <tr key={item.id} className="border-b hover:bg-gray-50">
+                          <td className="p-3 text-sm">
+                            {new Date(item.tanggal).toLocaleDateString('id-ID')}
+                          </td>
                           <td className="p-3 font-medium">{item.product_name}</td>
-                          <td className="p-3 text-center">{item.jumlah}</td>
-                          <td className="p-3 text-center font-medium text-green-600">{item.total_real}</td>
-                          <td className="p-3 text-center">{item.satuan_kecil}</td>
+                          <td className="p-3 text-center">
+                            <span className="font-medium">{item.qty_po}</span>
+                            <span className="text-xs text-gray-500 ml-1">{item.satuan_besar}</span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="font-medium text-green-600">{item.jumlah}</span>
+                            <span className="text-xs text-gray-500 ml-1">{item.satuan_kecil}</span>
+                          </td>
+                          <td className="p-3 text-center text-sm">{item.invoice_number}</td>
                           <td className="p-3 text-sm text-gray-600">{item.keterangan}</td>
                           <td className="p-3 text-center">
                             <a 

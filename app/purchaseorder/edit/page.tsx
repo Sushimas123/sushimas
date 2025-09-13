@@ -379,9 +379,9 @@ function EditPurchaseOrder() {
                 onChange={(e) => setFormData({...formData, priority: e.target.value})}
                 className="w-full border border-gray-300 rounded-md px-3 py-2"
               >
-                <option value="tinggi">Tinggi</option>
-                <option value="sedang">Sedang</option>
                 <option value="biasa">Biasa</option>
+                <option value="sedang">Sedang</option>
+                <option value="tinggi">Tinggi</option>
               </select>
             </div>
             {formData.supplier_id && (

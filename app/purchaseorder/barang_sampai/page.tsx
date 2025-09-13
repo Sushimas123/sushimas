@@ -99,18 +99,19 @@ export default function FinishPO() {
 
       console.log('PO items:', items)
 
-      // Get product names for each item
+      // Get product names and prices for each item
       const poItems = await Promise.all(
         (items || []).map(async (item) => {
           const { data: product } = await supabase
             .from('nama_product')
-            .select('product_name')
+            .select('product_name, harga')
             .eq('id_product', item.product_id)
             .single()
 
           return {
             ...item,
-            product_name: product?.product_name || 'Unknown Product'
+            product_name: product?.product_name || 'Unknown Product',
+            harga: product?.harga || 0
           }
         })
       )
@@ -212,7 +213,7 @@ export default function FinishPO() {
         throw new Error(`Gagal update PO: ${updateError.message}`)
       }
 
-      // Save received items to barang_masuk table
+      // Save received items to barang_masuk table and update prices
       const user = JSON.parse(localStorage.getItem('user') || '{}')
       
       for (const [itemId, receivedData] of Object.entries(receivedItems)) {
@@ -220,12 +221,58 @@ export default function FinishPO() {
         if (receivedData.status !== 'not_received' && receivedData.qty > 0) {
           const poItem = poData.items?.find(item => item.id === parseInt(itemId))
           if (poItem) {
+            // Get current product details
+            const { data: productDetails } = await supabase
+              .from('nama_product')
+              .select('unit_kecil, unit_besar, satuan_kecil, satuan_besar, harga')
+              .eq('id_product', poItem.product_id)
+              .single()
+
+            // Check if actual price differs from master price
+            const currentPrice = productDetails?.harga || 0
+            const actualPrice = receivedData.harga
+            
+            if (Math.abs(actualPrice - currentPrice) > 0.01) { // Allow small rounding differences
+              // Update master price - this will trigger the price_history via database trigger
+              const { error: priceUpdateError } = await supabase
+                .from('nama_product')
+                .update({ harga: actualPrice })
+                .eq('id_product', poItem.product_id)
+              
+              if (priceUpdateError) {
+                console.error(`Error updating price for product ${poItem.product_id}:`, priceUpdateError)
+              } else {
+                // Manually add PO context to price history since trigger doesn't have PO info
+                const { error: historyError } = await supabase
+                  .from('price_history')
+                  .update({ 
+                    po_number: poData.po_number,
+                    change_reason: 'po_completion',
+                    created_by: user.id_user || null,
+                    notes: `Price updated from PO completion. Invoice: ${formData.invoice_number}`
+                  })
+                  .eq('product_id', poItem.product_id)
+                  .eq('new_price', actualPrice)
+                  .order('change_date', { ascending: false })
+                  .limit(1)
+                
+                if (historyError) {
+                  console.warn(`Could not update price history context:`, historyError)
+                }
+              }
+            }
+
             const { error: barangMasukError } = await supabase
               .from('barang_masuk')
               .insert({
                 tanggal: formData.tanggal_barang_sampai,
                 id_barang: poItem.product_id,
                 jumlah: parseFloat(receivedData.qty.toString()),
+                qty_po: poItem.qty, // Original PO quantity
+                unit_kecil: productDetails?.satuan_kecil || null,
+                unit_besar: productDetails?.satuan_besar || null,
+                satuan_kecil: productDetails?.unit_kecil || null,
+                satuan_besar: productDetails?.unit_besar || null,
                 harga: receivedData.harga,
                 id_supplier: poData.supplier_id,
                 id_branch: poData.cabang_id,
@@ -243,7 +290,8 @@ export default function FinishPO() {
       }
 
       alert('Data barang sampai berhasil disimpan ke barang masuk!')
-      window.location.href = '/purchaseorder'
+      // Redirect to barang masuk page to see the results
+      window.location.href = '/purchaseorder/barang_masuk'
     } catch (error) {
       console.error('Error saving:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'

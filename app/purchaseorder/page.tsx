@@ -10,11 +10,13 @@ interface PurchaseOrder {
   id: number
   po_number: string
   status: string
+  priority?: string
   supplier_name: string
   branch_name: string
   created_at: string
   created_by_name: string
   tanggal_barang_sampai?: string
+  total_harga: number
   items: Array<{product_name: string, qty: number}>
 }
 
@@ -22,6 +24,7 @@ interface FilterOptions {
   branches: Array<{id_branch: number, nama_branch: string}>
   suppliers: Array<{id_supplier: number, nama_supplier: string}>
   statuses: string[]
+  priorities: string[]
 }
 
 export default function PurchaseOrderPage() {
@@ -30,12 +33,14 @@ export default function PurchaseOrderPage() {
   const [filters, setFilters] = useState({
     cabang_id: '',
     supplier_id: '',
-    status: ''
+    status: '',
+    priority: ''
   })
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     branches: [],
     suppliers: [],
-    statuses: ['Pending', 'Sedang diproses', 'Barang sampai', 'Sampai Sebagian', 'Dibatalkan']
+    statuses: ['Pending', 'Sedang diproses', 'Barang sampai', 'Sampai Sebagian', 'Dibatalkan'],
+    priorities: ['biasa', 'sedang', 'tinggi']
   })
 
   useEffect(() => {
@@ -73,7 +78,8 @@ export default function PurchaseOrderPage() {
       setFilterOptions({
         branches: branches || [],
         suppliers: uniqueSuppliers,
-        statuses: ['Pending', 'Sedang diproses', 'Barang sampai', 'Sampai Sebagian', 'Dibatalkan']
+        statuses: ['Pending', 'Sedang diproses', 'Barang sampai', 'Sampai Sebagian', 'Dibatalkan'],
+        priorities: ['biasa', 'sedang', 'tinggi']
       })
     } catch (error) {
       console.error('Error fetching filter options:', error)
@@ -98,6 +104,9 @@ export default function PurchaseOrderPage() {
       }
       if (filters.status) {
         query = query.eq('status', filters.status)
+      }
+      if (filters.priority) {
+        query = query.eq('priority', filters.priority)
       }
 
       const { data: poData, error } = await query
@@ -127,14 +136,18 @@ export default function PurchaseOrderPage() {
             .select('qty, product_id')
             .eq('po_id', po.id)
 
-          // Get product names for each item
+          // Get product names and calculate total price
+          let totalHarga = 0
           const poItems = await Promise.all(
             (items || []).map(async (item) => {
               const { data: product } = await supabase
                 .from('nama_product')
-                .select('product_name')
+                .select('product_name, harga')
                 .eq('id_product', item.product_id)
                 .single()
+
+              const itemTotal = (product?.harga || 0) * item.qty
+              totalHarga += itemTotal
 
               return {
                 product_name: product?.product_name || 'Unknown Product',
@@ -147,11 +160,13 @@ export default function PurchaseOrderPage() {
             id: po.id,
             po_number: po.po_number,
             status: po.status,
+            priority: po.priority,
             supplier_name: supplier?.nama_supplier || 'Unknown',
             branch_name: branch?.nama_branch || 'Unknown',
             created_at: po.created_at,
             created_by_name: 'System',
             tanggal_barang_sampai: po.tanggal_barang_sampai,
+            total_harga: totalHarga,
             items: poItems
           }
         })
@@ -177,6 +192,15 @@ export default function PurchaseOrderPage() {
     }
   }
 
+  const getPriorityColor = (priority: string) => {
+    switch (priority?.toLowerCase()) {
+      case 'tinggi': return 'bg-red-100 text-red-800'
+      case 'sedang': return 'bg-yellow-100 text-yellow-800'
+      case 'biasa': return 'bg-green-100 text-green-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -194,19 +218,31 @@ export default function PurchaseOrderPage() {
   }
 
   const handleDeletePO = async (poId: number, poNumber: string) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus PO ${poNumber}?`)) {
+    if (!confirm(`Apakah Anda yakin ingin menghapus PO ${poNumber}? Semua data barang masuk terkait juga akan dihapus.`)) {
       return
     }
 
     try {
-      const { error } = await supabase
+      // First delete related barang_masuk records
+      const { error: barangMasukError } = await supabase
+        .from('barang_masuk')
+        .delete()
+        .eq('no_po', poNumber)
+
+      if (barangMasukError) {
+        console.error('Error deleting barang masuk:', barangMasukError)
+        throw barangMasukError
+      }
+
+      // Then delete the PO
+      const { error: poError } = await supabase
         .from('purchase_orders')
         .delete()
         .eq('id', poId)
 
-      if (error) throw error
+      if (poError) throw poError
 
-      alert('PO berhasil dihapus!')
+      alert('PO dan semua barang masuk terkait berhasil dihapus!')
       fetchPurchaseOrders()
     } catch (error) {
       console.error('Error deleting PO:', error)
@@ -238,7 +274,7 @@ export default function PurchaseOrderPage() {
               <Filter size={16} className="text-gray-500" />
               <h3 className="font-medium text-gray-800">Filter</h3>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
                 <select
@@ -266,6 +302,19 @@ export default function PurchaseOrderPage() {
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                <select
+                  value={filters.priority}
+                  onChange={(e) => setFilters({...filters, priority: e.target.value})}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                >
+                  <option value="">Semua Priority</option>
+                  {filterOptions.priorities.map(priority => (
+                    <option key={priority} value={priority}>{priority.charAt(0).toUpperCase() + priority.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                 <select
                   value={filters.status}
@@ -280,7 +329,7 @@ export default function PurchaseOrderPage() {
               </div>
               <div className="flex items-end">
                 <button
-                  onClick={() => setFilters({cabang_id: '', supplier_id: '', status: ''})}
+                  onClick={() => setFilters({cabang_id: '', supplier_id: '', status: '', priority: ''})}
                   className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 text-sm"
                 >
                   Reset Filter
@@ -310,8 +359,10 @@ export default function PurchaseOrderPage() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">PO Number</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cabang</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Harga</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal PO</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tgl Barang Sampai</th>
                       <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Aksi</th>
@@ -332,6 +383,11 @@ export default function PurchaseOrderPage() {
                             <Building2 size={14} className="mr-1 text-gray-400" />
                             {po.branch_name}
                           </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(po.priority || 'biasa')}`}>
+                            {po.priority || 'Biasa'}
+                          </span>
                         </td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(po.status)}`}>
@@ -355,6 +411,11 @@ export default function PurchaseOrderPage() {
                             ) : (
                               <span className="text-gray-500">Tidak ada items</span>
                             )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="font-medium text-gray-900">
+                            {formatCurrency(po.total_harga)}
                           </div>
                         </td>
                         <td className="px-4 py-3">
@@ -414,7 +475,7 @@ export default function PurchaseOrderPage() {
                             <button
                               onClick={() => handleDeletePO(po.id, po.po_number)}
                               className="text-red-600 hover:text-red-800 p-1 rounded"
-                              title="Delete PO"
+                              title="Delete PO & Barang Masuk"
                             >
                               <Trash2 size={16} />
                             </button>

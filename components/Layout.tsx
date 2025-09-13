@@ -27,7 +27,8 @@ import {
   User,
   Building,
   Plus,
-  PackageCheck
+  PackageCheck,
+  ChartArea
 } from "lucide-react"
 import { canAccessPage } from '@/src/utils/dbPermissions'
 import { supabase } from '@/src/lib/supabaseClient'
@@ -109,6 +110,7 @@ export default function Layout({ children }: LayoutProps) {
         { name: "Supplier", href: AppRoutes.SUPPLIER, icon: Truck },
         { name: "Branches", href: AppRoutes.BRANCHES, icon: Store },
         { name: "Users", href: AppRoutes.USERS, icon: Users },
+        { name: "Price History", href: AppRoutes.PRICE_HISTORY, icon: ChartArea}
       ]
     },
     {

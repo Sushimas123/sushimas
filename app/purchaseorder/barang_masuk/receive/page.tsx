@@ -41,7 +41,6 @@ export default function AddBarangMasukPage() {
     unit_besar: '',
     satuan_kecil: '',
     satuan_besar: '',
-    harga: '',
     total_real: '',
     id_supplier: '',
     id_branch: '',
@@ -85,6 +84,24 @@ export default function AddBarangMasukPage() {
     
     loadData()
   }, [])
+
+  // Auto-calculate unit conversion when jumlah or product changes
+  useEffect(() => {
+    if (formData.jumlah && formData.id_barang && products.length > 0) {
+      const selectedProduct = products.find(p => p.id_product === parseInt(formData.id_barang))
+      if (selectedProduct && selectedProduct.satuan_kecil && selectedProduct.satuan_besar) {
+        const ratio = selectedProduct.satuan_kecil / selectedProduct.satuan_besar
+        const unitKecil = parseInt(formData.jumlah) * ratio
+        const roundedUnitKecil = Math.round(unitKecil).toString()
+        
+        setFormData(prev => ({ 
+          ...prev, 
+          unit_kecil: roundedUnitKecil,
+          total_real: roundedUnitKecil // Always update total_real to follow conversion
+        }))
+      }
+    }
+  }, [formData.jumlah, formData.id_barang, products])
 
   const fetchProducts = async () => {
     const { data, error } = await supabase
@@ -169,6 +186,7 @@ export default function AddBarangMasukPage() {
       // Auto-fill form data
       setFormData(prev => ({
         ...prev,
+        tanggal: po.po_date.split('T')[0], // Convert to YYYY-MM-DD format
         id_supplier: po.supplier_id.toString(),
         id_branch: po.cabang_id.toString(),
         no_po: po.po_number
@@ -203,15 +221,14 @@ export default function AddBarangMasukPage() {
 
       // Fill form with existing data
       setFormData({
-        tanggal: barangMasuk.tanggal,
+        tanggal: barangMasuk.tanggal.split('T')[0], // Convert to YYYY-MM-DD format
         id_barang: barangMasuk.id_barang.toString(),
-        jumlah: barangMasuk.jumlah.toString(),
+        jumlah: barangMasuk.qty_po?.toString() || barangMasuk.jumlah.toString(), // Use qty_po if available
         unit_kecil: barangMasuk.unit_kecil?.toString() || '',
         unit_besar: barangMasuk.unit_besar?.toString() || '',
         satuan_kecil: product?.unit_kecil || barangMasuk.satuan_kecil || '',
         satuan_besar: product?.unit_besar || barangMasuk.satuan_besar || '',
-        harga: barangMasuk.harga?.toString() || '0',
-        total_real: barangMasuk.total_real?.toString() || barangMasuk.jumlah.toString(),
+        total_real: barangMasuk.jumlah.toString(), // jumlah in DB is the actual received amount
         id_supplier: barangMasuk.id_supplier?.toString() || '',
         id_branch: barangMasuk.id_branch.toString(),
         no_po: barangMasuk.no_po || '',
@@ -271,10 +288,13 @@ export default function AddBarangMasukPage() {
       const insertData = {
         tanggal: formData.tanggal,
         id_barang: parseInt(formData.id_barang),
-        jumlah: parseInt(formData.jumlah),
+        jumlah: formData.total_real ? parseInt(formData.total_real) : parseInt(formData.jumlah), // Use total_real as jumlah
+        qty_po: parseInt(formData.jumlah), // Original PO quantity
         unit_kecil: formData.unit_kecil ? parseInt(formData.unit_kecil) : null,
         unit_besar: formData.unit_besar ? parseInt(formData.unit_besar) : null,
-        harga: formData.harga ? parseFloat(formData.harga) : 0,
+        satuan_kecil: formData.satuan_kecil || null,
+        satuan_besar: formData.satuan_besar || null,
+        harga: 0, // Default harga to 0 since field is removed
         id_supplier: formData.id_supplier ? parseInt(formData.id_supplier) : null,
         id_branch: parseInt(formData.id_branch),
         no_po: formData.no_po || null,
@@ -335,7 +355,6 @@ export default function AddBarangMasukPage() {
       if (selectedProduct) {
         setFormData(prev => ({
           ...prev,
-          harga: selectedProduct.harga.toString(),
           // Simpan nama satuan dari master product
           satuan_kecil: selectedProduct.unit_kecil || '',
           satuan_besar: selectedProduct.unit_besar || ''
@@ -400,8 +419,7 @@ export default function AddBarangMasukPage() {
                         unit_kecil: unitKecil.toString(),
                         total_real: unitKecil.toString(),
                         satuan_kecil: selectedProduct?.unit_kecil || '',
-                        satuan_besar: selectedProduct?.unit_besar || '',
-                        harga: (item.harga || item.product_price || 0).toString()
+                        satuan_besar: selectedProduct?.unit_besar || ''
                       }))
                     }}
                   >
@@ -436,10 +454,11 @@ export default function AddBarangMasukPage() {
                   type="date"
                   name="tanggal"
                   value={formData.tanggal}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                  required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100"
+                  readOnly
+                  disabled
                 />
+                <p className="text-xs text-gray-500 mt-1">Tanggal mengikuti tanggal PO</p>
               </div>
               
               <div>
@@ -447,10 +466,9 @@ export default function AddBarangMasukPage() {
                 <select
                   name="id_barang"
                   value={formData.id_barang}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                  required
-                  disabled={!!poData && !!formData.id_barang || isEditMode}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100"
+                  disabled
+                  readOnly
                 >
                   <option value="">Pilih Barang</option>
                   {products.map(product => (
@@ -459,9 +477,7 @@ export default function AddBarangMasukPage() {
                     </option>
                   ))}
                 </select>
-                {poData && formData.id_barang && (
-                  <p className="text-xs text-gray-500 mt-1">Barang dari PO tidak dapat diubah</p>
-                )}
+                <p className="text-xs text-gray-500 mt-1">Barang tidak dapat diubah</p>
               </div>
 
               <div>
@@ -532,8 +548,17 @@ export default function AddBarangMasukPage() {
                   />
                 </div>
                 {formData.unit_kecil && formData.satuan_kecil && (
-                  <p className="text-sm text-green-600 mt-1 font-medium">
-                    Total: {formData.unit_kecil} {formData.satuan_kecil}
+                  <p 
+                    className="text-sm text-green-600 mt-1 font-medium cursor-pointer hover:text-green-700 hover:underline"
+                    onClick={() => {
+                      setFormData(prev => ({
+                        ...prev,
+                        total_real: formData.unit_kecil
+                      }))
+                    }}
+                    title="Klik untuk mengisi Total Barang Masuk (REAL)"
+                  >
+                    Total: {formData.unit_kecil} {formData.satuan_kecil} 👆
                   </p>
                 )}
               </div>
@@ -560,29 +585,16 @@ export default function AddBarangMasukPage() {
                 <p className="text-xs text-gray-500 mt-1">Jumlah aktual barang yang masuk (dapat disesuaikan)</p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Harga (Opsional)</label>
-                <input
-                  type="number"
-                  name="harga"
-                  value={formData.harga}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-50"
-                  min="0"
-                  step="0.01"
-                  placeholder="0"
-                />
-                <p className="text-xs text-gray-500 mt-1">Harga per unit (opsional, untuk referensi)</p>
-              </div>
+
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
                 <select
                   name="id_supplier"
                   value={formData.id_supplier}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                  disabled={!!poData || isEditMode}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100"
+                  disabled
+                  readOnly
                 >
                   <option value="">Pilih Supplier (Opsional)</option>
                   {suppliers.map(supplier => (
@@ -591,9 +603,7 @@ export default function AddBarangMasukPage() {
                     </option>
                   ))}
                 </select>
-                {poData && (
-                  <p className="text-xs text-gray-500">Supplier dari PO: {poData.supplier_name}</p>
-                )}
+                <p className="text-xs text-gray-500 mt-1">Supplier tidak dapat diubah</p>
               </div>
 
               <div>
@@ -621,11 +631,11 @@ export default function AddBarangMasukPage() {
                   type="text"
                   name="no_po"
                   value={formData.no_po}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                  placeholder="Nomor Purchase Order (opsional)"
-                  readOnly={!!poData || isEditMode}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100"
+                  readOnly
+                  disabled
                 />
+                <p className="text-xs text-gray-500 mt-1">No PO tidak dapat diubah</p>
               </div>
 
               <div>
@@ -634,10 +644,11 @@ export default function AddBarangMasukPage() {
                   type="text"
                   name="invoice_number"
                   value={formData.invoice_number}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                  placeholder="Nomor Invoice (opsional)"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100"
+                  readOnly
+                  disabled
                 />
+                <p className="text-xs text-gray-500 mt-1">Invoice number tidak dapat diubah</p>
               </div>
             </div>
 

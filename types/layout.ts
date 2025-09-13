@@ -44,5 +44,6 @@ export enum AppRoutes {
   PRODUCT_SETTINGS = '/product_settings',
   PERMISSIONS_DB = '/permissions-db',
   CRUD_PERMISSIONS = '/crud-permissions',
-  AUDIT_LOG = '/audit-log'
+  AUDIT_LOG = '/audit-log',
+  PRICE_HISTORY = '/price-history'
 }
