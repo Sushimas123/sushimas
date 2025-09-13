@@ -24,12 +24,16 @@ import {
   HelpCircle,
   Home,
   LogOut,
-  User
+  User,
+  Building,
+  Plus,
+  PackageCheck
 } from "lucide-react"
 import { canAccessPage } from '@/src/utils/dbPermissions'
 import { supabase } from '@/src/lib/supabaseClient'
 import { useDebounce } from '@/hooks/useDebounce'
 import { MenuItem, AppRoutes, BreadcrumbItem, SearchResult } from '@/types/layout'
+import PurchaseOrderPage from "@/app/purchaseorder/page"
 
 interface LayoutProps {
   children: React.ReactNode
@@ -74,6 +78,15 @@ export default function Layout({ children }: LayoutProps) {
         { name: "SO Batch", href: AppRoutes.SO_BATCH, icon: FileText },
       ]
     },
+    {
+      id: 'purchaseorder',
+      name: 'Purchase Order',
+      icon: Building,
+      submenu: [
+        { name: "Purchase Order", href: "/purchaseorder", icon: Package },
+        { name: "Barang Masuk", href: "/purchaseorder/barang_masuk", icon: PackageCheck},
+      ]
+    },    
     {
       id: 'reports',
       name: 'Reports',

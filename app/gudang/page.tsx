@@ -1066,17 +1066,17 @@ function GudangPageContent() {
           <h3 className="font-medium text-gray-800 mb-2 text-xs">{editingId ? 'Edit' : 'Add'} Warehouse Entry</h3>
           <form onSubmit={handleSubmit} className="space-y-1">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1 mb-2">
-              <input
-                type="date"
-                value={formData.tanggal}
-                onChange={(e) => setFormData(prev => ({ ...prev, tanggal: e.target.value }))}
-                className="border px-2 py-1 rounded-md text-xs"
-                required
+            <input
+  type="date"
+  value={formData.tanggal}
+  disabled={true}
+  className="border px-2 py-1 rounded-md text-xs"
+  required
               />
               <input
-                type="time"
-                value={formData.waktu}
-                onChange={(e) => setFormData(prev => ({ ...prev, waktu: e.target.value }))}
+  type="time"
+  value={formData.waktu}
+  disabled={true}
                 className="border px-2 py-1 rounded-md text-xs"
                 required
               />

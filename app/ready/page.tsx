@@ -855,7 +855,7 @@ function ReadyPageContent() {
       setImportProgress({show: true, progress: 95, message: 'Memperbarui tampilan...'});
       await fetchReady();
       
-      setImportProgress({show: true, progress: 100, message: 'Selesai!'});
+      setImportProgress({show: true, progress: 100, message: 'Barang Sampai!'});
       
       setTimeout(() => {
         setImportProgress({show: false, progress: 0, message: ''});
