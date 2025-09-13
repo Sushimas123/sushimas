@@ -220,7 +220,7 @@ function UsersPageContent() {
         );
 
         if (error) throw error;
-        userId = Array.isArray(data) ? data[0]?.id_user : data?.id_user;
+        userId = Array.isArray(data) ? data[0]?.id_user : (data as any)?.id_user;
       }
 
       // Insert user branches

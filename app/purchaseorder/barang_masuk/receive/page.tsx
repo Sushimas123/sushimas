@@ -197,6 +197,109 @@ export default function AddBarangMasukPage() {
     }
   }
 
+  const updateGudangRecord = async (oldData: any, newData: any) => {
+    try {
+      // Get branch code
+      const { data: branchData } = await supabase
+        .from('branches')
+        .select('kode_branch')
+        .eq('id_branch', newData.id_branch)
+        .single()
+      
+      if (!branchData) return
+      
+      const branchCode = branchData.kode_branch
+      const user = JSON.parse(localStorage.getItem('user') || '{}')
+      
+      // Find existing gudang record
+      const { data: existingGudang } = await supabase
+        .from('gudang')
+        .select('*')
+        .eq('id_product', oldData.id_barang)
+        .eq('cabang', branchCode)
+        .eq('source_type', 'PO')
+        .eq('source_reference', oldData.no_po)
+        .eq('tanggal', oldData.tanggal)
+        .maybeSingle()
+      
+      if (existingGudang) {
+        // Calculate new total_gudang
+        const quantityDifference = newData.jumlah - oldData.jumlah
+        const newTotalGudang = existingGudang.total_gudang + quantityDifference
+        
+        // Update gudang record
+        await supabase
+          .from('gudang')
+          .update({
+            tanggal: newData.tanggal,
+            jumlah_masuk: newData.jumlah,
+            total_gudang: newTotalGudang,
+            nama_pengambil_barang: user.nama_lengkap || 'System',
+            updated_by: user.id_user || null
+          })
+          .eq('order_no', existingGudang.order_no)
+        
+        console.log('Gudang record updated successfully')
+        
+        // Recalculate all affected records after this date
+        await recalculateGudangTotals(newData.id_barang, branchCode, newData.tanggal)
+      }
+    } catch (error) {
+      console.error('Error updating gudang record:', error)
+    }
+  }
+  
+  const recalculateGudangTotals = async (productId: number, branchCode: string, fromDate: string) => {
+    try {
+      // Get all records for this product and branch after the updated date
+      const { data: affectedRecords } = await supabase
+        .from('gudang')
+        .select('*')
+        .eq('id_product', productId)
+        .eq('cabang', branchCode)
+        .gte('tanggal', fromDate)
+        .order('tanggal', { ascending: true })
+        .order('order_no', { ascending: true })
+      
+      if (!affectedRecords || affectedRecords.length === 0) return
+      
+      // Get the baseline (last record before fromDate)
+      const { data: baselineRecord } = await supabase
+        .from('gudang')
+        .select('total_gudang')
+        .eq('id_product', productId)
+        .eq('cabang', branchCode)
+        .lt('tanggal', fromDate)
+        .order('tanggal', { ascending: false })
+        .order('order_no', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      let runningTotal = baselineRecord?.total_gudang || 0
+      
+      // Recalculate each affected record
+      for (const record of affectedRecords) {
+        if (record.is_locked) {
+          runningTotal = record.total_gudang // Use locked value as checkpoint
+        } else {
+          runningTotal = runningTotal + record.jumlah_masuk - record.jumlah_keluar
+          
+          // Update if different
+          if (runningTotal !== record.total_gudang) {
+            await supabase
+              .from('gudang')
+              .update({ total_gudang: runningTotal })
+              .eq('order_no', record.order_no)
+          }
+        }
+      }
+      
+      console.log('Gudang totals recalculated successfully')
+    } catch (error) {
+      console.error('Error recalculating gudang totals:', error)
+    }
+  }
+
   const fetchEditData = async (editId: number) => {
     try {
       // Get barang masuk data
@@ -316,6 +419,11 @@ export default function AddBarangMasukPage() {
           .select()
         data = updateResult.data
         error = updateResult.error
+        
+        // Update corresponding gudang record if exists
+        if (!error && data) {
+          await updateGudangRecord(editData, insertData)
+        }
       } else {
         // Insert new record
         const insertResult = await supabase
@@ -468,7 +576,6 @@ export default function AddBarangMasukPage() {
                   value={formData.id_barang}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100"
                   disabled
-                  readOnly
                 >
                   <option value="">Pilih Barang</option>
                   {products.map(product => (
@@ -564,7 +671,7 @@ export default function AddBarangMasukPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Total Barang Masuk (REAL)</label>
+                <label className="block text-sm font-bold text-red-700 mb-1">Total Barang Masuk (Gudang)</label>
                 <div className="flex gap-2">
                   <input
                     type="number"
@@ -594,7 +701,6 @@ export default function AddBarangMasukPage() {
                   value={formData.id_supplier}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100"
                   disabled
-                  readOnly
                 >
                   <option value="">Pilih Supplier (Opsional)</option>
                   {suppliers.map(supplier => (

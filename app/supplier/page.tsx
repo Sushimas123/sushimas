@@ -149,7 +149,8 @@ export default function SuppliersPage() {
         estimasi_pengiriman: 1,
         divisi: '',
         created_by: '',
-        nama_barang: ''
+        nama_barang: '',
+        merk: ''
       });
       setShowAddForm(false);
       setEditingId(null);

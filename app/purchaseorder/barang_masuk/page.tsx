@@ -27,7 +27,9 @@ interface BarangMasuk {
   invoice_number: string
   keterangan: string
   created_at: string
+  updated_at?: string
   po_id?: number
+  is_in_gudang?: boolean
 }
 
 interface Branch {
@@ -132,6 +134,7 @@ export default function BarangMasukPage() {
           let productName = 'Unknown'
           let supplierName = 'Unknown'
           let branchName = 'Unknown'
+          let branchCode = ''
 
           let productData = null
           try {
@@ -168,12 +171,13 @@ export default function BarangMasukPage() {
           try {
             const { data: branch } = await supabase
               .from('branches')
-              .select('nama_branch')
+              .select('nama_branch, kode_branch')
               .eq('id_branch', item.id_branch)
               .maybeSingle()
             
             if (branch) {
               branchName = branch.nama_branch
+              branchCode = branch.kode_branch
             }
           } catch (err) {
             console.warn('Branch fetch error:', err)
@@ -191,6 +195,26 @@ export default function BarangMasukPage() {
               if (po) poId = po.id
             } catch (err) {
               console.warn('PO fetch error:', err)
+            }
+          }
+          
+          // Check if already in gudang
+          let isInGudang = false
+          if (branchCode) {
+            try {
+              const { data: gudangEntry } = await supabase
+                .from('gudang')
+                .select('order_no')
+                .eq('id_product', item.id_barang)
+                .eq('cabang', branchCode)
+                .eq('source_type', 'PO')
+                .eq('source_reference', item.no_po)
+                .eq('tanggal', item.tanggal)
+                .maybeSingle()
+              
+              isInGudang = !!gudangEntry
+            } catch (err) {
+              console.warn('Gudang check error:', err)
             }
           }
 
@@ -215,7 +239,9 @@ export default function BarangMasukPage() {
             invoice_number: item.invoice_number || '-',
             keterangan: item.keterangan || '-',
             created_at: item.created_at,
-            po_id: poId
+            updated_at: item.updated_at,
+            po_id: poId,
+            is_in_gudang: isInGudang
           }
         })
       )
@@ -255,6 +281,85 @@ export default function BarangMasukPage() {
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleMasukGudang = async (item: BarangMasuk) => {
+    if (!confirm(`Masukkan barang ${item.product_name} ke gudang?`)) {
+      return
+    }
+
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}')
+      
+      // Get branch code from branch ID
+      const { data: branchData } = await supabase
+        .from('branches')
+        .select('kode_branch')
+        .eq('id_branch', item.id_branch)
+        .single()
+      
+      if (!branchData) {
+        alert('Branch data not found!')
+        return
+      }
+      
+      const branchCode = branchData.kode_branch
+      
+      // Check for duplicate - prevent same barang_masuk record from being processed twice
+      const { data: existingEntry } = await supabase
+        .from('gudang')
+        .select('order_no')
+        .eq('id_product', item.id_barang)
+        .eq('cabang', branchCode)
+        .eq('source_type', 'PO')
+        .eq('source_reference', item.no_po)
+        .eq('jumlah_masuk', item.jumlah)
+        .eq('tanggal', item.tanggal)
+        .eq('nama_pengambil_barang', user.nama_lengkap || 'System')
+      
+      if (existingEntry && existingEntry.length > 0) {
+        alert('Data ini sudah pernah dimasukkan ke gudang!')
+        return
+      }
+      
+      // Get current stock to calculate total_gudang
+      const { data: currentStock } = await supabase
+        .from('gudang')
+        .select('total_gudang')
+        .eq('id_product', item.id_barang)
+        .eq('cabang', branchCode)
+        .order('tanggal', { ascending: false })
+        .limit(1)
+      
+      const previousStock = currentStock?.[0]?.total_gudang || 0
+      const newTotalStock = previousStock + item.jumlah
+      
+      // Insert to gudang table
+      const { error: gudangError } = await supabase
+        .from('gudang')
+        .insert({
+          tanggal: item.tanggal,
+          id_product: item.id_barang,
+          jumlah_masuk: item.jumlah,
+          jumlah_keluar: 0,
+          total_gudang: newTotalStock,
+          nama_pengambil_barang: user.nama_lengkap || 'System',
+          cabang: branchCode,
+          source_type: 'PO',
+          source_reference: item.no_po,
+          created_by: user.id_user || null
+        })
+      
+      if (gudangError) {
+        throw gudangError
+      }
+      
+      alert('Barang berhasil dimasukkan ke gudang!')
+      fetchBarangMasuk() // Refresh data
+    } catch (error) {
+      console.error('Error masuk gudang:', error)
+      alert('Gagal memasukkan barang ke gudang: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    }
   }
 
   if (loading) {
@@ -346,7 +451,7 @@ export default function BarangMasukPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50 border-b">
-                        <th className="p-3 text-left font-medium text-gray-700">Tanggal</th>
+                        <th className="p-3 text-left font-medium text-gray-700">Tgl Barang Masuk</th>
                         <th className="p-3 text-left font-medium text-gray-700">Nama Barang</th>
                         <th className="p-3 text-center font-medium text-gray-700">Jumlah PO</th>
                         <th className="p-3 text-center font-medium text-gray-700">Barang Masuk Gudang</th>                        
@@ -373,13 +478,36 @@ export default function BarangMasukPage() {
                           <td className="p-3 text-center text-sm">{item.invoice_number}</td>
                           <td className="p-3 text-sm text-gray-600">{item.keterangan}</td>
                           <td className="p-3 text-center">
-                            <a 
-                              href={`/purchaseorder/barang_masuk/receive?edit=${item.id}`}
-                              className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
-                            >
-                              <Edit size={14} />
-                              Edit
-                            </a>
+                            <div className="flex items-center justify-center gap-2">
+                              <a 
+                                href={`/purchaseorder/barang_masuk/receive?edit=${item.id}`}
+                                className="inline-flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs"
+                                title="Update Data"
+                              >
+                                <Edit size={14} />
+                                Update
+                              </a>
+                              {!item.is_in_gudang ? (
+                                <button
+                                  onClick={() => handleMasukGudang(item)}
+                                  disabled={!item.updated_at}
+                                  className={`inline-flex items-center gap-1 px-3 py-1 rounded text-xs ${
+                                    item.updated_at 
+                                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                  }`}
+                                  title={item.updated_at ? "Masuk Gudang" : "Harus update data terlebih dahulu"}
+                                >
+                                  <Package size={14} />
+                                  Masuk Gudang
+                                </button>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-800 rounded text-xs">
+                                  <Package size={14} />
+                                  Sudah di Gudang
+                                </span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}

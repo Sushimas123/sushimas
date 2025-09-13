@@ -1067,16 +1067,16 @@ function GudangPageContent() {
           <form onSubmit={handleSubmit} className="space-y-1">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1 mb-2">
             <input
-  type="date"
-  value={formData.tanggal}
-  disabled={true}
-  className="border px-2 py-1 rounded-md text-xs"
-  required
+                type="date"
+                value={formData.tanggal}
+                onChange={(e) => setFormData(prev => ({ ...prev, tanggal: e.target.value }))}
+                className="border px-2 py-1 rounded-md text-xs"
+                required
               />
               <input
-  type="time"
-  value={formData.waktu}
-  disabled={true}
+                type="time"
+                value={formData.waktu}
+                onChange={(e) => setFormData(prev => ({ ...prev, waktu: e.target.value }))}
                 className="border px-2 py-1 rounded-md text-xs"
                 required
               />
@@ -1176,10 +1176,9 @@ function GudangPageContent() {
               <input
                 type="text"
                 value={formData.nama_pengambil_barang}
-                className="border px-2 py-1 rounded-md text-xs bg-gray-100"
+                onChange={(e) => setFormData(prev => ({ ...prev, nama_pengambil_barang: e.target.value }))}
+                className="border px-2 py-1 rounded-md text-xs"
                 placeholder="Nama Pengambil Barang"
-                disabled
-                readOnly
               />
             </div>
             <div className="flex gap-1">
@@ -1248,8 +1247,8 @@ function GudangPageContent() {
                 paginatedGudang.map((item) => (
                   <tr key={item.order_no} className="hover:bg-gray-50">
                     <td className="px-1 py-1 text-center">
-                      {item.is_locked || (item as any).source_type === 'stock_opname_batch' ? (
-                        <span className="text-gray-400 text-xs" title={item.is_locked ? `Locked by ${item.locked_by_so}` : 'SO Protected'}>🔒</span>
+                      {item.is_locked || (item as any).source_type === 'stock_opname_batch' || (item as any).source_type === 'PO' ? (
+                        <span className="text-gray-400 text-xs" title={item.is_locked ? `Locked by ${item.locked_by_so}` : (item as any).source_type === 'PO' ? 'PO Protected' : 'SO Protected'}>🔒</span>
                       ) : (
                         <input
                           type="checkbox"
@@ -1285,6 +1284,14 @@ function GudangPageContent() {
                         <span className="px-1 py-0.5 bg-orange-100 text-orange-800 rounded text-xs font-semibold">
                           📊 SO
                         </span>
+                      ) : (item as any).source_type === 'PO' && (item as any).source_reference ? (
+                        <a 
+                          href={`/purchaseorder?search=${(item as any).source_reference}`}
+                          className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-semibold hover:bg-blue-200 cursor-pointer"
+                          title="View Purchase Order"
+                        >
+                          📋 {(item as any).source_reference}
+                        </a>
                       ) : (
                         <span className="px-1 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
                           Manual
@@ -1300,6 +1307,10 @@ function GudangPageContent() {
                         <span className="px-1 py-0.5 bg-orange-100 text-orange-800 rounded text-xs font-semibold">
                           🔒 Protected
                         </span>
+                      ) : (item as any).source_type === 'PO' ? (
+                        <span className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
+                          🔒 PO Lock
+                        </span>
                       ) : (
                         <span className="px-1 py-0.5 bg-green-100 text-green-800 rounded text-xs">
                           ✓ Open
@@ -1308,9 +1319,9 @@ function GudangPageContent() {
                     </td>
                     <td className="px-1 py-1">
                       <div className="flex gap-1">
-                        {item.is_locked || (item as any).source_type === 'stock_opname_batch' ? (
-                          <span className="text-xs text-gray-500 italic px-2 py-1" title={item.is_locked ? `Locked by ${item.locked_by_so}` : 'SO Protected'}>
-                            {item.is_locked ? '🔒 Locked' : '📊 SO Protected'}
+                        {item.is_locked || (item as any).source_type === 'stock_opname_batch' || (item as any).source_type === 'PO' ? (
+                          <span className="text-xs text-gray-500 italic px-2 py-1" title={item.is_locked ? `Locked by ${item.locked_by_so}` : (item as any).source_type === 'PO' ? 'PO Protected' : 'SO Protected'}>
+                            {item.is_locked ? '🔒 Locked' : (item as any).source_type === 'PO' ? '📋 PO Locked' : '📊 SO Protected'}
                           </span>
                         ) : (
                           <>

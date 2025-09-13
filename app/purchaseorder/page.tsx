@@ -218,12 +218,24 @@ export default function PurchaseOrderPage() {
   }
 
   const handleDeletePO = async (poId: number, poNumber: string) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus PO ${poNumber}? Semua data barang masuk terkait juga akan dihapus.`)) {
+    if (!confirm(`Apakah Anda yakin ingin menghapus PO ${poNumber}? Semua data barang masuk dan gudang terkait juga akan dihapus.`)) {
       return
     }
 
     try {
-      // First delete related barang_masuk records
+      // First delete related gudang records
+      const { error: gudangError } = await supabase
+        .from('gudang')
+        .delete()
+        .eq('source_type', 'PO')
+        .eq('source_reference', poNumber)
+
+      if (gudangError) {
+        console.error('Error deleting gudang records:', gudangError)
+        throw gudangError
+      }
+
+      // Then delete related barang_masuk records
       const { error: barangMasukError } = await supabase
         .from('barang_masuk')
         .delete()
@@ -234,7 +246,7 @@ export default function PurchaseOrderPage() {
         throw barangMasukError
       }
 
-      // Then delete the PO
+      // Finally delete the PO
       const { error: poError } = await supabase
         .from('purchase_orders')
         .delete()
@@ -242,7 +254,7 @@ export default function PurchaseOrderPage() {
 
       if (poError) throw poError
 
-      alert('PO dan semua barang masuk terkait berhasil dihapus!')
+      alert('PO dan semua data barang masuk & gudang terkait berhasil dihapus!')
       fetchPurchaseOrders()
     } catch (error) {
       console.error('Error deleting PO:', error)
@@ -475,7 +487,7 @@ export default function PurchaseOrderPage() {
                             <button
                               onClick={() => handleDeletePO(po.id, po.po_number)}
                               className="text-red-600 hover:text-red-800 p-1 rounded"
-                              title="Delete PO & Barang Masuk"
+                              title="Delete PO, Barang Masuk & Gudang"
                             >
                               <Trash2 size={16} />
                             </button>
