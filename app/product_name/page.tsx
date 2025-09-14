@@ -366,7 +366,8 @@ export default function ProductPage() {
       supplier_id: item.supplier_id,
       category: item.category,
       harga: item.harga,
-      merk: item.merk
+      merk: item.merk,
+      branches: item.product_branches?.filter((pb: any) => pb.branches).map((pb: any) => pb.branches.nama_branch).join(', ') || 'No branches'
     }))
     
     const ws = XLSX.utils.json_to_sheet(exportData)
