@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { Package, Edit } from 'lucide-react'
+import { Package, Edit, ChevronDown, ChevronUp, Filter, RefreshCw } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 
@@ -48,6 +48,33 @@ interface POGroup {
   total_qty: number
 }
 
+// Skeleton Loading Components
+const SkeletonPOGroup = () => (
+  <div className="bg-white rounded-lg shadow animate-pulse">
+    <div className="p-4 border-b">
+      <div className="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
+      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+    </div>
+    <div className="p-4">
+      {[1, 2].map(i => (
+        <div key={i} className="border-b p-3 last:border-b-0">
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <div>
+              <div className="h-4 bg-gray-200 rounded w-1/2 mb-1"></div>
+              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            </div>
+            <div>
+              <div className="h-4 bg-gray-200 rounded w-1/2 mb-1"></div>
+              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            </div>
+          </div>
+          <div className="h-8 bg-gray-200 rounded w-full"></div>
+        </div>
+      ))}
+    </div>
+  </div>
+)
+
 export default function BarangMasukPage() {
   const [barangMasuk, setBarangMasuk] = useState<BarangMasuk[]>([])
   const [branches, setBranches] = useState<Branch[]>([])
@@ -55,7 +82,9 @@ export default function BarangMasukPage() {
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
-  const itemsPerPage = 50
+  const [expandedPOs, setExpandedPOs] = useState<Record<string, boolean>>({})
+  const [showFilter, setShowFilter] = useState(false)
+  const itemsPerPage = 20
 
   useEffect(() => {
     fetchBranches()
@@ -85,6 +114,7 @@ export default function BarangMasukPage() {
 
   const fetchBarangMasuk = async () => {
     try {
+      setLoading(true)
       console.log('Fetching barang masuk data...')
       
       // Get total count first
@@ -126,127 +156,112 @@ export default function BarangMasukPage() {
       if (!data || data.length === 0) {
         console.log('No barang masuk data found')
         setBarangMasuk([])
+        setLoading(false)
         return
       }
 
-      const barangMasukWithDetails = await Promise.all(
-        data.map(async (item) => {
-          let productName = 'Unknown'
-          let supplierName = 'Unknown'
-          let branchName = 'Unknown'
-          let branchCode = ''
+      // Batch fetch all related data to avoid N+1 queries
+      const productIds = [...new Set(data.map(item => item.id_barang))];
+      const supplierIds = [...new Set(data.map(item => item.id_supplier).filter(id => id))];
+      const branchIds = [...new Set(data.map(item => item.id_branch))];
+      const poNumbers = [...new Set(data.map(item => item.no_po).filter(no => no && no !== '-'))];
 
-          let productData = null
-          try {
-            const { data: product } = await supabase
-              .from('nama_product')
-              .select('product_name, unit_kecil, unit_besar, satuan_kecil, satuan_besar')
-              .eq('id_product', item.id_barang)
-              .maybeSingle()
-            
-            if (product) {
-              productName = product.product_name
-              productData = product
-            }
-          } catch (err) {
-            console.warn('Product fetch error:', err)
-          }
+      // Fetch all related data in parallel
+      const [
+        { data: products },
+        { data: suppliers },
+        { data: branches },
+        { data: purchaseOrders },
+      ] = await Promise.all([
+        supabase
+          .from('nama_product')
+          .select('id_product, product_name, unit_kecil, unit_besar, satuan_kecil, satuan_besar')
+          .in('id_product', productIds),
+        supabase
+          .from('suppliers')
+          .select('id_supplier, nama_supplier')
+          .in('id_supplier', supplierIds),
+        supabase
+          .from('branches')
+          .select('id_branch, nama_branch, kode_branch')
+          .in('id_branch', branchIds),
+        supabase
+          .from('purchase_orders')
+          .select('id, po_number')
+          .in('po_number', poNumbers),
+      ]);
 
-          if (item.id_supplier) {
-            try {
-              const { data: supplier } = await supabase
-                .from('suppliers')
-                .select('nama_supplier')
-                .eq('id_supplier', item.id_supplier)
-                .maybeSingle()
-              
-              if (supplier) {
-                supplierName = supplier.nama_supplier
-              }
-            } catch (err) {
-              console.warn('Supplier fetch error:', err)
-            }
-          }
+      // Create lookup maps
+      const productMap = new Map(products?.map(p => [p.id_product, p]) || []);
+      const supplierMap = new Map(suppliers?.map(s => [s.id_supplier, s]) || []);
+      const branchMap = new Map(branches?.map(b => [b.id_branch, b]) || []);
+      const poMap = new Map(purchaseOrders?.map(po => [po.po_number, po]) || []);
 
-          try {
-            const { data: branch } = await supabase
-              .from('branches')
-              .select('nama_branch, kode_branch')
-              .eq('id_branch', item.id_branch)
-              .maybeSingle()
-            
-            if (branch) {
-              branchName = branch.nama_branch
-              branchCode = branch.kode_branch
-            }
-          } catch (err) {
-            console.warn('Branch fetch error:', err)
-          }
+      // Check gudang entries in batch
+      const gudangCheckPromises = data.map(async (item) => {
+        const branch = branchMap.get(item.id_branch);
+        if (!branch?.kode_branch || !item.no_po || item.no_po === '-') return false;
+        
+        const { data: gudangEntry } = await supabase
+          .from('gudang')
+          .select('order_no')
+          .eq('id_product', item.id_barang)
+          .eq('cabang', branch.kode_branch)
+          .eq('source_type', 'PO')
+          .eq('source_reference', item.no_po)
+          .eq('tanggal', item.tanggal)
+          .maybeSingle();
+        
+        return !!gudangEntry;
+      });
 
-          // Get PO ID if available
-          let poId = null
-          if (item.no_po && item.no_po !== '-') {
-            try {
-              const { data: po } = await supabase
-                .from('purchase_orders')
-                .select('id')
-                .eq('po_number', item.no_po)
-                .maybeSingle()
-              if (po) poId = po.id
-            } catch (err) {
-              console.warn('PO fetch error:', err)
-            }
-          }
-          
-          // Check if already in gudang
-          let isInGudang = false
-          if (branchCode) {
-            try {
-              const { data: gudangEntry } = await supabase
-                .from('gudang')
-                .select('order_no')
-                .eq('id_product', item.id_barang)
-                .eq('cabang', branchCode)
-                .eq('source_type', 'PO')
-                .eq('source_reference', item.no_po)
-                .eq('tanggal', item.tanggal)
-                .maybeSingle()
-              
-              isInGudang = !!gudangEntry
-            } catch (err) {
-              console.warn('Gudang check error:', err)
-            }
-          }
+      const gudangResults = await Promise.all(gudangCheckPromises);
 
-          return {
-            id: item.id,
-            tanggal: item.tanggal,
-            id_barang: item.id_barang,
-            product_name: productName,
-            jumlah: item.jumlah,
-            qty_po: item.qty_po || 0,
-            unit_kecil: item.unit_kecil || productData?.satuan_kecil || 0,
-            unit_besar: item.unit_besar || productData?.satuan_besar || 0,
-            satuan_kecil: item.satuan_kecil || productData?.unit_kecil || '',
-            satuan_besar: item.satuan_besar || productData?.unit_besar || '',
-            total_real: item.jumlah || 0, // jumlah is the actual received amount
-            harga: item.harga || 0,
-            id_supplier: item.id_supplier,
-            supplier_name: supplierName,
-            id_branch: item.id_branch,
-            branch_name: branchName,
-            no_po: item.no_po || '-',
-            invoice_number: item.invoice_number || '-',
-            keterangan: item.keterangan || '-',
-            created_at: item.created_at,
-            updated_at: item.updated_at,
-            po_id: poId,
-            is_in_gudang: isInGudang
-          }
-        })
-      )
+      const barangMasukWithDetails = data.map((item, index) => {
+        const product = productMap.get(item.id_barang);
+        const supplier = item.id_supplier ? supplierMap.get(item.id_supplier) : null;
+        const branch = branchMap.get(item.id_branch);
+        const po = item.no_po && item.no_po !== '-' ? poMap.get(item.no_po) : null;
+        const isInGudang = gudangResults[index];
 
-      setBarangMasuk(barangMasukWithDetails)
+        return {
+          id: item.id,
+          tanggal: item.tanggal,
+          id_barang: item.id_barang,
+          product_name: product?.product_name || 'Unknown',
+          jumlah: item.jumlah,
+          qty_po: item.qty_po || 0,
+          unit_kecil: item.unit_kecil || product?.unit_kecil || 0,
+          unit_besar: item.unit_besar || product?.unit_besar || 0,
+          satuan_kecil: item.satuan_kecil || product?.satuan_kecil || '',
+          satuan_besar: item.satuan_besar || product?.satuan_besar || '',
+          total_real: item.jumlah || 0,
+          harga: item.harga || 0,
+          id_supplier: item.id_supplier,
+          supplier_name: supplier?.nama_supplier || 'Unknown',
+          id_branch: item.id_branch,
+          branch_name: branch?.nama_branch || 'Unknown',
+          no_po: item.no_po || '-',
+          invoice_number: item.invoice_number || '-',
+          keterangan: item.keterangan || '-',
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+          po_id: po?.id,
+          is_in_gudang: isInGudang
+        }
+      });
+
+      setBarangMasuk(barangMasukWithDetails);
+      
+      // Set default expanded state for mobile - expand first 3 POs by default
+      const poGroups = groupByPO(barangMasukWithDetails);
+      const defaultExpanded: Record<string, boolean> = {};
+      
+      Object.keys(poGroups).slice(0, 3).forEach(key => {
+        defaultExpanded[key] = true;
+      });
+      
+      setExpandedPOs(defaultExpanded);
     } catch (error) {
       console.error('Error fetching barang masuk:', error)
       alert('Gagal memuat data Barang Masuk')
@@ -256,31 +271,52 @@ export default function BarangMasukPage() {
   }
 
   // Group barang masuk by PO
-  const groupedByPO = barangMasuk.reduce((groups: Record<string, POGroup>, item) => {
-    const key = item.no_po || 'no-po'
-    if (!groups[key]) {
-      groups[key] = {
-        no_po: item.no_po,
-        po_id: item.po_id,
-        tanggal: item.tanggal,
-        supplier_name: item.supplier_name,
-        branch_name: item.branch_name,
-        invoice_number: item.invoice_number,
-        items: [],
-        total_qty: 0
+  const groupByPO = (items: BarangMasuk[]): Record<string, POGroup> => {
+    return items.reduce((groups: Record<string, POGroup>, item) => {
+      const key = item.no_po || 'no-po'
+      if (!groups[key]) {
+        groups[key] = {
+          no_po: item.no_po,
+          po_id: item.po_id,
+          tanggal: item.tanggal,
+          supplier_name: item.supplier_name,
+          branch_name: item.branch_name,
+          invoice_number: item.invoice_number,
+          items: [],
+          total_qty: 0
+        }
       }
-    }
-    groups[key].items.push(item)
-    groups[key].total_qty += item.jumlah || 0 // Use jumlah as total_real
-    return groups
-  }, {})
+      groups[key].items.push(item)
+      groups[key].total_qty += item.jumlah || 0
+      return groups
+    }, {})
+  }
 
-  const poGroups = Object.values(groupedByPO)
+  const poGroups = groupByPO(barangMasuk)
   const totalPages = Math.ceil(totalCount / itemsPerPage)
   
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const togglePO = (poKey: string) => {
+    setExpandedPOs(prev => ({
+      ...prev,
+      [poKey]: !prev[poKey]
+    }))
+  }
+
+  const expandAllPOs = () => {
+    const allExpanded: Record<string, boolean> = {};
+    Object.keys(poGroups).forEach(key => {
+      allExpanded[key] = true;
+    });
+    setExpandedPOs(allExpanded);
+  }
+
+  const collapseAllPOs = () => {
+    setExpandedPOs({});
   }
 
   const handleMasukGudang = async (item: BarangMasuk) => {
@@ -362,221 +398,256 @@ export default function BarangMasukPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <Layout>
-        <div className="p-6">
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
-        </div>
-      </Layout>
-    )
-  }
-
   return (
     <Layout>
       <PageAccessControl pageName="purchaseorder">
-        <div className="p-6">
-          <div className="mb-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                  <Package className="text-green-600" size={28} />
-                  Barang Masuk
-                </h1>
-                <p className="text-gray-600 mt-1">Daftar barang yang sudah masuk ke gudang berdasarkan PO</p>
+        <div className="p-4">
+          <div className="mb-4">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-2">
+                <Package className="text-green-600" size={28} />
+                <h1 className="text-xl font-bold text-gray-800">Barang Masuk</h1>
               </div>
-              <div className="flex gap-4">
-                <select
-                  value={selectedBranch}
-                  onChange={(e) => setSelectedBranch(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-3 py-2"
-                >
-                  <option value="">Semua Cabang</option>
-                  {branches.map(branch => (
-                    <option key={branch.id_branch} value={branch.id_branch}>
-                      {branch.nama_branch}
-                    </option>
-                  ))}
-                </select>
+              <p className="text-gray-600 text-sm">Daftar barang yang sudah masuk ke gudang berdasarkan PO</p>
+              
+              <div className="flex flex-wrap gap-2 items-center">
                 <button
-                  onClick={() => {
-                    console.log('Manual refresh triggered')
-                    fetchBarangMasuk()
-                  }}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                  onClick={() => setShowFilter(!showFilter)}
+                  className="flex items-center gap-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
                 >
-                  Refresh
+                  <Filter size={16} />
+                  Filter
                 </button>
+                
+
+                
+                <div className="flex gap-1 ml-auto">
+                  <button
+                    onClick={expandAllPOs}
+                    className="px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded hover:bg-gray-200"
+                  >
+                    Expand All
+                  </button>
+                  <button
+                    onClick={collapseAllPOs}
+                    className="px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded hover:bg-gray-200"
+                  >
+                    Collapse All
+                  </button>
+                </div>
               </div>
+              
+              {showFilter && (
+                <div className="bg-white p-3 rounded-lg shadow border">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
+                  <select
+                    value={selectedBranch}
+                    onChange={(e) => setSelectedBranch(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <option value="">Semua Cabang</option>
+                    {branches.map(branch => (
+                      <option key={branch.id_branch} value={branch.id_branch}>
+                        {branch.nama_branch}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="space-y-6">
-            {poGroups.map((poGroup, index) => (
-              <div key={index} className="bg-white rounded-lg shadow">
-                <div className="bg-blue-50 px-6 py-4 border-b">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <h3 className="font-semibold text-gray-800">
-                          PO: {poGroup.po_id ? (
-                            <a 
-                              href={`/purchaseorder/barang_sampai?id=${poGroup.po_id}`}
-                              className="text-blue-600 hover:text-blue-800 hover:underline"
-                            >
-                              {poGroup.no_po}
-                            </a>
-                          ) : (
-                            <span className="text-gray-600">{poGroup.no_po}</span>
-                          )}
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          {poGroup.supplier_name} • {poGroup.branch_name} • {new Date(poGroup.tanggal).toLocaleDateString('id-ID')}
-                        </p>
+          {loading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map(i => (
+                <SkeletonPOGroup key={i} />
+              ))}
+            </div>
+          ) : (
+            <>
+              <div className="space-y-4">
+                {Object.entries(poGroups).map(([poKey, poGroup], index) => {
+                  const isExpanded = expandedPOs[poKey]
+                  
+                  return (
+                    <div key={index} className="bg-white rounded-lg shadow">
+                      <div 
+                        className="p-4 border-b cursor-pointer"
+                        onClick={() => togglePO(poKey)}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-semibold text-gray-800 text-sm">
+                                PO: {poGroup.po_id ? (
+                                  <a 
+                                    href={`/purchaseorder/barang_sampai?id=${poGroup.po_id}`}
+                                    className="text-blue-600 hover:text-blue-800"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {poGroup.no_po}
+                                  </a>
+                                ) : (
+                                  <span className="text-gray-600">{poGroup.no_po}</span>
+                                )}
+                              </h3>
+                              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                            </div>
+                            <p className="text-xs text-gray-600 mb-1">
+                              {poGroup.supplier_name}
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              {poGroup.branch_name} • {new Date(poGroup.tanggal).toLocaleDateString('id-ID')}
+                            </p>
+                            {poGroup.invoice_number !== '-' && (
+                              <div className="text-xs mt-1">
+                                <span className="text-gray-500">Invoice:</span>
+                                <span className="font-medium ml-1">{poGroup.invoice_number}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      {poGroup.invoice_number !== '-' && (
-                        <div className="text-sm">
-                          <span className="text-gray-500">Invoice:</span>
-                          <span className="font-medium ml-1">{poGroup.invoice_number}</span>
+                      
+                      {isExpanded && (
+                        <div className="p-2">
+                          {poGroup.items.map((item) => (
+                            <div key={item.id} className="border-b p-3 last:border-b-0">
+                              <div className="grid grid-cols-2 gap-2 text-sm mb-2">
+                                <div>
+                                  <div className="text-xs text-gray-500">Tanggal</div>
+                                  <div>{new Date(item.tanggal).toLocaleDateString('id-ID')}</div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-gray-500">Barang</div>
+                                  <div className="font-medium truncate">{item.product_name}</div>
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-2 text-sm mb-2">
+                                <div>
+                                  <div className="text-xs text-gray-500">Jumlah PO</div>
+                                  <div>
+                                    <span className="font-medium">{item.qty_po}</span>
+                                    <span className="text-xs text-gray-500 ml-1">{item.satuan_besar}</span>
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-gray-500">Barang Masuk</div>
+                                  <div>
+                                    <span className="font-medium text-green-600">{item.jumlah}</span>
+                                    <span className="text-xs text-gray-500 ml-1">{item.satuan_kecil}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {item.keterangan !== '-' && (
+                                <div className="mb-2">
+                                  <div className="text-xs text-gray-500">Keterangan</div>
+                                  <div className="text-sm">{item.keterangan}</div>
+                                </div>
+                              )}
+                              
+                              <div className="flex flex-wrap gap-2 mt-3">
+                                <a 
+                                  href={`/purchaseorder/barang_masuk/receive?edit=${item.id}`}
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 text-xs"
+                                  title="Update Data"
+                                >
+                                  <Edit size={14} />
+                                  Update
+                                </a>
+                                {!item.is_in_gudang ? (
+                                  <button
+                                    onClick={() => handleMasukGudang(item)}
+                                    disabled={!item.updated_at}
+                                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs ${
+                                      item.updated_at 
+                                        ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    }`}
+                                    title={item.updated_at ? "Masuk Gudang" : "Harus update data terlebih dahulu"}
+                                  >
+                                    <Package size={14} />
+                                    Masuk Gudang
+                                  </button>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-800 rounded text-xs">
+                                    <Package size={14} />
+                                    Sudah di Gudang
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
-
+                  )
+                })}
+                
+                {Object.keys(poGroups).length === 0 && (
+                  <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
+                    Tidak ada data barang masuk
+                  </div>
+                )}
+              </div>
+              
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="bg-white rounded-lg shadow p-4 mt-4">
+                  <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+                    <div className="text-sm text-gray-700">
+                      Menampilkan {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, totalCount)} dari {totalCount} data
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="px-2 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                      >
+                        Prev
+                      </button>
+                      
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum
+                        if (totalPages <= 5) {
+                          pageNum = i + 1
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i
+                        } else {
+                          pageNum = currentPage - 2 + i
+                        }
+                        
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => handlePageChange(pageNum)}
+                            className={`px-2 py-1 border rounded text-sm ${
+                              currentPage === pageNum
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        )
+                      })}
+                      
+                      <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="px-2 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                      >
+                        Next
+                      </button>
+                    </div>
                   </div>
                 </div>
-                
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-gray-50 border-b">
-                        <th className="p-3 text-left font-medium text-gray-700">Tgl Barang Masuk</th>
-                        <th className="p-3 text-left font-medium text-gray-700">Nama Barang</th>
-                        <th className="p-3 text-center font-medium text-gray-700">Jumlah PO</th>
-                        <th className="p-3 text-center font-medium text-gray-700">Barang Masuk Gudang</th>                        
-                        <th className="p-3 text-center font-medium text-gray-700">Invoice</th>
-                        <th className="p-3 text-left font-medium text-gray-700">Keterangan</th>
-                        <th className="p-3 text-center font-medium text-gray-700">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {poGroup.items.map((item) => (
-                        <tr key={item.id} className="border-b hover:bg-gray-50">
-                          <td className="p-3 text-sm">
-                            {new Date(item.tanggal).toLocaleDateString('id-ID')}
-                          </td>
-                          <td className="p-3 font-medium">{item.product_name}</td>
-                          <td className="p-3 text-center">
-                            <span className="font-medium">{item.qty_po}</span>
-                            <span className="text-xs text-gray-500 ml-1">{item.satuan_besar}</span>
-                          </td>
-                          <td className="p-3 text-center">
-                            <span className="font-medium text-green-600">{item.jumlah}</span>
-                            <span className="text-xs text-gray-500 ml-1">{item.satuan_kecil}</span>
-                          </td>
-                          <td className="p-3 text-center text-sm">{item.invoice_number}</td>
-                          <td className="p-3 text-sm text-gray-600">{item.keterangan}</td>
-                          <td className="p-3 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <a 
-                                href={`/purchaseorder/barang_masuk/receive?edit=${item.id}`}
-                                className="inline-flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs"
-                                title="Update Data"
-                              >
-                                <Edit size={14} />
-                                Update
-                              </a>
-                              {!item.is_in_gudang ? (
-                                <button
-                                  onClick={() => handleMasukGudang(item)}
-                                  disabled={!item.updated_at}
-                                  className={`inline-flex items-center gap-1 px-3 py-1 rounded text-xs ${
-                                    item.updated_at 
-                                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                  }`}
-                                  title={item.updated_at ? "Masuk Gudang" : "Harus update data terlebih dahulu"}
-                                >
-                                  <Package size={14} />
-                                  Masuk Gudang
-                                </button>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-800 rounded text-xs">
-                                  <Package size={14} />
-                                  Sudah di Gudang
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))}
-            
-            {poGroups.length === 0 && (
-              <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-                Tidak ada data barang masuk
-              </div>
-            )}
-          </div>
-          
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="bg-white rounded-lg shadow p-4 mt-6">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-700">
-                  Menampilkan {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, totalCount)} dari {totalCount} data
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1}
-                    className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                  >
-                    Previous
-                  </button>
-                  
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum
-                    if (totalPages <= 5) {
-                      pageNum = i + 1
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i
-                    } else {
-                      pageNum = currentPage - 2 + i
-                    }
-                    
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => handlePageChange(pageNum)}
-                        className={`px-3 py-1 border rounded ${
-                          currentPage === pageNum
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    )
-                  })}
-                  
-                  <button
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            </div>
+              )}
+            </>
           )}
         </div>
       </PageAccessControl>

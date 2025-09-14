@@ -93,7 +93,7 @@ export default function ProductPage() {
   }, [])
 
   const fetchSuppliers = useCallback(async () => {
-    console.log('Fetching suppliers...')
+    // console.log('Fetching suppliers...')
     const { data, error } = await supabase
       .from("suppliers")
       .select("id_supplier, nama_supplier, nama_barang")
@@ -102,7 +102,7 @@ export default function ProductPage() {
     if (error) {
       console.error('Error fetching suppliers:', error)
     } else {
-      console.log('Suppliers data:', data)
+      // console.log('Suppliers data:', data)
       setSuppliers(data || [])
     }
   }, [])

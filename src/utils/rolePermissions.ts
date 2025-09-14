@@ -94,9 +94,14 @@ const FALLBACK_PERMISSIONS = {
   }
 };
 
+let isLoadingPermissions = false;
+
 const loadPermissionsFromDB = async (): Promise<void> => {
+  // Prevent multiple simultaneous loads
+  if (isLoadingPermissions) return;
+  
   try {
-    console.log('Loading permissions from database...');
+    isLoadingPermissions = true;
     const { data, error } = await supabase
       .from('crud_permissions')
       .select('user_id, role, page, can_create, can_edit, can_delete');
@@ -106,34 +111,35 @@ const loadPermissionsFromDB = async (): Promise<void> => {
       throw error;
     }
 
-    console.log('Raw permission data:', data);
+    // Only clear cache if we got new data
+    if (data && data.length > 0) {
+      permissionsCache.clear();
 
-    // Clear cache
-    permissionsCache.clear();
+      // Populate cache
+      data.forEach(perm => {
+        // Create keys for both role-based and user-specific permissions
+        const roleKey = `${perm.role.toLowerCase()}|${perm.page}`;
+        const userKey = perm.user_id ? `user_${perm.user_id}|${perm.page}` : null;
+        
+        // Store role-based permissions
+        permissionsCache.set(`${roleKey}|create`, perm.can_create);
+        permissionsCache.set(`${roleKey}|edit`, perm.can_edit);
+        permissionsCache.set(`${roleKey}|delete`, perm.can_delete);
+        
+        // Store user-specific permissions if user_id exists
+        if (userKey) {
+          permissionsCache.set(`${userKey}|create`, perm.can_create);
+          permissionsCache.set(`${userKey}|edit`, perm.can_edit);
+          permissionsCache.set(`${userKey}|delete`, perm.can_delete);
+        }
+      });
 
-    // Populate cache
-    data?.forEach(perm => {
-      // Create keys for both role-based and user-specific permissions
-      const roleKey = `${perm.role.toLowerCase()}|${perm.page}`;
-      const userKey = perm.user_id ? `user_${perm.user_id}|${perm.page}` : null;
-      
-      // Store role-based permissions
-      permissionsCache.set(`${roleKey}|create`, perm.can_create);
-      permissionsCache.set(`${roleKey}|edit`, perm.can_edit);
-      permissionsCache.set(`${roleKey}|delete`, perm.can_delete);
-      
-      // Store user-specific permissions if user_id exists
-      if (userKey) {
-        permissionsCache.set(`${userKey}|create`, perm.can_create);
-        permissionsCache.set(`${userKey}|edit`, perm.can_edit);
-        permissionsCache.set(`${userKey}|delete`, perm.can_delete);
-      }
-    });
-
-    cacheTimestamp = Date.now();
-    console.log('Permissions loaded successfully, cache size:', permissionsCache.size);
+      cacheTimestamp = Date.now();
+    }
   } catch (error) {
     console.error('Error loading CRUD permissions from database:', error);
+  } finally {
+    isLoadingPermissions = false;
   }
 };
 
@@ -191,9 +197,10 @@ export const canPerformAction = async (userRole: string, page: string, action: '
 
 // Synchronous version for immediate use (uses cache only)
 export const canPerformActionSync = (userRole: string, page: string, action: 'create' | 'edit' | 'delete', userId?: number): boolean => {
-  // Force reload if cache is empty
-  if (permissionsCache.size === 0) {
+  // Load permissions only once if cache is empty
+  if (permissionsCache.size === 0 && Date.now() - cacheTimestamp > 1000) {
     loadPermissionsFromDB();
+    cacheTimestamp = Date.now(); // Prevent multiple simultaneous loads
   }
   
   // Check user-specific permissions first (if userId provided)
@@ -210,37 +217,7 @@ export const canPerformActionSync = (userRole: string, page: string, action: 'cr
     return permissionsCache.get(roleKey) || false;
   }
 
-  // Check database permissions directly if cache miss
-  const checkDBPermissions = async () => {
-    try {
-      const { data } = await supabase
-        .from('crud_permissions')
-        .select('can_create, can_edit, can_delete')
-        .eq('role', userRole)
-        .eq('page', page)
-        .single();
-      
-      if (data) {
-        return data[`can_${action}` as keyof typeof data] || false;
-      }
-    } catch (error) {
-      console.error('Error checking DB permissions:', error);
-    }
-    return false;
-  };
-
-  // For critical permission checks, try database first
-  if (page === 'gudang' && permissionsCache.size === 0) {
-    // Synchronously check fallback first, then async DB check will update cache
-    checkDBPermissions().then(result => {
-      if (result !== undefined) {
-        permissionsCache.set(roleKey, result);
-      }
-    });
-  }
-
-  // Fallback to hardcoded permissions only if database is not available
-  console.warn(`Permission not found in cache for ${userRole} - ${page} - ${action}, using fallback`);
+  // Fallback to hardcoded permissions immediately (don't wait for DB)
   const fallbackPerms = FALLBACK_PERMISSIONS[userRole.toLowerCase() as keyof typeof FALLBACK_PERMISSIONS];
   if (fallbackPerms) {
     const pagePerms = fallbackPerms[page as keyof typeof fallbackPerms];
@@ -252,9 +229,9 @@ export const canPerformActionSync = (userRole: string, page: string, action: 'cr
   return false;
 };
 
-// Initialize permissions on module load
-if (typeof window !== 'undefined') {
-  // Load permissions immediately
+// Initialize permissions on module load (only once)
+if (typeof window !== 'undefined' && permissionsCache.size === 0) {
+  // Load permissions immediately but only once
   loadPermissionsFromDB();
 }
 

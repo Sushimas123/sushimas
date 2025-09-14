@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { Package, ArrowLeft, Save } from 'lucide-react'
+import { Package, ArrowLeft, Save, Menu, X } from 'lucide-react'
 import Layout from '../../../../components/Layout'
 import PageAccessControl from '../../../../components/PageAccessControl'
 
@@ -32,6 +32,7 @@ export default function AddBarangMasukPage() {
   const [branches, setBranches] = useState<Branch[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   
   const [formData, setFormData] = useState({
     tanggal: new Date().toISOString().split('T')[0],
@@ -476,7 +477,7 @@ export default function AddBarangMasukPage() {
   if (loading) {
     return (
       <Layout>
-        <div className="p-6">
+        <div className="p-4 md:p-6">
           <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
             <p className="text-gray-600">Memuat data...</p>
@@ -489,8 +490,33 @@ export default function AddBarangMasukPage() {
   return (
     <Layout>
       <PageAccessControl pageName="purchaseorder">
-        <div className="p-6 space-y-6">
-          <div className="flex items-center justify-between">
+        <div className="p-4 md:p-6 space-y-6">
+          {/* Mobile Header */}
+          <div className="md:hidden flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => window.history.back()}
+                className="p-2 rounded-lg hover:bg-gray-100"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <h1 className="text-xl font-bold text-gray-800">
+                {isEditMode ? 'Edit Barang' : 'Tambah Barang'}
+              </h1>
+            </div>
+            <button 
+              type="submit"
+              form="barang-masuk-form"
+              disabled={submitting}
+              className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-1 text-sm"
+            >
+              <Save size={16} />
+              {submitting ? 'Saving...' : isEditMode ? 'Update' : 'Simpan'}
+            </button>
+          </div>
+
+          {/* Desktop Header */}
+          <div className="hidden md:flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                 <Package className="text-green-600" size={28} />
@@ -505,7 +531,7 @@ export default function AddBarangMasukPage() {
           {poData && poItems.length > 0 && !isEditMode && (
             <div className="bg-blue-50 rounded-lg p-4">
               <h3 className="font-medium text-blue-900 mb-3">Items dari PO #{poData.po_number}</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {poItems.map((item) => (
                   <div 
                     key={item.id} 
@@ -554,8 +580,12 @@ export default function AddBarangMasukPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-4">
+          <form id="barang-masuk-form" onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-4 md:p-6 space-y-4 pb-20 md:pb-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <h3 className="font-medium text-gray-700 mb-2 border-b pb-1">Informasi Dasar</h3>
+              </div>
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
                 <input
@@ -585,6 +615,10 @@ export default function AddBarangMasukPage() {
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">Barang tidak dapat diubah</p>
+              </div>
+
+              <div className="md:col-span-2 mt-4">
+                <h3 className="font-medium text-gray-700 mb-2 border-b pb-1">Informasi Kuantitas</h3>
               </div>
 
               <div>
@@ -627,7 +661,7 @@ export default function AddBarangMasukPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Hasil Konversi (Satuan Kecil)
+                  Hasil Konversi
                   {(() => {
                     const selectedProduct = products.find(p => p.id_product === parseInt(formData.id_barang))
                     if (selectedProduct && selectedProduct.satuan_kecil && selectedProduct.satuan_besar) {
@@ -671,7 +705,7 @@ export default function AddBarangMasukPage() {
                 )}
               </div>
 
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-sm font-bold text-red-700 mb-1">Total Barang Masuk (Gudang)</label>
                 <div className="flex gap-2">
                   <input
@@ -694,7 +728,9 @@ export default function AddBarangMasukPage() {
                 <p className="text-xs text-gray-500 mt-1">Jumlah aktual barang yang masuk (dapat disesuaikan)</p>
               </div>
 
-
+              <div className="md:col-span-2 mt-4">
+                <h3 className="font-medium text-gray-700 mb-2 border-b pb-1">Informasi Lainnya</h3>
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
@@ -772,7 +808,30 @@ export default function AddBarangMasukPage() {
               />
             </div>
 
-            <div className="flex justify-between pt-4">
+            {/* Mobile Action Buttons */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t p-4 shadow-lg z-10">
+              <div className="flex justify-between gap-3">
+                <button 
+                  type="button"
+                  onClick={() => window.history.back()}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 flex-1"
+                >
+                  <ArrowLeft size={16} />
+                  <span>Batal</span>
+                </button>
+                <button 
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2 flex-1"
+                >
+                  <Save size={16} />
+                  <span>{submitting ? 'Menyimpan...' : isEditMode ? 'Update' : 'Simpan'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Desktop Action Buttons */}
+            <div className="hidden md:flex justify-between pt-4">
               <a href="/purchaseorder/barang_masuk" className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
                 <ArrowLeft size={16} />
                 Kembali
