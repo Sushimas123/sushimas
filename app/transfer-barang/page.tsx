@@ -59,12 +59,10 @@ export default function TransferBarangPage() {
     id: undefined as number | undefined,
     cabang_peminjam_id: '',
     cabang_tujuan_id: '',
-    id_product: '',
-    jumlah: '',
     tgl_pinjam: new Date().toISOString().split('T')[0],
-    keterangan: ''
+    keterangan: '',
+    items: [{ id_product: '', jumlah: '', stockInfo: null as {jumlah: number, unit: string} | null }]
   })
-  const [stockInfo, setStockInfo] = useState<{jumlah: number, unit: string} | null>(null)
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{show: boolean, id: number | null}>({show: false, id: null})
@@ -180,8 +178,8 @@ export default function TransferBarangPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!form.cabang_peminjam_id || !form.cabang_tujuan_id || !form.id_product || !form.jumlah) {
-      showToast('Mohon lengkapi semua field yang wajib', 'error')
+    if (!form.cabang_peminjam_id || !form.cabang_tujuan_id) {
+      showToast('Mohon pilih cabang peminjam dan tujuan', 'error')
       return
     }
 
@@ -190,38 +188,36 @@ export default function TransferBarangPage() {
       return
     }
 
+    const validItems = form.items.filter(item => item.id_product && item.jumlah)
+    if (validItems.length === 0) {
+      showToast('Mohon tambahkan minimal 1 item', 'error')
+      return
+    }
+
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}')
-      const selectedProduct = products.find(p => p.id_product === parseInt(form.id_product))
       
-      const transferData = {
-        cabang_peminjam_id: parseInt(form.cabang_peminjam_id),
-        cabang_tujuan_id: parseInt(form.cabang_tujuan_id),
-        id_product: parseInt(form.id_product),
-        jumlah: parseFloat(form.jumlah),
-        harga_satuan: selectedProduct?.harga || 0,
-        tgl_pinjam: form.tgl_pinjam,
-        tgl_barang_sampai: null,
-        keterangan: form.keterangan,
-        created_by: user.id_user
-      }
+      const transfersData = validItems.map(item => {
+        const selectedProduct = products.find(p => p.id_product === parseInt(item.id_product))
+        return {
+          cabang_peminjam_id: parseInt(form.cabang_peminjam_id),
+          cabang_tujuan_id: parseInt(form.cabang_tujuan_id),
+          id_product: parseInt(item.id_product),
+          jumlah: parseFloat(item.jumlah),
+          harga_satuan: selectedProduct?.harga || 0,
+          tgl_pinjam: form.tgl_pinjam,
+          tgl_barang_sampai: null,
+          keterangan: form.keterangan,
+          created_by: user.id_user
+        }
+      })
 
-      if (editing) {
-        const { error } = await supabase
-          .from('transfer_barang')
-          .update(transferData)
-          .eq('id', form.id)
-        
-        if (error) throw error
-        showToast('Transfer berhasil diupdate', 'success')
-      } else {
-        const { error } = await supabase
-          .from('transfer_barang')
-          .insert([transferData])
-        
-        if (error) throw error
-        showToast('Transfer berhasil dibuat', 'success')
-      }
+      const { error } = await supabase
+        .from('transfer_barang')
+        .insert(transfersData)
+      
+      if (error) throw error
+      showToast(`${validItems.length} transfer berhasil dibuat`, 'success')
       
       resetForm()
       fetchTransfers()
@@ -236,10 +232,13 @@ export default function TransferBarangPage() {
       id: transfer.id,
       cabang_peminjam_id: transfer.cabang_peminjam_id.toString(),
       cabang_tujuan_id: transfer.cabang_tujuan_id.toString(),
-      id_product: transfer.id_product.toString(),
-      jumlah: transfer.jumlah.toString(),
       tgl_pinjam: transfer.tgl_pinjam,
-      keterangan: transfer.keterangan || ''
+      keterangan: transfer.keterangan || '',
+      items: [{ 
+        id_product: transfer.id_product.toString(), 
+        jumlah: transfer.jumlah.toString(), 
+        stockInfo: null 
+      }]
     })
     setEditing(true)
     setShowForm(true)
@@ -427,26 +426,47 @@ export default function TransferBarangPage() {
     }
   }
 
+  const addItem = () => {
+    setForm({
+      ...form,
+      items: [...form.items, { id_product: '', jumlah: '', stockInfo: null }]
+    })
+  }
+
+  const removeItem = (index: number) => {
+    if (form.items.length > 1) {
+      const newItems = form.items.filter((_, i) => i !== index)
+      setForm({ ...form, items: newItems })
+    }
+  }
+
+  const updateItem = (index: number, field: string, value: string) => {
+    setForm(prevForm => {
+      const newItems = [...prevForm.items]
+      newItems[index] = { ...newItems[index], [field]: value }
+      return { ...prevForm, items: newItems }
+    })
+    
+    if (field === 'id_product' && value && form.cabang_peminjam_id && form.tgl_pinjam) {
+      checkStock(value, form.cabang_peminjam_id, form.tgl_pinjam, index)
+    }
+  }
+
   const resetForm = () => {
     setForm({
       id: undefined,
       cabang_peminjam_id: '',
       cabang_tujuan_id: '',
-      id_product: '',
-      jumlah: '',
       tgl_pinjam: new Date().toISOString().split('T')[0],
-      keterangan: ''
+      keterangan: '',
+      items: [{ id_product: '', jumlah: '', stockInfo: null }]
     })
-    setStockInfo(null)
     setEditing(false)
     setShowForm(false)
   }
 
-  const checkStock = async (productId: string, branchId: string, date: string) => {
-    if (!productId || !branchId || !date) {
-      setStockInfo(null)
-      return
-    }
+  const checkStock = async (productId: string, branchId: string, date: string, itemIndex: number) => {
+    if (!productId || !branchId || !date) return
 
     try {
       const branch = branches.find(b => b.id_branch === parseInt(branchId))
@@ -466,21 +486,22 @@ export default function TransferBarangPage() {
       const product = products.find(p => p.id_product === parseInt(productId))
       const stock = data?.[0]?.total_gudang || 0
       
-      setStockInfo({
+      const stockInfo = {
         jumlah: stock,
         unit: product?.unit_kecil || ''
+      }
+
+      setForm(prevForm => {
+        const newItems = [...prevForm.items]
+        newItems[itemIndex] = { ...newItems[itemIndex], stockInfo }
+        return { ...prevForm, items: newItems }
       })
     } catch (error) {
       console.error('Error checking stock:', error)
-      setStockInfo(null)
     }
   }
 
-  useEffect(() => {
-    if (form.id_product && form.cabang_peminjam_id && form.tgl_pinjam) {
-      checkStock(form.id_product, form.cabang_peminjam_id, form.tgl_pinjam)
-    }
-  }, [form.id_product, form.cabang_peminjam_id, form.tgl_pinjam])
+
 
   const totalPages = Math.ceil(totalCount / itemsPerPage)
 
@@ -789,57 +810,90 @@ export default function TransferBarangPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Produk *
+                      Tanggal Pinjam *
                     </label>
-                    <select
-                      value={form.id_product}
-                      onChange={(e) => setForm({...form, id_product: e.target.value})}
+                    <input
+                      type="date"
+                      value={form.tgl_pinjam}
+                      onChange={(e) => setForm({...form, tgl_pinjam: e.target.value})}
                       className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       required
-                    >
-                      <option value="">Pilih Produk</option>
-                      {products.map(product => (
-                        <option key={product.id_product} value={product.id_product}>
-                          {product.product_name} - {product.unit_kecil}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Jumlah *
+                  {/* Items Section */}
+                  <div>
+                    <div className="flex justify-between items-center mb-3">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Barang yang akan ditransfer *
                       </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={form.jumlah}
-                        onChange={(e) => setForm({...form, jumlah: e.target.value})}
-                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        required
-                      />
-                      {stockInfo && (
-                        <p className={`text-xs mt-1 ${
-                          parseFloat(form.jumlah) > stockInfo.jumlah ? 'text-red-600' : 'text-green-600'
-                        }`}>
-                          Stok tersedia: {stockInfo.jumlah} {stockInfo.unit}
-                        </p>
-                      )}
+                      <button
+                        type="button"
+                        onClick={addItem}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                      >
+                        + Tambah Barang
+                      </button>
                     </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Tanggal Pinjam *
-                      </label>
-                      <input
-                        type="date"
-                        value={form.tgl_pinjam}
-                        onChange={(e) => setForm({...form, tgl_pinjam: e.target.value})}
-                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        required
-                      />
-                    </div>
+                    
+                    {form.items.map((item, index) => (
+                      <div key={index} className="border rounded-lg p-4 mb-3 bg-gray-50">
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-sm font-medium text-gray-700">Barang {index + 1}</span>
+                          {form.items.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeItem(index)}
+                              className="text-red-600 hover:text-red-800 text-sm"
+                            >
+                              Hapus
+                            </button>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Produk *
+                            </label>
+                            <select
+                              value={item.id_product}
+                              onChange={(e) => updateItem(index, 'id_product', e.target.value)}
+                              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              required
+                            >
+                              <option value="">Pilih Produk</option>
+                              {products.map(product => (
+                                <option key={product.id_product} value={product.id_product}>
+                                  {product.product_name} - {product.unit_kecil}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Jumlah *
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={item.jumlah}
+                              onChange={(e) => updateItem(index, 'jumlah', e.target.value)}
+                              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              required
+                            />
+                            {item.stockInfo && (
+                              <p className={`text-xs mt-1 ${
+                                parseFloat(item.jumlah) > item.stockInfo.jumlah ? 'text-red-600' : 'text-green-600'
+                              }`}>
+                                Stok tersedia: {item.stockInfo.jumlah} {item.stockInfo.unit}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
 
                   <div>
@@ -867,7 +921,7 @@ export default function TransferBarangPage() {
                       type="submit"
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                     >
-                      {editing ? 'Update' : 'Simpan'}
+                      Simpan Transfer
                     </button>
                   </div>
                 </form>
