@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { Search, Filter, Plus, Eye, Edit, Trash2, Calendar, Building2, User, Package } from 'lucide-react'
+import { Search, Filter, Plus, Eye, Edit, Trash2, Calendar, Building2, User, Package, ChevronDown, ChevronUp } from 'lucide-react'
 import Layout from '../../components/Layout'
 import PageAccessControl from '../../components/PageAccessControl'
 
@@ -42,6 +42,8 @@ export default function PurchaseOrderPage() {
     statuses: ['Pending', 'Sedang diproses', 'Barang sampai', 'Sampai Sebagian', 'Dibatalkan'],
     priorities: ['biasa', 'sedang', 'tinggi']
   })
+  const [expandedPO, setExpandedPO] = useState<number | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
     fetchFilterOptions()
@@ -262,37 +264,141 @@ export default function PurchaseOrderPage() {
     }
   }
 
+  const toggleExpandPO = (id: number) => {
+    if (expandedPO === id) {
+      setExpandedPO(null)
+    } else {
+      setExpandedPO(id)
+    }
+  }
+
   return (
     <Layout>
       <PageAccessControl pageName="purchaseorder">
-        <div className="p-6 space-y-6">
+        <div className="p-3 md:p-4 space-y-3">
           {/* Header */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                <Package className="text-blue-600" size={28} />
+              <h1 className="text-lg md:text-xl font-bold text-gray-800 flex items-center gap-2">
+                <Package className="text-blue-600" size={20} />
                 Purchase Orders
               </h1>
             </div>
-            <a href="/purchaseorder/create" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
-              <Plus size={16} />
-              Buat PO Baru
-            </a>
+            <div className="flex gap-2 w-full md:w-auto">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="md:hidden bg-gray-200 text-gray-700 px-3 py-2 rounded-lg flex items-center gap-2"
+              >
+                <Filter size={16} />
+                Filter
+              </button>
+              <a href="/purchaseorder/create" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 flex-1 md:flex-none justify-center">
+                <Plus size={16} />
+                <span className="hidden md:inline">Buat PO Baru</span>
+                <span className="md:hidden">PO Baru</span>
+              </a>
+            </div>
           </div>
 
-          {/* Filters */}
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center gap-2 mb-4">
+          {/* Filters - Mobile */}
+          {showFilters && (
+            <div className="md:hidden bg-white rounded-lg shadow p-4">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="flex items-center gap-2">
+                  <Filter size={16} className="text-gray-500" />
+                  <h3 className="font-medium text-gray-800">Filter</h3>
+                </div>
+                <button 
+                  onClick={() => setShowFilters(false)}
+                  className="text-gray-500"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
+                  <select
+                    value={filters.cabang_id}
+                    onChange={(e) => setFilters({...filters, cabang_id: e.target.value})}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                  >
+                    <option value="">Semua Cabang</option>
+                    {filterOptions.branches.map(branch => (
+                      <option key={branch.id_branch} value={branch.id_branch}>{branch.nama_branch}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                  <select
+                    value={filters.supplier_id}
+                    onChange={(e) => setFilters({...filters, supplier_id: e.target.value})}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                  >
+                    <option value="">Semua Supplier</option>
+                    {filterOptions.suppliers.map(supplier => (
+                      <option key={supplier.id_supplier} value={supplier.id_supplier}>{supplier.nama_supplier}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                  <select
+                    value={filters.priority}
+                    onChange={(e) => setFilters({...filters, priority: e.target.value})}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                  >
+                    <option value="">Semua Priority</option>
+                    {filterOptions.priorities.map(priority => (
+                      <option key={priority} value={priority}>{priority.charAt(0).toUpperCase() + priority.slice(1)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    value={filters.status}
+                    onChange={(e) => setFilters({...filters, status: e.target.value})}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                  >
+                    <option value="">Semua Status</option>
+                    {filterOptions.statuses.map(status => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setFilters({cabang_id: '', supplier_id: '', status: '', priority: ''})}
+                    className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 text-sm flex-1"
+                  >
+                    Reset Filter
+                  </button>
+                  <button
+                    onClick={() => setShowFilters(false)}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm flex-1"
+                  >
+                    Terapkan
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Filters - Desktop */}
+          <div className="hidden md:block bg-white rounded-lg shadow p-3">
+            <div className="flex items-center gap-2 mb-3">
               <Filter size={16} className="text-gray-500" />
               <h3 className="font-medium text-gray-800">Filter</h3>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Cabang</label>
                 <select
                   value={filters.cabang_id}
                   onChange={(e) => setFilters({...filters, cabang_id: e.target.value})}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                  className="w-full border border-gray-300 rounded-md px-2 py-1 text-xs"
                 >
                   <option value="">Semua Cabang</option>
                   {filterOptions.branches.map(branch => (
@@ -301,11 +407,11 @@ export default function PurchaseOrderPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Supplier</label>
                 <select
                   value={filters.supplier_id}
                   onChange={(e) => setFilters({...filters, supplier_id: e.target.value})}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                  className="w-full border border-gray-300 rounded-md px-2 py-1 text-xs"
                 >
                   <option value="">Semua Supplier</option>
                   {filterOptions.suppliers.map(supplier => (
@@ -314,11 +420,11 @@ export default function PurchaseOrderPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Priority</label>
                 <select
                   value={filters.priority}
                   onChange={(e) => setFilters({...filters, priority: e.target.value})}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                  className="w-full border border-gray-300 rounded-md px-2 py-1 text-xs"
                 >
                   <option value="">Semua Priority</option>
                   {filterOptions.priorities.map(priority => (
@@ -327,11 +433,11 @@ export default function PurchaseOrderPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
                 <select
                   value={filters.status}
                   onChange={(e) => setFilters({...filters, status: e.target.value})}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                  className="w-full border border-gray-300 rounded-md px-2 py-1 text-xs"
                 >
                   <option value="">Semua Status</option>
                   {filterOptions.statuses.map(status => (
@@ -342,7 +448,7 @@ export default function PurchaseOrderPage() {
               <div className="flex items-end">
                 <button
                   onClick={() => setFilters({cabang_id: '', supplier_id: '', status: '', priority: ''})}
-                  className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 text-sm"
+                  className="bg-gray-500 text-white px-3 py-1 rounded-md hover:bg-gray-600 text-xs"
                 >
                   Reset Filter
                 </button>
@@ -353,111 +459,236 @@ export default function PurchaseOrderPage() {
           {/* Purchase Orders List */}
           <div className="bg-white rounded-lg shadow">
             {loading ? (
-              <div className="p-8 text-center">
+              <div className="p-6 text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="text-gray-600 mt-2">Memuat data...</p>
+                <p className="text-gray-600 mt-2 text-sm">Memuat data...</p>
               </div>
             ) : purchaseOrders.length === 0 ? (
-              <div className="p-8 text-center">
+              <div className="p-6 text-center">
                 <Package className="mx-auto h-12 w-12 text-gray-400" />
                 <h3 className="mt-2 text-sm font-medium text-gray-900">Tidak ada Purchase Order</h3>
                 <p className="mt-1 text-sm text-gray-500">Mulai dengan membuat PO baru</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">PO Number</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cabang</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Harga</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal PO</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tgl Barang Sampai</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {purchaseOrders.map((po) => (
-                      <tr key={po.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3">
+              <>
+                {/* Desktop Table */}
+                <div className="hidden md:block overflow-x-auto max-h-[70vh] overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 sticky top-0 z-10">
+                      <tr>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">PO Number</th>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cabang</th>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
+                        <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Sampai</th>
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {purchaseOrders.map((po) => (
+                        <tr key={po.id} className="hover:bg-gray-50">
+                          <td className="px-2 py-2">
+                            <div className="font-medium text-gray-900 text-xs">{po.po_number}</div>
+                            <div className="text-xs text-gray-500">#{po.id}</div>
+                          </td>
+                          <td className="px-2 py-2">
+                            <div className="text-xs text-gray-900 truncate max-w-[120px]">{po.supplier_name}</div>
+                          </td>
+                          <td className="px-2 py-2">
+                            <div className="flex items-center text-xs text-gray-900">
+                              <Building2 size={12} className="mr-1 text-gray-400" />
+                              <span className="truncate max-w-[100px]">{po.branch_name}</span>
+                            </div>
+                          </td>
+                          <td className="px-2 py-2">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(po.priority || 'biasa')}`}>
+                              {po.priority || 'Biasa'}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(po.status)}`}>
+                              {po.status}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2">
+                            <div className="text-xs text-gray-900">
+                              {po.items.length > 0 ? (
+                                <div className="space-y-1">
+                                  {po.items.slice(0, 2).map((item, index) => (
+                                    <div key={index} className="flex justify-between">
+                                      <span className="truncate max-w-[100px]">{item.product_name}</span>
+                                      <span className="ml-2 font-medium">{item.qty}</span>
+                                    </div>
+                                  ))}
+                                  {po.items.length > 2 && (
+                                    <div className="text-xs text-gray-500">+{po.items.length - 2} items</div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-gray-500">No items</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-2 py-2 text-right">
+                            <div className="font-medium text-gray-900 text-xs">
+                              {formatCurrency(po.total_harga)}
+                            </div>
+                          </td>
+                          <td className="px-2 py-2">
+                            <div className="flex items-center text-xs text-gray-900">
+                              <Calendar size={12} className="mr-1 text-gray-400" />
+                              <span>{formatDate(po.created_at)}</span>
+                            </div>
+                            <div className="flex items-center text-xs text-gray-500">
+                              <User size={10} className="mr-1" />
+                              <span>{po.created_by_name}</span>
+                            </div>
+                          </td>
+                          <td className="px-2 py-2">
+                            {po.tanggal_barang_sampai ? (
+                              <div className="flex items-center text-xs text-gray-900">
+                                <Calendar size={12} className="mr-1 text-green-400" />
+                                <span>{formatDate(po.tanggal_barang_sampai)}</span>
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 text-xs">-</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <a 
+                                href={`/purchaseorder/on_progress?id=${po.id}`}
+                                className="text-blue-600 hover:text-blue-800 p-1 rounded" 
+                                title="Preview PO"
+                              >
+                                <Eye size={14} />
+                              </a>
+                              {po.status === 'Sedang diproses' && (
+                                <a 
+                                  href={`/purchaseorder/barang_sampai?id=${po.id}`}
+                                  className="text-blue-600 hover:text-blue-800 p-1 rounded" 
+                                  title="Barang Sampai"
+                                >
+                                  <Package size={14} />
+                                </a>
+                              )}
+                              {po.status !== 'Dibatalkan' ? (
+                                <a 
+                                  href={`/purchaseorder/edit?id=${po.id}`}
+                                  className="text-orange-600 hover:text-orange-800 p-1 rounded" 
+                                  title="Edit PO"
+                                >
+                                  <Edit size={14} />
+                                </a>
+                              ) : (
+                                <span 
+                                  className="text-gray-400 p-1 rounded cursor-not-allowed" 
+                                  title="PO dibatalkan tidak dapat diedit"
+                                >
+                                  <Edit size={14} />
+                                </span>
+                              )}
+                              <button
+                                onClick={() => handleDeletePO(po.id, po.po_number)}
+                                className="text-red-600 hover:text-red-800 p-1 rounded"
+                                title="Delete PO"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Cards */}
+                <div className="md:hidden divide-y divide-gray-200">
+                  {purchaseOrders.map((po) => (
+                    <div key={po.id} className="p-4 hover:bg-gray-50">
+                      <div className="flex justify-between items-start">
+                        <div>
                           <div className="font-medium text-gray-900">{po.po_number}</div>
                           <div className="text-sm text-gray-500">#{po.id}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="text-sm text-gray-900">{po.supplier_name}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center text-sm text-gray-900">
-                            <Building2 size={14} className="mr-1 text-gray-400" />
-                            {po.branch_name}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(po.priority || 'biasa')}`}>
-                            {po.priority || 'Biasa'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(po.status)}`}>
-                            {po.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="text-sm text-gray-900">
+                        </div>
+                        <button 
+                          onClick={() => toggleExpandPO(po.id)}
+                          className="text-gray-500"
+                        >
+                          {expandedPO === po.id ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                        </button>
+                      </div>
+                      
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <div className="flex items-center text-sm text-gray-900">
+                          <Building2 size={14} className="mr-1 text-gray-400" />
+                          {po.branch_name}
+                        </div>
+                        <div className="text-sm text-gray-900 truncate">
+                          {po.supplier_name}
+                        </div>
+                      </div>
+                      
+                      <div className="mt-2 flex gap-2">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(po.priority || 'biasa')}`}>
+                          {po.priority || 'Biasa'}
+                        </span>
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(po.status)}`}>
+                          {po.status}
+                        </span>
+                      </div>
+                      
+                      <div className="mt-2 text-sm text-gray-900">
+                        <div className="font-medium">{formatCurrency(po.total_harga)}</div>
+                      </div>
+                      
+                      <div className="mt-2 flex items-center text-sm text-gray-500">
+                        <Calendar size={14} className="mr-1" />
+                        {formatDate(po.created_at)}
+                      </div>
+
+                      {expandedPO === po.id && (
+                        <div className="mt-4 space-y-3 border-t pt-3">
+                          <div>
+                            <div className="text-sm font-medium text-gray-700 mb-1">Items:</div>
                             {po.items.length > 0 ? (
                               <div className="space-y-1">
-                                {po.items.slice(0, 2).map((item, index) => (
-                                  <div key={index} className="flex justify-between">
+                                {po.items.map((item, index) => (
+                                  <div key={index} className="flex justify-between text-sm">
                                     <span className="truncate max-w-[150px]">{item.product_name}</span>
                                     <span className="ml-2 font-medium">{item.qty}</span>
                                   </div>
                                 ))}
-                                {po.items.length > 2 && (
-                                  <div className="text-xs text-gray-500">+{po.items.length - 2} items lainnya</div>
-                                )}
                               </div>
                             ) : (
-                              <span className="text-gray-500">Tidak ada items</span>
+                              <span className="text-gray-500 text-sm">No items</span>
                             )}
                           </div>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="font-medium text-gray-900">
-                            {formatCurrency(po.total_harga)}
+                          
+                          <div>
+                            <div className="text-sm font-medium text-gray-700 mb-1">Tanggal Barang Sampai:</div>
+                            {po.tanggal_barang_sampai ? (
+                              <div className="flex items-center text-sm text-gray-900">
+                                <Calendar size={14} className="mr-1 text-green-400" />
+                                {formatDate(po.tanggal_barang_sampai)}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 text-sm">-</span>
+                            )}
                           </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center text-sm text-gray-900">
-                            <Calendar size={14} className="mr-1 text-gray-400" />
-                            {formatDate(po.created_at)}
-                          </div>
-                          <div className="flex items-center text-xs text-gray-500">
-                            <User size={12} className="mr-1" />
-                            {po.created_by_name}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          {po.tanggal_barang_sampai ? (
-                            <div className="flex items-center text-sm text-gray-900">
-                              <Calendar size={14} className="mr-1 text-green-400" />
-                              {formatDate(po.tanggal_barang_sampai)}
-                            </div>
-                          ) : (
-                            <span className="text-gray-400 text-sm">-</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center gap-2">
+                          
+                          <div className="flex justify-center gap-4 pt-2">
                             <a 
                               href={`/purchaseorder/on_progress?id=${po.id}`}
                               className="text-blue-600 hover:text-blue-800 p-1 rounded" 
                               title="Preview PO"
                             >
-                              <Eye size={16} />
+                              <Eye size={20} />
                             </a>
                             {po.status === 'Sedang diproses' && (
                               <a 
@@ -465,7 +696,7 @@ export default function PurchaseOrderPage() {
                                 className="text-blue-600 hover:text-blue-800 p-1 rounded" 
                                 title="Barang Sampai"
                               >
-                                <Package size={16} />
+                                <Package size={20} />
                               </a>
                             )}
                             {po.status !== 'Dibatalkan' ? (
@@ -474,30 +705,30 @@ export default function PurchaseOrderPage() {
                                 className="text-orange-600 hover:text-orange-800 p-1 rounded" 
                                 title="Edit PO"
                               >
-                                <Edit size={16} />
+                                <Edit size={20} />
                               </a>
                             ) : (
                               <span 
                                 className="text-gray-400 p-1 rounded cursor-not-allowed" 
                                 title="PO dibatalkan tidak dapat diedit"
                               >
-                                <Edit size={16} />
+                                <Edit size={20} />
                               </span>
                             )}
                             <button
                               onClick={() => handleDeletePO(po.id, po.po_number)}
                               className="text-red-600 hover:text-red-800 p-1 rounded"
-                              title="Delete PO, Barang Masuk & Gudang"
+                              title="Delete PO"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={20} />
                             </button>
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 

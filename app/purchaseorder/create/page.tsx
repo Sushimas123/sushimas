@@ -6,7 +6,6 @@ import { Plus, ShoppingCart, Search, Calendar, Building2, User, Package, Minus, 
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 
-
 interface Supplier {
   id_supplier: number
   nama_supplier: string
@@ -260,17 +259,6 @@ function CreatePurchaseOrder() {
 
         console.log('Inserting PO data:', poInsertData)
         
-        // Test database connection first
-        const { data: testData, error: testError } = await supabase
-          .from('purchase_orders')
-          .select('id')
-          .limit(1)
-        
-        if (testError) {
-          console.error('Database connection test failed:', testError)
-          throw new Error(`Database connection failed: ${testError.message}`)
-        }
-        
         const { data: poData, error: poError } = await supabase
           .from('purchase_orders')
           .insert(poInsertData)
@@ -279,9 +267,6 @@ function CreatePurchaseOrder() {
 
         if (poError) {
           console.error('PO insert error details:', poError)
-          console.error('Error message:', poError.message)
-          console.error('Error code:', poError.code)
-          console.error('Error details:', poError.details)
           throw new Error(`Failed to insert PO: ${poError.message || 'Unknown database error'}`)
         }
         
@@ -291,91 +276,56 @@ function CreatePurchaseOrder() {
         const poItemsData = items.map(item => ({
           po_id: poData.id,
           product_id: item.product_id,
-          qty: parseFloat(item.qty.toString()), // Keep as decimal
-          unit_besar: item.unit_besar || '',
-          keterangan: item.keterangan || ''
+          qty: item.qty,
+          keterangan: item.keterangan
         }))
 
-        console.log('Inserting PO items:', poItemsData)
-        
-        // Check table structure first
-        const { data: tableInfo, error: tableError } = await supabase
-          .from('po_items')
-          .select('*')
-          .limit(1)
-        
-        if (tableError) {
-          console.error('Table access error:', tableError)
-        }
-        
-        const { data: insertedItems, error: itemsError } = await supabase
+        const { error: itemsError } = await supabase
           .from('po_items')
           .insert(poItemsData)
-          .select()
 
         if (itemsError) {
-          console.error('PO items insert error:', itemsError)
-          console.error('Items error message:', itemsError.message)
-          console.error('Items error code:', itemsError.code)
-          console.error('Items error details:', itemsError.details)
-          console.error('Items error hint:', itemsError.hint)
-          console.error('Data being inserted:', JSON.stringify(poItemsData, null, 2))
-          throw new Error(`Failed to insert PO items: ${itemsError.message || 'Unknown database error'}`)
+          console.error('Items insert error:', itemsError)
+          throw new Error(`Failed to insert PO items: ${itemsError.message}`)
         }
-        
-        console.log('PO items inserted successfully:', insertedItems)
       }
 
-      console.log('All POs saved successfully, redirecting...')
+      alert('PO berhasil dibuat!')
       window.location.href = '/purchaseorder'
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving PO:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      alert(`Gagal menyimpan PO: ${errorMessage}`)
+      alert(`Gagal menyimpan PO: ${error.message}`)
     }
   }
 
-  if (loading) {
-    return (
-      <div className="p-6">
-        <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="text-gray-600">Memuat data...</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
+    <div className="p-4 space-y-4 bg-gray-50 min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <a href="/purchaseorder" className="text-gray-600 hover:text-gray-800">
-            <ArrowLeft size={24} />
-          </a>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-              <ShoppingCart className="text-blue-600" size={28} />
-              Buat Purchase Order Baru
-            </h1>
-            <p className="text-gray-600 mt-1">Buat pesanan pembelian ke supplier</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <a href="/purchaseorder" className="text-gray-600 hover:text-gray-800">
+          <ArrowLeft size={20} />
+        </a>
+        <div>
+          <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <ShoppingCart className="text-blue-600" size={22} />
+            Buat PO Baru
+          </h1>
+          <p className="text-gray-600 text-sm">Buat pesanan pembelian ke supplier</p>
         </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* PO Info */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Informasi PO</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg shadow p-4">
+          <h3 className="text-md font-semibold mb-3">Informasi PO</h3>
+          <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal PO *</label>
               <input
                 type="date"
                 value={formData.po_date}
                 onChange={(e) => setFormData({...formData, po_date: e.target.value})}
-                className="w-full border border-gray-300 rounded-md px-3 py-2"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
                 required
               />
             </div>
@@ -384,7 +334,7 @@ function CreatePurchaseOrder() {
               <select
                 value={formData.cabang_id}
                 onChange={(e) => setFormData({...formData, cabang_id: e.target.value})}
-                className="w-full border border-gray-300 rounded-md px-3 py-2"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
                 required
               >
                 <option value="">Pilih Cabang</option>
@@ -401,7 +351,7 @@ function CreatePurchaseOrder() {
               <select
                 value={formData.priority}
                 onChange={(e) => setFormData({...formData, priority: e.target.value})}
-                className="w-full border border-gray-300 rounded-md px-3 py-2"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
               >
                 <option value="biasa">Biasa</option>
                 <option value="sedang">Sedang</option>
@@ -409,32 +359,38 @@ function CreatePurchaseOrder() {
               </select>
             </div>
 
-            <div className="md:col-span-2">
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cari Produk</label>
-              <input
-                type="text"
-                value={searchProduct}
-                onChange={(e) => setSearchProduct(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2"
-                placeholder="Ketik nama produk untuk mencari..."
-              />
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchProduct}
+                  onChange={(e) => setSearchProduct(e.target.value)}
+                  className="w-full pl-8 border border-gray-300 rounded-md px-3 py-2 text-sm"
+                  placeholder="Cari nama produk..."
+                />
+              </div>
               
               {productSuppliers.length > 0 && (
-                <div className="mt-2 max-h-60 overflow-y-auto border border-gray-200 rounded-md">
+                <div className="mt-2 max-h-48 overflow-y-auto border border-gray-200 rounded-md text-sm">
                   {productSuppliers.map((item, index) => (
-                    <div key={index} className="p-3 border-b border-gray-100 last:border-b-0">
-                      <div className="font-medium text-gray-900 mb-2">
-                        {item.product.product_name} - {item.product.merk || 'No Brand'}
+                    <div key={index} className="p-2 border-b border-gray-100 last:border-b-0">
+                      <div className="font-medium text-gray-900 mb-1">
+                        {item.product.product_name}
                       </div>
-                      <div className="text-sm text-gray-600 mb-2">
-                        Tersedia di {item.suppliers.length} supplier:
+                      <div className="text-xs text-gray-500 mb-1">
+                        {item.product.merk || 'No Brand'}
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="text-xs text-gray-600 mb-1">
+                        Tersedia di {item.suppliers.length} supplier
+                      </div>
+                      <div className="flex flex-wrap gap-1">
                         {item.suppliers.map((supplier) => (
                           <button
                             key={supplier.id_supplier}
                             onClick={() => addProductToPO(item.product, supplier)}
-                            className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm hover:bg-blue-200"
+                            className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs hover:bg-blue-200"
                           >
                             {supplier.nama_supplier}
                           </button>
@@ -451,8 +407,8 @@ function CreatePurchaseOrder() {
               <textarea
                 value={formData.keterangan}
                 onChange={(e) => setFormData({...formData, keterangan: e.target.value})}
-                className="w-full border border-gray-300 rounded-md px-3 py-2"
-                rows={1}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                rows={2}
                 placeholder="Keterangan tambahan..."
               />
             </div>
@@ -460,83 +416,76 @@ function CreatePurchaseOrder() {
         </div>
 
         {/* Items PO */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Items PO</h3>
+        <div className="bg-white rounded-lg shadow p-4">
+          <h3 className="text-md font-semibold mb-3">Items PO</h3>
           {poItems.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Package size={48} className="mx-auto mb-2 text-gray-300" />
-              <p>Belum ada item yang dipilih</p>
-              <p className="text-sm">Pilih supplier dan tambahkan produk</p>
+            <div className="text-center py-6 text-gray-500">
+              <Package size={32} className="mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">Belum ada item yang dipilih</p>
+              <p className="text-xs">Pilih supplier dan tambahkan produk</p>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {Object.entries(groupedItems).map(([supplierName, items]) => {
                 const supplier = suppliers.find(s => s.nama_supplier === supplierName)
                 return (
-                <div key={supplierName} className="border rounded-lg">
-                  <div className="bg-blue-50 px-4 py-2 border-b">
-                    <div className="flex justify-between items-center">
-                      <h4 className="font-semibold text-blue-800">Supplier: {supplierName}</h4>
-                      <span className="text-sm text-blue-600">
+                <div key={supplierName} className="border rounded-lg overflow-hidden">
+                  <div className="bg-blue-50 px-3 py-2 border-b">
+                    <div className="flex flex-col">
+                      <h4 className="font-semibold text-blue-800 text-sm">Supplier: {supplierName}</h4>
+                      <span className="text-xs text-blue-600">
                         Tempo: {supplier?.termin_tempo} hari
                       </span>
                     </div>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-50">
-                          <th className="p-3 text-left">Produk</th>
-                          <th className="p-3 text-left">Merk</th>
-                          <th className="p-3 text-center">Qty</th>
-                          <th className="p-3 text-center">Unit</th>
-                          <th className="p-3 text-left">Keterangan</th>
-                          <th className="p-3 text-center">Aksi</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {items.map((item) => (
-                          <tr key={item.product_id} className="border-b">
-                            <td className="p-3">
-                              <div className="font-medium">{item.product_name}</div>
-                            </td>
-                            <td className="p-3">
-                              <div className="text-gray-600">{item.merk || 'No Brand'}</div>
-                            </td>
-                            <td className="p-3 text-center">
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={item.qty}
-                                onChange={(e) => updatePOItem(item.product_id, item.supplier_name, 'qty', parseFloat(e.target.value) || 0)}
-                                className="w-16 border rounded px-2 py-1 text-center"
-                                min="0.01"
-                              />
-                            </td>
-                            <td className="p-3 text-center">
+                  <div className="divide-y">
+                    {items.map((item) => (
+                      <div key={item.product_id} className="p-3">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">{item.product_name}</div>
+                            <div className="text-xs text-gray-500">{item.merk || 'No Brand'}</div>
+                          </div>
+                          <button
+                            onClick={() => removePOItem(item.product_id, item.supplier_name)}
+                            className="text-red-600 hover:text-red-800 ml-2"
+                          >
+                            <Minus size={16} />
+                          </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <label className="text-xs text-gray-500">Qty</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={item.qty}
+                              onChange={(e) => updatePOItem(item.product_id, item.supplier_name, 'qty', parseFloat(e.target.value) || 0)}
+                              className="w-full border rounded px-2 py-1 text-sm"
+                              min="0.01"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-500">Unit</label>
+                            <div className="border rounded px-2 py-1 bg-gray-50 text-sm">
                               {item.unit_besar}
-                            </td>
-                            <td className="p-3">
-                              <input
-                                type="text"
-                                value={item.keterangan}
-                                onChange={(e) => updatePOItem(item.product_id, item.supplier_name, 'keterangan', e.target.value)}
-                                className="w-full border rounded px-2 py-1 text-sm"
-                                placeholder="Keterangan..."
-                              />
-                            </td>
-                            <td className="p-3 text-center">
-                              <button
-                                onClick={() => removePOItem(item.product_id, item.supplier_name)}
-                                className="text-red-600 hover:text-red-800"
-                              >
-                                <Minus size={16} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-2">
+                          <label className="text-xs text-gray-500">Keterangan</label>
+                          <input
+                            type="text"
+                            value={item.keterangan}
+                            onChange={(e) => updatePOItem(item.product_id, item.supplier_name, 'keterangan', e.target.value)}
+                            className="w-full border rounded px-2 py-1 text-sm"
+                            placeholder="Keterangan..."
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 )
@@ -546,16 +495,16 @@ function CreatePurchaseOrder() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-end gap-3">
-          <a href="/purchaseorder" className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+        <div className="flex justify-end gap-2 sticky bottom-0 bg-gray-50 p-2 border-t">
+          <a href="/purchaseorder" className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
             Batal
           </a>
           <button 
             onClick={handleSavePO}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 flex items-center gap-1"
             disabled={poItems.length === 0 || !formData.cabang_id}
           >
-            <Save size={16} />
+            <Save size={14} />
             Simpan PO
           </button>
         </div>

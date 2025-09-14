@@ -49,6 +49,7 @@ export default function Layout({ children }: LayoutProps) {
   const [userName, setUserName] = useState<string>('')
   const [userEmail, setUserEmail] = useState<string>('')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false)
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -368,6 +369,13 @@ export default function Layout({ children }: LayoutProps) {
               >
                 {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
               </button>
+              <button
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                className="hidden lg:block mr-2 p-2 rounded-md text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              >
+                <Menu size={20} />
+              </button>
               <Link href="/" className="flex items-center">
                 <div className="flex-shrink-0 flex items-center">
                   <div className="h-8 w-20 bg-red-600 rounded-lg flex items-center justify-center text-white font-bold mr-2">
@@ -552,8 +560,10 @@ export default function Layout({ children }: LayoutProps) {
         <div 
           ref={sidebarRef}
           className={`
-            fixed inset-y-0 left-0 z-30 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 lg:shadow-none
+            fixed inset-y-0 left-0 z-30 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-all duration-300 ease-in-out lg:static lg:translate-x-0 lg:shadow-none
             ${isSidebarOpen ? 'translate-x-0 shadow-xl' : '-translate-x-full'}
+            ${isSidebarCollapsed ? 'lg:w-16' : 'lg:w-64'}
+            w-64
           `}
           style={{ maxWidth: 'calc(100vw - 4rem)' }}
         >
@@ -588,22 +598,26 @@ export default function Layout({ children }: LayoutProps) {
                       >
                         <item.icon
                           size={18}
-                          className={`mr-3 flex-shrink-0 
+                          className={`${isSidebarCollapsed ? 'mx-auto' : 'mr-3'} flex-shrink-0 
                             ${activeSubmenu === item.id || item.submenu.some(sub => isActiveMenu(sub.href))
                               ? 'text-blue-600 dark:text-blue-400'
                               : 'text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300'
                             }`}
                         />
-                        <span className="flex-1 text-left">{item.name}</span>
-                        {activeSubmenu === item.id ? (
-                          <ChevronDown size={16} className="text-gray-400" />
-                        ) : (
-                          <ChevronRight size={16} className="text-gray-400" />
+                        {!isSidebarCollapsed && (
+                          <>
+                            <span className="flex-1 text-left">{item.name}</span>
+                            {activeSubmenu === item.id ? (
+                              <ChevronDown size={16} className="text-gray-400" />
+                            ) : (
+                              <ChevronRight size={16} className="text-gray-400" />
+                            )}
+                          </>
                         )}
                       </button>
                       
                       {/* Submenu items */}
-                      {activeSubmenu === item.id && (
+                      {activeSubmenu === item.id && !isSidebarCollapsed && (
                         <div className="mt-1 ml-4 space-y-1">
                           {item.submenu.map((subItem) => {
                             const SubIcon = subItem.icon;
@@ -645,30 +659,20 @@ export default function Layout({ children }: LayoutProps) {
                     >
                       <item.icon
                         size={18}
-                        className={`mr-3 flex-shrink-0 
+                        className={`${isSidebarCollapsed ? 'mx-auto' : 'mr-3'} flex-shrink-0 
                           ${isActiveMenu(item.href || '')
                             ? 'text-blue-600 dark:text-blue-400'
                             : 'text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300'
                           }`}
                       />
-                      {item.name}
+                      {!isSidebarCollapsed && item.name}
                     </Link>
                   )}
                 </div>
               ))}
             </div>
 
-            {/* Help section */}
-            <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
-              <Link
-                href="/help"
-                className="group flex items-center px-3 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-                onClick={() => setIsSidebarOpen(false)}
-              >
-                <HelpCircle size={18} className="mr-3 text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-400" />
-                Help & Support
-              </Link>
-            </div>
+
           </nav>
         </div>
 

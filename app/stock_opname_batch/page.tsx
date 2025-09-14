@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react"
 import { supabase } from "@/src/lib/supabaseClient"
-import { Edit2, Trash2, Plus, ChevronDown, ChevronRight, Loader2, FileText } from "lucide-react"
+import { Edit2, Trash2, Plus, ChevronDown, ChevronRight, Loader2, FileText, Menu, X, Search } from "lucide-react"
 import Layout from '../../components/Layout'
 import PageAccessControl from '../../components/PageAccessControl'
 import jsPDF from 'jspdf'
@@ -33,6 +33,20 @@ export default function StockOpnameBatchPage() {
   const [filterStatus, setFilterStatus] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
+  const [isMobile, setIsMobile] = useState(false)
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+
+  // Check screen size on mount and resize
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    checkScreenSize()
+    window.addEventListener('resize', checkScreenSize)
+    
+    return () => window.removeEventListener('resize', checkScreenSize)
+  }, [])
 
   useEffect(() => {
     fetchBatches()
@@ -805,68 +819,135 @@ export default function StockOpnameBatchPage() {
               className="bg-blue-600 text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-blue-700"
             >
               <Plus size={16} />
-              Tambah Batch
+              {!isMobile && 'Tambah Batch'}
             </button>
           </div>
 
-          {/* Filter Section */}
-          <div className="bg-white p-4 rounded-lg shadow mb-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <input
-                  type="text"
-                  placeholder="Cari batch ID, PIC, atau sub kategori..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full border px-3 py-2 rounded-md text-sm"
-                />
-              </div>
-              <div>
-                <select
-                  value={filterBranch}
-                  onChange={(e) => setFilterBranch(e.target.value)}
-                  className="w-full border px-3 py-2 rounded-md text-sm"
-                >
-                  <option value="">Semua Cabang</option>
-                  {branches.map(branch => (
-                    <option key={branch.kode_branch} value={branch.kode_branch}>
-                      {branch.nama_branch}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="w-full border px-3 py-2 rounded-md text-sm"
-                >
-                  <option value="">Semua Status</option>
-                  <option value="pending">Pending</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-              </div>
-              <div className="flex items-end">
+          {/* Mobile Search Bar */}
+          {isMobile && (
+            <div className="bg-white p-3 rounded-lg shadow mb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="relative flex-1">
+                  <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Cari batch..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border rounded-md text-sm"
+                  />
+                </div>
                 <button
-                  onClick={() => {
-                    setSearchTerm('')
-                    setFilterBranch('')
-                    setFilterStatus('')
-                  }}
-                  className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 text-sm"
+                  onClick={() => setShowMobileFilters(!showMobileFilters)}
+                  className="bg-gray-200 p-2 rounded-md"
                 >
-                  Reset Filter
+                  {showMobileFilters ? <X size={18} /> : <Menu size={18} />}
                 </button>
               </div>
+              
+              {showMobileFilters && (
+                <div className="space-y-3 pt-2 border-t">
+                  <div>
+                    <select
+                      value={filterBranch}
+                      onChange={(e) => setFilterBranch(e.target.value)}
+                      className="w-full border px-3 py-2 rounded-md text-sm"
+                    >
+                      <option value="">Semua Cabang</option>
+                      {branches.map(branch => (
+                        <option key={branch.kode_branch} value={branch.kode_branch}>
+                          {branch.nama_branch}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      className="w-full border px-3 py-2 rounded-md text-sm"
+                    >
+                      <option value="">Semua Status</option>
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSearchTerm('')
+                      setFilterBranch('')
+                      setFilterStatus('')
+                    }}
+                    className="w-full bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 text-sm"
+                  >
+                    Reset Filter
+                  </button>
+                </div>
+              )}
             </div>
-            <div className="mt-2 text-sm text-gray-600">
-              Menampilkan {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredBatches.length)} dari {filteredBatches.length} batch (Total: {batches.length})
+          )}
+
+          {/* Desktop Filter Section */}
+          {!isMobile && (
+            <div className="bg-white p-4 rounded-lg shadow mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Cari batch ID, PIC, atau sub kategori..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full border px-3 py-2 rounded-md text-sm"
+                  />
+                </div>
+                <div>
+                  <select
+                    value={filterBranch}
+                    onChange={(e) => setFilterBranch(e.target.value)}
+                    className="w-full border px-3 py-2 rounded-md text-sm"
+                  >
+                    <option value="">Semua Cabang</option>
+                    {branches.map(branch => (
+                      <option key={branch.kode_branch} value={branch.kode_branch}>
+                        {branch.nama_branch}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="w-full border px-3 py-2 rounded-md text-sm"
+                  >
+                    <option value="">Semua Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={() => {
+                      setSearchTerm('')
+                      setFilterBranch('')
+                      setFilterStatus('')
+                    }}
+                    className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 text-sm"
+                  >
+                    Reset Filter
+                  </button>
+                </div>
+              </div>
+              <div className="mt-2 text-sm text-gray-600">
+                Menampilkan {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredBatches.length)} dari {filteredBatches.length} batch (Total: {batches.length})
+              </div>
             </div>
-          </div>
+          )}
 
           {showAddForm && (
-            <div className="bg-white p-6 rounded-lg shadow mb-6">
+            <div className="bg-white p-4 md:p-6 rounded-lg shadow mb-6">
               <h3 className="text-lg font-semibold mb-4">
                 {editing ? 'Edit Batch' : 'Tambah Batch Baru'}
               </h3>
@@ -884,7 +965,7 @@ export default function StockOpnameBatchPage() {
                         fetchBranchProducts(selectedBranch, selectedSubCategory, e.target.value, form.opname_time)
                       }
                     }}
-                    className="w-full border px-3 py-2 rounded-md"
+                    className="w-full border px-3 py-2 rounded-md text-sm"
                   />
                   {errors.opname_date && <p className="text-red-500 text-xs mt-1">{errors.opname_date}</p>}
                 </div>
@@ -903,7 +984,7 @@ export default function StockOpnameBatchPage() {
                         fetchBranchProducts(selectedBranch, selectedSubCategory, form.opname_date, newTime);
                       }
                     }}
-                    className="w-full border px-3 py-2 rounded-md"
+                    className="w-full border px-3 py-2 rounded-md text-sm"
                   />
                 </div>
                 
@@ -925,7 +1006,7 @@ export default function StockOpnameBatchPage() {
                         }
                       }
                     }}
-                    className="w-full border px-3 py-2 rounded-md"
+                    className="w-full border px-3 py-2 rounded-md text-sm"
                   >
                     <option value="">Pilih Cabang</option>
                     {branches.map(branch => (
@@ -948,7 +1029,7 @@ export default function StockOpnameBatchPage() {
                         fetchBranchProducts(selectedBranch, e.target.value, form.opname_date, form.opname_time)
                       }
                     }}
-                    className="w-full border px-3 py-2 rounded-md"
+                    className="w-full border px-3 py-2 rounded-md text-sm"
                   >
                     <option value="">Pilih Sub Kategori</option>
                     {subCategories.map(sub => (
@@ -967,7 +1048,7 @@ export default function StockOpnameBatchPage() {
                   type="text"
                   value={form.pic_name || ''}
                   onChange={(e) => setForm({...form, pic_name: e.target.value})}
-                  className="w-full border px-3 py-2 rounded-md"
+                  className="w-full border px-3 py-2 rounded-md text-sm"
                   placeholder="Nama penanggung jawab"
                 />
                 {errors.pic_name && <p className="text-red-500 text-xs mt-1">{errors.pic_name}</p>}
@@ -981,27 +1062,17 @@ export default function StockOpnameBatchPage() {
               ) : branchProducts.length > 0 ? (
                 <div className="mb-4">
                   <div className="flex justify-between items-center mb-2">
-                    <h4 className="font-medium">Produk Stock Opname</h4>
+                    <h4 className="font-medium text-sm md:text-base">Produk Stock Opname</h4>
                     <div className="text-sm text-gray-600">
-                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
                         📍 {branches.find(b => b.kode_branch === selectedBranch)?.nama_branch} - {branchProducts.length} produk {selectedSubCategory}
                       </span>
                     </div>
                   </div>
                   <div className="max-h-96 overflow-y-auto border rounded-md">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 sticky top-0">
-                        <tr>
-                          <th className="px-3 py-2 text-left">Produk</th>
-                          <th className="px-3 py-2 text-left">Stok Sistem{editing ? ' (saat SO)' : ''}</th>
-                          <th className="px-3 py-2 text-left">Stok Sistem (terkini)</th>
-                          <th className="px-3 py-2 text-left">Stok Fisik</th>
-                          <th className="px-3 py-2 text-left">Selisih</th>
-                          <th className="px-3 py-2 text-left">Satuan</th>
-                          <th className="px-3 py-2 text-left">Catatan</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                    {isMobile ? (
+                      // Mobile view for products
+                      <div className="divide-y">
                         {branchProducts.map((product, index) => {
                           const systemStock = editing && product.system_stock_snapshot !== undefined 
                             ? product.system_stock_snapshot 
@@ -1009,63 +1080,132 @@ export default function StockOpnameBatchPage() {
                           const difference = product.physical_stock - systemStock
                           
                           return (
-                            <tr key={index} className="border-t">
-                              <td className="px-3 py-2 font-medium">{product.product_name}</td>
-                              <td className="px-3 py-2">{systemStock}</td>
-                              <td className="px-3 py-2 text-blue-600">{product.current_system_stock || product.system_stock}</td>
-                              <td className="px-3 py-2">
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={product.physical_stock || ''}
-                                  onChange={(e) => handlePhysicalStockChange(product.product_name, e.target.value)}
-                                  className="w-20 border px-2 py-1 rounded text-center"
-                                />
-                              </td>
-                              <td className={`px-3 py-2 font-medium ${
-                                difference > 0 ? 'text-green-600' : 
-                                difference < 0 ? 'text-red-600' : 'text-gray-600'
-                              }`}>
-                                {difference.toFixed(2)}
-                              </td>
-                              <td className="px-3 py-2">{product.unit}</td>
-                              <td className="px-3 py-2">
+                            <div key={index} className="p-3">
+                              <div className="font-medium text-sm mb-2">{product.product_name}</div>
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div>Sistem (SO):</div>
+                                <div className="font-medium">{systemStock}</div>
+                                
+                                <div>Sistem (Now):</div>
+                                <div className="font-medium text-blue-600">{product.current_system_stock || product.system_stock}</div>
+                                
+                                <div>Fisik:</div>
+                                <div>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={product.physical_stock || ''}
+                                    onChange={(e) => handlePhysicalStockChange(product.product_name, e.target.value)}
+                                    className="w-full border px-2 py-1 rounded text-center text-sm"
+                                  />
+                                </div>
+                                
+                                <div>Selisih:</div>
+                                <div className={`font-medium ${
+                                  difference > 0 ? 'text-green-600' : 
+                                  difference < 0 ? 'text-red-600' : 'text-gray-600'
+                                }`}>
+                                  {difference.toFixed(2)}
+                                </div>
+                                
+                                <div>Satuan:</div>
+                                <div>{product.unit}</div>
+                              </div>
+                              <div className="mt-2">
+                                <div className="text-xs text-gray-500 mb-1">Catatan:</div>
                                 <input
                                   type="text"
                                   value={product.notes || ''}
                                   onChange={(e) => handleNotesChange(product.product_name, e.target.value)}
-                                  className="w-32 border px-2 py-1 rounded text-xs"
+                                  className="w-full border px-2 py-1 rounded text-xs"
                                   placeholder="Catatan"
                                 />
-                              </td>
-                            </tr>
+                              </div>
+                            </div>
                           )
                         })}
-                      </tbody>
-                    </table>
+                      </div>
+                    ) : (
+                      // Desktop view for products
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="px-3 py-2 text-left">Produk</th>
+                            <th className="px-3 py-2 text-left">Stok Sistem{editing ? ' (saat SO)' : ''}</th>
+                            <th className="px-3 py-2 text-left">Stok Sistem (terkini)</th>
+                            <th className="px-3 py-2 text-left">Stok Fisik</th>
+                            <th className="px-3 py-2 text-left">Selisih</th>
+                            <th className="px-3 py-2 text-left">Satuan</th>
+                            <th className="px-3 py-2 text-left">Catatan</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {branchProducts.map((product, index) => {
+                            const systemStock = editing && product.system_stock_snapshot !== undefined 
+                              ? product.system_stock_snapshot 
+                              : product.system_stock
+                            const difference = product.physical_stock - systemStock
+                            
+                            return (
+                              <tr key={index} className="border-t">
+                                <td className="px-3 py-2 font-medium">{product.product_name}</td>
+                                <td className="px-3 py-2">{systemStock}</td>
+                                <td className="px-3 py-2 text-blue-600">{product.current_system_stock || product.system_stock}</td>
+                                <td className="px-3 py-2">
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={product.physical_stock || ''}
+                                    onChange={(e) => handlePhysicalStockChange(product.product_name, e.target.value)}
+                                    className="w-20 border px-2 py-1 rounded text-center"
+                                  />
+                                </td>
+                                <td className={`px-3 py-2 font-medium ${
+                                  difference > 0 ? 'text-green-600' : 
+                                  difference < 0 ? 'text-red-600' : 'text-gray-600'
+                                }`}>
+                                  {difference.toFixed(2)}
+                                </td>
+                                <td className="px-3 py-2">{product.unit}</td>
+                                <td className="px-3 py-2">
+                                  <input
+                                    type="text"
+                                    value={product.notes || ''}
+                                    onChange={(e) => handleNotesChange(product.product_name, e.target.value)}
+                                    className="w-32 border px-2 py-1 rounded text-xs"
+                                    placeholder="Catatan"
+                                  />
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                   {errors.physical_stock && <p className="text-red-500 text-xs mt-1">{errors.physical_stock}</p>}
                 </div>
               ) : selectedBranch && selectedSubCategory ? (
-                <div className="text-center py-4 text-gray-500">
+                <div className="text-center py-4 text-gray-500 text-sm">
                   <p>Tidak ada produk {selectedSubCategory} yang terdaftar untuk cabang {branches.find(b => b.kode_branch === selectedBranch)?.nama_branch}</p>
                   <p className="text-xs mt-1">Pastikan produk sudah dikonfigurasi di halaman Product Management untuk cabang ini</p>
                 </div>
               ) : null}
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <button
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 flex items-center"
+                  className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 flex items-center text-sm"
                 >
                   {loading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
                   {editing ? 'Perbarui Batch' : 'Simpan Batch'}
                 </button>
                 <button
                   onClick={resetForm}
-                  className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+                  className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 text-sm"
                 >
                   Batal
                 </button>
@@ -1073,201 +1213,368 @@ export default function StockOpnameBatchPage() {
             </div>
           )}
 
-          <div className="bg-white rounded-lg shadow">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="px-4 py-3 text-left">ID Batch</th>
-                    <th className="px-4 py-3 text-left">Tanggal</th>
-                    <th className="px-4 py-3 text-left">Waktu</th>
-                    <th className="px-4 py-3 text-left">Cabang</th>
-                    <th className="px-4 py-3 text-left">Sub Kategori</th>
-                    <th className="px-4 py-3 text-left">PIC</th>
-                    <th className="px-4 py-3 text-left">Produk</th>
-                    <th className="px-4 py-3 text-left">Status</th>
-                    <th className="px-4 py-3 text-left">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedBatches.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="px-4 py-4 text-center text-gray-500">
-                        {batches.length === 0 ? 'Tidak ada data batch' : 'Tidak ada batch yang sesuai dengan filter'}
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedBatches.map((batch) => (
-                      <React.Fragment key={batch.batch_id}>
-                        <tr className="border-t hover:bg-gray-50">
-                          <td className="px-4 py-3">
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            {isMobile ? (
+              // Mobile view for batches
+              <div className="divide-y">
+                {paginatedBatches.length === 0 ? (
+                  <div className="px-4 py-4 text-center text-gray-500">
+                    {batches.length === 0 ? 'Tidak ada data batch' : 'Tidak ada batch yang sesuai dengan filter'}
+                  </div>
+                ) : (
+                  paginatedBatches.map((batch) => (
+                    <div key={batch.batch_id} className="p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <button
+                          onClick={() => toggleBatchExpansion(batch.batch_id)}
+                          className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          {expandedBatch === batch.batch_id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                          BATCH-{batch.batch_id}
+                        </button>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          batch.status === 'approved' ? 'bg-green-100 text-green-800' :
+                          batch.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {batch.status_icon} {batch.status}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                        <div className="text-gray-600">Tanggal:</div>
+                        <div>{batch.batch_date}</div>
+                        
+                        <div className="text-gray-600">Waktu:</div>
+                        <div>{batch.batch_time?.substring(0, 5) || '12:00'}</div>
+                        
+                        <div className="text-gray-600">Cabang:</div>
+                        <div>{batch.nama_branch}</div>
+                        
+                        <div className="text-gray-600">Sub Kategori:</div>
+                        <div>{batch.sub_category}</div>
+                        
+                        <div className="text-gray-600">PIC:</div>
+                        <div>{batch.pic_name}</div>
+                        
+                        <div className="text-gray-600">Produk:</div>
+                        <div>{batch.products_counted}/{batch.total_products}</div>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-2">
+                        {batch.status === 'pending' && (
+                          <>
                             <button
-                              onClick={() => toggleBatchExpansion(batch.batch_id)}
-                              className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                              onClick={() => handleEditBatch(batch.batch_id)}
+                              className="text-blue-600 hover:text-blue-800 p-1 text-xs flex items-center"
+                              title="Edit"
                             >
-                              {expandedBatch === batch.batch_id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                              BATCH-{batch.batch_id}
+                              <Edit2 size={14} className="mr-1" /> Edit
                             </button>
-                          </td>
-                          <td className="px-4 py-3">{batch.batch_date}</td>
-                          <td className="px-4 py-3">{batch.batch_time?.substring(0, 5) || '12:00'}</td>        
-                          <td className="px-4 py-3">{batch.nama_branch}</td>
-                          <td className="px-4 py-3">{batch.sub_category}</td>
-                          <td className="px-4 py-3">{batch.pic_name}</td>
-                          <td className="px-4 py-3">{batch.products_counted}/{batch.total_products}</td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              batch.status === 'approved' ? 'bg-green-100 text-green-800' :
-                              batch.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                              'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {batch.status_icon} {batch.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex gap-1">
-                              {batch.status === 'pending' && (
-                                <>
-                                  <button
-                                    onClick={() => handleEditBatch(batch.batch_id)}
-                                    className="text-blue-600 hover:text-blue-800 p-1"
-                                    title="Edit"
-                                  >
-                                    <Edit2 size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteBatch(batch.batch_id)}
-                                    disabled={processingBatch === batch.batch_id}
-                                    className="text-red-600 hover:text-red-800 p-1 disabled:opacity-50"
-                                    title="Hapus"
-                                  >
-                                    {processingBatch === batch.batch_id ? 
-                                      <Loader2 size={14} className="animate-spin" /> : 
-                                      <Trash2 size={14} />
-                                    }
-                                  </button>
-                                  <button
-                                    onClick={() => exportToPDF(batch.batch_id)}
-                                    disabled={processingBatch === batch.batch_id}
-                                    className="text-purple-600 hover:text-purple-800 p-1 disabled:opacity-50"
-                                    title="Export PDF"
-                                  >
-                                    {processingBatch === batch.batch_id ? 
-                                      <Loader2 size={14} className="animate-spin" /> : 
-                                      <FileText size={14} />
-                                    }
-                                  </button>
-                                  <button
-                                    onClick={() => handleApproveBatch(batch.batch_id)}
-                                    disabled={processingBatch === batch.batch_id}
-                                    className="text-green-600 hover:text-green-800 p-1 text-xs px-2 py-1 border border-green-600 rounded disabled:opacity-50"
-                                    title="Setujui"
-                                  >
-                                    {processingBatch === batch.batch_id ? 
-                                      <Loader2 size={12} className="animate-spin inline mr-1" /> : 
-                                      'Setujui'
-                                    }
-                                  </button>
-                                </>
-                              )}
-                              {batch.status === 'approved' && (
-                                <>
-                                  <button
-                                    onClick={() => handleEditBatch(batch.batch_id)}
-                                    className="text-orange-600 hover:text-orange-800 p-1"
-                                    title="Edit (akan mengembalikan ke pending)"
-                                  >
-                                    <Edit2 size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => exportToPDF(batch.batch_id)}
-                                    disabled={processingBatch === batch.batch_id}
-                                    className="text-purple-600 hover:text-purple-800 p-1 disabled:opacity-50"
-                                    title="Export PDF"
-                                  >
-                                    {processingBatch === batch.batch_id ? 
-                                      <Loader2 size={14} className="animate-spin" /> : 
-                                      <FileText size={14} />
-                                    }
-                                  </button>
-                                  <button
-                                    onClick={() => handleRevertBatch(batch.batch_id)}
-                                    disabled={processingBatch === batch.batch_id}
-                                    className="text-red-600 hover:text-red-800 p-1 text-xs px-2 py-1 border border-red-600 rounded disabled:opacity-50"
-                                    title="Kembalikan ke Pending"
-                                  >
-                                    {processingBatch === batch.batch_id ? 
-                                      <Loader2 size={12} className="animate-spin inline mr-1" /> : 
-                                      'Kembalikan'
-                                    }
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                        {expandedBatch === batch.batch_id && (
-                          <tr>
-                            <td colSpan={9} className="px-4 py-2 bg-gray-50">
-                              <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
-                                <div><strong>Tanggal:</strong> {batch.batch_date}</div>
-                                <div><strong>Waktu:</strong> {batch.batch_time?.substring(0, 5) || '12:00'}</div>
-                                <div><strong>Cabang:</strong> {batch.nama_branch}</div>
-                                <div><strong>Sub Kategori:</strong> {batch.sub_category}</div>
-                              </div>
-                              <div className="max-h-64 overflow-y-auto">
-                                <table className="w-full text-xs">
-                                  <thead>
-                                    <tr className="bg-gray-100">
-                                      <th className="px-2 py-1 text-left">Produk</th>
-                                      <th className="px-2 py-1 text-left">Sistem</th>
-                                      <th className="px-2 py-1 text-left">Fisik</th>
-                                      <th className="px-2 py-1 text-left">Selisih</th>
-                                      <th className="px-2 py-1 text-left">Catatan</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {batchDetails.map((detail) => {
-                                      const difference = detail.physical_stock - (detail.system_stock || 0)
-                                      return (
-                                        <tr key={detail.detail_id} className="border-t">
-                                          <td className="px-2 py-1">{detail.product_name}</td>
-                                          <td className="px-2 py-1">{detail.system_stock}</td>
-                                          <td className="px-2 py-1">{detail.physical_stock}</td>
-                                          <td className={`px-2 py-1 font-medium ${
-                                            difference > 0 ? 'text-green-600' : 
-                                            difference < 0 ? 'text-red-600' : 'text-gray-600'
-                                          }`}>
-                                            {difference.toFixed(2)}
-                                          </td>
-                                          <td className="px-2 py-1">{detail.notes || '-'}</td>
-                                        </tr>
-                                      )
-                                    })}
-                                  </tbody>
-                                </table>
+                            <button
+                              onClick={() => handleDeleteBatch(batch.batch_id)}
+                              disabled={processingBatch === batch.batch_id}
+                              className="text-red-600 hover:text-red-800 p-1 text-xs flex items-center disabled:opacity-50"
+                              title="Hapus"
+                            >
+                              {processingBatch === batch.batch_id ? 
+                                <Loader2 size={14} className="animate-spin mr-1" /> : 
+                                <Trash2 size={14} className="mr-1" />
+                              } Hapus
+                            </button>
+                            <button
+                              onClick={() => exportToPDF(batch.batch_id)}
+                              disabled={processingBatch === batch.batch_id}
+                              className="text-purple-600 hover:text-purple-800 p-1 text-xs flex items-center disabled:opacity-50"
+                              title="Export PDF"
+                            >
+                              {processingBatch === batch.batch_id ? 
+                                <Loader2 size={14} className="animate-spin mr-1" /> : 
+                                <FileText size={14} className="mr-1" />
+                              } PDF
+                            </button>
+                            <button
+                              onClick={() => handleApproveBatch(batch.batch_id)}
+                              disabled={processingBatch === batch.batch_id}
+                              className="text-green-600 hover:text-green-800 p-1 text-xs px-2 py-1 border border-green-600 rounded disabled:opacity-50 flex items-center"
+                              title="Setujui"
+                            >
+                              {processingBatch === batch.batch_id ? 
+                                <Loader2 size={12} className="animate-spin mr-1" /> : 
+                                'Setujui'
+                              }
+                            </button>
+                          </>
+                        )}
+                        {batch.status === 'approved' && (
+                          <>
+                            <button
+                              onClick={() => handleEditBatch(batch.batch_id)}
+                              className="text-orange-600 hover:text-orange-800 p-1 text-xs flex items-center"
+                              title="Edit (akan mengembalikan ke pending)"
+                            >
+                              <Edit2 size={14} className="mr-1" /> Edit
+                            </button>
+                            <button
+                              onClick={() => exportToPDF(batch.batch_id)}
+                              disabled={processingBatch === batch.batch_id}
+                              className="text-purple-600 hover:text-purple-800 p-1 text-xs flex items-center disabled:opacity-50"
+                              title="Export PDF"
+                            >
+                              {processingBatch === batch.batch_id ? 
+                                <Loader2 size={14} className="animate-spin mr-1" /> : 
+                                <FileText size={14} className="mr-1" />
+                              } PDF
+                            </button>
+                            <button
+                              onClick={() => handleRevertBatch(batch.batch_id)}
+                              disabled={processingBatch === batch.batch_id}
+                              className="text-red-600 hover:text-red-800 p-1 text-xs px-2 py-1 border border-red-600 rounded disabled:opacity-50 flex items-center"
+                              title="Kembalikan ke Pending"
+                            >
+                              {processingBatch === batch.batch_id ? 
+                                <Loader2 size={12} className="animate-spin mr-1" /> : 
+                                'Kembalikan'
+                              }
+                            </button>
+                          </>
+                        )}
+                      </div>
+                      
+                      {expandedBatch === batch.batch_id && (
+                        <div className="mt-4 pt-4 border-t">
+                          <h4 className="font-medium mb-2 text-sm">Detail Produk:</h4>
+                          <div className="space-y-3">
+                            {batchDetails.map((detail) => {
+                              const difference = detail.physical_stock - (detail.system_stock || 0)
+                              return (
+                                <div key={detail.detail_id} className="p-2 bg-gray-50 rounded text-sm">
+                                  <div className="font-medium">{detail.product_name}</div>
+                                  <div className="grid grid-cols-2 gap-1 mt-1">
+                                    <div className="text-gray-600">Sistem:</div>
+                                    <div>{detail.system_stock}</div>
+                                    
+                                    <div className="text-gray-600">Fisik:</div>
+                                    <div>{detail.physical_stock}</div>
+                                    
+                                    <div className="text-gray-600">Selisih:</div>
+                                    <div className={`font-medium ${
+                                      difference > 0 ? 'text-green-600' : 
+                                      difference < 0 ? 'text-red-600' : 'text-gray-600'
+                                    }`}>
+                                      {difference.toFixed(2)}
+                                    </div>
+                                    
+                                    <div className="text-gray-600">Catatan:</div>
+                                    <div>{detail.notes || '-'}</div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              // Desktop view for batches
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-4 py-3 text-left">ID Batch</th>
+                      <th className="px-4 py-3 text-left">Tanggal</th>
+                      <th className="px-4 py-3 text-left">Waktu</th>
+                      <th className="px-4 py-3 text-left">Cabang</th>
+                      <th className="px-4 py-3 text-left">Sub Kategori</th>
+                      <th className="px-4 py-3 text-left">PIC</th>
+                      <th className="px-4 py-3 text-left">Produk</th>
+                      <th className="px-4 py-3 text-left">Status</th>
+                      <th className="px-4 py-3 text-left">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedBatches.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="px-4 py-4 text-center text-gray-500">
+                          {batches.length === 0 ? 'Tidak ada data batch' : 'Tidak ada batch yang sesuai dengan filter'}
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedBatches.map((batch) => (
+                        <React.Fragment key={batch.batch_id}>
+                          <tr className="border-t hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => toggleBatchExpansion(batch.batch_id)}
+                                className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                              >
+                                {expandedBatch === batch.batch_id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                BATCH-{batch.batch_id}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3">{batch.batch_date}</td>
+                            <td className="px-4 py-3">{batch.batch_time?.substring(0, 5) || '12:00'}</td>        
+                            <td className="px-4 py-3">{batch.nama_branch}</td>
+                            <td className="px-4 py-3">{batch.sub_category}</td>
+                            <td className="px-4 py-3">{batch.pic_name}</td>
+                            <td className="px-4 py-3">{batch.products_counted}/{batch.total_products}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                batch.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                batch.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {batch.status_icon} {batch.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex gap-1">
+                                {batch.status === 'pending' && (
+                                  <>
+                                    <button
+                                      onClick={() => handleEditBatch(batch.batch_id)}
+                                      className="text-blue-600 hover:text-blue-800 p-1"
+                                      title="Edit"
+                                    >
+                                      <Edit2 size={14} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteBatch(batch.batch_id)}
+                                      disabled={processingBatch === batch.batch_id}
+                                      className="text-red-600 hover:text-red-800 p-1 disabled:opacity-50"
+                                      title="Hapus"
+                                    >
+                                      {processingBatch === batch.batch_id ? 
+                                        <Loader2 size={14} className="animate-spin" /> : 
+                                        <Trash2 size={14} />
+                                      }
+                                    </button>
+                                    <button
+                                      onClick={() => exportToPDF(batch.batch_id)}
+                                      disabled={processingBatch === batch.batch_id}
+                                      className="text-purple-600 hover:text-purple-800 p-1 disabled:opacity-50"
+                                      title="Export PDF"
+                                    >
+                                      {processingBatch === batch.batch_id ? 
+                                        <Loader2 size={14} className="animate-spin" /> : 
+                                        <FileText size={14} />
+                                      }
+                                    </button>
+                                    <button
+                                      onClick={() => handleApproveBatch(batch.batch_id)}
+                                      disabled={processingBatch === batch.batch_id}
+                                      className="text-green-600 hover:text-green-800 p-1 text-xs px-2 py-1 border border-green-600 rounded disabled:opacity-50"
+                                      title="Setujui"
+                                    >
+                                      {processingBatch === batch.batch_id ? 
+                                        <Loader2 size={12} className="animate-spin inline mr-1" /> : 
+                                        'Setujui'
+                                      }
+                                    </button>
+                                  </>
+                                )}
+                                {batch.status === 'approved' && (
+                                  <>
+                                    <button
+                                      onClick={() => handleEditBatch(batch.batch_id)}
+                                      className="text-orange-600 hover:text-orange-800 p-1"
+                                      title="Edit (akan mengembalikan ke pending)"
+                                    >
+                                      <Edit2 size={14} />
+                                    </button>
+                                    <button
+                                      onClick={() => exportToPDF(batch.batch_id)}
+                                      disabled={processingBatch === batch.batch_id}
+                                      className="text-purple-600 hover:text-purple-800 p-1 disabled:opacity-50"
+                                      title="Export PDF"
+                                    >
+                                      {processingBatch === batch.batch_id ? 
+                                        <Loader2 size={14} className="animate-spin" /> : 
+                                        <FileText size={14} />
+                                      }
+                                    </button>
+                                    <button
+                                      onClick={() => handleRevertBatch(batch.batch_id)}
+                                      disabled={processingBatch === batch.batch_id}
+                                      className="text-red-600 hover:text-red-800 p-1 text-xs px-2 py-1 border border-red-600 rounded disabled:opacity-50"
+                                      title="Kembalikan ke Pending"
+                                    >
+                                      {processingBatch === batch.batch_id ? 
+                                        <Loader2 size={12} className="animate-spin inline mr-1" /> : 
+                                        'Kembalikan'
+                                      }
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>
-                        )}
-                      </React.Fragment>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                          {expandedBatch === batch.batch_id && (
+                            <tr>
+                              <td colSpan={9} className="px-4 py-2 bg-gray-50">
+                                <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
+                                  <div><strong>Tanggal:</strong> {batch.batch_date}</div>
+                                  <div><strong>Waktu:</strong> {batch.batch_time?.substring(0, 5) || '12:00'}</div>
+                                  <div><strong>Cabang:</strong> {batch.nama_branch}</div>
+                                  <div><strong>Sub Kategori:</strong> {batch.sub_category}</div>
+                                </div>
+                                <div className="max-h-64 overflow-y-auto">
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="bg-gray-100">
+                                        <th className="px-2 py-1 text-left">Produk</th>
+                                        <th className="px-2 py-1 text-left">Sistem</th>
+                                        <th className="px-2 py-1 text-left">Fisik</th>
+                                        <th className="px-2 py-1 text-left">Selisih</th>
+                                        <th className="px-2 py-1 text-left">Catatan</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {batchDetails.map((detail) => {
+                                        const difference = detail.physical_stock - (detail.system_stock || 0)
+                                        return (
+                                          <tr key={detail.detail_id} className="border-t">
+                                            <td className="px-2 py-1">{detail.product_name}</td>
+                                            <td className="px-2 py-1">{detail.system_stock}</td>
+                                            <td className="px-2 py-1">{detail.physical_stock}</td>
+                                            <td className={`px-2 py-1 font-medium ${
+                                              difference > 0 ? 'text-green-600' : 
+                                              difference < 0 ? 'text-red-600' : 'text-gray-600'
+                                            }`}>
+                                              {difference.toFixed(2)}
+                                            </td>
+                                            <td className="px-2 py-1">{detail.notes || '-'}</td>
+                                          </tr>
+                                        )
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
             
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t">
+              <div className="flex items-center justify-between px-4 py-3 border-t flex-wrap gap-2">
                 <div className="text-sm text-gray-700">
                   Halaman {currentPage} dari {totalPages}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1 flex-wrap">
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
-                    className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                    className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 text-sm"
                   >
                     ← Sebelumnya
                   </button>
@@ -1288,7 +1595,7 @@ export default function StockOpnameBatchPage() {
                       <button
                         key={pageNum}
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`px-3 py-1 border rounded ${
+                        className={`px-3 py-1 border rounded text-sm ${
                           currentPage === pageNum 
                             ? 'bg-blue-600 text-white' 
                             : 'hover:bg-gray-50'
@@ -1302,7 +1609,7 @@ export default function StockOpnameBatchPage() {
                   <button
                     onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                     disabled={currentPage === totalPages}
-                    className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                    className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 text-sm"
                   >
                     Selanjutnya →
                   </button>

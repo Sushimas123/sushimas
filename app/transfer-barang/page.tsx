@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { Package, ArrowRightLeft, Edit, Trash2, Plus, RefreshCw, Filter, X, Share2, Search, ChevronDown } from 'lucide-react'
+import { Package, ArrowRightLeft, Edit, Trash2, Plus, RefreshCw, Filter, X, Share2, Search, ChevronDown, Menu, ChevronLeft, CheckCircle } from 'lucide-react'
 import Layout from '../../components/Layout'
 import PageAccessControl from '../../components/PageAccessControl'
 
@@ -40,99 +40,6 @@ interface Product {
   harga: number
 }
 
-interface ProductSelectProps {
-  products: Product[]
-  value: string
-  onChange: (value: string) => void
-  placeholder?: string
-}
-
-function ProductSelect({ products, value, onChange, placeholder = "Pilih Produk" }: ProductSelectProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const [selectedValue, setSelectedValue] = useState(value)
-  
-  // Update internal state when external value changes
-  useEffect(() => {
-    setSelectedValue(value)
-  }, [value])
-  
-  const filteredProducts = products.filter(product => 
-    product.product_name.toLowerCase().includes(search.toLowerCase())
-  )
-  
-  const selectedProduct = products.find(p => p.id_product.toString() === selectedValue.toString())
-  
-  const handleSelect = (productId: string) => {
-    setSelectedValue(productId)
-    onChange(productId)
-    setIsOpen(false)
-    setSearch('')
-  }
-  
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-left flex items-center justify-between bg-white"
-      >
-        <span className={selectedProduct ? 'text-gray-900' : 'text-gray-500'}>
-          {selectedProduct ? `${selectedProduct.product_name} - ${selectedProduct.unit_kecil}` : placeholder}
-        </span>
-        <ChevronDown className="h-4 w-4 text-gray-400" />
-      </button>
-      
-      {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">
-          <div className="p-2 border-b">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Cari produk..."
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                autoFocus
-              />
-            </div>
-          </div>
-          <div className="max-h-60 overflow-y-auto">
-            {filteredProducts.length === 0 ? (
-              <div className="p-3 text-gray-500 text-center">Produk tidak ditemukan</div>
-            ) : (
-              filteredProducts.map(product => (
-                <button
-                  key={product.id_product}
-                  type="button"
-                  onClick={() => handleSelect(product.id_product.toString())}
-                  className={`w-full text-left p-3 hover:bg-gray-50 border-b last:border-b-0 ${
-                    selectedValue === product.id_product.toString() ? 'bg-blue-50' : ''
-                  }`}
-                >
-                  <div className="font-medium text-gray-900">{product.product_name}</div>
-                  <div className="text-sm text-gray-500">{product.unit_kecil}</div>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-      
-      {isOpen && (
-        <div 
-          className="fixed inset-0 z-40" 
-          onClick={() => {
-            setIsOpen(false)
-            setSearch('')
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
 export default function TransferBarangPage() {
   const [transfers, setTransfers] = useState<TransferBarang[]>([])
   const [branches, setBranches] = useState<Branch[]>([])
@@ -146,19 +53,40 @@ export default function TransferBarangPage() {
   const [selectedBranch, setSelectedBranch] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
   const [searchTransfer, setSearchTransfer] = useState('')
-  const itemsPerPage = 20
+  const [isMobile, setIsMobile] = useState(false)
+  const [expandedTransfer, setExpandedTransfer] = useState<number | null>(null)
+  const [showMobileSearch, setShowMobileSearch] = useState(false)
+  const [activeTab, setActiveTab] = useState<'list' | 'form'>('list')
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
+  const itemsPerPage = 10
 
   const [form, setForm] = useState({
     id: undefined as number | undefined,
     cabang_peminjam_id: '',
     cabang_tujuan_id: '',
+    id_product: '',
+    jumlah: '',
     tgl_pinjam: new Date().toISOString().split('T')[0],
-    keterangan: '',
-    items: [{ id_product: '', jumlah: '', stockInfo: null as {jumlah: number, unit: string} | null }]
+    keterangan: ''
   })
+  const [stockInfo, setStockInfo] = useState<{jumlah: number, unit: string} | null>(null)
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{show: boolean, id: number | null}>({show: false, id: null})
+
+  // Check if device is mobile
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    checkIsMobile()
+    window.addEventListener('resize', checkIsMobile)
+    
+    return () => {
+      window.removeEventListener('resize', checkIsMobile)
+    }
+  }, [])
 
   useEffect(() => {
     fetchBranches()
@@ -271,55 +199,52 @@ export default function TransferBarangPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!form.cabang_peminjam_id || !form.cabang_tujuan_id) {
-      showToast('Mohon pilih cabang asal dan tujuan', 'error')
+    if (!form.cabang_peminjam_id || !form.cabang_tujuan_id || !form.id_product || !form.jumlah) {
+      showToast('Mohon lengkapi semua field yang wajib', 'error')
       return
     }
 
     if (form.cabang_peminjam_id === form.cabang_tujuan_id) {
-      showToast('Cabang asal dan tujuan tidak boleh sama', 'error')
+      showToast('Cabang peminjam dan tujuan tidak boleh sama', 'error')
       return
     }
-
-    const validItems = form.items.filter(item => {
-      const jumlah = parseFloat(item.jumlah || '0')
-      return item.id_product && item.jumlah && !isNaN(jumlah) && jumlah > 0
-    })
-    
-    if (validItems.length === 0) {
-      showToast('Mohon tambahkan minimal 1 item', 'error')
-      return
-    }
-
-
 
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}')
+      const selectedProduct = products.find(p => p.id_product === parseInt(form.id_product))
       
-      const transfersData = validItems.map(item => {
-        const selectedProduct = products.find(p => p.id_product === parseInt(item.id_product))
-        return {
-          cabang_peminjam_id: parseInt(form.cabang_peminjam_id),
-          cabang_tujuan_id: parseInt(form.cabang_tujuan_id),
-          id_product: parseInt(item.id_product),
-          jumlah: parseFloat(item.jumlah),
-          harga_satuan: selectedProduct?.harga || 0,
-          tgl_pinjam: form.tgl_pinjam,
-          tgl_barang_sampai: null,
-          keterangan: form.keterangan,
-          created_by: user.id_user
-        }
-      })
+      const transferData = {
+        cabang_peminjam_id: parseInt(form.cabang_peminjam_id),
+        cabang_tujuan_id: parseInt(form.cabang_tujuan_id),
+        id_product: parseInt(form.id_product),
+        jumlah: parseFloat(form.jumlah),
+        harga_satuan: selectedProduct?.harga || 0,
+        tgl_pinjam: form.tgl_pinjam,
+        tgl_barang_sampai: null,
+        keterangan: form.keterangan,
+        created_by: user.id_user
+      }
 
-      const { error } = await supabase
-        .from('transfer_barang')
-        .insert(transfersData)
-      
-      if (error) throw error
-      showToast(`${validItems.length} transfer berhasil dibuat`, 'success')
+      if (editing) {
+        const { error } = await supabase
+          .from('transfer_barang')
+          .update(transferData)
+          .eq('id', form.id)
+        
+        if (error) throw error
+        showToast('Transfer berhasil diupdate', 'success')
+      } else {
+        const { error } = await supabase
+          .from('transfer_barang')
+          .insert([transferData])
+        
+        if (error) throw error
+        showToast('Transfer berhasil dibuat', 'success')
+      }
       
       resetForm()
       fetchTransfers()
+      setActiveTab('list')
     } catch (error) {
       console.error('Error saving transfer:', error)
       showToast('Gagal menyimpan transfer', 'error')
@@ -331,16 +256,13 @@ export default function TransferBarangPage() {
       id: transfer.id,
       cabang_peminjam_id: transfer.cabang_peminjam_id.toString(),
       cabang_tujuan_id: transfer.cabang_tujuan_id.toString(),
+      id_product: transfer.id_product.toString(),
+      jumlah: transfer.jumlah.toString(),
       tgl_pinjam: transfer.tgl_pinjam,
-      keterangan: transfer.keterangan || '',
-      items: [{ 
-        id_product: transfer.id_product.toString(), 
-        jumlah: transfer.jumlah.toString(), 
-        stockInfo: null 
-      }]
+      keterangan: transfer.keterangan || ''
     })
     setEditing(true)
-    setShowForm(true)
+    setActiveTab('form')
   }
 
   const recalculateGudangTotals = async (productId: number, branchCode: string, fromDate: string) => {
@@ -525,50 +447,26 @@ export default function TransferBarangPage() {
     }
   }
 
-  const addItem = () => {
-    setForm({
-      ...form,
-      items: [...form.items, { id_product: '', jumlah: '', stockInfo: null }]
-    })
-  }
-
-  const removeItem = (index: number) => {
-    if (form.items.length > 1) {
-      const newItems = form.items.filter((_, i) => i !== index)
-      setForm({ ...form, items: newItems })
-    }
-  }
-
-  const updateItem = (index: number, field: string, value: string) => {
-    setForm(prevForm => {
-      const newItems = [...prevForm.items]
-      newItems[index] = { 
-        ...newItems[index], 
-        [field]: value // Tidak perlu toString() karena sudah string
-      }
-      return { ...prevForm, items: newItems }
-    })
-    
-    if (field === 'id_product' && value && form.cabang_peminjam_id && form.tgl_pinjam) {
-      checkStock(value, form.cabang_peminjam_id, form.tgl_pinjam, index)
-    }
-  }
-
   const resetForm = () => {
     setForm({
       id: undefined,
       cabang_peminjam_id: '',
       cabang_tujuan_id: '',
+      id_product: '',
+      jumlah: '',
       tgl_pinjam: new Date().toISOString().split('T')[0],
-      keterangan: '',
-      items: [{ id_product: '', jumlah: '', stockInfo: null }]
+      keterangan: ''
     })
+    setStockInfo(null)
     setEditing(false)
-    setShowForm(false)
+    setActiveTab('list')
   }
 
-  const checkStock = async (productId: string, branchId: string, date: string, itemIndex?: number) => {
-    if (!productId || !branchId || !date) return
+  const checkStock = async (productId: string, branchId: string, date: string) => {
+    if (!productId || !branchId || !date) {
+      setStockInfo(null)
+      return
+    }
 
     try {
       const branch = branches.find(b => b.id_branch === parseInt(branchId))
@@ -583,40 +481,26 @@ export default function TransferBarangPage() {
         .order('tanggal', { ascending: false })
         .limit(1)
 
-      if (error) {
-        console.error('Error fetching stock:', error)
-        return
-      }
+      if (error) throw error
 
       const product = products.find(p => p.id_product === parseInt(productId))
       const stock = data?.[0]?.total_gudang || 0
       
-      const stockInfo = {
+      setStockInfo({
         jumlah: stock,
         unit: product?.unit_kecil || ''
-      }
-
-      if (itemIndex !== undefined) {
-        setForm(prevForm => {
-          const newItems = [...prevForm.items]
-          newItems[itemIndex].stockInfo = stockInfo
-          return { ...prevForm, items: newItems }
-        })
-      }
+      })
     } catch (error) {
       console.error('Error checking stock:', error)
+      setStockInfo(null)
     }
   }
 
   useEffect(() => {
-    if (form.cabang_peminjam_id && form.tgl_pinjam) {
-      form.items.forEach((item, index) => {
-        if (item.id_product) {
-          checkStock(item.id_product, form.cabang_peminjam_id, form.tgl_pinjam, index)
-        }
-      })
+    if (form.id_product && form.cabang_peminjam_id && form.tgl_pinjam) {
+      checkStock(form.id_product, form.cabang_peminjam_id, form.tgl_pinjam)
     }
-  }, [form.cabang_peminjam_id, form.tgl_pinjam])
+  }, [form.id_product, form.cabang_peminjam_id, form.tgl_pinjam])
 
   const totalPages = Math.ceil(totalCount / itemsPerPage)
 
@@ -633,458 +517,890 @@ export default function TransferBarangPage() {
     )
   }
 
-  return (
-    <PageAccessControl pageName="transfer_barang">
-      <Layout>
-        <div className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center gap-3">
-              <ArrowRightLeft className="h-8 w-8 text-blue-600" />
-              <h1 className="text-2xl font-bold text-gray-900">Transfer Barang</h1>
+  // Mobile-specific components
+  const MobileTransferCard = ({ transfer }: { transfer: TransferBarang }) => {
+    const isExpanded = expandedTransfer === transfer.id
+    
+    return (
+      <div className="bg-white rounded-lg border p-4 mb-3 shadow-sm">
+        <div className="flex justify-between items-start">
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-blue-600 text-sm">{transfer.transfer_no}</h3>
+              {getStatusBadge(transfer.status)}
             </div>
-            <div className="flex gap-2">
+            
+            <div className="space-y-1 text-sm">
+              <div className="flex">
+                <span className="font-medium w-20">Dari:</span>
+                <span className="flex-1 truncate">{transfer.cabang_peminjam}</span>
+              </div>
+              <div className="flex">
+                <span className="font-medium w-20">Ke:</span>
+                <span className="flex-1 truncate">{transfer.cabang_tujuan}</span>
+              </div>
+              <div className="flex">
+                <span className="font-medium w-20">Produk:</span>
+                <span className="flex-1 truncate">{transfer.product_name}</span>
+              </div>
+              <div className="flex">
+                <span className="font-medium w-20">Jumlah:</span>
+                <span className="flex-1">{transfer.jumlah} {transfer.unit_kecil}</span>
+              </div>
+            </div>
+          </div>
+          
+          <button 
+            onClick={() => setExpandedTransfer(isExpanded ? null : transfer.id)}
+            className="ml-2 text-gray-500"
+          >
+            {isExpanded ? <ChevronDown size={20} /> : <ChevronDown size={20} />}
+          </button>
+        </div>
+        
+        {isExpanded && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+              <div>
+                <span className="font-medium">Tgl Pinjam:</span>
+                <p>{new Date(transfer.tgl_pinjam).toLocaleDateString('id-ID')}</p>
+              </div>
+              <div>
+                <span className="font-medium">Tgl Sampai:</span>
+                <p>{transfer.tgl_barang_sampai ? new Date(transfer.tgl_barang_sampai).toLocaleDateString('id-ID') : '-'}</p>
+              </div>
+            </div>
+            
+            <div className="flex justify-between">
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => window.open(`/transfer-barang/print/${transfer.id}`, '_blank')}
+                  className="p-2 bg-purple-100 text-purple-600 rounded-full"
+                  title="View/Share"
+                >
+                  <Share2 size={16} />
+                </button>
+                
+                {transfer.status === 'pending' && (
+                  <button
+                    onClick={() => handleComplete(transfer.id)}
+                    className="p-2 bg-green-100 text-green-600 rounded-full"
+                    title="Selesai"
+                  >
+                    <CheckCircle size={16} />
+                  </button>
+                )}
+                
+                <button
+                  onClick={() => handleEdit(transfer)}
+                  className="p-2 bg-blue-100 text-blue-600 rounded-full"
+                >
+                  <Edit size={16} />
+                </button>
+                
+                <button
+                  onClick={() => setDeleteConfirm({show: true, id: transfer.id})}
+                  className="p-2 bg-red-100 text-red-600 rounded-full"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const MobileSearchBar = () => {
+    return (
+      <div className="bg-white p-3 mb-4 rounded-lg shadow-sm flex items-center sticky top-0 z-10">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            value={searchTransfer}
+            onChange={(e) => setSearchTransfer(e.target.value)}
+            placeholder="Cari transfer number..."
+            className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+          {searchTransfer && (
+            <button 
+              onClick={() => setSearchTransfer('')} 
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+        <button 
+          onClick={() => setShowMobileSearch(false)}
+          className="ml-2 p-2 text-gray-600"
+        >
+          <X size={20} />
+        </button>
+      </div>
+    )
+  }
+
+  const MobileFilterPanel = () => {
+    return (
+      <div className="fixed inset-0 bg-white z-50 p-4 overflow-y-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold">Filter Transfer</h2>
+          <button onClick={() => setShowFilter(false)} className="p-2">
+            <X size={24} />
+          </button>
+        </div>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
+            <select
+              value={selectedBranch}
+              onChange={(e) => setSelectedBranch(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg"
+            >
+              <option value="">Semua Cabang</option>
+              {branches.map(branch => (
+                <option key={branch.id_branch} value={branch.id_branch}>
+                  {branch.nama_branch}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg"
+            >
+              <option value="">Semua Status</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Selesai</option>
+            </select>
+          </div>
+          
+          <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
+            <button
+              onClick={() => {
+                setSearchTransfer('')
+                setSelectedBranch('')
+                setSelectedStatus('')
+              }}
+              className="w-full mb-2 px-4 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium"
+            >
+              Reset Filter
+            </button>
+            <button
+              onClick={() => setShowFilter(false)}
+              className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium"
+            >
+              Terapkan Filter
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const MobileForm = () => {
+    return (
+      <div className="bg-white min-h-screen p-4">
+        <div className="flex items-center mb-6">
+          <button 
+            onClick={() => setActiveTab('list')}
+            className="p-2 mr-2"
+          >
+            <ChevronLeft size={24} />
+          </button>
+          <h1 className="text-xl font-bold">
+            {editing ? 'Edit Transfer' : 'Transfer Baru'}
+          </h1>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Cabang Peminjam *
+            </label>
+            <select
+              value={form.cabang_peminjam_id}
+              onChange={(e) => setForm({...form, cabang_peminjam_id: e.target.value})}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            >
+              <option value="">Pilih Cabang Peminjam</option>
+              {branches.map(branch => (
+                <option key={branch.id_branch} value={branch.id_branch}>
+                  {branch.nama_branch}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Cabang Tujuan *
+            </label>
+            <select
+              value={form.cabang_tujuan_id}
+              onChange={(e) => setForm({...form, cabang_tujuan_id: e.target.value})}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            >
+              <option value="">Pilih Cabang Tujuan</option>
+              {branches.map(branch => (
+                <option key={branch.id_branch} value={branch.id_branch}>
+                  {branch.nama_branch}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Produk *
+            </label>
+            <select
+              value={form.id_product}
+              onChange={(e) => setForm({...form, id_product: e.target.value})}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            >
+              <option value="">Pilih Produk</option>
+              {products.map(product => (
+                <option key={product.id_product} value={product.id_product}>
+                  {product.product_name} - {product.unit_kecil}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Jumlah *
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={form.jumlah}
+              onChange={(e) => setForm({...form, jumlah: e.target.value})}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+            {stockInfo && (
+              <p className={`text-xs mt-1 ${
+                parseFloat(form.jumlah) > stockInfo.jumlah ? 'text-red-600' : 'text-green-600'
+              }`}>
+                Stok tersedia: {stockInfo.jumlah} {stockInfo.unit}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Tanggal Pinjam *
+            </label>
+            <input
+              type="date"
+              value={form.tgl_pinjam}
+              onChange={(e) => setForm({...form, tgl_pinjam: e.target.value})}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Keterangan
+            </label>
+            <textarea
+              value={form.keterangan}
+              onChange={(e) => setForm({...form, keterangan: e.target.value})}
+              rows={3}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Keterangan tambahan..."
+            />
+          </div>
+
+          <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
+            <div className="flex gap-3">
               <button
-                onClick={() => setShowFilter(!showFilter)}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                type="button"
+                onClick={() => setActiveTab('list')}
+                className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium"
               >
-                <Filter className="h-4 w-4" />
-                Filter
+                Batal
               </button>
               <button
-                onClick={() => setShowForm(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                type="submit"
+                className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium"
               >
-                <Plus className="h-4 w-4" />
-                Transfer Baru
+                {editing ? 'Update' : 'Simpan'}
               </button>
             </div>
           </div>
+        </form>
+      </div>
+    )
+  }
 
-          {showFilter && (
-            <div className="bg-white p-4 rounded-lg border mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Transfer No</label>
-                  <input
-                    type="text"
-                    value={searchTransfer}
-                    onChange={(e) => setSearchTransfer(e.target.value)}
-                    placeholder="Cari transfer number..."
-                    className="w-full p-2 border border-gray-300 rounded-lg"
-                  />
+  const MobileList = () => {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Search Bar */}
+        {showMobileSearch && <MobileSearchBar />}
+
+        {/* Content */}
+        <div className="p-4">
+          {loading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-lg border p-4 mb-3 shadow-sm animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-3/4 mb-3"></div>
+                <div className="h-3 bg-gray-200 rounded w-full mb-2"></div>
+                <div className="h-3 bg-gray-200 rounded w-full mb-2"></div>
+                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+              </div>
+            ))
+          ) : transfers.length === 0 ? (
+            <div className="text-center py-10">
+              <Package className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500">Tidak ada data transfer</p>
+              <button
+                onClick={() => {
+                  resetForm()
+                  setActiveTab('form')
+                }}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg"
+              >
+                Buat Transfer Baru
+              </button>
+            </div>
+          ) : (
+            <>
+              {transfers.map((transfer) => (
+                <MobileTransferCard key={transfer.id} transfer={transfer} />
+              ))}
+              
+              {totalPages > 1 && (
+                <div className="flex justify-center mt-6">
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                      className="px-4 py-2 bg-white border border-gray-300 rounded disabled:opacity-50"
+                    >
+                      Prev
+                    </button>
+                    <span className="px-4 py-2 bg-blue-100 text-blue-800 rounded">
+                      {currentPage}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-4 py-2 bg-white border border-gray-300 rounded disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
-                  <select
-                    value={selectedBranch}
-                    onChange={(e) => setSelectedBranch(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="">Semua Cabang</option>
-                    {branches.map(branch => (
-                      <option key={branch.id_branch} value={branch.id_branch}>
-                        {branch.nama_branch}
-                      </option>
-                    ))}
-                  </select>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <PageAccessControl pageName="transfer_barang">
+      <Layout>
+        {isMobile ? (
+          <>
+            {/* Mobile Header */}
+            <div className="bg-white p-4 shadow-sm sticky top-0 z-10">
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center">
+                  <ArrowRightLeft className="h-6 w-6 text-blue-600 mr-2" />
+                  <h1 className="text-xl font-bold text-gray-900">Transfer Barang</h1>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                  <select
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="">Semua Status</option>
-                    <option value="pending">Pending</option>
-                    <option value="completed">Selesai</option>
-                  </select>
-                </div>
-                <div className="flex items-end">
+                <button
+                  onClick={() => setShowMobileMenu(!showMobileMenu)}
+                  className="p-2 rounded-md bg-gray-100"
+                >
+                  {showMobileMenu ? <X size={20} /> : <Menu size={20} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile Menu */}
+            {showMobileMenu && (
+              <div className="bg-white p-4 rounded-lg shadow mb-4 mx-4">
+                <div className="flex flex-col gap-2">
                   <button
                     onClick={() => {
-                      setSearchTransfer('')
-                      setSelectedBranch('')
-                      setSelectedStatus('')
+                      resetForm()
+                      setActiveTab('form')
+                      setShowMobileMenu(false)
                     }}
-                    className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm flex items-center gap-2"
                   >
-                    Reset Filter
+                    <Plus size={16} />
+                    Transfer Baru
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setShowFilter(true)
+                      setShowMobileMenu(false)
+                    }}
+                    className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-md text-sm flex items-center gap-2"
+                  >
+                    <Filter size={16} />
+                    Filter
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      fetchTransfers()
+                      setShowMobileMenu(false)
+                    }}
+                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md text-sm flex items-center gap-2"
+                  >
+                    <RefreshCw size={16} />
+                    Refresh
                   </button>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <div className="bg-white rounded-lg shadow">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transfer No</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cabang asal</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cabang Tujuan</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produk</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jumlah</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tgl Pinjam</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tgl Sampai</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {loading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i}>
-                        <td colSpan={9} className="px-6 py-4">
-                          <div className="animate-pulse flex space-x-4">
-                            <div className="flex-1 space-y-2 py-1">
-                              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : transfers.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
-                        Tidak ada data transfer
-                      </td>
-                    </tr>
-                  ) : (
-                    transfers.map((transfer) => (
-                      <tr key={transfer.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                          {transfer.transfer_no}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {transfer.cabang_peminjam}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {transfer.cabang_tujuan}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {transfer.product_name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {transfer.jumlah} {transfer.unit_kecil}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {new Date(transfer.tgl_pinjam).toLocaleDateString('id-ID')}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {transfer.tgl_barang_sampai ? new Date(transfer.tgl_barang_sampai).toLocaleDateString('id-ID') : '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {getStatusBadge(transfer.status)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => window.open(`/transfer-barang/print/${transfer.id}`, '_blank')}
-                              className="text-purple-600 hover:text-purple-900"
-                              title="View/Share"
-                            >
-                              <Share2 className="h-4 w-4" />
-                            </button>
-                            {transfer.status === 'pending' && (
-                              <button
-                                onClick={() => handleComplete(transfer.id)}
-                                className="text-green-600 hover:text-green-900"
-                                title="Selesai"
-                              >
-                                <RefreshCw className="h-4 w-4" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleEdit(transfer)}
-                              className="text-blue-600 hover:text-blue-900"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirm({show: true, id: transfer.id})}
-                              className="text-red-600 hover:text-red-900"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            {activeTab === 'list' && <MobileList />}
+            {activeTab === 'form' && <MobileForm />}
+            {showFilter && <MobileFilterPanel />}
+          </>
+        ) : (
+          // Desktop view (existing code)
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3">
+                <ArrowRightLeft className="h-8 w-8 text-blue-600" />
+                <h1 className="text-2xl font-bold text-gray-900">Transfer Barang</h1>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowFilter(!showFilter)}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                >
+                  <Filter className="h-4 w-4" />
+                  Filter
+                </button>
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus className="h-4 w-4" />
+                  Transfer Baru
+                </button>
+              </div>
             </div>
 
-            {totalPages > 1 && (
-              <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-                <div className="flex-1 flex justify-between sm:hidden">
-                  <button
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages}
-                    className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Next
-                  </button>
-                </div>
-                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+            {showFilter && (
+              <div className="bg-white p-4 rounded-lg border mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
-                    <p className="text-sm text-gray-700">
-                      Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
-                      <span className="font-medium">{Math.min(currentPage * itemsPerPage, totalCount)}</span> of{' '}
-                      <span className="font-medium">{totalCount}</span> results
-                    </p>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Transfer No</label>
+                    <input
+                      type="text"
+                      value={searchTransfer}
+                      onChange={(e) => setSearchTransfer(e.target.value)}
+                      placeholder="Cari transfer number..."
+                      className="w-full p-2 border border-gray-300 rounded-lg"
+                    />
                   </div>
                   <div>
-                    <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                        <button
-                          key={page}
-                          onClick={() => setCurrentPage(page)}
-                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                            page === currentPage
-                              ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                              : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                          }`}
-                        >
-                          {page}
-                        </button>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
+                    <select
+                      value={selectedBranch}
+                      onChange={(e) => setSelectedBranch(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="">Semua Cabang</option>
+                      {branches.map(branch => (
+                        <option key={branch.id_branch} value={branch.id_branch}>
+                          {branch.nama_branch}
+                        </option>
                       ))}
-                    </nav>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select
+                      value={selectedStatus}
+                      onChange={(e) => setSelectedStatus(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="">Semua Status</option>
+                      <option value="pending">Pending</option>
+                      <option value="completed">Selesai</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      onClick={() => {
+                        setSearchTransfer('')
+                        setSelectedBranch('')
+                        setSelectedStatus('')
+                      }}
+                      className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                    >
+                      Reset Filter
+                    </button>
                   </div>
                 </div>
               </div>
             )}
-          </div>
-        </div>
 
-        {showForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    {editing ? 'Edit Transfer Barang' : 'Buat Transfer Barang Baru'}
-                  </h2>
-                  <button
-                    onClick={resetForm}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    <X className="h-6 w-6" />
-                  </button>
+            <div className="bg-white rounded-lg shadow">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transfer No</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cabang asal</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cabang Tujuan</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produk</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jumlah</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tgl Pinjam</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tgl Sampai</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {loading ? (
+                      Array.from({ length: 5 }).map((_, i) => (
+                        <tr key={i}>
+                          <td colSpan={9} className="px-6 py-4">
+                            <div className="animate-pulse flex space-x-4">
+                              <div className="flex-1 space-y-2 py-1">
+                                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : transfers.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
+                          Tidak ada data transfer
+                        </td>
+                      </tr>
+                    ) : (
+                      transfers.map((transfer) => (
+                        <tr key={transfer.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                            {transfer.transfer_no}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {transfer.cabang_peminjam}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {transfer.cabang_tujuan}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {transfer.product_name}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {transfer.jumlah} {transfer.unit_kecil}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {new Date(transfer.tgl_pinjam).toLocaleDateString('id-ID')}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {transfer.tgl_barang_sampai ? new Date(transfer.tgl_barang_sampai).toLocaleDateString('id-ID') : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {getStatusBadge(transfer.status)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => window.open(`/transfer-barang/print/${transfer.id}`, '_blank')}
+                                className="text-purple-600 hover:text-purple-900"
+                                title="View/Share"
+                              >
+                                <Share2 className="h-4 w-4" />
+                              </button>
+                              {transfer.status === 'pending' && (
+                                <button
+                                  onClick={() => handleComplete(transfer.id)}
+                                  className="text-green-600 hover:text-green-900"
+                                  title="Selesai"
+                                >
+                                  <RefreshCw className="h-4 w-4" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleEdit(transfer)}
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirm({show: true, id: transfer.id})}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+                  <div className="flex-1 flex justify-between sm:hidden">
+                    <button
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage === totalPages}
+                      className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                  <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm text-gray-700">
+                        Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
+                        <span className="font-medium">{Math.min(currentPage * itemsPerPage, totalCount)}</span> of{' '}
+                        <span className="font-medium">{totalCount}</span> results
+                      </p>
+                    </div>
+                    <div>
+                      <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                              page === currentPage
+                                ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                                : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        ))}
+                      </nav>
+                    </div>
+                  </div>
                 </div>
+              )}
+            </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  {/* Informasi Dasar Transfer */}
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h3 className="text-lg font-semibold text-blue-800 mb-4">Informasi Transfer</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {showForm && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                  <div className="p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-xl font-bold text-gray-900">
+                        {editing ? 'Edit Transfer' : 'Transfer Baru'}
+                      </h2>
+                      <button
+                        onClick={() => {
+                          resetForm()
+                          setShowForm(false)
+                        }}
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="h-6 w-6" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Cabang Peminjam *
+                          </label>
+                          <select
+                            value={form.cabang_peminjam_id}
+                            onChange={(e) => setForm({...form, cabang_peminjam_id: e.target.value})}
+                            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            required
+                          >
+                            <option value="">Pilih Cabang Peminjam</option>
+                            {branches.map(branch => (
+                              <option key={branch.id_branch} value={branch.id_branch}>
+                                {branch.nama_branch}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Cabang Tujuan *
+                          </label>
+                          <select
+                            value={form.cabang_tujuan_id}
+                            onChange={(e) => setForm({...form, cabang_tujuan_id: e.target.value})}
+                            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            required
+                          >
+                            <option value="">Pilih Cabang Tujuan</option>
+                            {branches.map(branch => (
+                              <option key={branch.id_branch} value={branch.id_branch}>
+                                {branch.nama_branch}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Cabang Asal *
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Produk *
                         </label>
                         <select
-                          value={form.cabang_peminjam_id}
-                          onChange={(e) => setForm({...form, cabang_peminjam_id: e.target.value})}
-                          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                          value={form.id_product}
+                          onChange={(e) => setForm({...form, id_product: e.target.value})}
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           required
                         >
-                          <option value="">Pilih Cabang Asal</option>
-                          {branches.map(branch => (
-                            <option key={branch.id_branch} value={branch.id_branch}>
-                              {branch.nama_branch}
+                          <option value="">Pilih Produk</option>
+                          {products.map(product => (
+                            <option key={product.id_product} value={product.id_product}>
+                              {product.product_name} - {product.unit_kecil}
                             </option>
                           ))}
                         </select>
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Cabang Tujuan *
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Jumlah *
                         </label>
-                        <select
-                          value={form.cabang_tujuan_id}
-                          onChange={(e) => setForm({...form, cabang_tujuan_id: e.target.value})}
-                          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={form.jumlah}
+                          onChange={(e) => setForm({...form, jumlah: e.target.value})}
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           required
-                        >
-                          <option value="">Pilih Cabang Tujuan</option>
-                          {branches.map(branch => (
-                            <option key={branch.id_branch} value={branch.id_branch}>
-                              {branch.nama_branch}
-                            </option>
-                          ))}
-                        </select>
+                        />
+                        {stockInfo && (
+                          <p className={`text-xs mt-1 ${
+                            parseFloat(form.jumlah) > stockInfo.jumlah ? 'text-red-600' : 'text-green-600'
+                          }`}>
+                            Stok tersedia: {stockInfo.jumlah} {stockInfo.unit}
+                          </p>
+                        )}
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
                           Tanggal Pinjam *
                         </label>
                         <input
                           type="date"
                           value={form.tgl_pinjam}
                           onChange={(e) => setForm({...form, tgl_pinjam: e.target.value})}
-                          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           required
                         />
                       </div>
-                    </div>
-                  </div>
 
-                  {/* Items Section */}
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-lg font-semibold text-gray-800">Daftar Barang</h3>
-                      <button
-                        type="button"
-                        onClick={addItem}
-                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Tambah Barang
-                      </button>
-                    </div>
-                    
-                    {form.items.map((item, index) => (
-                      <div key={index} className="bg-white border border-gray-200 rounded-lg p-4 mb-4 shadow-sm">
-                        <div className="flex justify-between items-center mb-4">
-                          <span className="text-sm font-medium text-gray-700 bg-blue-100 px-3 py-1 rounded-full">
-                            Barang {index + 1}
-                          </span>
-                          {form.items.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeItem(index)}
-                              className="text-red-600 hover:text-red-800 transition-colors p-1"
-                              title="Hapus barang"
-                            >
-                              <Trash2 className="h-5 w-5" />
-                            </button>
-                          )}
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Produk *
-                            </label>
-                            <ProductSelect
-                              key={`product-${index}-${item.id_product}`}
-                              products={products}
-                              value={item.id_product || ''}
-                              onChange={(value) => updateItem(index, 'id_product', value)}
-                              placeholder="Pilih Produk"
-                            />
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Jumlah *
-                            </label>
-                            <div className="relative">
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0.01"
-                                value={item.jumlah}
-                                onChange={(e) => updateItem(index, 'jumlah', e.target.value)}
-                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-16"
-                                placeholder="0.00"
-                                required
-                              />
-                              {item.stockInfo && (
-                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                  <span className="text-sm text-gray-500">{item.stockInfo.unit}</span>
-                                </div>
-                              )}
-                            </div>
-                            {item.stockInfo && (
-                              <p className={`text-xs mt-2 ${
-                                (item.jumlah && parseFloat(item.jumlah) > item.stockInfo.jumlah) ? 'text-red-600' : 'text-green-600'
-                              }`}>
-                                Stok tersedia: {item.stockInfo.jumlah} {item.stockInfo.unit}
-                                {item.jumlah && parseFloat(item.jumlah) > item.stockInfo.jumlah && ' - Stok tidak mencukupi!'}
-                              </p>
-                            )}
-                          </div>
-                        </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Keterangan
+                        </label>
+                        <textarea
+                          value={form.keterangan}
+                          onChange={(e) => setForm({...form, keterangan: e.target.value})}
+                          rows={3}
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Keterangan tambahan..."
+                        />
                       </div>
-                    ))}
-                  </div>
 
-                  {/* Keterangan */}
-                  <div className="bg-yellow-50 p-4 rounded-lg">
-                    <h3 className="text-lg font-semibold text-yellow-800 mb-4">Keterangan</h3>
-                    <textarea
-                      value={form.keterangan}
-                      onChange={(e) => setForm({...form, keterangan: e.target.value})}
-                      rows={3}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Tambahkan keterangan atau catatan mengenai transfer ini..."
-                    />
+                      <div className="flex justify-end gap-3 pt-4">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            resetForm()
+                            setShowForm(false)
+                          }}
+                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                        >
+                          Batal
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        >
+                          {editing ? 'Update Transfer' : 'Simpan Transfer'}
+                        </button>
+                      </div>
+                    </form>
                   </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex justify-end gap-4 pt-6 border-t border-gray-200">
-                    <button
-                      type="button"
-                      onClick={resetForm}
-                      className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-                    >
-                      Batal
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                    >
-                      {editing ? 'Update Transfer' : 'Simpan Transfer'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {deleteConfirm.show && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-md w-full">
-              <div className="p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Konfirmasi Hapus</h3>
-                <p className="text-gray-600 mb-6">Apakah Anda yakin ingin menghapus transfer ini?</p>
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={() => setDeleteConfirm({show: false, id: null})}
-                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    onClick={() => deleteConfirm.id && handleDelete(deleteConfirm.id)}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                  >
-                    Hapus
-                  </button>
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Toast Notification */}
+        {toast && (
+          <div className={`fixed bottom-4 left-1/2 transform -translate-x-1/2 p-4 rounded-lg shadow-lg z-50 max-w-xs ${
+            toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+          }`}>
+            <div className="flex items-center">
+              {toast.type === 'success' ? (
+                <CheckCircle className="h-5 w-5 mr-2" />
+              ) : (
+                <X className="h-5 w-5 mr-2" />
+              )}
+              {toast.message}
             </div>
           </div>
         )}
 
-        {toast && (
-          <div className={`fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
-            toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-          }`}>
-            {toast.message}
+        {/* Delete Confirmation Modal */}
+        {deleteConfirm.show && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-sm w-full p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Konfirmasi Hapus</h3>
+              <p className="text-gray-600 mb-6">Apakah Anda yakin ingin menghapus transfer ini?</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteConfirm({show: false, id: null})}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={() => deleteConfirm.id && handleDelete(deleteConfirm.id)}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
+                  Hapus
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </Layout>

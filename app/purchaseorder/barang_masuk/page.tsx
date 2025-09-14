@@ -510,31 +510,31 @@ export default function BarangMasukPage() {
                       </div>
                       
                       {isExpanded && (
-                        <div className="p-2">
+                        <div className="p-1">
                           {poGroup.items.map((item) => (
-                            <div key={item.id} className="border-b p-3 last:border-b-0">
-                              <div className="grid grid-cols-2 gap-2 text-sm mb-2">
+                            <div key={item.id} className="border-b p-2 last:border-b-0">
+                              <div className="grid grid-cols-2 gap-2 text-xs mb-1">
                                 <div>
                                   <div className="text-xs text-gray-500">Tanggal</div>
-                                  <div>{new Date(item.tanggal).toLocaleDateString('id-ID')}</div>
+                                  <div className="text-xs">{new Date(item.tanggal).toLocaleDateString('id-ID')}</div>
                                 </div>
                                 <div>
                                   <div className="text-xs text-gray-500">Barang</div>
-                                  <div className="font-medium truncate">{item.product_name}</div>
+                                  <div className="font-medium truncate text-xs">{item.product_name}</div>
                                 </div>
                               </div>
                               
-                              <div className="grid grid-cols-2 gap-2 text-sm mb-2">
+                              <div className="grid grid-cols-2 gap-2 text-xs mb-1">
                                 <div>
                                   <div className="text-xs text-gray-500">Jumlah PO</div>
-                                  <div>
+                                  <div className="text-xs">
                                     <span className="font-medium">{item.qty_po}</span>
                                     <span className="text-xs text-gray-500 ml-1">{item.satuan_besar}</span>
                                   </div>
                                 </div>
                                 <div>
                                   <div className="text-xs text-gray-500">Barang Masuk</div>
-                                  <div>
+                                  <div className="text-xs">
                                     <span className="font-medium text-green-600">{item.jumlah}</span>
                                     <span className="text-xs text-gray-500 ml-1">{item.satuan_kecil}</span>
                                   </div>
@@ -542,38 +542,38 @@ export default function BarangMasukPage() {
                               </div>
                               
                               {item.keterangan !== '-' && (
-                                <div className="mb-2">
+                                <div className="mb-1">
                                   <div className="text-xs text-gray-500">Keterangan</div>
-                                  <div className="text-sm">{item.keterangan}</div>
+                                  <div className="text-xs">{item.keterangan}</div>
                                 </div>
                               )}
                               
-                              <div className="flex flex-wrap gap-2 mt-3">
+                              <div className="flex flex-wrap gap-1 mt-2">
                                 <a 
                                   href={`/purchaseorder/barang_masuk/receive?edit=${item.id}`}
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 text-xs"
+                                  className="inline-flex items-center gap-1 px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs"
                                   title="Update Data"
                                 >
-                                  <Edit size={14} />
+                                  <Edit size={12} />
                                   Update
                                 </a>
                                 {!item.is_in_gudang ? (
                                   <button
                                     onClick={() => handleMasukGudang(item)}
                                     disabled={!item.updated_at}
-                                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs ${
+                                    className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
                                       item.updated_at 
                                         ? 'bg-blue-600 text-white hover:bg-blue-700' 
                                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                     }`}
                                     title={item.updated_at ? "Masuk Gudang" : "Harus update data terlebih dahulu"}
                                   >
-                                    <Package size={14} />
+                                    <Package size={12} />
                                     Masuk Gudang
                                   </button>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-800 rounded text-xs">
-                                    <Package size={14} />
+                                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 rounded text-xs">
+                                    <Package size={12} />
                                     Sudah di Gudang
                                   </span>
                                 )}
