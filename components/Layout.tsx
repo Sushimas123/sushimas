@@ -28,7 +28,8 @@ import {
   Building,
   Plus,
   PackageCheck,
-  ChartArea
+  ChartArea,
+  FolderSync
 } from "lucide-react"
 import { canAccessPage } from '@/src/utils/dbPermissions'
 import { supabase } from '@/src/lib/supabaseClient'
@@ -86,6 +87,7 @@ export default function Layout({ children }: LayoutProps) {
       submenu: [
         { name: "Purchase Order", href: "/purchaseorder", icon: Package },
         { name: "Barang Masuk", href: "/purchaseorder/barang_masuk", icon: PackageCheck},
+        { name: "Transfer Cabang", href:AppRoutes.TRANSFER_BARANG, icon:FolderSync}
       ]
     },    
     {

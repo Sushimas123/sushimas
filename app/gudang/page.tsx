@@ -512,6 +512,11 @@ function GudangPageContent() {
       alert('❌ Cannot edit: This record is from Stock Opname batch');
       return;
     }
+    
+    if ((item as any).source_reference && (item as any).source_reference.startsWith('TRF-')) {
+      alert('❌ Cannot edit: This record is from Transfer Barang');
+      return;
+    }
 
     // Check if there are locked records after this timestamp
     const { data: lockedAfter } = await supabase
@@ -570,6 +575,11 @@ function GudangPageContent() {
       
       if (gudangData.source_type === 'stock_opname_batch') {
         alert('❌ Cannot delete: This record is from Stock Opname batch');
+        return;
+      }
+      
+      if (gudangData.source_reference && gudangData.source_reference.startsWith('TRF-')) {
+        alert('❌ Cannot delete: This record is from Transfer Barang');
         return;
       }
 
@@ -728,7 +738,7 @@ function GudangPageContent() {
           .eq('order_no', id)
           .single();
         
-        if (!gudangData || gudangData.is_locked || gudangData.source_type === 'stock_opname_batch') {
+        if (!gudangData || gudangData.is_locked || gudangData.source_type === 'stock_opname_batch' || (gudangData.source_reference && gudangData.source_reference.startsWith('TRF-'))) {
           skippedCount++;
           continue;
         }
@@ -1247,8 +1257,8 @@ function GudangPageContent() {
                 paginatedGudang.map((item) => (
                   <tr key={item.order_no} className="hover:bg-gray-50">
                     <td className="px-1 py-1 text-center">
-                      {item.is_locked || (item as any).source_type === 'stock_opname_batch' || (item as any).source_type === 'PO' ? (
-                        <span className="text-gray-400 text-xs" title={item.is_locked ? `Locked by ${item.locked_by_so}` : (item as any).source_type === 'PO' ? 'PO Protected' : 'SO Protected'}>🔒</span>
+                      {item.is_locked || (item as any).source_type === 'stock_opname_batch' || (item as any).source_type === 'PO' || ((item as any).source_reference && (item as any).source_reference.startsWith('TRF-')) ? (
+                        <span className="text-gray-400 text-xs" title={item.is_locked ? `Locked by ${item.locked_by_so}` : (item as any).source_type === 'PO' ? 'PO Protected' : (item as any).source_reference && (item as any).source_reference.startsWith('TRF-') ? 'Transfer Protected' : 'SO Protected'}>🔒</span>
                       ) : (
                         <input
                           type="checkbox"
@@ -1292,6 +1302,14 @@ function GudangPageContent() {
                         >
                           📋 {(item as any).source_reference}
                         </a>
+                      ) : (item as any).source_reference && (item as any).source_reference.startsWith('TRF-') ? (
+                        <a 
+                          href={`/transfer-barang?search=${(item as any).source_reference}`}
+                          className="px-1 py-0.5 bg-purple-100 text-purple-800 rounded text-xs font-semibold hover:bg-purple-200 cursor-pointer"
+                          title="View Transfer Barang"
+                        >
+                          🔄 {(item as any).source_reference}
+                        </a>
                       ) : (
                         <span className="px-1 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
                           Manual
@@ -1311,6 +1329,10 @@ function GudangPageContent() {
                         <span className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
                           🔒 PO Lock
                         </span>
+                      ) : (item as any).source_reference && (item as any).source_reference.startsWith('TRF-') ? (
+                        <span className="px-1 py-0.5 bg-purple-100 text-purple-800 rounded text-xs font-semibold">
+                          🔒 Transfer Lock
+                        </span>
                       ) : (
                         <span className="px-1 py-0.5 bg-green-100 text-green-800 rounded text-xs">
                           ✓ Open
@@ -1319,9 +1341,9 @@ function GudangPageContent() {
                     </td>
                     <td className="px-1 py-1">
                       <div className="flex gap-1">
-                        {item.is_locked || (item as any).source_type === 'stock_opname_batch' || (item as any).source_type === 'PO' ? (
-                          <span className="text-xs text-gray-500 italic px-2 py-1" title={item.is_locked ? `Locked by ${item.locked_by_so}` : (item as any).source_type === 'PO' ? 'PO Protected' : 'SO Protected'}>
-                            {item.is_locked ? '🔒 Locked' : (item as any).source_type === 'PO' ? '📋 PO Locked' : '📊 SO Protected'}
+                        {item.is_locked || (item as any).source_type === 'stock_opname_batch' || (item as any).source_type === 'PO' || ((item as any).source_reference && (item as any).source_reference.startsWith('TRF-')) ? (
+                          <span className="text-xs text-gray-500 italic px-2 py-1" title={item.is_locked ? `Locked by ${item.locked_by_so}` : (item as any).source_type === 'PO' ? 'PO Protected' : (item as any).source_reference && (item as any).source_reference.startsWith('TRF-') ? 'Transfer Protected' : 'SO Protected'}>
+                            {item.is_locked ? '🔒 Locked' : (item as any).source_type === 'PO' ? '📋 PO Locked' : (item as any).source_reference && (item as any).source_reference.startsWith('TRF-') ? '🔄 Transfer Locked' : '📊 SO Protected'}
                           </span>
                         ) : (
                           <>
