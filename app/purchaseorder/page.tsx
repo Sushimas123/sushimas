@@ -44,6 +44,9 @@ export default function PurchaseOrderPage() {
   })
   const [expandedPO, setExpandedPO] = useState<number | null>(null)
   const [showFilters, setShowFilters] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const itemsPerPage = 10
 
   useEffect(() => {
     fetchFilterOptions()
@@ -51,8 +54,13 @@ export default function PurchaseOrderPage() {
   }, [])
 
   useEffect(() => {
+    setCurrentPage(1)
     fetchPurchaseOrders()
   }, [filters])
+
+  useEffect(() => {
+    fetchPurchaseOrders()
+  }, [currentPage])
 
   const fetchFilterOptions = async () => {
     try {
@@ -91,11 +99,37 @@ export default function PurchaseOrderPage() {
   const fetchPurchaseOrders = async () => {
     setLoading(true)
     try {
-      // Query purchase_orders with basic fields only
+      // Count total records first
+      let countQuery = supabase
+        .from('purchase_orders')
+        .select('*', { count: 'exact', head: true })
+
+      // Apply filters to count query
+      if (filters.cabang_id) {
+        countQuery = countQuery.eq('cabang_id', filters.cabang_id)
+      }
+      if (filters.supplier_id) {
+        countQuery = countQuery.eq('supplier_id', filters.supplier_id)
+      }
+      if (filters.status) {
+        countQuery = countQuery.eq('status', filters.status)
+      }
+      if (filters.priority) {
+        countQuery = countQuery.eq('priority', filters.priority)
+      }
+
+      const { count } = await countQuery
+      setTotalCount(count || 0)
+
+      // Query purchase_orders with pagination
+      const from = (currentPage - 1) * itemsPerPage
+      const to = from + itemsPerPage - 1
+
       let query = supabase
         .from('purchase_orders')
         .select('*')
         .order('created_at', { ascending: false })
+        .range(from, to)
 
       // Apply filters
       if (filters.cabang_id) {
@@ -727,8 +761,79 @@ export default function PurchaseOrderPage() {
                       )}
                     </div>
                   ))}
+                  
+                  {/* Mobile Pagination */}
+                  {Math.ceil(totalCount / itemsPerPage) > 1 && (
+                    <div className="flex justify-center mt-6 p-4">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                          disabled={currentPage === 1}
+                          className="px-4 py-2 bg-white border border-gray-300 rounded disabled:opacity-50 text-sm"
+                        >
+                          Prev
+                        </button>
+                        <span className="px-4 py-2 bg-blue-100 text-blue-800 rounded text-sm">
+                          {currentPage}
+                        </span>
+                        <button
+                          onClick={() => setCurrentPage(Math.min(Math.ceil(totalCount / itemsPerPage), currentPage + 1))}
+                          disabled={currentPage === Math.ceil(totalCount / itemsPerPage)}
+                          className="px-4 py-2 bg-white border border-gray-300 rounded disabled:opacity-50 text-sm"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
+            )}
+            
+            {/* Desktop Pagination */}
+            {Math.ceil(totalCount / itemsPerPage) > 1 && (
+              <div className="hidden md:block bg-white px-4 py-3 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-700">
+                      Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
+                      <span className="font-medium">{Math.min(currentPage * itemsPerPage, totalCount)}</span> of{' '}
+                      <span className="font-medium">{totalCount}</span> results
+                    </p>
+                  </div>
+                  <div>
+                    <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                      <button
+                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                        disabled={currentPage === 1}
+                        className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Previous
+                      </button>
+                      {Array.from({ length: Math.ceil(totalCount / itemsPerPage) }, (_, i) => i + 1).map((page) => (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                            page === currentPage
+                              ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                              : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setCurrentPage(Math.min(Math.ceil(totalCount / itemsPerPage), currentPage + 1))}
+                        disabled={currentPage === Math.ceil(totalCount / itemsPerPage)}
+                        className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </nav>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
 

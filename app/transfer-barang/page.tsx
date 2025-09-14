@@ -205,7 +205,7 @@ export default function TransferBarangPage() {
     }
 
     if (form.cabang_peminjam_id === form.cabang_tujuan_id) {
-      showToast('Cabang peminjam dan tujuan tidak boleh sama', 'error')
+      showToast('Cabang Asal dan tujuan tidak boleh sama', 'error')
       return
     }
 
@@ -724,7 +724,7 @@ export default function TransferBarangPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Cabang Peminjam *
+              Cabang Asal *
             </label>
             <select
               value={form.cabang_peminjam_id}
@@ -732,7 +732,7 @@ export default function TransferBarangPage() {
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               required
             >
-              <option value="">Pilih Cabang Peminjam</option>
+              <option value="">Pilih Cabang Asal</option>
               {branches.map(branch => (
                 <option key={branch.id_branch} value={branch.id_branch}>
                   {branch.nama_branch}
@@ -1064,29 +1064,29 @@ export default function TransferBarangPage() {
             )}
 
             <div className="bg-white rounded-lg shadow">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+              <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 sticky top-0 z-10">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transfer No</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cabang asal</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cabang Tujuan</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produk</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jumlah</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tgl Pinjam</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tgl Sampai</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Transfer No</th>
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Asal</th>
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tujuan</th>
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Produk</th>
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Jumlah</th>
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tgl Pinjam</th>
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tgl Sampai</th>
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase">Aksi</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="divide-y divide-gray-200">
                     {loading ? (
                       Array.from({ length: 5 }).map((_, i) => (
                         <tr key={i}>
-                          <td colSpan={9} className="px-6 py-4">
+                          <td colSpan={9} className="px-2 py-2">
                             <div className="animate-pulse flex space-x-4">
-                              <div className="flex-1 space-y-2 py-1">
-                                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                              <div className="flex-1 space-y-1 py-1">
+                                <div className="h-3 bg-gray-200 rounded w-3/4"></div>
                               </div>
                             </div>
                           </td>
@@ -1094,66 +1094,70 @@ export default function TransferBarangPage() {
                       ))
                     ) : transfers.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
+                        <td colSpan={9} className="px-2 py-3 text-center text-gray-500 text-xs">
                           Tidak ada data transfer
                         </td>
                       </tr>
                     ) : (
                       transfers.map((transfer) => (
                         <tr key={transfer.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                            {transfer.transfer_no}
+                          <td className="px-2 py-2 text-xs font-medium text-blue-600">
+                            <div className="truncate max-w-[120px]">{transfer.transfer_no}</div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {transfer.cabang_peminjam}
+                          <td className="px-2 py-2 text-xs text-gray-900">
+                            <div className="truncate max-w-[100px]">{transfer.cabang_peminjam}</div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {transfer.cabang_tujuan}
+                          <td className="px-2 py-2 text-xs text-gray-900">
+                            <div className="truncate max-w-[100px]">{transfer.cabang_tujuan}</div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {transfer.product_name}
+                          <td className="px-2 py-2 text-xs text-gray-900">
+                            <div className="truncate max-w-[150px]">{transfer.product_name}</div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-2 py-2 text-xs text-gray-900">
                             {transfer.jumlah} {transfer.unit_kecil}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {new Date(transfer.tgl_pinjam).toLocaleDateString('id-ID')}
+                          <td className="px-2 py-2 text-xs text-gray-900">
+                            {new Date(transfer.tgl_pinjam).toLocaleDateString('id-ID', {day: '2-digit', month: '2-digit', year: '2-digit'})}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {transfer.tgl_barang_sampai ? new Date(transfer.tgl_barang_sampai).toLocaleDateString('id-ID') : '-'}
+                          <td className="px-2 py-2 text-xs text-gray-900">
+                            {transfer.tgl_barang_sampai ? new Date(transfer.tgl_barang_sampai).toLocaleDateString('id-ID', {day: '2-digit', month: '2-digit', year: '2-digit'}) : '-'}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {getStatusBadge(transfer.status)}
+                          <td className="px-2 py-2">
+                            <span className={`px-1 py-0.5 rounded text-xs font-medium ${
+                              transfer.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {transfer.status === 'completed' ? 'Selesai' : 'Pending'}
+                            </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex items-center gap-2">
+                          <td className="px-2 py-2">
+                            <div className="flex items-center justify-center gap-1">
                               <button
                                 onClick={() => window.open(`/transfer-barang/print/${transfer.id}`, '_blank')}
-                                className="text-purple-600 hover:text-purple-900"
+                                className="text-purple-600 hover:text-purple-900 p-1"
                                 title="View/Share"
                               >
-                                <Share2 className="h-4 w-4" />
+                                <Share2 size={14} />
                               </button>
                               {transfer.status === 'pending' && (
                                 <button
                                   onClick={() => handleComplete(transfer.id)}
-                                  className="text-green-600 hover:text-green-900"
+                                  className="text-green-600 hover:text-green-900 p-1"
                                   title="Selesai"
                                 >
-                                  <RefreshCw className="h-4 w-4" />
+                                  <RefreshCw size={14} />
                                 </button>
                               )}
                               <button
                                 onClick={() => handleEdit(transfer)}
-                                className="text-blue-600 hover:text-blue-900"
+                                className="text-blue-600 hover:text-blue-900 p-1"
                               >
-                                <Edit className="h-4 w-4" />
+                                <Edit size={14} />
                               </button>
                               <button
                                 onClick={() => setDeleteConfirm({show: true, id: transfer.id})}
-                                className="text-red-600 hover:text-red-900"
+                                className="text-red-600 hover:text-red-900 p-1"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 size={14} />
                               </button>
                             </div>
                           </td>
@@ -1235,7 +1239,7 @@ export default function TransferBarangPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Cabang Peminjam *
+                            Cabang Asal *
                           </label>
                           <select
                             value={form.cabang_peminjam_id}
@@ -1243,7 +1247,7 @@ export default function TransferBarangPage() {
                             className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             required
                           >
-                            <option value="">Pilih Cabang Peminjam</option>
+                            <option value="">Pilih Cabang Asal</option>
                             {branches.map(branch => (
                               <option key={branch.id_branch} value={branch.id_branch}>
                                 {branch.nama_branch}

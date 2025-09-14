@@ -630,16 +630,16 @@ export default function PivotPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-xs">
             <thead className="bg-gray-100">
               <tr>
-                <th className="p-2 text-left"></th>
-                <th className="p-2 text-left">Tanggal</th>
-                <th className="p-2 text-left">Produk</th>
-                <th className="p-2 text-left">Kategori</th>
-                <th className="p-2 text-left">Cabang</th>
-                <th className="p-2 text-right">Selisih</th>
-                <th className="p-2 text-center">Status</th>
+                <th className="px-1 py-1 text-left w-8"></th>
+                <th className="px-1 py-1 text-left w-20">Tanggal</th>
+                <th className="px-1 py-1 text-left max-w-[120px]">Produk</th>
+                <th className="px-1 py-1 text-left max-w-[80px]">Kategori</th>
+                <th className="px-1 py-1 text-left max-w-[80px]">Cabang</th>
+                <th className="px-1 py-1 text-right w-16">Selisih</th>
+                <th className="px-1 py-1 text-center w-16">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -649,21 +649,21 @@ export default function PivotPage() {
                     getSeverityLevel(item.selisih) === 'high' ? 'bg-red-50' : 
                     getSeverityLevel(item.selisih) === 'medium' ? 'bg-orange-50' : 'bg-yellow-50'
                   }`}>
-                    <td className="p-2">
+                    <td className="px-1 py-1">
                       <button 
                         onClick={() => toggleExpand(item.id_product)}
                         className="text-gray-500 hover:text-gray-700"
                       >
-                        {expandedItems.has(item.id_product) ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {expandedItems.has(item.id_product) ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </button>
                     </td>
-                    <td className="p-2">{item.tanggal}</td>
-                    <td className="p-2 font-medium">{item.product}</td>
-                    <td className="p-2">{item.sub_category}</td>
-                    <td className="p-2">{item.cabang}</td>
-                    <td className="p-2 text-right text-red-600 font-bold">{item.selisih.toFixed(2)}</td>
-                    <td className="p-2 text-center">
-                      <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-800">
+                    <td className="px-1 py-1 text-xs">{item.tanggal}</td>
+                    <td className="px-1 py-1 font-medium text-xs truncate max-w-[120px]">{item.product}</td>
+                    <td className="px-1 py-1 text-xs truncate max-w-[80px]">{item.sub_category}</td>
+                    <td className="px-1 py-1 text-xs truncate max-w-[80px]">{item.cabang}</td>
+                    <td className="px-1 py-1 text-right text-red-600 font-bold text-xs">{item.selisih.toFixed(2)}</td>
+                    <td className="px-1 py-1 text-center">
+                      <span className="px-1 py-0.5 rounded text-xs bg-red-100 text-red-800">
                         {item.status}
                       </span>
                     </td>
@@ -671,39 +671,39 @@ export default function PivotPage() {
                   
                   {expandedItems.has(item.id_product) && (
                     <tr className="bg-blue-50">
-                      <td colSpan={7} className="p-4">
+                      <td colSpan={7} className="px-2 py-2">
                         <div>
-                          <h4 className="font-medium mb-2">Catatan Investigasi</h4>
-                          <div className="mb-3 max-h-40 overflow-y-auto">
+                          <h4 className="font-medium mb-1 text-xs">Catatan Investigasi</h4>
+                          <div className="mb-2 max-h-32 overflow-y-auto">
                             {savedNotes
                               .filter(note => note.analysis_id === item.id_product)
                               .map(note => (
-                                <div key={note.id} className="bg-white p-2 rounded border mb-2">
+                                <div key={note.id} className="bg-white p-1 rounded border mb-1">
                                   <div className="text-xs text-gray-500">
                                     {note.created_by} - {new Date(note.created_at).toLocaleString()}
                                   </div>
-                                  <div className="text-sm">{note.notes}</div>
+                                  <div className="text-xs">{note.notes}</div>
                                 </div>
                               ))
                             }
                             
                             {savedNotes.filter(note => note.analysis_id === item.id_product).length === 0 && (
-                              <div className="text-gray-500 text-sm">Belum ada catatan investigasi</div>
+                              <div className="text-gray-500 text-xs">Belum ada catatan investigasi</div>
                             )}
                           </div>
                           
-                          <div className="flex gap-2">
+                          <div className="flex gap-1">
                             <input
                               type="text"
                               value={notes[item.id_product] || ''}
                               onChange={(e) => setNotes(prev => ({ ...prev, [item.id_product]: e.target.value }))}
                               placeholder="Tambah catatan investigasi..."
-                              className="flex-1 border border-gray-300 px-3 py-1 rounded text-sm"
+                              className="flex-1 border border-gray-300 px-2 py-1 rounded text-xs"
                             />
                             <button
                               onClick={() => saveNotes(item.id_product)}
                               disabled={savingNotes.has(item.id_product)}
-                              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 py-1 rounded text-sm"
+                              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-2 py-1 rounded text-xs"
                             >
                               {savingNotes.has(item.id_product) ? 'Saving...' : 'Simpan'}
                             </button>
