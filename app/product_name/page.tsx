@@ -10,7 +10,7 @@ const toTitleCase = (str: any) => {
 
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { supabase } from "@/src/lib/supabaseClient"
-import { ArrowUpDown, Edit2, Trash2, Filter, X, Plus, RefreshCw } from "lucide-react"
+import { ArrowUpDown, Edit2, Trash2, Filter, X, Plus, RefreshCw, Menu, ChevronDown, ChevronUp, Search } from "lucide-react"
 import { useRouter } from "next/navigation"
 import * as XLSX from 'xlsx'
 import Layout from '../../components/Layout'
@@ -43,6 +43,24 @@ export default function ProductPage() {
   const [userRole, setUserRole] = useState<string>('guest')
   const [submitting, setSubmitting] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [isMobile, setIsMobile] = useState(false)
+  const [mobileView, setMobileView] = useState('list') // 'list' or 'details'
+  const [selectedProduct, setSelectedProduct] = useState<any>(null)
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+
+  // Check if mobile on mount and on resize
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    checkIsMobile()
+    window.addEventListener('resize', checkIsMobile)
+    
+    return () => {
+      window.removeEventListener('resize', checkIsMobile)
+    }
+  }, [])
 
   // Get user role
   useEffect(() => {
@@ -93,7 +111,6 @@ export default function ProductPage() {
   }, [])
 
   const fetchSuppliers = useCallback(async () => {
-    // console.log('Fetching suppliers...')
     const { data, error } = await supabase
       .from("suppliers")
       .select("id_supplier, nama_supplier, nama_barang")
@@ -102,7 +119,6 @@ export default function ProductPage() {
     if (error) {
       console.error('Error fetching suppliers:', error)
     } else {
-      // console.log('Suppliers data:', data)
       setSuppliers(data || [])
     }
   }, [])
@@ -530,128 +546,49 @@ export default function ProductPage() {
     setSearch("")
   }
 
-  return (
-    <Layout>
-      <PageAccessControl pageName="product_name">
-        <div className="p-4 md:p-6">
-      {/* Toast Notification */}
-      {toast && (
-        <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 flex items-center shadow-lg transform transition-all duration-300 ${
-          toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-        }`}>
-          <span className="mr-2">{toast.type === 'success' ? '✅' : '❌'}</span>
-          {toast.message}
-        </div>
-      )}
+  // Mobile view handlers
+  const viewProductDetails = (product: any) => {
+    setSelectedProduct(product)
+    setMobileView('details')
+  }
 
-      {/* Delete Confirmation Modal */}
-      {deleteConfirm.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
-            <h3 className="font-bold text-lg mb-4">Confirm Delete</h3>
-            <p>Are you sure you want to delete this product? This action cannot be undone.</p>
-            <div className="flex justify-end gap-3 mt-6">
-              <button 
-                onClick={() => setDeleteConfirm({show: false, id: null})}
-                className="px-4 py-2 border border-gray-300 rounded-md"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={() => handleDelete(deleteConfirm.id!)}
-                className="px-4 py-2 bg-red-600 text-white rounded-md"
-              >
-                Delete
-              </button>
-            </div>
+  const closeProductDetails = () => {
+    setMobileView('list')
+    setSelectedProduct(null)
+  }
+
+  // Mobile filter component
+  const MobileFilters = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end">
+      <div className="bg-white w-4/5 h-full p-4 overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold">Filters</h3>
+          <button onClick={() => setShowMobileFilters(false)}>
+            <X size={20} />
+          </button>
+        </div>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Search</label>
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="border px-3 py-2 rounded-md w-full"
+            />
           </div>
-        </div>
-      )}
-
-      <div className="flex items-center gap-3 mb-4">
-        <h1 className="text-xl font-bold text-gray-800">📦 Product Management</h1>
-      </div>
-
-      {/* Search + Import/Export */}
-      <div className="space-y-3 mb-4">
-        <input
-          type="text"
-          placeholder="🔍 Search products..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="border px-2 py-1 rounded-md text-xs w-full sm:w-64"
-        />
-        
-        {/* Primary Actions */}
-        <div className="flex flex-wrap gap-2">
-          {canPerformActionSync(userRole, 'product_name', 'create') && (
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
-            >
-              <Plus size={16} />
-              Add New
-            </button>
-          )}
-          <button
-            onClick={() => {
-              fetchData()
-              fetchSuppliers()
-              fetchCategories()
-              fetchBranches()
-              showToast("✅ Data refreshed", "success")
-            }}
-            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
-          >
-            <RefreshCw size={16} />
-            Refresh
-          </button>
-          <button 
-            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            className={`px-3 py-1 rounded-md text-xs flex items-center gap-1 ${
-              showAdvancedFilters ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'
-            }`}
-          >
-            <Filter size={16} />
-            Filters
-          </button>
-        </div>
-        
-        {/* Secondary Actions */}
-        <div className="flex flex-wrap gap-2">
-          {(userRole === 'super admin' || userRole === 'admin') && (
-            <button onClick={exportXLSX} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs">
-              Export Excel
-            </button>
-          )}
-          {(userRole === 'super admin' || userRole === 'admin') && (
-            <label className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-xs cursor-pointer">
-              Import Excel
-              <input type="file" accept=".xlsx,.xls" onChange={importXLSX} className="hidden" />
-            </label>
-          )}
-          {(search || Object.values(filters).some(f => f)) && (
-            <button 
-              onClick={resetFilters}
-              className="px-3 py-1 rounded-md text-xs flex items-center gap-1 bg-red-100 text-red-700 hover:bg-red-200"
-            >
-              <X size={16} />
-              Clear Filters
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Advanced Filters */}
-      {showAdvancedFilters && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 my-4 p-4 bg-white rounded-lg shadow">
+          
           {['sub_category', 'category', 'unit_kecil', 'unit_besar'].map((field) => (
             <div key={field}>
-              <label className="block text-xs font-medium mb-1 text-gray-700">{toTitleCase(field.replace(/_/g, ' '))}</label>
+              <label className="block text-sm font-medium mb-1">
+                {toTitleCase(field.replace(/_/g, ' '))}
+              </label>
               <select
                 value={filters[field] || ''}
                 onChange={(e) => setFilters({...filters, [field]: e.target.value})}
-                className="border px-2 py-1 rounded-md text-xs w-full"
+                className="border px-3 py-2 rounded-md w-full"
               >
                 <option value="">All {toTitleCase(field.replace(/_/g, ' '))}</option>
                 {[...new Set(data.map(item => item[field]))].map((value) => (
@@ -660,347 +597,684 @@ export default function ProductPage() {
               </select>
             </div>
           ))}
-        </div>
-      )}
-{/* Form */}
-{showAddForm && (
-        <div id="product-form" className="mt-6 bg-white p-4 shadow rounded-lg">
-          <h2 className="font-semibold text-base mb-2 text-gray-800">{editing ? "✏️ Edit Product" : "➕ Add New Product"}</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {[
-            "product_name",
-            "sub_category",
-            "unit_kecil",
-            "satuan_kecil",
-            "unit_besar",
-            "satuan_besar",
-            "harga",
-            "merk",
-          ].map((field) => (
-            <div key={field}>
-              <input
-                name={field}
-                value={form[field] || ""}
-                onChange={handleInput}
-                placeholder={toTitleCase(field.replace(/_/g, ' '))}
-                onInput={(e) => {
-                  if (['satuan_kecil', 'satuan_besar', 'harga'].includes(field)) {
-                    (e.target as HTMLInputElement).value = (e.target as HTMLInputElement).value.replace(/[^0-9.]/g, '');
-                  }
-                }}
-                className={`border px-2 py-1 rounded-md text-xs focus:ring focus:ring-blue-200 w-full ${
-                  errors[field] ? 'border-red-500' : ''
-                }`}
-              />
-              {errors[field] && <p className="text-red-500 text-xs mt-0.5">{errors[field]}</p>}
-            </div>
-          ))}
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Type to search suppliers..."
-              value={editing ? selectedSupplierText : supplierSearch}
-              onChange={(e) => {
-                const value = e.target.value
-                setSupplierSearch(value)
-                setSelectedSupplierText(value)
-                setShowSupplierDropdown(value.length > 0)
-                // Clear selection if text doesn't match any supplier
-                if (!suppliers.some(s => `${s.nama_supplier} - ${s.nama_barang}` === value)) {
-                  setForm((prev: any) => ({ ...prev, supplier_id: '' }))
-                }
-              }}
-              onFocus={() => {
-                if (supplierSearch.length > 0) setShowSupplierDropdown(true)
-              }}
-              onBlur={() => {
-                // Delay hiding dropdown to allow clicks
-                setTimeout(() => setShowSupplierDropdown(false), 200)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  setShowSupplierDropdown(false)
-                }
-              }}
-              className={`border px-2 py-1 rounded-md text-xs w-full ${
-                errors.supplier_id ? 'border-red-500' : ''
-              }`}
-            />
-            {showSupplierDropdown && (
-              <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto mt-1">
-                {suppliers
-                  .filter(supplier => 
-                    supplier.nama_supplier?.toLowerCase().includes(supplierSearch.toLowerCase()) ||
-                    supplier.nama_barang?.toLowerCase().includes(supplierSearch.toLowerCase())
-                  )
-                  .slice(0, 10)
-                  .map((supplier) => (
-                    <div
-                      key={supplier.id_supplier}
-                      onClick={() => {
-                        setForm((prev: any) => ({ ...prev, supplier_id: supplier.id_supplier }))
-                        setSelectedSupplierText(`${supplier.nama_supplier} - ${supplier.nama_barang}`)
-                        setSupplierSearch('')
-                        setShowSupplierDropdown(false)
-                      }}
-                      className="px-2 py-1 hover:bg-gray-100 cursor-pointer text-xs border-b border-gray-100 last:border-b-0"
-                    >
-                      <div className="font-medium text-gray-900 text-xs">{supplier.nama_supplier}</div>
-                      <div className="text-xs text-gray-500">{supplier.nama_barang}</div>
-                    </div>
-                  ))}
-                {suppliers.filter(supplier => 
-                  supplier.nama_supplier?.toLowerCase().includes(supplierSearch.toLowerCase()) ||
-                  supplier.nama_barang?.toLowerCase().includes(supplierSearch.toLowerCase())
-                ).length === 0 && (
-                  <div className="px-2 py-1 text-xs text-gray-500">No suppliers found</div>
-                )}
-              </div>
-            )}
-            {errors.supplier_id && <p className="text-red-500 text-xs mt-0.5">{errors.supplier_id}</p>}
-          </div>
-          <div>
-            <select
-              name="category"
-              value={form.category || ""}
-              onChange={handleInput}
-              className={`border px-2 py-1 rounded-md text-xs w-full ${
-                errors.category ? 'border-red-500' : ''
-              }`}
-            >
-              <option value="">Select Category</option>
-              {categories.map((cat) => (
-                <option key={cat.id_category} value={cat.category_name}>
-                  {cat.category_name}
-                </option>
-              ))}
-            </select>
-            {errors.category && <p className="text-red-500 text-xs mt-0.5">{errors.category}</p>}
-          </div>
           
-          <div className="md:col-span-2">
-            <label className="block text-xs font-medium mb-1 text-gray-700">Branches</label>
-            <div className="border rounded-md p-2 max-h-32 overflow-y-auto">
-              {branches.map((branch) => (
-                <label key={branch.kode_branch} className="flex items-center gap-2 text-xs py-1">
-                  <input
-                    type="checkbox"
-                    checked={selectedBranches.includes(branch.kode_branch)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedBranches([...selectedBranches, branch.kode_branch])
-                      } else {
-                        setSelectedBranches(selectedBranches.filter(b => b !== branch.kode_branch))
-                      }
-                    }}
-                    className="rounded"
-                  />
-                  <span>{branch.nama_branch}</span>
-                </label>
-              ))}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">{selectedBranches.length} branch(es) selected</p>
-          </div>
-        </div>
-        <div className="flex gap-2 mt-4">
-          <button 
-            onClick={handleSubmit} 
-            disabled={submitting}
-            className={`px-3 py-1 rounded-md text-xs ${
-              submitting 
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-green-600 hover:bg-green-700'
-            } text-white`}
-          >
-            {submitting ? 'Saving...' : (editing ? "Update Product" : "Add Product")}
-          </button>
-          {editing && (
+          <div className="flex gap-2">
             <button 
-              onClick={resetForm} 
-              className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-xs"
+              onClick={resetFilters}
+              className="px-4 py-2 bg-gray-200 rounded-md flex-1"
             >
-              Cancel Edit
+              Reset
             </button>
-          )}
-          <button 
-            onClick={resetForm} 
-            className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-xs"
-          >
-            Cancel
-          </button>
+            <button 
+              onClick={() => setShowMobileFilters(false)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md flex-1"
+            >
+              Apply
+            </button>
           </div>
         </div>
-      )}
- 
-      {/* Table */}
-      <div className="overflow-x-auto bg-white rounded-lg shadow">
-        <table className="w-full text-xs border border-gray-200">
-          <thead className="bg-gray-100 text-gray-700">
-            <tr>
-              {[
-                { key: "id_product", label: "ID" },
-                { key: "product_name", label: "Product Name" },
-                { key: "sub_category", label: "Sub Category" },
-                { key: "unit_kecil", label: "Small Unit" },
-                { key: "satuan_kecil", label: "Small Unit Type" },
-                { key: "unit_besar", label: "Large Unit" },
-                { key: "satuan_besar", label: "Large Unit Type" },
-                { key: "supplier", label: "Supplier" },
-                { key: "harga", label: "Harga" },
-                { key: "category", label: "Category" },
-                { key: "branches", label: "Branches" }, 
-                { key: "merk", label:"Merk"}
-              ].map((col) => (
-                <th
-                  key={col.key}
-                  className="border px-1 py-1 text-left font-medium cursor-pointer hover:bg-gray-200 min-w-0"
-                  onClick={() => toggleSort(col.key)}
-                >
-                  <div className="flex items-center gap-1">
-                    {col.label}
-                    <ArrowUpDown size={8} />
+      </div>
+    </div>
+  )
+
+  return (
+    <Layout>
+      <PageAccessControl pageName="product_name">
+        <div className="p-4 md:p-6">
+          {/* Toast Notification */}
+          {toast && (
+            <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 flex items-center shadow-lg transform transition-all duration-300 ${
+              toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+            }`}>
+              <span className="mr-2">{toast.type === 'success' ? '✅' : '❌'}</span>
+              {toast.message}
+            </div>
+          )}
+
+          {/* Delete Confirmation Modal */}
+          {deleteConfirm.show && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+                <h3 className="font-bold text-lg mb-4">Confirm Delete</h3>
+                <p>Are you sure you want to delete this product? This action cannot be undone.</p>
+                <div className="flex justify-end gap-3 mt-6">
+                  <button 
+                    onClick={() => setDeleteConfirm({show: false, id: null})}
+                    className="px-4 py-2 border border-gray-300 rounded-md"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(deleteConfirm.id!)}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Filters */}
+          {showMobileFilters && <MobileFilters />}
+
+          {/* Mobile Product Details View */}
+          {isMobile && mobileView === 'details' && selectedProduct && (
+            <div className="fixed inset-0 bg-white z-50 overflow-y-auto">
+              <div className="p-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold">Product Details</h2>
+                  <button onClick={closeProductDetails} className="p-2">
+                    <X size={20} />
+                  </button>
+                </div>
+                
+                <div className="space-y-3">
+                  <div>
+                    <label className="font-semibold">Product Name:</label>
+                    <p>{toTitleCase(selectedProduct.product_name)}</p>
                   </div>
-                </th>
-              ))}
-              <th className="border px-1 py-1 text-left font-medium min-w-0">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              Array.from({ length: pageSize }).map((_, idx) => (
-                <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  {Array.from({ length: 11 }).map((_, cellIdx) => (
-                    <td key={cellIdx} className="border px-1 py-1">
-                      <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                    </td>
-                  ))}
-                  <td className="border px-1 py-1 flex gap-1">
-                    <div className="h-6 w-6 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-6 w-6 bg-gray-200 rounded animate-pulse"></div>
-                  </td>
-                </tr>
-              ))
-            ) : paginatedData.length === 0 ? (
-              <tr>
-                <td colSpan={12} className="text-center py-2 text-gray-500 text-xs">
-                  No products found. {search || Object.values(filters).some(f => f) ? 'Try changing your search or filters.' : ''}
-                </td>
-              </tr>
-            ) : (
-              paginatedData.map((row, idx) => (
-                <tr key={row.id_product} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  <td className="border px-1 py-1 truncate">{row.id_product}</td>
-                  <td className="border px-1 py-1 truncate">{toTitleCase(row.product_name)}</td>
-                  <td className="border px-1 py-1 truncate">{toTitleCase(row.sub_category)}</td>
-                  <td className="border px-1 py-1 truncate">{toTitleCase(row.unit_kecil)}</td>
-                  <td className="border px-1 py-1 truncate">{toTitleCase(row.satuan_kecil)}</td>
-                  <td className="border px-1 py-1 truncate">{toTitleCase(row.unit_besar)}</td>
-                  <td className="border px-1 py-1 truncate">{toTitleCase(row.satuan_besar)}</td>
-                  <td className="border px-1 py-1 truncate">
-                    {row.suppliers ? toTitleCase(row.suppliers.nama_supplier) : 'No Supplier'}
-                  </td>
-                  <td className="border px-1 py-1 truncate">{row.harga}</td>
-                  <td className="border px-1 py-1 text-center">
-                    <span className={`px-1 py-0.5 rounded text-xs font-semibold ${
-                      row.category === 'Menu' ? 'bg-blue-100 text-blue-800' :
-                      row.category === 'WIP' ? 'bg-yellow-100 text-yellow-800' :
-                      row.category === 'Bahan Baku' ? 'bg-green-100 text-green-800' :
+                  
+                  <div>
+                    <label className="font-semibold">Sub Category:</label>
+                    <p>{toTitleCase(selectedProduct.sub_category)}</p>
+                  </div>
+                  
+                  <div>
+                    <label className="font-semibold">Small Unit:</label>
+                    <p>{toTitleCase(selectedProduct.unit_kecil)}</p>
+                  </div>
+                  
+                  <div>
+                    <label className="font-semibold">Small Unit Type:</label>
+                    <p>{toTitleCase(selectedProduct.satuan_kecil)}</p>
+                  </div>
+                  
+                  <div>
+                    <label className="font-semibold">Large Unit:</label>
+                    <p>{toTitleCase(selectedProduct.unit_besar)}</p>
+                  </div>
+                  
+                  <div>
+                    <label className="font-semibold">Large Unit Type:</label>
+                    <p>{toTitleCase(selectedProduct.satuan_besar)}</p>
+                  </div>
+                  
+                  <div>
+                    <label className="font-semibold">Supplier:</label>
+                    <p>{selectedProduct.suppliers ? toTitleCase(selectedProduct.suppliers.nama_supplier) : 'No Supplier'}</p>
+                  </div>
+                  
+                  <div>
+                    <label className="font-semibold">Harga:</label>
+                    <p>{selectedProduct.harga}</p>
+                  </div>
+                  
+                  <div>
+                    <label className="font-semibold">Category:</label>
+                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                      selectedProduct.category === 'Menu' ? 'bg-blue-100 text-blue-800' :
+                      selectedProduct.category === 'WIP' ? 'bg-yellow-100 text-yellow-800' :
+                      selectedProduct.category === 'Bahan Baku' ? 'bg-green-100 text-green-800' :
                       'bg-gray-100 text-gray-800'
                     }`}>
-                      {row.category || 'Not Set'}
+                      {selectedProduct.category || 'Not Set'}
                     </span>
-                  </td>
-                  <td className="border px-1 py-1">
-                    <div className="flex flex-wrap gap-1">
-                      {row.product_branches?.filter((pb: any) => pb.branches).map((pb: any) => (
-                        <span key={pb.branches.kode_branch} className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
+                  </div>
+                  
+                  <div>
+                    <label className="font-semibold">Branches:</label>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {selectedProduct.product_branches?.filter((pb: any) => pb.branches).map((pb: any) => (
+                        <span key={pb.branches.kode_branch} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
                           {pb.branches.nama_branch}
                         </span>
                       )) || <span className="text-gray-400 text-xs">No branches</span>}
                     </div>
-                  </td>
-                  <td className="border px-1 py-1 truncate">{toTitleCase(row.merk)}</td>
-                  <td className="border px-1 py-1">
-                    <div className="flex gap-1">
-                      {canPerformActionSync(userRole, 'product_name', 'edit') && (
-                        <button 
-                          onClick={() => handleEdit(row)} 
-                          className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                          title="Edit"
-                        >
-                          <Edit2 size={12} />
-                        </button>
-                      )}
-                      {canPerformActionSync(userRole, 'product_name', 'delete') && (
-                        <button 
-                          onClick={() => setDeleteConfirm({show: true, id: row.id_product})} 
-                          className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
-                          title="Delete"
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                  </div>
+                  
+                  <div>
+                    <label className="font-semibold">Merk:</label>
+                    <p>{toTitleCase(selectedProduct.merk)}</p>
+                  </div>
+                </div>
+                
+                <div className="flex gap-2 mt-6">
+                  {canPerformActionSync(userRole, 'product_name', 'edit') && (
+                    <button 
+                      onClick={() => {
+                        closeProductDetails();
+                        handleEdit(selectedProduct);
+                      }} 
+                      className="flex-1 bg-blue-600 text-white py-2 rounded-md"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {canPerformActionSync(userRole, 'product_name', 'delete') && (
+                    <button 
+                      onClick={() => setDeleteConfirm({show: true, id: selectedProduct.id_product})} 
+                      className="flex-1 bg-red-600 text-white py-2 rounded-md"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 mb-4">
+            <h1 className="text-xl font-bold text-gray-800">📦 Product Management</h1>
+            {isMobile && (
+              <button 
+                onClick={() => setShowMobileFilters(true)}
+                className="ml-auto p-2 bg-gray-200 rounded-md"
+              >
+                <Filter size={20} />
+              </button>
+            )}
+          </div>
+
+          {/* Search + Import/Export */}
+          <div className="space-y-3 mb-4">
+            {!isMobile ? (
+              <input
+                type="text"
+                placeholder="🔍 Search products..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="border px-2 py-1 rounded-md text-xs w-full sm:w-64"
+              />
+            ) : (
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="border pl-8 pr-2 py-2 rounded-md w-full"
+                />
+              </div>
+            )}
+            
+            {/* Primary Actions */}
+            <div className="flex flex-wrap gap-2">
+              {canPerformActionSync(userRole, 'product_name', 'create') && (
+                <button
+                  onClick={() => setShowAddForm(!showAddForm)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
+                >
+                  <Plus size={16} />
+                  Add New
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  fetchData()
+                  fetchSuppliers()
+                  fetchCategories()
+                  fetchBranches()
+                  showToast("✅ Data refreshed", "success")
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
+              >
+                <RefreshCw size={16} />
+                Refresh
+              </button>
+              {!isMobile && (
+                <button 
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className={`px-3 py-1 rounded-md text-xs flex items-center gap-1 ${
+                    showAdvancedFilters ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'
+                  }`}
+                >
+                  <Filter size={16} />
+                  Filters
+                </button>
+              )}
+            </div>
+            
+            {/* Secondary Actions */}
+            <div className="flex flex-wrap gap-2">
+              {(userRole === 'super admin' || userRole === 'admin') && (
+                <button onClick={exportXLSX} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs">
+                  Export Excel
+                </button>
+              )}
+              {(userRole === 'super admin' || userRole === 'admin') && (
+                <label className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-xs cursor-pointer">
+                  Import Excel
+                  <input type="file" accept=".xlsx,.xls" onChange={importXLSX} className="hidden" />
+                </label>
+              )}
+              {(search || Object.values(filters).some(f => f)) && (
+                <button 
+                  onClick={resetFilters}
+                  className="px-3 py-1 rounded-md text-xs flex items-center gap-1 bg-red-100 text-red-700 hover:bg-red-200"
+                >
+                  <X size={16} />
+                  Clear Filters
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Advanced Filters (Desktop only) */}
+          {showAdvancedFilters && !isMobile && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 my-4 p-4 bg-white rounded-lg shadow">
+              {['sub_category', 'category', 'unit_kecil', 'unit_besar'].map((field) => (
+                <div key={field}>
+                  <label className="block text-xs font-medium mb-1 text-gray-700">{toTitleCase(field.replace(/_/g, ' '))}</label>
+                  <select
+                    value={filters[field] || ''}
+                    onChange={(e) => setFilters({...filters, [field]: e.target.value})}
+                    className="border px-2 py-1 rounded-md text-xs w-full"
+                  >
+                    <option value="">All {toTitleCase(field.replace(/_/g, ' '))}</option>
+                    {[...new Set(data.map(item => item[field]))].map((value) => (
+                      <option key={value} value={value}>{value}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Form */}
+          {showAddForm && (
+            <div id="product-form" className="mt-6 bg-white p-4 shadow rounded-lg">
+              <h2 className="font-semibold text-base mb-2 text-gray-800">{editing ? "✏️ Edit Product" : "➕ Add New Product"}</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {[
+                  "product_name",
+                  "sub_category",
+                  "unit_kecil",
+                  "satuan_kecil",
+                  "unit_besar",
+                  "satuan_besar",
+                  "harga",
+                  "merk",
+                ].map((field) => (
+                  <div key={field}>
+                    <input
+                      name={field}
+                      value={form[field] || ""}
+                      onChange={handleInput}
+                      placeholder={toTitleCase(field.replace(/_/g, ' '))}
+                      onInput={(e) => {
+                        if (['satuan_kecil', 'satuan_besar', 'harga'].includes(field)) {
+                          (e.target as HTMLInputElement).value = (e.target as HTMLInputElement).value.replace(/[^0-9.]/g, '');
+                        }
+                      }}
+                      className={`border px-2 py-1 rounded-md text-xs focus:ring focus:ring-blue-200 w-full ${
+                        errors[field] ? 'border-red-500' : ''
+                      }`}
+                    />
+                    {errors[field] && <p className="text-red-500 text-xs mt-0.5">{errors[field]}</p>}
+                  </div>
+                ))}
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Type to search suppliers..."
+                    value={editing ? selectedSupplierText : supplierSearch}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setSupplierSearch(value)
+                      setSelectedSupplierText(value)
+                      setShowSupplierDropdown(value.length > 0)
+                      // Clear selection if text doesn't match any supplier
+                      if (!suppliers.some(s => `${s.nama_supplier} - ${s.nama_barang}` === value)) {
+                        setForm((prev: any) => ({ ...prev, supplier_id: '' }))
+                      }
+                    }}
+                    onFocus={() => {
+                      if (supplierSearch.length > 0) setShowSupplierDropdown(true)
+                    }}
+                    onBlur={() => {
+                      // Delay hiding dropdown to allow clicks
+                      setTimeout(() => setShowSupplierDropdown(false), 200)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setShowSupplierDropdown(false)
+                      }
+                    }}
+                    className={`border px-2 py-1 rounded-md text-xs w-full ${
+                      errors.supplier_id ? 'border-red-500' : ''
+                    }`}
+                  />
+                  {showSupplierDropdown && (
+                    <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto mt-1">
+                      {suppliers
+                        .filter(supplier => 
+                          supplier.nama_supplier?.toLowerCase().includes(supplierSearch.toLowerCase()) ||
+                          supplier.nama_barang?.toLowerCase().includes(supplierSearch.toLowerCase())
+                        )
+                        .slice(0, 10)
+                        .map((supplier) => (
+                          <div
+                            key={supplier.id_supplier}
+                            onClick={() => {
+                              setForm((prev: any) => ({ ...prev, supplier_id: supplier.id_supplier }))
+                              setSelectedSupplierText(`${supplier.nama_supplier} - ${supplier.nama_barang}`)
+                              setSupplierSearch('')
+                              setShowSupplierDropdown(false)
+                            }}
+                            className="px-2 py-1 hover:bg-gray-100 cursor-pointer text-xs border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="font-medium text-gray-900 text-xs">{supplier.nama_supplier}</div>
+                            <div className="text-xs text-gray-500">{supplier.nama_barang}</div>
+                          </div>
+                        ))}
+                      {suppliers.filter(supplier => 
+                        supplier.nama_supplier?.toLowerCase().includes(supplierSearch.toLowerCase()) ||
+                        supplier.nama_barang?.toLowerCase().includes(supplierSearch.toLowerCase())
+                      ).length === 0 && (
+                        <div className="px-2 py-1 text-xs text-gray-500">No suppliers found</div>
                       )}
                     </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                  )}
+                  {errors.supplier_id && <p className="text-red-500 text-xs mt-0.5">{errors.supplier_id}</p>}
+                </div>
+                <div>
+                  <select
+                    name="category"
+                    value={form.category || ""}
+                    onChange={handleInput}
+                    className={`border px-2 py-1 rounded-md text-xs w-full ${
+                      errors.category ? 'border-red-500' : ''
+                    }`}
+                  >
+                    <option value="">Select Category</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id_category} value={cat.category_name}>
+                        {cat.category_name}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.category && <p className="text-red-500 text-xs mt-0.5">{errors.category}</p>}
+                </div>
+                
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium mb-1 text-gray-700">Branches</label>
+                  <div className="border rounded-md p-2 max-h-32 overflow-y-auto">
+                    {branches.map((branch) => (
+                      <label key={branch.kode_branch} className="flex items-center gap-2 text-xs py-1">
+                        <input
+                          type="checkbox"
+                          checked={selectedBranches.includes(branch.kode_branch)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedBranches([...selectedBranches, branch.kode_branch])
+                            } else {
+                              setSelectedBranches(selectedBranches.filter(b => b !== branch.kode_branch))
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <span>{branch.nama_branch}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">{selectedBranches.length} branch(es) selected</p>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button 
+                  onClick={handleSubmit} 
+                  disabled={submitting}
+                  className={`px-3 py-1 rounded-md text-xs ${
+                    submitting 
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-green-600 hover:bg-green-700'
+                  } text-white`}
+                >
+                  {submitting ? 'Saving...' : (editing ? "Update Product" : "Add Product")}
+                </button>
+                {editing && (
+                  <button 
+                    onClick={resetForm} 
+                    className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-xs"
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+                <button 
+                  onClick={resetForm} 
+                  className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-xs"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
 
-      {/* Pagination */}
-      <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-2">
-        <p className="text-xs text-gray-600">
-          Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, filteredData.length)} of {filteredData.length} entries
-        </p>
-        <div className="flex gap-1">
-          <button 
-            disabled={page === 1} 
-            onClick={() => setPage(1)}
-            className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
-          >
-            First
-          </button>
-          <button 
-            disabled={page === 1} 
-            onClick={() => setPage(p => p - 1)}
-            className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
-          >
-            Prev
-          </button>
-          <div className="flex items-center gap-1">
-            <span className="text-xs">Page</span>
-            <input
-              type="number"
-              min="1"
-              max={totalPages}
-              value={page}
-              onChange={(e) => {
-                const newPage = Math.max(1, Math.min(totalPages, Number(e.target.value)))
-                setPage(newPage)
-              }}
-              className="w-12 px-1 py-0.5 border rounded text-xs text-center"
-            />
-            <span className="text-xs">of {totalPages || 1}</span>
+          {/* Desktop Table */}
+          {!isMobile && (
+            <div className="overflow-x-auto bg-white rounded-lg shadow">
+              <table className="w-full text-xs border border-gray-200">
+                <thead className="bg-gray-100 text-gray-700">
+                  <tr>
+                    {[
+                      { key: "id_product", label: "ID" },
+                      { key: "product_name", label: "Product Name" },
+                      { key: "sub_category", label: "Sub Category" },
+                      { key: "unit_kecil", label: "Small Unit" },
+                      { key: "satuan_kecil", label: "Small Unit Type" },
+                      { key: "unit_besar", label: "Large Unit" },
+                      { key: "satuan_besar", label: "Large Unit Type" },
+                      { key: "supplier", label: "Supplier" },
+                      { key: "harga", label: "Harga" },
+                      { key: "category", label: "Category" },
+                      { key: "branches", label: "Branches" }, 
+                      { key: "merk", label:"Merk"}
+                    ].map((col) => (
+                      <th
+                        key={col.key}
+                        className="border px-1 py-1 text-left font-medium cursor-pointer hover:bg-gray-200 min-w-0"
+                        onClick={() => toggleSort(col.key)}
+                      >
+                        <div className="flex items-center gap-1">
+                          {col.label}
+                          <ArrowUpDown size={8} />
+                        </div>
+                      </th>
+                    ))}
+                    <th className="border px-1 py-1 text-left font-medium min-w-0">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    Array.from({ length: pageSize }).map((_, idx) => (
+                      <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                        {Array.from({ length: 11 }).map((_, cellIdx) => (
+                          <td key={cellIdx} className="border px-1 py-1">
+                            <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                          </td>
+                        ))}
+                        <td className="border px-1 py-1 flex gap-1">
+                          <div className="h-6 w-6 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="h-6 w-6 bg-gray-200 rounded animate-pulse"></div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : paginatedData.length === 0 ? (
+                    <tr>
+                      <td colSpan={12} className="text-center py-2 text-gray-500 text-xs">
+                        No products found. {search || Object.values(filters).some(f => f) ? 'Try changing your search or filters.' : ''}
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedData.map((row, idx) => (
+                      <tr key={row.id_product} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                        <td className="border px-1 py-1 truncate">{row.id_product}</td>
+                        <td className="border px-1 py-1 truncate">{toTitleCase(row.product_name)}</td>
+                        <td className="border px-1 py-1 truncate">{toTitleCase(row.sub_category)}</td>
+                        <td className="border px-1 py-1 truncate">{toTitleCase(row.unit_kecil)}</td>
+                        <td className="border px-1 py-1 truncate">{toTitleCase(row.satuan_kecil)}</td>
+                        <td className="border px-1 py-1 truncate">{toTitleCase(row.unit_besar)}</td>
+                        <td className="border px-1 py-1 truncate">{toTitleCase(row.satuan_besar)}</td>
+                        <td className="border px-1 py-1 truncate">
+                          {row.suppliers ? toTitleCase(row.suppliers.nama_supplier) : 'No Supplier'}
+                        </td>
+                        <td className="border px-1 py-1 truncate">{row.harga}</td>
+                        <td className="border px-1 py-1 text-center">
+                          <span className={`px-1 py-0.5 rounded text-xs font-semibold ${
+                            row.category === 'Menu' ? 'bg-blue-100 text-blue-800' :
+                            row.category === 'WIP' ? 'bg-yellow-100 text-yellow-800' :
+                            row.category === 'Bahan Baku' ? 'bg-green-100 text-green-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {row.category || 'Not Set'}
+                          </span>
+                        </td>
+                        <td className="border px-1 py-1">
+                          <div className="flex flex-wrap gap-1">
+                            {row.product_branches?.filter((pb: any) => pb.branches).map((pb: any) => (
+                              <span key={pb.branches.kode_branch} className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
+                                {pb.branches.nama_branch}
+                              </span>
+                            )) || <span className="text-gray-400 text-xs">No branches</span>}
+                          </div>
+                        </td>
+                        <td className="border px-1 py-1 truncate">{toTitleCase(row.merk)}</td>
+                        <td className="border px-1 py-1">
+                          <div className="flex gap-1">
+                            {canPerformActionSync(userRole, 'product_name', 'edit') && (
+                              <button 
+                                onClick={() => handleEdit(row)} 
+                                className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                                title="Edit"
+                              >
+                                <Edit2 size={12} />
+                              </button>
+                            )}
+                            {canPerformActionSync(userRole, 'product_name', 'delete') && (
+                              <button 
+                                onClick={() => setDeleteConfirm({show: true, id: row.id_product})} 
+                                className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
+                                title="Delete"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Mobile List View */}
+          {isMobile && mobileView === 'list' && (
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              {loading ? (
+                Array.from({ length: pageSize }).map((_, idx) => (
+                  <div key={idx} className="p-3 border-b border-gray-200">
+                    <div className="h-4 bg-gray-200 rounded animate-pulse mb-2 w-3/4"></div>
+                    <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2"></div>
+                  </div>
+                ))
+              ) : paginatedData.length === 0 ? (
+                <div className="p-4 text-center text-gray-500">
+                  No products found. {search || Object.values(filters).some(f => f) ? 'Try changing your search or filters.' : ''}
+                </div>
+              ) : (
+                paginatedData.map((row) => (
+                  <div 
+                    key={row.id_product} 
+                    className="p-3 border-b border-gray-200 cursor-pointer hover:bg-gray-50"
+                    onClick={() => viewProductDetails(row)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-sm">{toTitleCase(row.product_name)}</h3>
+                        <p className="text-xs text-gray-600">{toTitleCase(row.sub_category)}</p>
+                      </div>
+                      <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                        row.category === 'Menu' ? 'bg-blue-100 text-blue-800' :
+                        row.category === 'WIP' ? 'bg-yellow-100 text-yellow-800' :
+                        row.category === 'Bahan Baku' ? 'bg-green-100 text-green-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {row.category || 'Not Set'}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {row.product_branches?.filter((pb: any) => pb.branches).slice(0, 3).map((pb: any) => (
+                        <span key={pb.branches.kode_branch} className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
+                          {pb.branches.nama_branch}
+                        </span>
+                      ))}
+                      {row.product_branches?.length > 3 && (
+                        <span className="px-1 py-0.5 bg-gray-100 text-gray-800 rounded text-xs">
+                          +{row.product_branches.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Pagination */}
+          <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-2">
+            <p className="text-xs text-gray-600">
+              Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, filteredData.length)} of {filteredData.length} entries
+            </p>
+            <div className="flex gap-1">
+              <button 
+                disabled={page === 1} 
+                onClick={() => setPage(1)}
+                className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
+              >
+                First
+              </button>
+              <button 
+                disabled={page === 1} 
+                onClick={() => setPage(p => p - 1)}
+                className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
+              >
+                Prev
+              </button>
+              <div className="flex items-center gap-1">
+                <span className="text-xs">Page</span>
+                <input
+                  type="number"
+                  min="1"
+                  max={totalPages}
+                  value={page}
+                  onChange={(e) => {
+                    const newPage = Math.max(1, Math.min(totalPages, Number(e.target.value)))
+                    setPage(newPage)
+                  }}
+                  className="w-12 px-1 py-0.5 border rounded text-xs text-center"
+                />
+                <span className="text-xs">of {totalPages || 1}</span>
+              </div>
+              <button 
+                disabled={page === totalPages || totalPages === 0} 
+                onClick={() => setPage(p => p + 1)}
+                className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
+              >
+                Next
+              </button>
+              <button 
+                disabled={page === totalPages || totalPages === 0} 
+                onClick={() => setPage(totalPages)}
+                className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
+              >
+                Last
+              </button>
+            </div>
           </div>
-          <button 
-            disabled={page === totalPages || totalPages === 0} 
-            onClick={() => setPage(p => p + 1)}
-            className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
-          >
-            Next
-          </button>
-          <button 
-            disabled={page === totalPages || totalPages === 0} 
-            onClick={() => setPage(totalPages)}
-            className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
-          >
-            Last
-          </button>
-        </div>
-      </div>
-
         </div>
       </PageAccessControl>
     </Layout>

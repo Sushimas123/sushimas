@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
-import { Plus, Edit, Trash2, Download, Upload, Eye, EyeOff, Settings } from 'lucide-react';
+import { Plus, Edit, Trash2, Download, Upload, Eye, EyeOff, Settings, Filter, X, Search, Menu } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
@@ -59,6 +59,30 @@ function UsersPageContent() {
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
   const [permittedColumns, setPermittedColumns] = useState<string[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  
+  // Mobile specific states
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileView, setMobileView] = useState('list'); // 'list' or 'details'
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  
+  // Pagination states
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
+
+  // Check if mobile on mount and on resize
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkIsMobile();
+    window.addEventListener('resize', checkIsMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkIsMobile);
+    };
+  }, []);
 
   // Get user role
   useEffect(() => {
@@ -249,8 +273,10 @@ function UsersPageContent() {
       setShowAddForm(false);
       setEditingId(null);
       await fetchUsers();
+      showToast('✅ User saved successfully', 'success');
     } catch (error) {
       console.error('Error saving user:', error);
+      showToast('❌ Failed to save user', 'error');
     } finally {
       setSaving(false);
     }
@@ -300,6 +326,7 @@ function UsersPageContent() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Users");
     XLSX.writeFile(wb, `users_${new Date().toISOString().split('T')[0]}.xlsx`);
+    showToast('✅ Users exported successfully', 'success');
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -324,6 +351,7 @@ function UsersPageContent() {
       })).filter((item: any) => item.email && item.nama_lengkap);
 
       if (importData.length === 0) {
+        showToast('❌ No valid data found', 'error');
         return;
       }
 
@@ -361,10 +389,14 @@ function UsersPageContent() {
 
       if (successCount > 0) {
         fetchUsers();
+        showToast(`✅ Imported ${successCount} users (${updateCount} updated, ${successCount - updateCount} new)`, 'success');
+      } else {
+        showToast('❌ Failed to import any users', 'error');
       }
 
     } catch (error) {
       console.error('Failed to import Excel file:', error);
+      showToast('❌ Failed to import Excel file', 'error');
     } finally {
       setImportLoading(false);
       e.target.value = '';
@@ -389,20 +421,82 @@ function UsersPageContent() {
       }
 
       await fetchUsers();
-      alert('User berhasil dihapus!');
+      showToast('✅ User deleted successfully', 'success');
     } catch (error) {
       console.error('Error deleting user:', error);
-      alert('Gagal menghapus user');
+      showToast('❌ Failed to delete user', 'error');
     } finally {
       setDeleteLoading(null);
     }
   };
+
+  // Mobile view handlers
+  const viewUserDetails = (user: User) => {
+    setSelectedUser(user);
+    setMobileView('details');
+  };
+
+  const closeUserDetails = () => {
+    setMobileView('list');
+    setSelectedUser(null);
+  };
+
+  // Mobile filter component
+  const MobileFilters = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end">
+      <div className="bg-white w-4/5 h-full p-4 overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold">Filters</h3>
+          <button onClick={() => setShowMobileFilters(false)}>
+            <X size={20} />
+          </button>
+        </div>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Search</label>
+            <input
+              type="text"
+              placeholder="Search users..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="border px-3 py-2 rounded-md w-full"
+            />
+          </div>
+          
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setSearchTerm('')}
+              className="px-4 py-2 bg-gray-200 rounded-md flex-1"
+            >
+              Reset
+            </button>
+            <button 
+              onClick={() => setShowMobileFilters(false)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md flex-1"
+            >
+              Apply
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   const filteredUsers = users.filter(user =>
     user.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.role.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Reset pagination when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredUsers.length / pageSize);
+  const paginatedUsers = filteredUsers.slice((page - 1) * pageSize, page * pageSize);
 
   if (loading) {
     return (
@@ -418,7 +512,7 @@ function UsersPageContent() {
   }
 
   return (
-    <div className="p-1 md:p-2">
+    <div className="p-4 md:p-6">
       {/* Toast Notification */}
       {toast && (
         <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 flex items-center shadow-lg transform transition-all duration-300 ${
@@ -428,10 +522,110 @@ function UsersPageContent() {
           {toast.message}
         </div>
       )}
+
+      {/* Mobile Filters */}
+      {showMobileFilters && <MobileFilters />}
+
+      {/* Mobile User Details View */}
+      {isMobile && mobileView === 'details' && selectedUser && (
+        <div className="fixed inset-0 bg-white z-50 overflow-y-auto">
+          <div className="p-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">User Details</h2>
+              <button onClick={closeUserDetails} className="p-2">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="font-semibold">Email:</label>
+                <p className="text-blue-600">{selectedUser.email}</p>
+              </div>
+              
+              <div>
+                <label className="font-semibold">Nama Lengkap:</label>
+                <p>{selectedUser.nama_lengkap}</p>
+              </div>
+              
+              <div>
+                <label className="font-semibold">No Telp:</label>
+                <p>{selectedUser.no_telp || '-'}</p>
+              </div>
+              
+              <div>
+                <label className="font-semibold">Role:</label>
+                <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                  selectedUser.role === 'super admin' ? 'bg-red-100 text-red-800' :
+                  selectedUser.role === 'admin' ? 'bg-blue-100 text-blue-800' :
+                  selectedUser.role === 'finance' ? 'bg-purple-100 text-purple-800' :
+                  selectedUser.role === 'pic_branch' ? 'bg-green-100 text-green-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {selectedUser.role}
+                </span>
+              </div>
+              
+              <div>
+                <label className="font-semibold">Branches:</label>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {selectedUser.branches && selectedUser.branches.length > 0 
+                    ? selectedUser.branches.map(branchCode => {
+                        const branch = branches.find(b => b.kode_branch === branchCode);
+                        return (
+                          <span key={branchCode} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                            {branch ? branch.nama_branch : branchCode}
+                          </span>
+                        );
+                      })
+                    : <span className="text-gray-400 text-xs">No branches</span>
+                  }
+                </div>
+              </div>
+              
+              <div>
+                <label className="font-semibold">Created:</label>
+                <p className="text-gray-500">{new Date(selectedUser.created_at).toLocaleDateString()}</p>
+              </div>
+            </div>
+            
+            <div className="flex gap-2 mt-6">
+              {(userRole === 'super admin' || userRole === 'admin') && (
+                <button 
+                  onClick={() => {
+                    closeUserDetails();
+                    handleEdit(selectedUser);
+                  }} 
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-md"
+                >
+                  Edit
+                </button>
+              )}
+              {(userRole === 'super admin' || userRole === 'admin') && (
+                <button 
+                  onClick={() => handleDelete(selectedUser.id_user)} 
+                  className="flex-1 bg-red-600 text-white py-2 rounded-md"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-sm font-bold text-gray-800">👥 User Management</h1>
-        <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3 mb-4">
+        <h1 className="text-xl font-bold text-gray-800">👥 User Management</h1>
+        {isMobile && (
+          <button 
+            onClick={() => setShowMobileFilters(true)}
+            className="ml-auto p-2 bg-gray-200 rounded-md"
+          >
+            <Filter size={20} />
+          </button>
+        )}
+        <div className="flex items-center gap-2 ml-auto">
           <span className="text-xs text-gray-600">Access Level:</span>
           <span className={`px-2 py-1 rounded text-xs font-semibold ${
             userRole === 'super admin' ? 'bg-red-100 text-red-800' :
@@ -446,66 +640,92 @@ function UsersPageContent() {
       </div>
 
       {/* Search & Controls */}
-      <div className="bg-white p-1 rounded-lg shadow mb-1">
-        <div className="flex flex-col md:flex-row gap-1 items-start md:items-end">
-          <div className="flex-1">
+      <div className="space-y-3 mb-4">
+        {!isMobile ? (
+          <input
+            type="text"
+            placeholder="🔍 Search users..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="border px-2 py-1 rounded-md text-xs w-full sm:w-64"
+          />
+        ) : (
+          <div className="relative">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
             <input
               type="text"
               placeholder="Search users..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="border px-2 py-1 rounded-md text-xs w-full"
+              className="border pl-8 pr-2 py-2 rounded-md w-full"
             />
           </div>
-          <div className="flex gap-1">
-            {(userRole === 'super admin' || userRole === 'admin') && (
-              <button
-                onClick={handleExport}
-                className="bg-green-600 text-white px-2 py-1 rounded-md hover:bg-green-700 text-xs flex items-center gap-1"
-              >
-                <Download size={12} />
-                Export
-              </button>
-            )}
-            {(userRole === 'super admin' || userRole === 'admin') && (
-              <label className="bg-orange-600 text-white px-2 py-1 rounded-md hover:bg-orange-700 text-xs flex items-center gap-1 cursor-pointer">
-                <Upload size={12} />
-                Import
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleImport}
-                  className="hidden"
-                  disabled={importLoading}
-                />
-              </label>
-            )}
-            {(userRole === 'super admin' || userRole === 'admin') && (
-              <button
-                onClick={() => setShowAddForm(!showAddForm)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
-              >
-                <Plus size={12} />
-                Add New
-              </button>
-            )}
+        )}
+        
+        {/* Primary Actions */}
+        <div className="flex flex-wrap gap-2">
+          {(userRole === 'super admin' || userRole === 'admin') && (
+            <button
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
+            >
+              <Plus size={16} />
+              Add New
+            </button>
+          )}
+          {!isMobile && (
             <button
               onClick={() => setShowColumnSelector(!showColumnSelector)}
-              className="bg-purple-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
+              className="bg-purple-600 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
             >
-              <Settings size={12} />
-              {showColumnSelector ? 'Hide Columns' : 'Show Columns'}
+              <Settings size={16} />
+              Columns
             </button>
-          </div>
+          )}
+        </div>
+        
+        {/* Secondary Actions */}
+        <div className="flex flex-wrap gap-2">
+          {(userRole === 'super admin' || userRole === 'admin') && (
+            <button 
+              onClick={handleExport} 
+              className="bg-green-600 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
+            >
+              <Download size={16} />
+              Export
+            </button>
+          )}
+          {(userRole === 'super admin' || userRole === 'admin') && (
+            <label className="bg-orange-600 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1 cursor-pointer">
+              <Upload size={16} />
+              Import
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleImport}
+                className="hidden"
+                disabled={importLoading}
+              />
+            </label>
+          )}
+          {searchTerm && (
+            <button 
+              onClick={() => setSearchTerm('')}
+              className="px-3 py-1 rounded-md text-xs flex items-center gap-1 bg-red-100 text-red-700 hover:bg-red-200"
+            >
+              <X size={16} />
+              Clear Search
+            </button>
+          )}
         </div>
       </div>
 
       {/* Add User Form */}
       {showAddForm && (
-        <div className="bg-white p-1 rounded-lg shadow mb-1">
-          <h3 className="font-medium text-gray-800 mb-2 text-xs">{editingId ? 'Edit User' : 'Tambah User Baru'}</h3>
-          <form onSubmit={handleAddUser} className="space-y-1">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-1">
+        <div className="bg-white p-4 rounded-lg shadow mb-4">
+          <h3 className="font-medium text-gray-800 mb-2 text-sm">{editingId ? 'Edit User' : 'Add New User'}</h3>
+          <form onSubmit={handleAddUser} className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <input
                 type="email"
                 name="email"
@@ -522,7 +742,7 @@ function UsersPageContent() {
                   value={formData.password_hash}
                   onChange={handleInputChange}
                   className="border px-2 py-1 rounded-md text-xs w-full pr-8"
-                  placeholder={editingId ? "Password (kosongkan jika tidak diubah)" : "Password *"}
+                  placeholder={editingId ? "Password (leave empty if not changing)" : "Password *"}
                 />
                 <button
                   type="button"
@@ -539,7 +759,7 @@ function UsersPageContent() {
                 onChange={handleInputChange}
                 required
                 className="border px-2 py-1 rounded-md text-xs w-full"
-                placeholder="Nama Lengkap *"
+                placeholder="Full Name *"
               />
               <input
                 type="text"
@@ -547,7 +767,7 @@ function UsersPageContent() {
                 value={formData.no_telp}
                 onChange={handleInputChange}
                 className="border px-2 py-1 rounded-md text-xs w-full"
-                placeholder="No Telp"
+                placeholder="Phone Number"
               />
               <select
                 name="role"
@@ -559,7 +779,7 @@ function UsersPageContent() {
                 <option value="super admin">Super Admin</option>
                 <option value="admin">Admin</option>
                 <option value="finance">Finance</option>
-                <option value="pic_branch">pic_branch</option>
+                <option value="pic_branch">PIC Branch</option>
               </select>
               <div className="border rounded-md p-2 max-h-24 overflow-y-auto">
                 <div className="text-xs text-gray-600 mb-1">Select Branches:</div>
@@ -576,7 +796,7 @@ function UsersPageContent() {
                 ))}
               </div>
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-2">
               <button
                 type="submit"
                 disabled={saving}
@@ -608,9 +828,9 @@ function UsersPageContent() {
         </div>
       )}
 
-      {/* Column Selector */}
-      {showColumnSelector && filteredUsers.length > 0 && (
-        <div className="bg-white p-2 rounded-lg shadow mb-1">
+      {/* Column Selector (Desktop only) */}
+      {showColumnSelector && filteredUsers.length > 0 && !isMobile && (
+        <div className="bg-white p-2 rounded-lg shadow mb-4">
           <h3 className="font-medium text-gray-800 mb-2 text-xs">Column Visibility Settings</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 mb-2">
             {['email', 'nama_lengkap', 'no_telp', 'role', 'branches', 'created_at'].map(col => {
@@ -638,114 +858,232 @@ function UsersPageContent() {
               className="px-2 py-1 bg-green-600 text-white rounded-md text-xs hover:bg-green-700 flex items-center gap-1"
             >
               <Eye size={10} />
-              Show All Permitted
+              Show All
             </button>
             <button
               onClick={() => setHiddenColumns(permittedColumns)}
               className="px-2 py-1 bg-red-600 text-white rounded-md text-xs hover:bg-red-700 flex items-center gap-1"
             >
               <EyeOff size={10} />
-              Hide All Permitted
+              Hide All
             </button>
           </div>
         </div>
       )}
 
-      {/* Users Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-gray-100">
-              <tr>
-                {visibleColumns.includes('email') && <th className="px-1 py-1 text-left font-medium text-gray-700">Email</th>}
-                {visibleColumns.includes('nama_lengkap') && <th className="px-1 py-1 text-left font-medium text-gray-700">Nama Lengkap</th>}
-                {visibleColumns.includes('no_telp') && <th className="px-1 py-1 text-left font-medium text-gray-700">No Telp</th>}
-                {visibleColumns.includes('role') && <th className="px-1 py-1 text-left font-medium text-gray-700">Role</th>}
-                {visibleColumns.includes('branches') && <th className="px-1 py-1 text-left font-medium text-gray-700">Branch</th>}
-                {visibleColumns.includes('created_at') && <th className="px-1 py-1 text-left font-medium text-gray-700">Created</th>}
-                {(userRole === 'super admin' || userRole === 'admin') && <th className="px-1 py-1 text-left font-medium text-gray-700">Aksi</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredUsers.length === 0 ? (
+      {/* Desktop Table */}
+      {!isMobile && (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-100">
                 <tr>
-                  <td colSpan={(userRole === 'super admin' || userRole === 'admin') ? 7 : 6} className="px-1 py-2 text-center text-gray-500 text-xs">
-                    {userRole === 'staff' ? 'You do not have permission to view user data' :
-                     searchTerm ? 'Tidak ada user yang sesuai dengan pencarian' : 'Belum ada data user'}
-                  </td>
+                  {visibleColumns.includes('email') && <th className="px-1 py-1 text-left font-medium text-gray-700">Email</th>}
+                  {visibleColumns.includes('nama_lengkap') && <th className="px-1 py-1 text-left font-medium text-gray-700">Nama Lengkap</th>}
+                  {visibleColumns.includes('no_telp') && <th className="px-1 py-1 text-left font-medium text-gray-700">No Telp</th>}
+                  {visibleColumns.includes('role') && <th className="px-1 py-1 text-left font-medium text-gray-700">Role</th>}
+                  {visibleColumns.includes('branches') && <th className="px-1 py-1 text-left font-medium text-gray-700">Branch</th>}
+                  {visibleColumns.includes('created_at') && <th className="px-1 py-1 text-left font-medium text-gray-700">Created</th>}
+                  {(userRole === 'super admin' || userRole === 'admin') && <th className="px-1 py-1 text-left font-medium text-gray-700">Actions</th>}
                 </tr>
-              ) : (
-                filteredUsers.map((user) => (
-                  <tr key={user.id_user} className="hover:bg-gray-50">
-                    {visibleColumns.includes('email') && <td className="px-1 py-1">
-                      <div className="font-medium text-blue-600">{user.email}</div>
-                    </td>}
-                    {visibleColumns.includes('nama_lengkap') && <td className="px-1 py-1">
-                      <div className="font-medium text-gray-900">{user.nama_lengkap}</div>
-                    </td>}
-                    {visibleColumns.includes('no_telp') && <td className="px-1 py-1">
-                      <div className="text-gray-900">{user.no_telp || '-'}</div>
-                    </td>}
-                    {visibleColumns.includes('role') && <td className="px-1 py-1">
-                      <span className={`px-1 py-0.5 rounded text-xs font-semibold ${
-                        user.role === 'super admin' ? 'bg-red-100 text-red-800' :
-                        user.role === 'admin' ? 'bg-blue-100 text-blue-800' :
-                        user.role === 'finance' ? 'bg-purple-100 text-purple-800' :
-                        user.role === 'pic_branch' ? 'bg-green-100 text-green-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {user.role}
-                      </span>
-                    </td>}
-                    {visibleColumns.includes('branches') && <td className="px-1 py-1">
-                      <div className="text-gray-900">
-                        {user.branches && user.branches.length > 0 
-                          ? user.branches.map(branchCode => {
-                              const branch = branches.find(b => b.kode_branch === branchCode);
-                              return branch ? branch.nama_branch : branchCode;
-                            }).join(', ')
-                          : user.cabang ? (
-                              branches.find(b => b.kode_branch === user.cabang)?.nama_branch || user.cabang
-                            ) : '-'
-                        }
-                      </div>
-                    </td>}
-                    {visibleColumns.includes('created_at') && <td className="px-1 py-1">
-                      <div className="text-gray-500">
-                        {new Date(user.created_at).toLocaleDateString()}
-                      </div>
-                    </td>}
-                    {(userRole === 'super admin' || userRole === 'admin') && (
-                      <td className="px-1 py-1 whitespace-nowrap">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleEdit(user)}
-                            className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                            title="Edit"
-                          >
-                            <Edit size={12} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(user.id_user)}
-                            disabled={deleteLoading === user.id_user}
-                            className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 disabled:opacity-50"
-                          >
-                            {deleteLoading === user.id_user ? (
-                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
-                            ) : (
-                              <Trash2 size={12} />
-                            )}
-                          </button>
-                        </div>
-                      </td>
-                    )}
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {paginatedUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={(userRole === 'super admin' || userRole === 'admin') ? 7 : 6} className="px-1 py-2 text-center text-gray-500 text-xs">
+                      {userRole === 'staff' ? 'You do not have permission to view user data' :
+                       searchTerm ? 'No users match your search' : 'No users found'}
+                    </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  paginatedUsers.map((user) => (
+                    <tr key={user.id_user} className="hover:bg-gray-50">
+                      {visibleColumns.includes('email') && <td className="px-1 py-1">
+                        <div className="font-medium text-blue-600">{user.email}</div>
+                      </td>}
+                      {visibleColumns.includes('nama_lengkap') && <td className="px-1 py-1">
+                        <div className="font-medium text-gray-900">{user.nama_lengkap}</div>
+                      </td>}
+                      {visibleColumns.includes('no_telp') && <td className="px-1 py-1">
+                        <div className="text-gray-900">{user.no_telp || '-'}</div>
+                      </td>}
+                      {visibleColumns.includes('role') && <td className="px-1 py-1">
+                        <span className={`px-1 py-0.5 rounded text-xs font-semibold ${
+                          user.role === 'super admin' ? 'bg-red-100 text-red-800' :
+                          user.role === 'admin' ? 'bg-blue-100 text-blue-800' :
+                          user.role === 'finance' ? 'bg-purple-100 text-purple-800' :
+                          user.role === 'pic_branch' ? 'bg-green-100 text-green-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {user.role}
+                        </span>
+                      </td>}
+                      {visibleColumns.includes('branches') && <td className="px-1 py-1">
+                        <div className="text-gray-900">
+                          {user.branches && user.branches.length > 0 
+                            ? user.branches.map(branchCode => {
+                                const branch = branches.find(b => b.kode_branch === branchCode);
+                                return branch ? branch.nama_branch : branchCode;
+                              }).join(', ')
+                            : user.cabang ? (
+                                branches.find(b => b.kode_branch === user.cabang)?.nama_branch || user.cabang
+                              ) : '-'
+                          }
+                        </div>
+                      </td>}
+                      {visibleColumns.includes('created_at') && <td className="px-1 py-1">
+                        <div className="text-gray-500">
+                          {new Date(user.created_at).toLocaleDateString()}
+                        </div>
+                      </td>}
+                      {(userRole === 'super admin' || userRole === 'admin') && (
+                        <td className="px-1 py-1 whitespace-nowrap">
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleEdit(user)}
+                              className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                              title="Edit"
+                            >
+                              <Edit size={12} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(user.id_user)}
+                              disabled={deleteLoading === user.id_user}
+                              className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 disabled:opacity-50"
+                            >
+                              {deleteLoading === user.id_user ? (
+                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
+                              ) : (
+                                <Trash2 size={12} />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Mobile List View */}
+      {isMobile && mobileView === 'list' && (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          {loading ? (
+            Array.from({ length: 5 }).map((_, idx) => (
+              <div key={idx} className="p-3 border-b border-gray-200">
+                <div className="h-4 bg-gray-200 rounded animate-pulse mb-2 w-3/4"></div>
+                <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2"></div>
+              </div>
+            ))
+          ) : paginatedUsers.length === 0 ? (
+            <div className="p-4 text-center text-gray-500">
+              {userRole === 'staff' ? 'You do not have permission to view user data' :
+               searchTerm ? 'No users match your search' : 'No users found'}
+            </div>
+          ) : (
+            paginatedUsers.map((user) => (
+              <div 
+                key={user.id_user} 
+                className="p-3 border-b border-gray-200 cursor-pointer hover:bg-gray-50"
+                onClick={() => viewUserDetails(user)}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-sm">{user.nama_lengkap}</h3>
+                    <p className="text-xs text-gray-600">{user.email}</p>
+                    <p className="text-xs text-gray-500">{user.no_telp || 'No phone'}</p>
+                  </div>
+                  <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                    user.role === 'super admin' ? 'bg-red-100 text-red-800' :
+                    user.role === 'admin' ? 'bg-blue-100 text-blue-800' :
+                    user.role === 'finance' ? 'bg-purple-100 text-purple-800' :
+                    user.role === 'pic_branch' ? 'bg-green-100 text-green-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {user.role}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {user.branches && user.branches.length > 0 
+                    ? user.branches.slice(0, 3).map(branchCode => {
+                        const branch = branches.find(b => b.kode_branch === branchCode);
+                        return (
+                          <span key={branchCode} className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
+                            {branch ? branch.nama_branch : branchCode}
+                          </span>
+                        );
+                      })
+                    : <span className="text-gray-400 text-xs">No branches</span>
+                  }
+                  {user.branches && user.branches.length > 3 && (
+                    <span className="px-1 py-0.5 bg-gray-100 text-gray-800 rounded text-xs">
+                      +{user.branches.length - 3} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {filteredUsers.length > 0 && (
+        <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-2">
+          <p className="text-xs text-gray-600">
+            Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, filteredUsers.length)} of {filteredUsers.length} entries
+          </p>
+          <div className="flex gap-1">
+            <button 
+              disabled={page === 1} 
+              onClick={() => setPage(1)}
+              className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
+            >
+              First
+            </button>
+            <button 
+              disabled={page === 1} 
+              onClick={() => setPage(p => p - 1)}
+              className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
+            >
+              Prev
+            </button>
+            <div className="flex items-center gap-1">
+              <span className="text-xs">Page</span>
+              <input
+                type="number"
+                min="1"
+                max={totalPages}
+                value={page}
+                onChange={(e) => {
+                  const newPage = Math.max(1, Math.min(totalPages, Number(e.target.value)))
+                  setPage(newPage)
+                }}
+                className="w-12 px-1 py-0.5 border rounded text-xs text-center"
+              />
+              <span className="text-xs">of {totalPages || 1}</span>
+            </div>
+            <button 
+              disabled={page === totalPages || totalPages === 0} 
+              onClick={() => setPage(p => p + 1)}
+              className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
+            >
+              Next
+            </button>
+            <button 
+              disabled={page === totalPages || totalPages === 0} 
+              onClick={() => setPage(totalPages)}
+              className="px-2 py-0.5 border rounded disabled:opacity-50 text-xs"
+            >
+              Last
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

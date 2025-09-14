@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
 import Link from 'next/link';
-import { Plus, Edit, Trash2, Search, Phone, Mail, Download, Upload } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Phone, Mail, Download, Upload, X, Menu, ChevronDown, ChevronUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
@@ -62,6 +62,8 @@ function BranchesPageContent() {
   const [saving, setSaving] = useState(false);
   const picDropdownRef = useRef<HTMLDivElement>(null);
   const [userRole, setUserRole] = useState<string>('guest');
+  const [expandedBranch, setExpandedBranch] = useState<number | null>(null);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // Get user role
   useEffect(() => {
@@ -248,8 +250,6 @@ function BranchesPageContent() {
         [name]: name === 'pic_id' ? parseInt(value) || 0 : value
       };
       
-
-      
       return newData;
     });
   };
@@ -415,13 +415,21 @@ function BranchesPageContent() {
     return timeString.substring(0, 5); // Remove seconds
   };
 
+  const toggleBranchExpansion = (id: number) => {
+    if (expandedBranch === id) {
+      setExpandedBranch(null);
+    } else {
+      setExpandedBranch(id);
+    }
+  };
+
   if (loading) {
     return (
-      <div className="p-2">
-        <div className="bg-white p-2 rounded-lg shadow text-center">
+      <div className="p-4">
+        <div className="bg-white p-4 rounded-lg shadow text-center">
           <div className="flex flex-col items-center justify-center">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mb-1"></div>
-            <p className="text-xs text-gray-600">Loading branches...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
+            <p className="text-sm text-gray-600">Loading branches...</p>
           </div>
         </div>
       </div>
@@ -429,37 +437,82 @@ function BranchesPageContent() {
   }
 
   return (
-    <div className="p-1 md:p-2">
+    <div className="p-4">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-1">
-        <h1 className="text-sm font-bold text-gray-800">📍 Branch Management</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold text-gray-800">📍 Branch Management</h1>
+        <button 
+          className="md:hidden p-2 rounded-md bg-gray-100"
+          onClick={() => setShowMobileMenu(!showMobileMenu)}
+        >
+          <Menu size={20} />
+        </button>
       </div>
 
       {/* Search & Add Button */}
-      <div className="bg-white p-1 rounded-lg shadow mb-1">
-        <div className="flex flex-col md:flex-row gap-1 items-start md:items-end">
-          <div className="flex-1">
+      <div className="bg-white p-4 rounded-lg shadow mb-4">
+        <div className="flex flex-col gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
               placeholder="Search branches..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="border px-2 py-1 rounded-md text-xs w-full"
+              className="border pl-10 pr-4 py-2 rounded-md text-sm w-full"
             />
           </div>
-          <div className="flex gap-1">
+          
+          {/* Mobile menu dropdown */}
+          {showMobileMenu && (
+            <div className="flex flex-col gap-2 mt-2 p-3 bg-gray-50 rounded-md md:hidden">
+              {(userRole === 'super admin' || userRole === 'admin') && (
+                <button
+                  onClick={handleExport}
+                  className="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 text-sm flex items-center justify-center gap-2"
+                >
+                  <Download size={16} />
+                  Export
+                </button>
+              )}
+              {(userRole === 'super admin' || userRole === 'admin') && (
+                <label className="bg-orange-600 text-white px-3 py-2 rounded-md hover:bg-orange-700 text-sm flex items-center justify-center gap-2 cursor-pointer">
+                  <Upload size={16} />
+                  Import
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleImport}
+                    className="hidden"
+                    disabled={importLoading}
+                  />
+                </label>
+              )}
+              {canPerformActionSync(userRole, 'branches', 'create') && (
+                <button
+                  onClick={() => setShowAddForm(!showAddForm)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm flex items-center justify-center gap-2"
+                >
+                  <Plus size={16} />
+                  Add New
+                </button>
+              )}
+            </div>
+          )}
+          
+          <div className="hidden md:flex gap-2">
             {(userRole === 'super admin' || userRole === 'admin') && (
               <button
                 onClick={handleExport}
-                className="bg-green-600 text-white px-2 py-1 rounded-md hover:bg-green-700 text-xs flex items-center gap-1"
+                className="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 text-sm flex items-center gap-2"
               >
-                <Download size={12} />
+                <Download size={16} />
                 Export
               </button>
             )}
             {(userRole === 'super admin' || userRole === 'admin') && (
-              <label className="bg-orange-600 text-white px-2 py-1 rounded-md hover:bg-orange-700 text-xs flex items-center gap-1 cursor-pointer">
-                <Upload size={12} />
+              <label className="bg-orange-600 text-white px-3 py-2 rounded-md hover:bg-orange-700 text-sm flex items-center gap-2 cursor-pointer">
+                <Upload size={16} />
                 Import
                 <input
                   type="file"
@@ -473,9 +526,9 @@ function BranchesPageContent() {
             {canPerformActionSync(userRole, 'branches', 'create') && (
               <button
                 onClick={() => setShowAddForm(!showAddForm)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm flex items-center gap-2"
               >
-                <Plus size={12} />
+                <Plus size={16} />
                 Add New
               </button>
             )}
@@ -485,91 +538,144 @@ function BranchesPageContent() {
 
       {/* Add Branch Form */}
       {showAddForm && (
-        <div className="bg-white p-1 rounded-lg shadow mb-1">
-          <h3 className="font-medium text-gray-800 mb-2 text-xs">{editingId ? 'Edit Branch' : 'Tambah Branch Baru'}</h3>
-          <form onSubmit={handleAddBranch} className="space-y-1">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-1">
-              <input
-                type="text"
-                name="kode_branch"
-                value={formData.kode_branch}
-                onChange={handleInputChange}
-                className="border px-2 py-1 rounded-md text-xs w-full"
-                placeholder="Kode Branch (auto-generated)"
-                disabled={!editingId}
-              />
-              <input
-                type="text"
-                name="nama_branch"
-                value={formData.nama_branch}
-                onChange={handleInputChange}
-                required
-                className="border px-2 py-1 rounded-md text-xs w-full"
-                placeholder="Nama Branch *"
-              />
-              <input
-                type="text"
-                name="alamat"
-                value={formData.alamat}
-                onChange={handleInputChange}
-                required
-                className="border px-2 py-1 rounded-md text-xs w-full"
-                placeholder="Alamat *"
-              />
-              <input
-                type="text"
-                name="kota"
-                value={formData.kota}
-                onChange={handleInputChange}
-                required
-                className="border px-2 py-1 rounded-md text-xs w-full"
-                placeholder="Kota *"
-              />
-              <input
-                type="text"
-                name="provinsi"
-                value={formData.provinsi}
-                onChange={handleInputChange}
-                required
-                className="border px-2 py-1 rounded-md text-xs w-full"
-                placeholder="Provinsi *"
-              />
-              <input
-                type="time"
-                name="jam_buka"
-                value={formData.jam_buka}
-                onChange={handleInputChange}
-                className="border px-2 py-1 rounded-md text-xs w-full"
-                placeholder="Jam Buka"
-              />
-              <input
-                type="time"
-                name="jam_tutup"
-                value={formData.jam_tutup}
-                onChange={handleInputChange}
-                className="border px-2 py-1 rounded-md text-xs w-full"
-                placeholder="Jam Tutup"
-              />
-              <input
-                type="text"
-                name="kode_pos"
-                value={formData.kode_pos}
-                onChange={handleInputChange}
-                className="border px-2 py-1 rounded-md text-xs w-full"
-                placeholder="Kode Pos"
-              />
-              <select
-                name="hari_operasional"
-                value={formData.hari_operasional}
-                onChange={handleInputChange}
-                className="border px-2 py-1 rounded-md text-xs w-full"
-              >
-                <option value="Senin-Jumat">Senin-Jumat</option>
-                <option value="Senin-Sabtu">Senin-Sabtu</option>
-                <option value="Setiap Hari">Setiap Hari</option>
-                <option value="Senin-Minggu">Senin-Minggu</option>
-              </select>
+        <div className="bg-white p-4 rounded-lg shadow mb-4">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="font-medium text-gray-800 text-sm">{editingId ? 'Edit Branch' : 'Tambah Branch Baru'}</h3>
+            <button 
+              onClick={() => {
+                setShowAddForm(false);
+                setEditingId(null);
+                setFormData({
+                  kode_branch: '',
+                  nama_branch: '',
+                  alamat: '',
+                  kota: '',
+                  provinsi: '',
+                  kode_pos: '',
+                  jam_buka: '08:00',
+                  jam_tutup: '17:00',
+                  hari_operasional: 'Senin-Jumat',
+                  pic_id: 0,
+                  tanggal_berdiri: ''
+                });
+                setPicSearch('');
+              }}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <form onSubmit={handleAddBranch} className="space-y-3">
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Kode Branch</label>
+                <input
+                  type="text"
+                  name="kode_branch"
+                  value={formData.kode_branch}
+                  onChange={handleInputChange}
+                  className="border px-3 py-2 rounded-md text-sm w-full"
+                  placeholder="Kode Branch (auto-generated)"
+                  disabled={!editingId}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Nama Branch *</label>
+                <input
+                  type="text"
+                  name="nama_branch"
+                  value={formData.nama_branch}
+                  onChange={handleInputChange}
+                  required
+                  className="border px-3 py-2 rounded-md text-sm w-full"
+                  placeholder="Nama Branch"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Alamat *</label>
+                <input
+                  type="text"
+                  name="alamat"
+                  value={formData.alamat}
+                  onChange={handleInputChange}
+                  required
+                  className="border px-3 py-2 rounded-md text-sm w-full"
+                  placeholder="Alamat"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Kota *</label>
+                <input
+                  type="text"
+                  name="kota"
+                  value={formData.kota}
+                  onChange={handleInputChange}
+                  required
+                  className="border px-3 py-2 rounded-md text-sm w-full"
+                  placeholder="Kota"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Provinsi *</label>
+                <input
+                  type="text"
+                  name="provinsi"
+                  value={formData.provinsi}
+                  onChange={handleInputChange}
+                  required
+                  className="border px-3 py-2 rounded-md text-sm w-full"
+                  placeholder="Provinsi"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Jam Buka</label>
+                  <input
+                    type="time"
+                    name="jam_buka"
+                    value={formData.jam_buka}
+                    onChange={handleInputChange}
+                    className="border px-3 py-2 rounded-md text-sm w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Jam Tutup</label>
+                  <input
+                    type="time"
+                    name="jam_tutup"
+                    value={formData.jam_tutup}
+                    onChange={handleInputChange}
+                    className="border px-3 py-2 rounded-md text-sm w-full"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Kode Pos</label>
+                <input
+                  type="text"
+                  name="kode_pos"
+                  value={formData.kode_pos}
+                  onChange={handleInputChange}
+                  className="border px-3 py-2 rounded-md text-sm w-full"
+                  placeholder="Kode Pos"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Hari Operasional</label>
+                <select
+                  name="hari_operasional"
+                  value={formData.hari_operasional}
+                  onChange={handleInputChange}
+                  className="border px-3 py-2 rounded-md text-sm w-full"
+                >
+                  <option value="Senin-Jumat">Senin-Jumat</option>
+                  <option value="Senin-Sabtu">Senin-Sabtu</option>
+                  <option value="Setiap Hari">Setiap Hari</option>
+                  <option value="Senin-Minggu">Senin-Minggu</option>
+                </select>
+              </div>
               <div className="relative" ref={picDropdownRef}>
+                <label className="block text-xs text-gray-500 mb-1">PIC *</label>
                 <input
                   type="text"
                   value={picSearch || getSelectedUserName()}
@@ -579,16 +685,16 @@ function BranchesPageContent() {
                   }}
                   onFocus={() => setShowPicDropdown(true)}
                   required
-                  className="border px-2 py-1 rounded-md text-xs w-full"
-                  placeholder="Search PIC by name *"
+                  className="border px-3 py-2 rounded-md text-sm w-full"
+                  placeholder="Cari PIC berdasarkan nama"
                 />
                 {showPicDropdown && filteredUsers.length > 0 && (
-                  <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-32 overflow-y-auto">
+                  <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto mt-1">
                     {filteredUsers.map((user) => (
                       <div
                         key={user.id_user}
                         onClick={() => handlePicSelect(user)}
-                        className="px-2 py-1 hover:bg-gray-100 cursor-pointer text-xs"
+                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm border-b border-gray-100 last:border-b-0"
                       >
                         <div className="font-medium">{user.nama_lengkap}</div>
                         <div className="text-gray-500 text-xs">{user.email}</div>
@@ -597,22 +703,24 @@ function BranchesPageContent() {
                   </div>
                 )}
               </div>
-              <input
-                type="date"
-                name="tanggal_berdiri"
-                value={formData.tanggal_berdiri}
-                onChange={handleInputChange}
-                className="border px-2 py-1 rounded-md text-xs w-full"
-                placeholder="Tanggal Berdiri"
-              />
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Tanggal Berdiri</label>
+                <input
+                  type="date"
+                  name="tanggal_berdiri"
+                  value={formData.tanggal_berdiri}
+                  onChange={handleInputChange}
+                  className="border px-3 py-2 rounded-md text-sm w-full"
+                />
+              </div>
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-2 pt-2">
               <button
                 type="submit"
                 disabled={saving}
-                className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 text-xs disabled:opacity-50"
+                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm disabled:opacity-50 flex-1"
               >
-                {saving ? 'Saving...' : (editingId ? 'Update' : 'Save')}
+                {saving ? 'Menyimpan...' : (editingId ? 'Update' : 'Simpan')}
               </button>
               <button
                 type="button"
@@ -634,76 +742,164 @@ function BranchesPageContent() {
                   });
                   setPicSearch('');
                 }}
-                className="bg-gray-600 text-white px-3 py-1 rounded-md hover:bg-gray-700 text-xs"
+                className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 text-sm flex-1"
               >
-                Cancel
+                Batal
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* Branches Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      {/* Branches List - Mobile View */}
+      <div className="md:hidden">
+        {filteredBranches.length === 0 ? (
+          <div className="bg-white p-4 rounded-lg shadow text-center">
+            <p className="text-gray-500 text-sm">
+              {searchTerm ? 'Tidak ada branch yang sesuai dengan pencarian' : 'Belum ada data branch'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredBranches.map((branch) => (
+              <div key={branch.id_branch} className="bg-white rounded-lg shadow overflow-hidden">
+                <div 
+                  className="p-3 flex justify-between items-center cursor-pointer"
+                  onClick={() => toggleBranchExpansion(branch.id_branch)}
+                >
+                  <div>
+                    <div className="font-medium text-blue-600">{branch.kode_branch}</div>
+                    <div className="font-medium text-gray-900">{branch.nama_branch}</div>
+                    <div className="text-gray-500 text-sm">{branch.kota}, {branch.provinsi}</div>
+                  </div>
+                  <div>
+                    {expandedBranch === branch.id_branch ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </div>
+                </div>
+                
+                {expandedBranch === branch.id_branch && (
+                  <div className="px-3 pb-3 border-t border-gray-100">
+                    <div className="pt-3 space-y-2">
+                      <div>
+                        <div className="text-xs text-gray-500">Alamat</div>
+                        <div className="text-sm">{branch.alamat}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">Jam Operasional</div>
+                        <div className="text-sm">
+                          {formatTime(branch.jam_buka)} - {formatTime(branch.jam_tutup)}
+                        </div>
+                        <div className="text-sm text-gray-500">{branch.hari_operasional}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">PIC</div>
+                        <div className="text-sm font-medium">{branch.pic_nama}</div>
+                        <div className="text-sm flex items-center gap-1 text-gray-500">
+                          <Phone size={14} />
+                          {branch.pic_no_telp || '-'}
+                        </div>
+                        <div className="text-sm flex items-center gap-1 text-gray-500">
+                          <Mail size={14} />
+                          {branch.pic_email}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 pt-2">
+                        {canPerformActionSync(userRole, 'branches', 'edit') && (
+                          <button
+                            onClick={() => handleEdit(branch)}
+                            className="text-blue-600 hover:text-blue-800 p-2 rounded hover:bg-blue-50 flex items-center gap-1 text-sm"
+                          >
+                            <Edit size={14} />
+                            Edit
+                          </button>
+                        )}
+                        {canPerformActionSync(userRole, 'branches', 'delete') && (
+                          <button
+                            onClick={() => handleDelete(branch.id_branch)}
+                            disabled={deleteLoading === branch.id_branch}
+                            className="text-red-600 hover:text-red-800 p-2 rounded hover:bg-red-50 disabled:opacity-50 flex items-center gap-1 text-sm"
+                          >
+                            {deleteLoading === branch.id_branch ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                            ) : (
+                              <>
+                                <Trash2 size={14} />
+                                Hapus
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Branches Table - Desktop View */}
+      <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-sm">
             <thead className="bg-gray-100">
               <tr>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Kode</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Nama Branch</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Lokasi</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Jam Operasional</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">PIC</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Aksi</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">Kode</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">Nama Branch</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">Lokasi</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">Jam Operasional</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">PIC</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {filteredBranches.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-1 py-2 text-center text-gray-500 text-xs">
+                  <td colSpan={6} className="px-4 py-4 text-center text-gray-500 text-sm">
                     {searchTerm ? 'Tidak ada branch yang sesuai dengan pencarian' : 'Belum ada data branch'}
                   </td>
                 </tr>
               ) : (
                 filteredBranches.map((branch) => (
                   <tr key={branch.id_branch} className="hover:bg-gray-50">
-                    <td className="px-1 py-1 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <div className="font-medium text-blue-600">{branch.kode_branch}</div>
                     </td>
-                    <td className="px-1 py-1">
+                    <td className="px-4 py-3">
                       <div className="font-medium text-gray-900">{branch.nama_branch}</div>
-                      <div className="text-gray-500 mt-0.5">{branch.alamat}</div>
+                      <div className="text-gray-500 text-xs mt-1">{branch.alamat}</div>
                     </td>
-                    <td className="px-1 py-1 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <div className="text-gray-900">{branch.kota}</div>
-                      <div className="text-gray-500">{branch.provinsi}</div>
+                      <div className="text-gray-500 text-xs">{branch.provinsi}</div>
                     </td>
-                    <td className="px-1 py-1 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <div className="text-gray-900">
                         {formatTime(branch.jam_buka)} - {formatTime(branch.jam_tutup)}
                       </div>
-                      <div className="text-gray-500">{branch.hari_operasional}</div>
+                      <div className="text-gray-500 text-xs">{branch.hari_operasional}</div>
                     </td>
-                    <td className="px-1 py-1">
+                    <td className="px-4 py-3">
                       <div className="font-medium text-gray-900">{branch.pic_nama}</div>
-                      <div className="text-gray-500 flex items-center gap-0.5 mt-0.5">
-                        <Phone size={10} />
+                      <div className="text-gray-500 text-xs flex items-center gap-1 mt-1">
+                        <Phone size={12} />
                         {branch.pic_no_telp || '-'}
                       </div>
-                      <div className="text-gray-500 flex items-center gap-0.5 mt-0.5">
-                        <Mail size={10} />
+                      <div className="text-gray-500 text-xs flex items-center gap-1 mt-1">
+                        <Mail size={12} />
                         {branch.pic_email}
                       </div>
                     </td>
-                    <td className="px-1 py-1 whitespace-nowrap">
-                      <div className="flex items-center gap-1">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
                         {canPerformActionSync(userRole, 'branches', 'edit') && (
                           <button
                             onClick={() => handleEdit(branch)}
                             className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
                             title="Edit"
                           >
-                            <Edit size={12} />
+                            <Edit size={16} />
                           </button>
                         )}
                         {canPerformActionSync(userRole, 'branches', 'delete') && (
@@ -713,9 +909,9 @@ function BranchesPageContent() {
                             className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 disabled:opacity-50"
                           >
                             {deleteLoading === branch.id_branch ? (
-                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
                             ) : (
-                              <Trash2 size={12} />
+                              <Trash2 size={16} />
                             )}
                           </button>
                         )}

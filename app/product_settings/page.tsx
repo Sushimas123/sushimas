@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
-import { Plus, Edit, Trash2, Download, Upload, RefreshCw, Filter, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Download, Upload, RefreshCw, Filter, X, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
@@ -72,6 +72,24 @@ export default function ProductSettingsPage() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Mobile specific states
+  const [isMobile, setIsMobile] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+
+  // Check if mobile on mount and on resize
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkIsMobile();
+    window.addEventListener('resize', checkIsMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkIsMobile);
+    };
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -525,10 +543,96 @@ export default function ProductSettingsPage() {
 
   const uniqueCategories = [...new Set(data.map(item => item.category))];
 
+  // Mobile filter component
+  const MobileFilters = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end">
+      <div className="bg-white w-4/5 h-full p-4 overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold">Filters</h3>
+          <button onClick={() => setShowMobileFilters(false)}>
+            <X size={20} />
+          </button>
+        </div>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Search</label>
+            <input
+              type="text"
+              placeholder="Search products or categories..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full border px-3 py-2 rounded-md"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-1">Category</label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full border px-3 py-2 rounded-md"
+            >
+              <option value="">All Categories</option>
+              {uniqueCategories.map(category => (
+                <option key={category} value={category}>{category}</option>
+              ))}
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-1">Branch</label>
+            <select
+              value={branchFilter}
+              onChange={(e) => {
+                const newBranch = e.target.value;
+                setBranchFilter(newBranch);
+                if (showAddForm) {
+                  fetchProducts(newBranch);
+                }
+              }}
+              className="w-full border px-3 py-2 rounded-md"
+            >
+              <option value="">All Branches</option>
+              {branches.map(branch => (
+                <option key={branch.id_branch} value={branch.id_branch}>
+                  {branch.nama_branch}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="flex gap-2">
+            <button 
+              onClick={() => {
+                setCategoryFilter('');
+                setBranchFilter('');
+                setSearchTerm('');
+                fetchProducts();
+              }}
+              className="px-4 py-2 bg-gray-200 rounded-md flex-1"
+            >
+              Reset
+            </button>
+            <button 
+              onClick={() => setShowMobileFilters(false)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md flex-1"
+            >
+              Apply
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <Layout>
       <PageAccessControl pageName="product_settings">
         <div className="p-4 md:p-6">
+        {/* Mobile Filters */}
+        {showMobileFilters && <MobileFilters />}
+        
         {/* Toast */}
         {toast && (
           <div className={`fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm z-50 ${
@@ -588,18 +692,39 @@ export default function ProductSettingsPage() {
         )}
 
         <div className="flex items-center gap-3 mb-4">
-          <h1 className="text-xl font-bold text-gray-800">⚙️ Product Settings</h1>
+          <h1 className="text-lg md:text-xl font-bold text-gray-800">⚙️ Product Settings</h1>
+          {isMobile && (
+            <button 
+              onClick={() => setShowMobileFilters(true)}
+              className="ml-auto p-2 bg-gray-200 rounded-md"
+            >
+              <Filter size={20} />
+            </button>
+          )}
         </div>
 
         {/* Controls */}
         <div className="space-y-3 mb-4">
-          <input
-            type="text"
-            placeholder="🔍 Search products or categories..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="border border-gray-300 px-3 py-2 rounded-md text-sm w-full sm:w-96 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
+          {!isMobile ? (
+            <input
+              type="text"
+              placeholder="🔍 Search products or categories..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="border border-gray-300 px-3 py-2 rounded-md text-sm w-full sm:w-96 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          ) : (
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+              <input
+                type="text"
+                placeholder="Search products or categories..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="border pl-8 pr-2 py-2 rounded-md w-full"
+              />
+            </div>
+          )}
           
           <div className="flex flex-wrap gap-2">
             <button
@@ -615,15 +740,17 @@ export default function ProductSettingsPage() {
               <Plus size={16} />
               Add/Edit Settings
             </button>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`px-3 py-1 rounded-md text-xs flex items-center gap-1 ${
-                showFilters ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'
-              }`}
-            >
-              <Filter size={16} />
-              Filters
-            </button>
+            {!isMobile && (
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`px-3 py-1 rounded-md text-xs flex items-center gap-1 ${
+                  showFilters ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'
+                }`}
+              >
+                <Filter size={16} />
+                Filters
+              </button>
+            )}
             <button
               onClick={handleExport}
               className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
@@ -670,8 +797,8 @@ export default function ProductSettingsPage() {
           </div>
         </div>
 
-        {/* Filters */}
-        {showFilters && (
+        {/* Desktop Filters */}
+        {showFilters && !isMobile && (
           <div className="bg-white p-4 rounded-lg shadow mb-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
@@ -890,117 +1017,193 @@ export default function ProductSettingsPage() {
           </div>
         )}
 
-        {/* Data Table */}
-        <div className="overflow-x-auto bg-white rounded-lg shadow">
-          <table className="w-full text-xs border border-gray-200">
-            <thead className="bg-gray-100 text-gray-700">
-              <tr>
-                <th className="border px-2 py-1 text-center font-medium">
-                  <input
-                    type="checkbox"
-                    checked={selectedItems.length === paginatedData.length && paginatedData.length > 0}
-                    onChange={handleSelectAll}
-                    className="rounded"
-                  />
-                </th>
-                <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>
-                  Product Name
-                </th>
-                <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('category')}>
-                  Category
-                </th>
-                <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tolerance_percentage')}>
-                  Tolerance %
-                </th>
-                <th className="border px-2 py-1 text-center font-medium">
-                  Branch Settings
-                </th>
-                <th className="border px-2 py-1 text-left font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: itemsPerPage }).map((_, idx) => (
-                  <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                    {Array.from({ length: 6 }).map((_, cellIdx) => (
-                      <td key={cellIdx} className="border px-2 py-1">
-                        <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              ) : paginatedData.length === 0 ? (
+        {/* Desktop Table */}
+        {!isMobile ? (
+          <div className="overflow-x-auto bg-white rounded-lg shadow">
+            <table className="w-full text-xs border border-gray-200">
+              <thead className="bg-gray-100 text-gray-700">
                 <tr>
-                  <td colSpan={6} className="text-center py-2 text-gray-500 text-xs">
-                    No product settings found
-                  </td>
+                  <th className="border px-2 py-1 text-center font-medium">
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.length === paginatedData.length && paginatedData.length > 0}
+                      onChange={handleSelectAll}
+                      className="rounded"
+                    />
+                  </th>
+                  <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>
+                    Product Name
+                  </th>
+                  <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('category')}>
+                    Category
+                  </th>
+                  <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tolerance_percentage')}>
+                    Tolerance %
+                  </th>
+                  <th className="border px-2 py-1 text-center font-medium">
+                    Branch Settings
+                  </th>
+                  <th className="border px-2 py-1 text-left font-medium">Actions</th>
                 </tr>
-              ) : (
-                paginatedData.map((item, idx) => (
-                  <tr key={item.id_product} className={`${idx % 2 === 0 ? "bg-white" : "bg-gray-50"} ${selectedItems.includes(item.id_product) ? 'bg-blue-50' : ''}`}>
-                    <td className="border px-2 py-1 text-center">
+              </thead>
+              <tbody>
+                {loading ? (
+                  Array.from({ length: itemsPerPage }).map((_, idx) => (
+                    <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                      {Array.from({ length: 6 }).map((_, cellIdx) => (
+                        <td key={cellIdx} className="border px-2 py-1">
+                          <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                ) : paginatedData.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-2 text-gray-500 text-xs">
+                      No product settings found
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedData.map((item, idx) => (
+                    <tr key={item.id_product} className={`${idx % 2 === 0 ? "bg-white" : "bg-gray-50"} ${selectedItems.includes(item.id_product) ? 'bg-blue-50' : ''}`}>
+                      <td className="border px-2 py-1 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(item.id_product)}
+                          onChange={() => handleSelectItem(item.id_product)}
+                          className="rounded"
+                        />
+                      </td>
+                      <td className="border px-2 py-1 font-medium">
+                        {toTitleCase(item.product_name)}
+                        {branchFilter && !item.branch_settings.some(bs => bs.id_branch.toString() === branchFilter) && (
+                          <span className="ml-2 text-xs text-gray-400">(not in filtered branch)</span>
+                        )}
+                      </td>
+                      <td className="border px-2 py-1">
+                        <span className={`px-1 py-0.5 rounded text-xs font-semibold ${
+                          item.category === 'Menu' ? 'bg-blue-100 text-blue-800' :
+                          item.category === 'WIP' ? 'bg-yellow-100 text-yellow-800' :
+                          item.category === 'Bahan Baku' ? 'bg-green-100 text-green-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {item.category}
+                        </span>
+                      </td>
+                      <td className="border px-2 py-1 text-center">{Number(item.tolerance_percentage).toFixed(2)}%</td>
+                      <td className="border px-2 py-1">
+                        <div className="flex flex-wrap gap-1">
+                          {item.branch_settings.map(bs => (
+                            <div key={bs.id_branch} className="bg-gray-100 px-2 py-1 rounded text-xs">
+                              <div className="font-medium text-gray-700">{bs.branch_name}</div>
+                              <div className="flex gap-2 text-xs">
+                                <span className="text-green-600">S:{bs.safety_stock}</span>
+                                <span className="text-orange-600">R:{bs.reorder_point}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="border px-2 py-1">
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleEdit(item)}
+                            className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                          >
+                            <Edit size={12} />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirm({show: true, id: item.id_product})}
+                            className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          /* Mobile List View */
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            {loading ? (
+              Array.from({ length: 5 }).map((_, idx) => (
+                <div key={idx} className="p-3 border-b border-gray-200">
+                  <div className="h-4 bg-gray-200 rounded animate-pulse mb-2 w-3/4"></div>
+                  <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2"></div>
+                </div>
+              ))
+            ) : paginatedData.length === 0 ? (
+              <div className="p-4 text-center text-gray-500">
+                No product settings found
+              </div>
+            ) : (
+              paginatedData.map((item) => (
+                <div key={item.id_product} className="p-3 border-b border-gray-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-sm">{toTitleCase(item.product_name)}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                          item.category === 'Menu' ? 'bg-blue-100 text-blue-800' :
+                          item.category === 'WIP' ? 'bg-yellow-100 text-yellow-800' :
+                          item.category === 'Bahan Baku' ? 'bg-green-100 text-green-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {item.category}
+                        </span>
+                        <span className="text-xs text-gray-600">
+                          Tolerance: {Number(item.tolerance_percentage).toFixed(2)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
                       <input
                         type="checkbox"
                         checked={selectedItems.includes(item.id_product)}
                         onChange={() => handleSelectItem(item.id_product)}
                         className="rounded"
                       />
-                    </td>
-                    <td className="border px-2 py-1 font-medium">
-                      {toTitleCase(item.product_name)}
-                      {branchFilter && !item.branch_settings.some(bs => bs.id_branch.toString() === branchFilter) && (
-                        <span className="ml-2 text-xs text-gray-400">(not in filtered branch)</span>
-                      )}
-                    </td>
-                    <td className="border px-2 py-1">
-                      <span className={`px-1 py-0.5 rounded text-xs font-semibold ${
-                        item.category === 'Menu' ? 'bg-blue-100 text-blue-800' :
-                        item.category === 'WIP' ? 'bg-yellow-100 text-yellow-800' :
-                        item.category === 'Bahan Baku' ? 'bg-green-100 text-green-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {item.category}
-                      </span>
-                    </td>
-                    <td className="border px-2 py-1 text-center">{Number(item.tolerance_percentage).toFixed(2)}%</td>
-                    <td className="border px-2 py-1">
-                      <div className="flex flex-wrap gap-1">
-                        {item.branch_settings.map(bs => (
-                          <div key={bs.id_branch} className="bg-gray-100 px-2 py-1 rounded text-xs">
-                            <div className="font-medium text-gray-700">{bs.branch_name}</div>
-                            <div className="flex gap-2 text-xs">
-                              <span className="text-green-600">S:{bs.safety_stock}</span>
-                              <span className="text-orange-600">R:{bs.reorder_point}</span>
-                            </div>
+                      <button
+                        onClick={() => handleEdit(item)}
+                        className="text-blue-600 hover:text-blue-800 p-1 rounded"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm({show: true, id: item.id_product})}
+                        className="text-red-600 hover:text-red-800 p-1 rounded"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-2">
+                    <h4 className="text-xs font-medium text-gray-700 mb-1">Branch Settings:</h4>
+                    <div className="grid grid-cols-2 gap-1">
+                      {item.branch_settings.map(bs => (
+                        <div key={bs.id_branch} className="bg-gray-100 px-2 py-1 rounded text-xs">
+                          <div className="font-medium text-gray-700 truncate">{bs.branch_name}</div>
+                          <div className="flex gap-2 text-xs">
+                            <span className="text-green-600">S:{bs.safety_stock}</span>
+                            <span className="text-orange-600">R:{bs.reorder_point}</span>
                           </div>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="border px-2 py-1">
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => handleEdit(item)}
-                          className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                        >
-                          <Edit size={12} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirm({show: true, id: item.id_product})}
-                          className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
 
         {/* Pagination */}
-        <div className="flex justify-between items-center mt-4">
+        <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-2">
           <p className="text-xs text-gray-600">
             Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedData.length)} of {filteredAndSortedData.length} entries
           </p>
@@ -1019,9 +1222,21 @@ export default function ProductSettingsPage() {
             >
               Prev
             </button>
-            <span className="px-2 py-0.5 border rounded text-xs">
-              Page {currentPage} of {totalPages || 1}
-            </span>
+            <div className="flex items-center gap-1">
+              <span className="text-xs">Page</span>
+              <input
+                type="number"
+                min="1"
+                max={totalPages}
+                value={currentPage}
+                onChange={(e) => {
+                  const newPage = Math.max(1, Math.min(totalPages, Number(e.target.value)))
+                  setCurrentPage(newPage)
+                }}
+                className="w-12 px-1 py-0.5 border rounded text-xs text-center"
+              />
+              <span className="text-xs">of {totalPages || 1}</span>
+            </div>
             <button 
               disabled={currentPage === totalPages || totalPages === 0} 
               onClick={() => setCurrentPage(p => p + 1)}

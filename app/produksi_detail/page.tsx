@@ -532,31 +532,31 @@ function ProduksiDetailPageContent() {
 
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs border-collapse">
               <thead className="bg-gray-50">
                 <tr>
-                  {!hiddenColumns.includes('production_no') && <th className="px-3 py-2 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('production_no')}>
-                    Production No {sortConfig?.key === 'production_no' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  {!hiddenColumns.includes('production_no') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-100 max-w-[80px]" onClick={() => handleSort('production_no')}>
+                    Prod No {sortConfig?.key === 'production_no' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>}
-                  {!hiddenColumns.includes('tanggal_input') && <th className="px-3 py-2 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_input')}>
+                  {!hiddenColumns.includes('tanggal_input') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-100 w-16" onClick={() => handleSort('tanggal_input')}>
                     Date {sortConfig?.key === 'tanggal_input' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>}
-                  {!hiddenColumns.includes('product_name') && <th className="px-3 py-2 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('product_name')}>
+                  {!hiddenColumns.includes('product_name') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-100 max-w-[100px]" onClick={() => handleSort('product_name')}>
                     Product {sortConfig?.key === 'product_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>}
-                  {!hiddenColumns.includes('branch') && <th className="px-3 py-2 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('cabang')}>
+                  {!hiddenColumns.includes('branch') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-100 max-w-[60px]" onClick={() => handleSort('cabang')}>
                     Branch {sortConfig?.key === 'cabang' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>}
-                  {!hiddenColumns.includes('item_name') && <th className="px-3 py-2 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('item_name')}>
+                  {!hiddenColumns.includes('item_name') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-100 max-w-[100px]" onClick={() => handleSort('item_name')}>
                     Item {sortConfig?.key === 'item_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>}
-                  {!hiddenColumns.includes('jumlah_buat') && <th className="px-3 py-2 text-center font-medium text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('jumlah_buat')}>
+                  {!hiddenColumns.includes('jumlah_buat') && <th className="px-1 py-1 text-center font-medium text-gray-700 cursor-pointer hover:bg-gray-100 w-12" onClick={() => handleSort('jumlah_buat')}>
                     Qty {sortConfig?.key === 'jumlah_buat' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>}
-                  {!hiddenColumns.includes('gramasi') && <th className="px-3 py-2 text-center font-medium text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('gramasi')}>
-                    Gramasi {sortConfig?.key === 'gramasi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  {!hiddenColumns.includes('gramasi') && <th className="px-1 py-1 text-center font-medium text-gray-700 cursor-pointer hover:bg-gray-100 w-12" onClick={() => handleSort('gramasi')}>
+                    Gram {sortConfig?.key === 'gramasi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>}
-                  {!hiddenColumns.includes('total_pakai') && <th className="px-3 py-2 text-center font-medium text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_pakai')}>
+                  {!hiddenColumns.includes('total_pakai') && <th className="px-1 py-1 text-center font-medium text-gray-700 cursor-pointer hover:bg-gray-100 w-16" onClick={() => handleSort('total_pakai')}>
                     Total {sortConfig?.key === 'total_pakai' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>}
                 </tr>
@@ -564,21 +564,21 @@ function ProduksiDetailPageContent() {
               <tbody className="divide-y divide-gray-200">
                 {paginatedDetails.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-3 py-4 text-center text-gray-500">
+                    <td colSpan={8} className="px-1 py-2 text-center text-gray-500 text-xs">
                       No data found
                     </td>
                   </tr>
                 ) : (
                   paginatedDetails.map((detail) => (
                     <tr key={detail.id} className="hover:bg-gray-50">
-                      {!hiddenColumns.includes('production_no') && <td className="px-3 py-2 font-medium text-blue-600">{detail.production_no}</td>}
+                      {!hiddenColumns.includes('production_no') && <td className="px-1 py-1 font-medium text-blue-600 text-xs truncate max-w-[80px]">{detail.production_no}</td>}
                       {!hiddenColumns.includes('tanggal_input') && <td className="px-3 py-2 text-gray-700">{detail.tanggal_input}</td>}
-                      {!hiddenColumns.includes('product_name') && <td className="px-3 py-2 text-gray-700">{detail.product_name}</td>}
-                      {!hiddenColumns.includes('branch') && <td className="px-3 py-2 text-gray-700">{detail.branch_name || detail.branch}</td>}
-                      {!hiddenColumns.includes('item_name') && <td className="px-3 py-2 text-gray-700">{detail.item_name}</td>}
-                      {!hiddenColumns.includes('jumlah_buat') && <td className="px-3 py-2 text-center text-gray-700">{detail.jumlah_buat}</td>}
-                      {!hiddenColumns.includes('gramasi') && <td className="px-3 py-2 text-center text-gray-700">{detail.gramasi}</td>}
-                      {!hiddenColumns.includes('total_pakai') && <td className="px-3 py-2 text-center font-medium text-gray-900">{detail.total_pakai}</td>}
+                      {!hiddenColumns.includes('product_name') && <td className="px-1 py-1 text-gray-700 text-xs truncate max-w-[100px]">{detail.product_name}</td>}
+                      {!hiddenColumns.includes('branch') && <td className="px-1 py-1 text-gray-700 text-xs truncate max-w-[60px]">{detail.branch_name || detail.branch}</td>}
+                      {!hiddenColumns.includes('item_name') && <td className="px-1 py-1 text-gray-700 text-xs truncate max-w-[100px]">{detail.item_name}</td>}
+                      {!hiddenColumns.includes('jumlah_buat') && <td className="px-1 py-1 text-center text-gray-700 text-xs">{detail.jumlah_buat}</td>}
+                      {!hiddenColumns.includes('gramasi') && <td className="px-1 py-1 text-center text-gray-700 text-xs">{detail.gramasi}</td>}
+                      {!hiddenColumns.includes('total_pakai') && <td className="px-1 py-1 text-center font-medium text-gray-900 text-xs">{detail.total_pakai}</td>}
                     </tr>
                   ))
                 )}
