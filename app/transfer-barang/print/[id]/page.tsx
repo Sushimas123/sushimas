@@ -159,7 +159,7 @@ export default function TransferPrintPage() {
               <div className="border rounded p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <Building2 className="h-5 w-5 text-gray-600" />
-                  <h3 className="font-semibold text-gray-700">Cabang Peminjam</h3>
+                  <h3 className="font-semibold text-gray-700">Cabang asal</h3>
                 </div>
                 <p className="text-2xl font-bold text-gray-900">{transfer.cabang_peminjam}</p>
               </div>

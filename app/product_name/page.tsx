@@ -399,6 +399,8 @@ export default function ProductPage() {
             if (row.unit_kecil?.toString().trim()) entry.unit_kecil = row.unit_kecil.toString().trim()
             if (row.unit_besar?.toString().trim()) entry.unit_besar = row.unit_besar.toString().trim()
             if (row.merk?.toString().trim()) entry.merk = row.merk.toString().trim()
+            if (row.branches?.toString().trim()) entry.branches = row.branches.toString().trim()
+            
             if (row.supplier_id) {
               const supplierId = parseInt(row.supplier_id)
               if (!isNaN(supplierId)) entry.supplier_id = supplierId
@@ -439,28 +441,71 @@ export default function ProductPage() {
         let updateCount = 0
         
         for (const entry of entries) {
+          // Extract branches data from entry
+          const branchesData = entry.branches ? entry.branches.toString().split(',').map((b: string) => b.trim()) : []
+          
+          // Remove branches from entry before saving to nama_product
+          const productEntry = { ...entry }
+          delete productEntry.branches
+          
           const { data: existing } = await supabase
             .from("nama_product")
             .select("id_product")
-            .eq("product_name", entry.product_name)
+            .eq("product_name", productEntry.product_name)
             .single()
+          
+          let productId = null
           
           if (existing) {
             const { error } = await supabase
               .from("nama_product")
-              .update(entry)
+              .update(productEntry)
               .eq("id_product", existing.id_product)
             
             if (!error) {
+              productId = existing.id_product
               updateCount++
               successCount++
             }
           } else {
-            const { error } = await supabase
+            const { data: newProduct, error } = await supabase
               .from("nama_product")
-              .insert([entry])
+              .insert([productEntry])
+              .select('id_product')
+              .single()
             
-            if (!error) successCount++
+            if (!error && newProduct) {
+              productId = newProduct.id_product
+              successCount++
+            }
+          }
+          
+          // Handle branches if product was saved successfully
+          if (productId && branchesData.length > 0) {
+            // Delete existing branches
+            await supabase
+              .from("product_branches")
+              .delete()
+              .eq("product_id", productId)
+            
+            // Insert new branches
+            const validBranches = branchesData
+              .map((branchName: string) => {
+                const branch = branches.find(b => b.nama_branch === branchName)
+                return branch ? branch.kode_branch : null
+              })
+              .filter(Boolean)
+            
+            if (validBranches.length > 0) {
+              const branchInsertData = validBranches.map((branchCode: string) => ({
+                product_id: productId,
+                branch_code: branchCode
+              }))
+              
+              await supabase
+                .from("product_branches")
+                .insert(branchInsertData)
+            }
           }
         }
         
