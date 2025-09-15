@@ -696,11 +696,26 @@ function GudangPageContent() {
 
     if (sortConfig) {
       filtered.sort((a, b) => {
-        let aValue = a[sortConfig.key as keyof Gudang];
-        let bValue = b[sortConfig.key as keyof Gudang];
+        let aValue: any;
+        let bValue: any;
         
-        if (aValue === undefined) aValue = '';
-        if (bValue === undefined) bValue = '';
+        // Handle special sorting cases
+        if (sortConfig.key === 'stock_status') {
+          aValue = getStockStatus(a.id_product, a.cabang);
+          bValue = getStockStatus(b.id_product, b.cabang);
+        } else if (sortConfig.key === 'source_type') {
+          aValue = (a as any).source_type || 'manual';
+          bValue = (b as any).source_type || 'manual';
+        } else if (sortConfig.key === 'is_locked') {
+          aValue = a.is_locked ? 'locked' : 'open';
+          bValue = b.is_locked ? 'locked' : 'open';
+        } else {
+          aValue = a[sortConfig.key as keyof Gudang];
+          bValue = b[sortConfig.key as keyof Gudang];
+        }
+        
+        if (aValue === undefined || aValue === null) aValue = '';
+        if (bValue === undefined || bValue === null) bValue = '';
         
         if (typeof aValue === 'string') aValue = aValue.toLowerCase();
         if (typeof bValue === 'string') bValue = bValue.toLowerCase();
@@ -1268,8 +1283,8 @@ function GudangPageContent() {
                 {visibleColumns.includes('tanggal') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal')}>
                   Date {sortConfig?.key === 'tanggal' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>}
-                {visibleColumns.includes('tanggal') && <th className="px-1 py-1 text-left font-medium text-gray-700">
-                  Time
+                {visibleColumns.includes('tanggal') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal')}>
+                  Time {sortConfig?.key === 'tanggal' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>}
                 {visibleColumns.includes('branch_name') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch_name')}>
                   Branch {sortConfig?.key === 'branch_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
@@ -1286,16 +1301,25 @@ function GudangPageContent() {
                 {visibleColumns.includes('total_gudang') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_gudang')}>
                   Total {sortConfig?.key === 'total_gudang' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>}
-                {visibleColumns.includes('nama_pengambil_barang') && <th className="px-1 py-1 text-left font-medium text-gray-700">Pengambil</th>}
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Source</th>
-                <th className="px-1 py-1 text-left font-medium text-gray-700">Status</th>
+                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('stock_status')}>
+                  Stock Alert {sortConfig?.key === 'stock_status' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                </th>
+                {visibleColumns.includes('nama_pengambil_barang') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('nama_pengambil_barang')}>
+                  Pengambil {sortConfig?.key === 'nama_pengambil_barang' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                </th>}
+                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('source_type')}>
+                  Source {sortConfig?.key === 'source_type' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                </th>
+                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('is_locked')}>
+                  Status {sortConfig?.key === 'is_locked' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                </th>
                 <th className="px-1 py-1 text-left font-medium text-gray-700">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {paginatedGudang.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="px-1 py-2 text-center text-gray-500 text-xs">
+                  <td colSpan={14} className="px-1 py-2 text-center text-gray-500 text-xs">
                     No data found
                   </td>
                 </tr>
@@ -1334,31 +1358,31 @@ function GudangPageContent() {
                     {visibleColumns.includes('jumlah_masuk') && <td className="px-1 py-1 text-green-600">{item.jumlah_masuk}</td>}
                     {visibleColumns.includes('jumlah_keluar') && <td className="px-1 py-1 text-red-600">{item.jumlah_keluar}</td>}
                     {visibleColumns.includes('total_gudang') && (
-                      <td className="px-1 py-1 font-medium relative">
-                        <div className="flex items-center justify-between">
-                          <span>{item.total_gudang}</span>
-                          {getStockStatus(item.id_product, item.cabang) !== 'OK' && (
-                            <button
-                              onClick={() => handleCreatePOFromStock(item.id_product, item.cabang)}
-                              className={`ml-1 px-1 py-0.5 rounded text-xs font-medium flex items-center gap-1 ${
-                                getStockStatus(item.id_product, item.cabang) === 'PO_PENDING' 
-                                  ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' :
-                                getStockStatus(item.id_product, item.cabang) === 'ON_ORDER'
-                                  ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' :
-                                getStockStatus(item.id_product, item.cabang) === 'CRITICAL' 
-                                  ? 'bg-red-100 text-red-800 hover:bg-red-200 animate-pulse' 
-                                  : 'bg-orange-100 text-orange-800 hover:bg-orange-200'
-                              }`}
-                              title={`Stock Alert: ${getStockStatus(item.id_product, item.cabang)} - Click to go to Stock Alert PO page`}
-                            >
-                              {getStockStatus(item.id_product, item.cabang) === 'PO_PENDING' ? '⏳ PENDING' :
-                               getStockStatus(item.id_product, item.cabang) === 'ON_ORDER' ? '🚚 ON ORDER' :
-                               getStockStatus(item.id_product, item.cabang) === 'CRITICAL' ? '🛒 URGENT' : '🛒 LOW'}
-                            </button>
-                          )}
-                        </div>
+                      <td className="px-1 py-1 font-medium">
+                        {item.total_gudang}
                       </td>
                     )}
+                    <td className="px-1 py-1">
+                      {getStockStatus(item.id_product, item.cabang) !== 'OK' && (
+                        <button
+                          onClick={() => handleCreatePOFromStock(item.id_product, item.cabang)}
+                          className={`px-1 py-0.5 rounded text-xs font-medium flex items-center gap-1 ${
+                            getStockStatus(item.id_product, item.cabang) === 'PO_PENDING' 
+                              ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' :
+                            getStockStatus(item.id_product, item.cabang) === 'ON_ORDER'
+                              ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' :
+                            getStockStatus(item.id_product, item.cabang) === 'CRITICAL' 
+                              ? 'bg-red-100 text-red-800 hover:bg-red-200 animate-pulse' 
+                              : 'bg-orange-100 text-orange-800 hover:bg-orange-200'
+                          }`}
+                          title={`Stock Alert: ${getStockStatus(item.id_product, item.cabang)} - Click to go to Stock Alert PO page`}
+                        >
+                          {getStockStatus(item.id_product, item.cabang) === 'PO_PENDING' ? '⏳ PENDING' :
+                           getStockStatus(item.id_product, item.cabang) === 'ON_ORDER' ? '🚚 ON ORDER' :
+                           getStockStatus(item.id_product, item.cabang) === 'CRITICAL' ? '🛒 URGENT' : '🛒 LOW'}
+                        </button>
+                      )}
+                    </td>
                     {visibleColumns.includes('nama_pengambil_barang') && <td className="px-1 py-1">{item.nama_pengambil_barang}</td>}
                     <td className="px-1 py-1">
                       {(item as any).source_type === 'stock_opname_batch' ? (
