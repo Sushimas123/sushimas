@@ -42,7 +42,8 @@ export const useNavigationPermissions = () => {
           'product_settings',
           'crud_permissions',
           'audit_log',
-          'price_history'
+          'price_history',
+          'stock-alert'
         ]
 
         const permissionChecks = await Promise.all(

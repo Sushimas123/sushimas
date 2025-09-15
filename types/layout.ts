@@ -48,5 +48,6 @@ export enum AppRoutes {
   CRUD_PERMISSIONS = '/crud-permissions',
   AUDIT_LOG = '/audit-log',
   PRICE_HISTORY = '/price-history',
-  TRANSFER_BARANG = '/transfer-barang' 
+  TRANSFER_BARANG = '/transfer-barang',
+  STOCK_ALERT = '/purchaseorder/stock-alert'
 }

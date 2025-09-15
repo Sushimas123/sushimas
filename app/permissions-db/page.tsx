@@ -56,6 +56,7 @@ export default function PermissionsDBPage() {
     crud_permissions: ['id', 'user_id', 'role', 'page', 'can_create', 'can_read', 'can_update', 'can_delete', 'created_at', 'updated_at'],
     pivot: ['id', 'date', 'subcategory', 'product', 'selisih', 'pemakaian', 'branch', 'analysis_data', 'created_at'],
     dashboard: ['id', 'widget_type', 'widget_data', 'user_id', 'position', 'is_visible', 'created_at', 'updated_at'],
+    'stock-alert': ['id_product', 'product_name', 'branch_code', 'branch_name', 'current_stock', 'safety_stock', 'reorder_point', 'urgency_level', 'po_status', 'po_number'],
   }
 
   const pages = Object.keys(pageColumns)

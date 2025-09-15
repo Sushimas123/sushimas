@@ -29,7 +29,9 @@ import {
   Plus,
   PackageCheck,
   ChartArea,
-  FolderSync
+  FolderSync,
+  AlertTriangle,
+  AlertTriangleIcon
 } from "lucide-react"
 import { canAccessPage } from '@/src/utils/dbPermissions'
 import { supabase } from '@/src/lib/supabaseClient'
@@ -94,7 +96,8 @@ export default function Layout({ children }: LayoutProps) {
       submenu: [
         { name: "Purchase Order", href: "/purchaseorder", icon: Package, pageName: 'purchaseorder' },
         { name: "Barang Masuk", href: "/purchaseorder/barang_masuk", icon: PackageCheck, pageName: 'barang_masuk'},
-        { name: "Transfer Cabang", href:AppRoutes.TRANSFER_BARANG, icon:FolderSync, pageName: 'transfer_barang'}
+        { name: "Transfer Cabang", href: AppRoutes.TRANSFER_BARANG, icon: FolderSync, pageName: 'transfer_barang'},
+        { name: "Stock Alert", href: AppRoutes.STOCK_ALERT, icon: AlertTriangleIcon, pageName: 'stock-alert'},
       ]
     },    
     {
