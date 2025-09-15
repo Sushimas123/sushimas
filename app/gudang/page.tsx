@@ -164,17 +164,46 @@ function GudangPageContent() {
 
   useEffect(() => {
     const loadPermittedColumns = async () => {
-      if (gudang.length > 0) {
+      if (gudang.length > 0 && userRole && userRole !== 'user') {
         const allColumns = Object.keys(gudang[0])
         const permitted = []
         
+        console.log('=== GUDANG PERMISSION DEBUG ===')
+        console.log('All columns in gudang:', allColumns)
+        console.log('User role:', userRole)
+        
+        // Get raw permissions to debug
+        const { getPermissions } = await import('@/src/utils/dbPermissions')
+        const rawPermissions = await getPermissions(userRole)
+        console.log('Raw permissions for role:', rawPermissions)
+        console.log('Gudang permissions:', rawPermissions['gudang'])
+        
         for (const col of allColumns) {
-          const hasPermission = await canViewColumn(userRole, 'gudang', col)
+          let hasPermission = false
+          
+          // Essential columns that should always be visible
+          if (col === 'order_no') {
+            hasPermission = true // Always allow order_no column
+          }
+          // Special handling for virtual/mapped columns
+          else if (col === 'product_name') {
+            // Check permission for id_product instead since product_name is derived from it
+            hasPermission = await canViewColumn(userRole, 'gudang', 'id_product')
+          } else if (col === 'branch_name') {
+            // Check permission for cabang instead since branch_name is derived from it
+            hasPermission = await canViewColumn(userRole, 'gudang', 'cabang')
+          } else {
+            // Regular column permission check
+            hasPermission = await canViewColumn(userRole, 'gudang', col)
+          }
+          
+          console.log(`Column ${col}: ${hasPermission ? 'ALLOWED' : 'DENIED'}`)
           if (hasPermission) {
             permitted.push(col)
           }
         }
         
+        console.log('Permitted columns:', permitted)
         setPermittedColumns(permitted)
       }
     }
@@ -182,7 +211,8 @@ function GudangPageContent() {
     loadPermittedColumns()
   }, [gudang, userRole])
   
-  const visibleColumns = permittedColumns
+  // Ensure we always have at least basic columns visible
+  const visibleColumns = permittedColumns.length > 0 ? permittedColumns : ['order_no', 'tanggal', 'product_name']
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1372,27 +1402,27 @@ function GudangPageContent() {
                             getStockStatus(item.id_product, item.cabang) === 'ON_ORDER'
                               ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' :
                             getStockStatus(item.id_product, item.cabang) === 'CRITICAL' 
-                              ? 'bg-red-100 text-red-800 hover:bg-red-200 animate-pulse' 
+                              ? ' text-red-800 hover:bg-red-200' 
                               : 'bg-orange-100 text-orange-800 hover:bg-orange-200'
                           }`}
                           title={`Stock Alert: ${getStockStatus(item.id_product, item.cabang)} - Click to go to Stock Alert PO page`}
                         >
-                          {getStockStatus(item.id_product, item.cabang) === 'PO_PENDING' ? '⏳ PENDING' :
-                           getStockStatus(item.id_product, item.cabang) === 'ON_ORDER' ? '🚚 ON ORDER' :
-                           getStockStatus(item.id_product, item.cabang) === 'CRITICAL' ? '🛒 URGENT' : '🛒 LOW'}
+                          {getStockStatus(item.id_product, item.cabang) === 'PO_PENDING' ? '⏳' :
+                           getStockStatus(item.id_product, item.cabang) === 'ON_ORDER' ? '🚚' :
+                           getStockStatus(item.id_product, item.cabang) === 'CRITICAL' ? '🛒' : '🛒 LOW'}
                         </button>
                       )}
                     </td>
                     {visibleColumns.includes('nama_pengambil_barang') && <td className="px-1 py-1">{item.nama_pengambil_barang}</td>}
                     <td className="px-1 py-1">
                       {(item as any).source_type === 'stock_opname_batch' ? (
-                        <span className="px-1 py-0.5 bg-orange-100 text-orange-800 rounded text-xs font-semibold">
+                        <span className="px-1 py-0.5 text-black-800 rounded text-xs font-semibold">
                           📊 SO
                         </span>
                       ) : (item as any).source_type === 'PO' && (item as any).source_reference ? (
                         <a 
                           href={`/purchaseorder?search=${(item as any).source_reference}`}
-                          className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-semibold hover:bg-blue-200 cursor-pointer"
+                          className="px-1 py-0.5 text-black-800 rounded text-xs font-semibold hover:bg-blue-200 cursor-pointer"
                           title="View Purchase Order"
                         >
                           📋 {(item as any).source_reference}
@@ -1400,7 +1430,7 @@ function GudangPageContent() {
                       ) : (item as any).source_reference && (item as any).source_reference.startsWith('TRF-') ? (
                         <a 
                           href={`/transfer-barang?search=${(item as any).source_reference}`}
-                          className="px-1 py-0.5 bg-purple-100 text-purple-800 rounded text-xs font-semibold hover:bg-purple-200 cursor-pointer"
+                          className="px-1 py-0.5 text-black-800 rounded text-xs font-semibold hover:bg-purple-200 cursor-pointer"
                           title="View Transfer Barang"
                         >
                           🔄 {(item as any).source_reference}
@@ -1417,16 +1447,16 @@ function GudangPageContent() {
                           🔒 Locked
                         </span>
                       ) : (item as any).source_type === 'stock_opname_batch' ? (
-                        <span className="px-1 py-0.5 bg-orange-100 text-orange-800 rounded text-xs font-semibold">
-                          🔒 Protected
+                        <span className="px-1 py-0.5 text-black-800 rounded text-xs font-semibold">
+                          🔒
                         </span>
                       ) : (item as any).source_type === 'PO' ? (
-                        <span className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
-                          🔒 PO Lock
+                        <span className="px-1 py-0.5 text-black-800 rounded text-xs font-semibold">
+                          🔒
                         </span>
                       ) : (item as any).source_reference && (item as any).source_reference.startsWith('TRF-') ? (
-                        <span className="px-1 py-0.5 bg-purple-100 text-purple-800 rounded text-xs font-semibold">
-                          🔒 Transfer Lock
+                        <span className="px-1 py-0.5 text-purple-800 rounded text-xs font-semibold">
+                          🔒
                         </span>
                       ) : (
                         <span className="px-1 py-0.5 bg-green-100 text-green-800 rounded text-xs">
@@ -1438,7 +1468,7 @@ function GudangPageContent() {
                       <div className="flex gap-1">
                         {item.is_locked || (item as any).source_type === 'stock_opname_batch' || (item as any).source_type === 'PO' || ((item as any).source_reference && (item as any).source_reference.startsWith('TRF-')) ? (
                           <span className="text-xs text-gray-500 italic px-2 py-1" title={item.is_locked ? `Locked by ${item.locked_by_so}` : (item as any).source_type === 'PO' ? 'PO Protected' : (item as any).source_reference && (item as any).source_reference.startsWith('TRF-') ? 'Transfer Protected' : 'SO Protected'}>
-                            {item.is_locked ? '🔒 Locked' : (item as any).source_type === 'PO' ? '📋 PO Locked' : (item as any).source_reference && (item as any).source_reference.startsWith('TRF-') ? '🔄 Transfer Locked' : '📊 SO Protected'}
+                            {item.is_locked ? '🔒 Locked' : (item as any).source_type === 'PO' ? '🔒 Locked' : (item as any).source_reference && (item as any).source_reference.startsWith('TRF-') ? '🔒 Locked' : '🔒 Locked'}
                           </span>
                         ) : (
                           <>

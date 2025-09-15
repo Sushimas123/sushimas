@@ -77,7 +77,7 @@ const getDefaultPermissions = (userRole: string) => {
     return permissions
   }
   
-  if (userRole === 'pic_branch') {
+  if (userRole === 'pic_branch' || userRole === 'pic') {
     const picPages = ['ready', 'produksi', 'gudang', 'stock_opname_batch', 'esb']
     picPages.forEach(page => {
       permissions[page] = ['*']

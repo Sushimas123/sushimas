@@ -550,35 +550,6 @@ function StockAlertPOPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-lg">
-          <div className="flex items-center">
-            <AlertCircle className="text-red-400 mr-2" size={20} />
-            <div>
-              <p className="text-sm font-medium text-red-800">Critical Alerts</p>
-              <p className="text-2xl font-bold text-red-600">{criticalAlerts.length}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
-          <div className="flex items-center">
-            <AlertTriangle className="text-yellow-400 mr-2" size={20} />
-            <div>
-              <p className="text-sm font-medium text-yellow-800">Urgent Alerts</p>
-              <p className="text-2xl font-bold text-yellow-600">{urgentAlerts.length}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-lg">
-          <div className="flex items-center">
-            <ShoppingCart className="text-blue-400 mr-2" size={20} />
-            <div>
-              <p className="text-sm font-medium text-blue-800">Selected for PO</p>
-              <p className="text-2xl font-bold text-blue-600">{selectedCount}</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <div className="bg-white rounded-lg shadow p-4">
         <h3 className="font-semibold mb-3">PO Settings</h3>

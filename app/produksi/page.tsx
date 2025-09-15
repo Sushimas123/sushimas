@@ -67,6 +67,7 @@ function ProduksiPageContent() {
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [permittedColumns, setPermittedColumns] = useState<string[]>([]);
 
   useEffect(() => {
     fetchProduksi();
@@ -81,6 +82,44 @@ function ProduksiPageContent() {
       setUserRole(user.role || 'guest');
     }
   }, []);
+
+  // Load permitted columns based on user role and data
+  useEffect(() => {
+    const loadPermittedColumns = async () => {
+      if (produksi.length > 0 && userRole) {
+        const allColumns = Object.keys(produksi[0])
+        const permitted = []
+        
+        console.log('All columns in produksi:', allColumns)
+        console.log('User role:', userRole)
+        
+        for (const col of allColumns) {
+          let hasPermission = false
+          
+          // Special handling for virtual/mapped columns
+          if (col === 'product_name') {
+            // Check permission for id_product instead since product_name is derived from it
+            hasPermission = await canViewColumn(userRole, 'produksi', 'id_product')
+          } else {
+            // Regular column permission check
+            hasPermission = await canViewColumn(userRole, 'produksi', col)
+          }
+          
+          console.log(`Column ${col}: ${hasPermission ? 'ALLOWED' : 'DENIED'}`)
+          if (hasPermission) {
+            permitted.push(col)
+          }
+        }
+        
+        console.log('Permitted columns:', permitted)
+        setPermittedColumns(permitted)
+      }
+    }
+    
+    loadPermittedColumns()
+  }, [produksi, userRole])
+  
+  const visibleColumns = permittedColumns
 
   // Handle URL parameters from Analysis page
   useEffect(() => {
@@ -206,11 +245,29 @@ function ProduksiPageContent() {
 
   const fetchBranches = async () => {
     try {
-      const { data, error } = await supabase
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      
+      let query = supabase
         .from('branches')
-        .select('nama_branch')
+        .select('nama_branch, kode_branch')
         .eq('is_active', true)
         .order('nama_branch');
+      
+      // Apply branch filter for non-admin users
+      if (user.role !== 'super admin' && user.role !== 'admin') {
+        const { data: userBranches } = await supabase
+          .from('user_branches')
+          .select('kode_branch')
+          .eq('id_user', user.id_user)
+          .eq('is_active', true);
+        
+        const allowedBranches = userBranches?.map(b => b.kode_branch) || [];
+        if (allowedBranches.length > 0) {
+          query = query.in('kode_branch', allowedBranches);
+        }
+      }
+      
+      const { data, error } = await query;
       
       if (error) {
         console.error('Error fetching branches:', error);
@@ -817,37 +874,37 @@ function ProduksiPageContent() {
                       className="rounded"
                     />
                   </th>
-                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('production_no')}>
+                  {visibleColumns.includes('production_no') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('production_no')}>
                     Production No {sortConfig?.key === 'production_no' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>
+                  </th>}
+                  {visibleColumns.includes('tanggal_input') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal_input')}>
                     Date {sortConfig?.key === 'tanggal_input' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('divisi')}>
+                  </th>}
+                  {visibleColumns.includes('divisi') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('divisi')}>
                     Divisi {sortConfig?.key === 'divisi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch')}>
+                  </th>}
+                  {visibleColumns.includes('branch') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('branch')}>
                     Branch {sortConfig?.key === 'branch' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>
+                  </th>}
+                  {visibleColumns.includes('product_name') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>
                     Product {sortConfig?.key === 'product_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jumlah_buat')}>
+                  </th>}
+                  {visibleColumns.includes('jumlah_buat') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jumlah_buat')}>
                     Qty {sortConfig?.key === 'jumlah_buat' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('konversi')}>
+                  </th>}
+                  {visibleColumns.includes('konversi') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('konversi')}>
                     Konversi {sortConfig?.key === 'konversi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_konversi')}>
+                  </th>}
+                  {visibleColumns.includes('total_konversi') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_konversi')}>
                     Total {sortConfig?.key === 'total_konversi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
+                  </th>}
                   <th className="px-1 py-1 text-left font-medium text-gray-700">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {paginatedProduksi.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-1 py-2 text-center text-gray-500 text-xs">
+                    <td colSpan={visibleColumns.length + 2} className="px-1 py-2 text-center text-gray-500 text-xs">
                       No data found
                     </td>
                   </tr>
@@ -862,21 +919,21 @@ function ProduksiPageContent() {
                           className="rounded"
                         />
                       </td>
-                      <td className="px-1 py-1 font-medium">
+                      {visibleColumns.includes('production_no') && <td className="px-1 py-1 font-medium">
                         <button
                           onClick={() => router.push(`/produksi_detail?search=${item.production_no}`)}
                           className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
                         >
                           {item.production_no}
                         </button>
-                      </td>
-                      <td className="px-1 py-1">{item.tanggal_input}</td>
-                      <td className="px-1 py-1">{item.divisi}</td>
-                      <td className="px-1 py-1">{item.branch}</td>
-                      <td className="px-1 py-1">{item.product_name}</td>
-                      <td className="px-1 py-1">{item.jumlah_buat}</td>
-                      <td className="px-1 py-1">{item.konversi}</td>
-                      <td className="px-1 py-1 font-medium">{item.total_konversi}</td>
+                      </td>}
+                      {visibleColumns.includes('tanggal_input') && <td className="px-1 py-1">{item.tanggal_input}</td>}
+                      {visibleColumns.includes('divisi') && <td className="px-1 py-1">{item.divisi}</td>}
+                      {visibleColumns.includes('branch') && <td className="px-1 py-1">{item.branch}</td>}
+                      {visibleColumns.includes('product_name') && <td className="px-1 py-1">{item.product_name}</td>}
+                      {visibleColumns.includes('jumlah_buat') && <td className="px-1 py-1">{item.jumlah_buat}</td>}
+                      {visibleColumns.includes('konversi') && <td className="px-1 py-1">{item.konversi}</td>}
+                      {visibleColumns.includes('total_konversi') && <td className="px-1 py-1 font-medium">{item.total_konversi}</td>}
                       <td className="px-1 py-1">
                         <div className="flex gap-1">
                           {canPerformActionSync(userRole, 'produksi', 'edit') && (
