@@ -74,6 +74,18 @@ function CreatePurchaseOrder() {
 
   useEffect(() => {
     fetchInitialData()
+    
+    // Check for prefill data from stock alert
+    const prefillData = localStorage.getItem('po_prefill')
+    if (prefillData) {
+      try {
+        const data = JSON.parse(prefillData)
+        handleStockAlertPrefill(data)
+        localStorage.removeItem('po_prefill')
+      } catch (error) {
+        console.error('Error parsing prefill data:', error)
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -89,6 +101,47 @@ function CreatePurchaseOrder() {
       setProductSuppliers([])
     }
   }, [searchProduct, allProducts, suppliers])
+
+  const handleStockAlertPrefill = async (alertData: any) => {
+    // Set branch
+    setFormData(prev => ({
+      ...prev,
+      cabang_id: alertData.branch_id.toString(),
+      priority: alertData.alert_level === 'CRITICAL' ? 'tinggi' : 'sedang',
+      keterangan: `${alertData.reason} - Current Stock: ${alertData.current_stock}, Safety Stock: ${alertData.safety_stock}`
+    }))
+
+    // Find product and add to PO
+    const product = allProducts.find(p => p.id_product === alertData.product_id)
+    if (product) {
+      // Find suppliers for this product
+      const matchingSuppliers = suppliers.filter(supplier => 
+        supplier.nama_barang && 
+        supplier.nama_barang.toLowerCase().includes(product.product_name.toLowerCase())
+      )
+      
+      if (matchingSuppliers.length > 0) {
+        const supplier = matchingSuppliers[0] // Use first available supplier
+        const newItem: POItem = {
+          product_id: product.id_product,
+          product_name: product.product_name,
+          qty: alertData.suggested_qty,
+          unit: product.unit_kecil,
+          unit_besar: product.unit_besar,
+          satuan_besar: product.satuan_besar,
+          keterangan: `Stock Alert - ${alertData.alert_level}`,
+          supplier_name: supplier.nama_supplier,
+          merk: product.merk || ''
+        }
+        setPOItems([newItem])
+      }
+    }
+
+    // Show success message
+    setTimeout(() => {
+      alert(`✅ PO form pre-filled from stock alert!\n\nProduct: ${alertData.product_name}\nBranch: ${alertData.branch_name}\nSuggested Qty: ${alertData.suggested_qty}\nReason: ${alertData.reason}`)
+    }, 1000)
+  }
 
   const fetchInitialData = async () => {
     try {
@@ -309,8 +362,18 @@ function CreatePurchaseOrder() {
           <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
             <ShoppingCart className="text-blue-600" size={22} />
             Buat PO Baru
+            {formData.priority === 'tinggi' && (
+              <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full">
+                🚨 URGENT
+              </span>
+            )}
           </h1>
-          <p className="text-gray-600 text-sm">Buat pesanan pembelian ke supplier</p>
+          <p className="text-gray-600 text-sm">
+            {formData.keterangan.includes('Stock Alert') 
+              ? '⚡ Auto-filled from Stock Alert - Review and submit'
+              : 'Buat pesanan pembelian ke supplier'
+            }
+          </p>
         </div>
       </div>
 
@@ -351,12 +414,19 @@ function CreatePurchaseOrder() {
               <select
                 value={formData.priority}
                 onChange={(e) => setFormData({...formData, priority: e.target.value})}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                className={`w-full border border-gray-300 rounded-md px-3 py-2 text-sm ${
+                  formData.priority === 'tinggi' ? 'bg-red-50 border-red-300' : ''
+                }`}
               >
                 <option value="biasa">Biasa</option>
                 <option value="sedang">Sedang</option>
-                <option value="tinggi">Tinggi</option>
+                <option value="tinggi">🚨 Tinggi (Urgent)</option>
               </select>
+              {formData.priority === 'tinggi' && (
+                <p className="text-xs text-red-600 mt-1">
+                  ⚠️ High priority PO - will be processed immediately
+                </p>
+              )}
             </div>
 
             <div>
@@ -407,10 +477,17 @@ function CreatePurchaseOrder() {
               <textarea
                 value={formData.keterangan}
                 onChange={(e) => setFormData({...formData, keterangan: e.target.value})}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                rows={2}
+                className={`w-full border border-gray-300 rounded-md px-3 py-2 text-sm ${
+                  formData.keterangan.includes('Stock Alert') ? 'bg-yellow-50 border-yellow-300' : ''
+                }`}
+                rows={3}
                 placeholder="Keterangan tambahan..."
               />
+              {formData.keterangan.includes('Stock Alert') && (
+                <p className="text-xs text-yellow-700 mt-1">
+                  📋 This PO was created from a stock alert. Review the details above.
+                </p>
+              )}
             </div>
           </div>
         </div>

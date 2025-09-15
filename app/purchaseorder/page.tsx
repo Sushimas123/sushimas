@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { Search, Filter, Plus, Eye, Edit, Trash2, Calendar, Building2, User, Package, ChevronDown, ChevronUp, Download } from 'lucide-react'
+import { Search, Filter, Plus, Eye, Edit, Trash2, Calendar, Building2, User, Package, ChevronDown, ChevronUp, Download, AlertTriangle, ShoppingCart } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { useSearchParams } from 'next/navigation'
 import Layout from '../../components/Layout'
 import PageAccessControl from '../../components/PageAccessControl'
 
@@ -29,7 +30,12 @@ interface FilterOptions {
 }
 
 export default function PurchaseOrderPage() {
+  const searchParams = useSearchParams()
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
+  const [stockAlerts, setStockAlerts] = useState<any[]>([])
+  const [filteredStockAlerts, setFilteredStockAlerts] = useState<any[]>([])
+  const [selectedBranch, setSelectedBranch] = useState('')
+  const [showStockAlerts, setShowStockAlerts] = useState(false)
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({
     cabang_id: '',
@@ -52,6 +58,14 @@ export default function PurchaseOrderPage() {
   useEffect(() => {
     fetchFilterOptions()
     fetchPurchaseOrders()
+    fetchStockAlerts()
+    
+    // Check if coming from stock alert
+    const fromAlert = searchParams.get('from')
+    const showAlerts = searchParams.get('showAlerts')
+    if (fromAlert === 'stock_alert' || showAlerts === 'true') {
+      setShowStockAlerts(true)
+    }
   }, [])
 
   useEffect(() => {
@@ -307,6 +321,50 @@ export default function PurchaseOrderPage() {
     }
   }
 
+  const fetchStockAlerts = async () => {
+    try {
+      // Try new function first, fallback to original if it fails
+      let { data, error } = await supabase.rpc('get_stock_alerts_with_po_status')
+      
+      if (error) {
+        console.log('❌ New function failed, using original:', error.message)
+        const result = await supabase.rpc('get_products_needing_po')
+        data = result.data
+        error = result.error
+        console.log('✅ Using original function, got', data?.length, 'alerts')
+        
+        // Add default PO status fields for compatibility
+        if (data) {
+          data = data.map((alert: any) => ({
+            ...alert,
+            po_status: 'NONE',
+            po_number: null,
+            po_created_at: null
+          }))
+        }
+      } else {
+        console.log('✅ Using new function, got', data?.length, 'alerts with PO status')
+      }
+      
+      if (!error && data) {
+        console.log('📊 Stock alerts loaded:', data.length, 'items')
+        if (data.length > 0) {
+          console.log('First alert:', data[0])
+        }
+        setStockAlerts(data)
+        setFilteredStockAlerts(data)
+      } else {
+        console.log('❌ No stock alerts data:', error)
+      }
+    } catch (error) {
+      console.error('Error fetching stock alerts:', error)
+    }
+  }
+
+  const handleCreatePOFromAlert = () => {
+    window.location.href = '/purchaseorder/stock-alert'
+  }
+
   const handleExport = async () => {
     try {
       // Fetch all purchase orders without pagination for export
@@ -404,12 +462,125 @@ export default function PurchaseOrderPage() {
     <Layout>
       <PageAccessControl pageName="purchaseorder">
         <div className="p-3 md:p-4 space-y-3">
+          {/* Stock Alerts Banner */}
+          {stockAlerts.length > 0 && (
+            <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <AlertTriangle className="text-red-400 mr-2" size={20} />
+                  <div>
+                    <h3 className="text-sm font-medium text-red-800">
+                      {filteredStockAlerts.length} Products Need Immediate Attention
+                      {selectedBranch && ` (${selectedBranch})`}
+                    </h3>
+                    <p className="text-sm text-red-700">
+                      Stock levels are below safety threshold. Create PO now to avoid stockout.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowStockAlerts(!showStockAlerts)}
+                  className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
+                >
+                  {showStockAlerts ? 'Hide' : 'Show'} Alerts
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Stock Alerts List */}
+          {showStockAlerts && stockAlerts.length > 0 && (
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-4 border-b">
+                <div className="flex justify-between items-center">
+                  <h3 className="font-medium text-gray-800 flex items-center gap-2">
+                    <ShoppingCart className="text-red-600" size={18} />
+                    Stock Alerts - Products Needing PO
+                  </h3>
+                  <select
+                    value={selectedBranch}
+                    className="border border-gray-300 rounded px-3 py-1 text-sm"
+                    onChange={(e) => {
+                      const branch = e.target.value
+                      setSelectedBranch(branch)
+                      const filtered = branch === '' 
+                        ? stockAlerts 
+                        : stockAlerts.filter(alert => alert.branch_name === branch)
+                      setFilteredStockAlerts(filtered)
+                    }}
+                  >
+                    <option value="">All Branches</option>
+                    {[...new Set(stockAlerts.map(alert => alert.branch_name))].map(branchName => (
+                      <option key={branchName} value={branchName}>{branchName}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="divide-y divide-gray-200 max-h-64 overflow-y-auto">
+                {filteredStockAlerts.map((alert, index) => (
+                  <div key={`${alert.id_product}-${alert.branch_code}`} className="p-4 hover:bg-gray-50">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-medium text-gray-900">{alert.product_name}</h4>
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            alert.po_status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                            alert.po_status === 'Sedang diproses' ? 'bg-blue-100 text-blue-800' :
+                            alert.urgency_level === 'CRITICAL' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'
+                          }`}>
+                            {alert.po_status === 'Pending' ? 'PO PENDING' :
+                             alert.po_status === 'Sedang diproses' ? 'ON ORDER' :
+                             alert.urgency_level}
+                          </span>
+                          {alert.po_number && (
+                            <span className="text-xs text-blue-600 font-medium">
+                              {alert.po_number}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 text-sm text-gray-600">
+                          <span className="font-medium">{alert.branch_name}</span> • {alert.sub_category}
+                        </div>
+                        <div className="mt-1 flex items-center gap-4 text-sm">
+                          <span className="text-red-600">
+                            Current: {alert.current_stock}
+                          </span>
+                          <span className="text-gray-600">
+                            Safety: {alert.safety_stock}
+                          </span>
+                          <span className="text-blue-600">
+                            Reorder: {alert.reorder_point}
+                          </span>
+                          <span className="text-orange-600">
+                            Shortage: {alert.shortage_qty}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleCreatePOFromAlert}
+                        className="ml-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2 text-sm"
+                      >
+                        <ShoppingCart size={16} />
+                        Go to Stock Alert PO
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
             <div>
               <h1 className="text-lg md:text-xl font-bold text-gray-800 flex items-center gap-2">
                 <Package className="text-blue-600" size={20} />
                 Purchase Orders
+                {stockAlerts.length > 0 && (
+                  <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full ml-2">
+                    {filteredStockAlerts.length} alerts
+                  </span>
+                )}
               </h1>
             </div>
             <div className="flex gap-2 w-full md:w-auto">

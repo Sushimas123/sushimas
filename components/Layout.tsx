@@ -37,6 +37,7 @@ import { useDebounce } from '@/hooks/useDebounce'
 import { useNavigationPermissions } from '@/hooks/useNavigationPermissions'
 import { MenuItem, AppRoutes, BreadcrumbItem, SearchResult } from '@/types/layout'
 import PurchaseOrderPage from "@/app/purchaseorder/page"
+import StockAlertBadge from './StockAlertBadge'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -511,6 +512,9 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Right side - User menu and actions */}
             <div className="flex items-center">
+              {/* Stock Alerts */}
+              <StockAlertBadge />
+              
               {/* Notifications */}
               <button className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mr-2 relative">
                 <Bell size={20} />

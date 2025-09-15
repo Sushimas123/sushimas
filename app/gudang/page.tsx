@@ -81,6 +81,7 @@ function GudangPageContent() {
   const [saving, setSaving] = useState(false);
   const [permittedColumns, setPermittedColumns] = useState<string[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [stockAlerts, setStockAlerts] = useState<any[]>([]);
 
   useEffect(() => {
     fetchUserInfo();
@@ -89,6 +90,7 @@ function GudangPageContent() {
       fetchCabang();
       fetchGudang();
       fetchProducts();
+      fetchStockAlerts();
     }
     
     if (!arePermissionsLoaded()) {
@@ -115,6 +117,50 @@ function GudangPageContent() {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
   }
+
+  const fetchStockAlerts = async () => {
+    try {
+      // Try new function first, fallback to original if it fails
+      let { data, error } = await supabase.rpc('get_stock_alerts_with_po_status');
+      
+      if (error) {
+        console.log('New function not available, using original:', error.message);
+        const result = await supabase.rpc('get_products_needing_po');
+        data = result.data;
+        error = result.error;
+        
+        // Add default PO status fields for compatibility
+        if (data) {
+          data = data.map((alert: any) => ({
+            ...alert,
+            po_status: 'NONE',
+            po_number: null,
+            po_created_at: null
+          }));
+        }
+      }
+      
+      if (!error && data) {
+        setStockAlerts(data);
+      }
+    } catch (error) {
+      console.error('Error fetching stock alerts:', error);
+    }
+  };
+
+  const getStockStatus = (idProduct: number, cabang: string) => {
+    const alert = stockAlerts.find(a => a.id_product === idProduct && a.branch_code === cabang);
+    if (!alert) return 'OK';
+    
+    // Return enhanced status based on PO status
+    if (alert.po_status === 'Pending') return 'PO_PENDING';
+    if (alert.po_status === 'Sedang diproses') return 'ON_ORDER';
+    return alert.urgency_level;
+  };
+
+  const handleCreatePOFromStock = (idProduct: number, cabang: string) => {
+    router.push('/purchaseorder/stock-alert');
+  };
 
   useEffect(() => {
     const loadPermittedColumns = async () => {
@@ -1287,7 +1333,32 @@ function GudangPageContent() {
                     {visibleColumns.includes('product_name') && <td className="px-1 py-1">{item.product_name}</td>}
                     {visibleColumns.includes('jumlah_masuk') && <td className="px-1 py-1 text-green-600">{item.jumlah_masuk}</td>}
                     {visibleColumns.includes('jumlah_keluar') && <td className="px-1 py-1 text-red-600">{item.jumlah_keluar}</td>}
-                    {visibleColumns.includes('total_gudang') && <td className="px-1 py-1 font-medium">{item.total_gudang}</td>}
+                    {visibleColumns.includes('total_gudang') && (
+                      <td className="px-1 py-1 font-medium relative">
+                        <div className="flex items-center justify-between">
+                          <span>{item.total_gudang}</span>
+                          {getStockStatus(item.id_product, item.cabang) !== 'OK' && (
+                            <button
+                              onClick={() => handleCreatePOFromStock(item.id_product, item.cabang)}
+                              className={`ml-1 px-1 py-0.5 rounded text-xs font-medium flex items-center gap-1 ${
+                                getStockStatus(item.id_product, item.cabang) === 'PO_PENDING' 
+                                  ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' :
+                                getStockStatus(item.id_product, item.cabang) === 'ON_ORDER'
+                                  ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' :
+                                getStockStatus(item.id_product, item.cabang) === 'CRITICAL' 
+                                  ? 'bg-red-100 text-red-800 hover:bg-red-200 animate-pulse' 
+                                  : 'bg-orange-100 text-orange-800 hover:bg-orange-200'
+                              }`}
+                              title={`Stock Alert: ${getStockStatus(item.id_product, item.cabang)} - Click to go to Stock Alert PO page`}
+                            >
+                              {getStockStatus(item.id_product, item.cabang) === 'PO_PENDING' ? '⏳ PENDING' :
+                               getStockStatus(item.id_product, item.cabang) === 'ON_ORDER' ? '🚚 ON ORDER' :
+                               getStockStatus(item.id_product, item.cabang) === 'CRITICAL' ? '🛒 URGENT' : '🛒 LOW'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                     {visibleColumns.includes('nama_pengambil_barang') && <td className="px-1 py-1">{item.nama_pengambil_barang}</td>}
                     <td className="px-1 py-1">
                       {(item as any).source_type === 'stock_opname_batch' ? (
