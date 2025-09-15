@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
 import { Search, Filter, Plus, Eye, Edit, Trash2, Calendar, Building2, User, Package, ChevronDown, ChevronUp, Download, AlertTriangle, ShoppingCart } from 'lucide-react'
 import * as XLSX from 'xlsx'
@@ -29,7 +29,7 @@ interface FilterOptions {
   priorities: string[]
 }
 
-export default function PurchaseOrderPage() {
+function PurchaseOrderPageContent() {
   const searchParams = useSearchParams()
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
   const [stockAlerts, setStockAlerts] = useState<any[]>([])
@@ -459,9 +459,7 @@ export default function PurchaseOrderPage() {
   }
 
   return (
-    <Layout>
-      <PageAccessControl pageName="purchaseorder">
-        <div className="p-3 md:p-4 space-y-3">
+    <div className="p-3 md:p-4 space-y-3">
           {/* Stock Alerts Banner */}
           {stockAlerts.length > 0 && (
             <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-lg">
@@ -1109,7 +1107,22 @@ export default function PurchaseOrderPage() {
             )}
           </div>
 
-        </div>
+    </div>
+  )
+}
+
+export default function PurchaseOrderPage() {
+  return (
+    <Layout>
+      <PageAccessControl pageName="purchaseorder">
+        <Suspense fallback={
+          <div className="p-6 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="text-gray-600 mt-2">Loading...</p>
+          </div>
+        }>
+          <PurchaseOrderPageContent />
+        </Suspense>
       </PageAccessControl>
     </Layout>
   )
