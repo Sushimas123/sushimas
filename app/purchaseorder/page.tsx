@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { Search, Filter, Plus, Eye, Edit, Trash2, Calendar, Building2, User, Package, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, Filter, Plus, Eye, Edit, Trash2, Calendar, Building2, User, Package, ChevronDown, ChevronUp, Download } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import Layout from '../../components/Layout'
 import PageAccessControl from '../../components/PageAccessControl'
 
@@ -306,6 +307,99 @@ export default function PurchaseOrderPage() {
     }
   }
 
+  const handleExport = async () => {
+    try {
+      // Fetch all purchase orders without pagination for export
+      let query = supabase
+        .from('purchase_orders')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      // Apply current filters
+      if (filters.cabang_id) {
+        query = query.eq('cabang_id', filters.cabang_id)
+      }
+      if (filters.supplier_id) {
+        query = query.eq('supplier_id', filters.supplier_id)
+      }
+      if (filters.status) {
+        query = query.eq('status', filters.status)
+      }
+      if (filters.priority) {
+        query = query.eq('priority', filters.priority)
+      }
+
+      const { data: poData, error } = await query
+      if (error) throw error
+
+      // Transform data for export
+      const exportData = await Promise.all(
+        (poData || []).map(async (po: any) => {
+          // Get supplier name
+          const { data: supplier } = await supabase
+            .from('suppliers')
+            .select('nama_supplier')
+            .eq('id_supplier', po.supplier_id)
+            .single()
+
+          // Get branch name
+          const { data: branch } = await supabase
+            .from('branches')
+            .select('nama_branch')
+            .eq('id_branch', po.cabang_id)
+            .single()
+
+          // Get PO items
+          const { data: items } = await supabase
+            .from('po_items')
+            .select('qty, product_id')
+            .eq('po_id', po.id)
+
+          // Get product names and calculate total
+          let totalHarga = 0
+          const itemNames = []
+          const quantities = []
+          
+          for (const item of items || []) {
+            const { data: product } = await supabase
+              .from('nama_product')
+              .select('product_name, harga')
+              .eq('id_product', item.product_id)
+              .single()
+
+            const itemTotal = (product?.harga || 0) * item.qty
+            totalHarga += itemTotal
+            
+            itemNames.push(product?.product_name || 'Unknown')
+            quantities.push(item.qty)
+          }
+
+          return {
+            'PO Number': po.po_number,
+            'Status': po.status,
+            'Priority': po.priority || 'biasa',
+            'Supplier': supplier?.nama_supplier || 'Unknown',
+            'Branch': branch?.nama_branch || 'Unknown',
+            'Items': itemNames.join(', '),
+            'Quantities': quantities.join(', '),
+            'Total Amount': totalHarga,
+            'Created Date': new Date(po.created_at).toLocaleDateString('id-ID'),
+            'Arrival Date': po.tanggal_barang_sampai ? new Date(po.tanggal_barang_sampai).toLocaleDateString('id-ID') : '-'
+          }
+        })
+      )
+
+      // Create and download Excel file
+      const ws = XLSX.utils.json_to_sheet(exportData)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Purchase Orders')
+      XLSX.writeFile(wb, `purchase_orders_${new Date().toISOString().split('T')[0]}.xlsx`)
+    } catch (error) {
+      console.error('Export error:', error)
+      alert('Failed to export data')
+    }
+  }
+
   return (
     <Layout>
       <PageAccessControl pageName="purchaseorder">
@@ -325,6 +419,13 @@ export default function PurchaseOrderPage() {
               >
                 <Filter size={16} />
                 Filter
+              </button>
+              <button
+                onClick={handleExport}
+                className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+              >
+                <Download size={16} />
+                <span className="hidden md:inline">Export</span>
               </button>
               <a href="/purchaseorder/create" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 flex-1 md:flex-none justify-center">
                 <Plus size={16} />

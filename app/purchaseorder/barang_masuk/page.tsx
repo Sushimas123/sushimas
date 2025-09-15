@@ -84,7 +84,17 @@ export default function BarangMasukPage() {
   const [totalCount, setTotalCount] = useState(0)
   const [expandedPOs, setExpandedPOs] = useState<Record<string, boolean>>({})
   const [showFilter, setShowFilter] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const itemsPerPage = 20
+
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    checkIsMobile()
+    window.addEventListener('resize', checkIsMobile)
+    return () => window.removeEventListener('resize', checkIsMobile)
+  }, [])
 
   useEffect(() => {
     fetchBranches()
@@ -422,17 +432,34 @@ export default function BarangMasukPage() {
 
                 
                 <div className="flex gap-1 ml-auto">
+                  {isMobile && (
+                    <>
+                      <button
+                        onClick={() => {
+                          const allExpanded: Record<string, boolean> = {};
+                          Object.keys(poGroups).forEach(key => {
+                            allExpanded[key] = true;
+                          });
+                          setExpandedPOs(allExpanded);
+                        }}
+                        className="px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded hover:bg-gray-200"
+                      >
+                        Expand All
+                      </button>
+                      <button
+                        onClick={() => setExpandedPOs({})}
+                        className="px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded hover:bg-gray-200"
+                      >
+                        Collapse All
+                      </button>
+                    </>
+                  )}
                   <button
-                    onClick={expandAllPOs}
-                    className="px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded hover:bg-gray-200"
+                    onClick={fetchBarangMasuk}
+                    className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
                   >
-                    Expand All
-                  </button>
-                  <button
-                    onClick={collapseAllPOs}
-                    className="px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded hover:bg-gray-200"
-                  >
-                    Collapse All
+                    <RefreshCw size={16} />
+                    Refresh
                   </button>
                 </div>
               </div>
@@ -465,133 +492,247 @@ export default function BarangMasukPage() {
             </div>
           ) : (
             <>
-              <div className="space-y-4">
-                {Object.entries(poGroups).map(([poKey, poGroup], index) => {
-                  const isExpanded = expandedPOs[poKey]
-                  
-                  return (
-                    <div key={index} className="bg-white rounded-lg shadow">
-                      <div 
-                        className="p-4 border-b cursor-pointer"
-                        onClick={() => togglePO(poKey)}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-semibold text-gray-800 text-sm">
-                                PO: {poGroup.po_id ? (
+              {/* Desktop Table */}
+              {!isMobile ? (
+                <div className="bg-white rounded-lg shadow overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700">Tanggal</th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700">PO Number</th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700">Supplier</th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700">Branch</th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700">Product</th>
+                          <th className="px-2 py-2 text-center font-medium text-gray-700">Qty PO</th>
+                          <th className="px-2 py-2 text-center font-medium text-gray-700">Qty Masuk</th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700">Invoice</th>
+                          <th className="px-2 py-2 text-center font-medium text-gray-700">Status</th>
+                          <th className="px-2 py-2 text-center font-medium text-gray-700">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {barangMasuk.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50">
+                            <td className="px-2 py-2">
+                              <div className="text-xs">{new Date(item.tanggal).toLocaleDateString('id-ID')}</div>
+                            </td>
+                            <td className="px-2 py-2">
+                              <div className="text-xs font-medium">
+                                {item.po_id ? (
                                   <a 
-                                    href={`/purchaseorder/barang_sampai?id=${poGroup.po_id}`}
+                                    href={`/purchaseorder/barang_sampai?id=${item.po_id}`}
                                     className="text-blue-600 hover:text-blue-800"
-                                    onClick={(e) => e.stopPropagation()}
                                   >
-                                    {poGroup.no_po}
+                                    {item.no_po}
                                   </a>
                                 ) : (
-                                  <span className="text-gray-600">{poGroup.no_po}</span>
+                                  <span className="text-gray-600">{item.no_po}</span>
                                 )}
-                              </h3>
-                              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                            </div>
-                            <p className="text-xs text-gray-600 mb-1">
-                              {poGroup.supplier_name}
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              {poGroup.branch_name} • {new Date(poGroup.tanggal).toLocaleDateString('id-ID')}
-                            </p>
-                            {poGroup.invoice_number !== '-' && (
-                              <div className="text-xs mt-1">
-                                <span className="text-gray-500">Invoice:</span>
-                                <span className="font-medium ml-1">{poGroup.invoice_number}</span>
                               </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {isExpanded && (
-                        <div className="p-1">
-                          {poGroup.items.map((item) => (
-                            <div key={item.id} className="border-b p-2 last:border-b-0">
-                              <div className="grid grid-cols-2 gap-2 text-xs mb-1">
-                                <div>
-                                  <div className="text-xs text-gray-500">Tanggal</div>
-                                  <div className="text-xs">{new Date(item.tanggal).toLocaleDateString('id-ID')}</div>
-                                </div>
-                                <div>
-                                  <div className="text-xs text-gray-500">Barang</div>
-                                  <div className="font-medium truncate text-xs">{item.product_name}</div>
-                                </div>
+                            </td>
+                            <td className="px-2 py-2">
+                              <div className="text-xs truncate max-w-[100px]">{item.supplier_name}</div>
+                            </td>
+                            <td className="px-2 py-2">
+                              <div className="text-xs truncate max-w-[80px]">{item.branch_name}</div>
+                            </td>
+                            <td className="px-2 py-2">
+                              <div className="text-xs font-medium truncate max-w-[120px]" title={item.product_name}>
+                                {item.product_name}
                               </div>
-                              
-                              <div className="grid grid-cols-2 gap-2 text-xs mb-1">
-                                <div>
-                                  <div className="text-xs text-gray-500">Jumlah PO</div>
-                                  <div className="text-xs">
-                                    <span className="font-medium">{item.qty_po}</span>
-                                    <span className="text-xs text-gray-500 ml-1">{item.satuan_besar}</span>
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="text-xs text-gray-500">Barang Masuk</div>
-                                  <div className="text-xs">
-                                    <span className="font-medium text-green-600">{item.jumlah}</span>
-                                    <span className="text-xs text-gray-500 ml-1">{item.satuan_kecil}</span>
-                                  </div>
-                                </div>
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              <div className="text-xs">
+                                <span className="font-medium">{item.qty_po}</span>
+                                <div className="text-xs text-gray-500">{item.satuan_besar}</div>
                               </div>
-                              
-                              {item.keterangan !== '-' && (
-                                <div className="mb-1">
-                                  <div className="text-xs text-gray-500">Keterangan</div>
-                                  <div className="text-xs">{item.keterangan}</div>
-                                </div>
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              <div className="text-xs">
+                                <span className="font-medium text-green-600">{item.jumlah}</span>
+                                <div className="text-xs text-gray-500">{item.satuan_kecil}</div>
+                              </div>
+                            </td>
+                            <td className="px-2 py-2">
+                              <div className="text-xs truncate max-w-[80px]">
+                                {item.invoice_number !== '-' ? item.invoice_number : '-'}
+                              </div>
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              {item.is_in_gudang ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 rounded text-xs">
+                                  <Package size={10} />
+                                  Di Gudang
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">
+                                  <Package size={10} />
+                                  Pending
+                                </span>
                               )}
-                              
-                              <div className="flex flex-wrap gap-1 mt-2">
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              <div className="flex items-center justify-center gap-1">
                                 <a 
                                   href={`/purchaseorder/barang_masuk/receive?edit=${item.id}`}
-                                  className="inline-flex items-center gap-1 px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs"
+                                  className="text-green-600 hover:text-green-800 p-1 rounded"
                                   title="Update Data"
                                 >
                                   <Edit size={12} />
-                                  Update
                                 </a>
-                                {!item.is_in_gudang ? (
+                                {!item.is_in_gudang && (
                                   <button
                                     onClick={() => handleMasukGudang(item)}
                                     disabled={!item.updated_at}
-                                    className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                                    className={`p-1 rounded ${
                                       item.updated_at 
-                                        ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                        ? 'text-blue-600 hover:text-blue-800' 
+                                        : 'text-gray-400 cursor-not-allowed'
                                     }`}
                                     title={item.updated_at ? "Masuk Gudang" : "Harus update data terlebih dahulu"}
                                   >
                                     <Package size={12} />
-                                    Masuk Gudang
                                   </button>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 rounded text-xs">
-                                    <Package size={12} />
-                                    Sudah di Gudang
-                                  </span>
                                 )}
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-                
-                {Object.keys(poGroups).length === 0 && (
-                  <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
-                    Tidak ada data barang masuk
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                /* Mobile Card View */
+                <div className="space-y-4">
+                  {Object.entries(poGroups).map(([poKey, poGroup], index) => {
+                    const isExpanded = expandedPOs[poKey]
+                    
+                    return (
+                      <div key={index} className="bg-white rounded-lg shadow">
+                        <div 
+                          className="p-4 border-b cursor-pointer"
+                          onClick={() => togglePO(poKey)}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-semibold text-gray-800 text-sm">
+                                  PO: {poGroup.po_id ? (
+                                    <a 
+                                      href={`/purchaseorder/barang_sampai?id=${poGroup.po_id}`}
+                                      className="text-blue-600 hover:text-blue-800"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {poGroup.no_po}
+                                    </a>
+                                  ) : (
+                                    <span className="text-gray-600">{poGroup.no_po}</span>
+                                  )}
+                                </h3>
+                                {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                              </div>
+                              <p className="text-xs text-gray-600 mb-1">
+                                {poGroup.supplier_name}
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                {poGroup.branch_name} • {new Date(poGroup.tanggal).toLocaleDateString('id-ID')}
+                              </p>
+                              {poGroup.invoice_number !== '-' && (
+                                <div className="text-xs mt-1">
+                                  <span className="text-gray-500">Invoice:</span>
+                                  <span className="font-medium ml-1">{poGroup.invoice_number}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {isExpanded && (
+                          <div className="p-1">
+                            {poGroup.items.map((item) => (
+                              <div key={item.id} className="border-b p-2 last:border-b-0">
+                                <div className="grid grid-cols-2 gap-2 text-xs mb-1">
+                                  <div>
+                                    <div className="text-xs text-gray-500">Tanggal</div>
+                                    <div className="text-xs">{new Date(item.tanggal).toLocaleDateString('id-ID')}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-gray-500">Barang</div>
+                                    <div className="font-medium truncate text-xs">{item.product_name}</div>
+                                  </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-2 text-xs mb-1">
+                                  <div>
+                                    <div className="text-xs text-gray-500">Jumlah PO</div>
+                                    <div className="text-xs">
+                                      <span className="font-medium">{item.qty_po}</span>
+                                      <span className="text-xs text-gray-500 ml-1">{item.satuan_besar}</span>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-gray-500">Barang Masuk</div>
+                                    <div className="text-xs">
+                                      <span className="font-medium text-green-600">{item.jumlah}</span>
+                                      <span className="text-xs text-gray-500 ml-1">{item.satuan_kecil}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {item.keterangan !== '-' && (
+                                  <div className="mb-1">
+                                    <div className="text-xs text-gray-500">Keterangan</div>
+                                    <div className="text-xs">{item.keterangan}</div>
+                                  </div>
+                                )}
+                                
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  <a 
+                                    href={`/purchaseorder/barang_masuk/receive?edit=${item.id}`}
+                                    className="inline-flex items-center gap-1 px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs"
+                                    title="Update Data"
+                                  >
+                                    <Edit size={12} />
+                                    Update
+                                  </a>
+                                  {!item.is_in_gudang ? (
+                                    <button
+                                      onClick={() => handleMasukGudang(item)}
+                                      disabled={!item.updated_at}
+                                      className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                                        item.updated_at 
+                                          ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                      }`}
+                                      title={item.updated_at ? "Masuk Gudang" : "Harus update data terlebih dahulu"}
+                                    >
+                                      <Package size={12} />
+                                      Masuk Gudang
+                                    </button>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 rounded text-xs">
+                                      <Package size={12} />
+                                      Sudah di Gudang
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+                
+              {(isMobile ? Object.keys(poGroups).length === 0 : barangMasuk.length === 0) && (
+                <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
+                  Tidak ada data barang masuk
+                </div>
+              )}
               
               {/* Pagination */}
               {totalPages > 1 && (
