@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { Search, Filter, Plus, Eye, Edit, Trash2, Calendar, Building2, User, Package, ChevronDown, ChevronUp, Download, AlertTriangle, ShoppingCart } from 'lucide-react'
+import { Search, Filter, Plus, Eye, Edit, Trash2, Calendar, Building2, User, Package, ChevronDown, ChevronUp, Download, AlertTriangle, ShoppingCart, CheckCheck, CheckIcon, BookCheck, SquareCheckIcon, Check } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useSearchParams } from 'next/navigation'
 import Layout from '../../components/Layout'
@@ -869,7 +869,7 @@ function PurchaseOrderPageContent() {
                                 className="text-blue-600 hover:text-blue-800 p-1 rounded" 
                                 title="Preview PO"
                               >
-                                <Eye size={14} />
+                                <Check size={14} />
                               </a>
                               {po.status === 'Sedang diproses' && (
                                 <a 
@@ -992,7 +992,7 @@ function PurchaseOrderPageContent() {
                               className="text-blue-600 hover:text-blue-800 p-1 rounded" 
                               title="Preview PO"
                             >
-                              <Eye size={20} />
+                              <Check size={20} />
                             </a>
                             {po.status === 'Sedang diproses' && (
                               <a 
@@ -1021,7 +1021,7 @@ function PurchaseOrderPageContent() {
                             )}
                             <button
                               onClick={() => handleDeletePO(po.id, po.po_number)}
-                              className="text-red-600 hover:text-red-800 p-1 rounded"
+                              className="text-red -600 hover:text-red-800 p-1 rounded"
                               title="Delete PO"
                             >
                               <Trash2 size={20} />

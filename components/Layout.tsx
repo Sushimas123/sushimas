@@ -792,7 +792,7 @@ export default function Layout({ children }: LayoutProps) {
           <Link
             href={AppRoutes.READY_STOCK}
             className={`flex flex-col items-center p-2 rounded-lg transition-colors
-              {pathname === AppRoutes.READY_STOCK 
+              ${pathname === AppRoutes.READY_STOCK 
                 ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" 
                 : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
               }`}
@@ -804,7 +804,7 @@ export default function Layout({ children }: LayoutProps) {
           <Link
             href={AppRoutes.GUDANG}
             className={`flex flex-col items-center p-2 rounded-lg transition-colors
-              {pathname === AppRoutes.GUDANG 
+              ${pathname === AppRoutes.GUDANG 
                 ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" 
                 : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
               }`}

@@ -420,7 +420,7 @@ function CreatePurchaseOrder() {
               >
                 <option value="biasa">Biasa</option>
                 <option value="sedang">Sedang</option>
-                <option value="tinggi">🚨 Tinggi (Urgent)</option>
+                <option value="tinggi">Tinggi (Urgent)</option>
               </select>
               {formData.priority === 'tinggi' && (
                 <p className="text-xs text-red-600 mt-1">

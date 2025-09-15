@@ -361,47 +361,50 @@ function OnProgressPO() {
   }
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
+    <div className="p-3 md:p-6 space-y-4 md:space-y-6 bg-gray-50 min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between">
-      <div className="flex items-center gap-4">
-  <a href={`/purchaseorder/edit?id=${poData.id}`} className="text-gray-600 hover:text-gray-800">
-    <ArrowLeft size={24} />
-  </a>
-  <div>
-    <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-      <FileText className="text-blue-600" size={28} />
-      Detail Purchase Order
-    </h1>
-    <p className="text-gray-600 mt-1">Melihat detail PO #{poData.po_number}</p>
-  </div>
-</div>
-        <div className="flex gap-3">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3 md:gap-4">
+          <a href={`/purchaseorder/edit?id=${poData.id}`} className="text-gray-600 hover:text-gray-800">
+            <ArrowLeft size={20} className="md:hidden" />
+            <ArrowLeft size={24} className="hidden md:block" />
+          </a>
+          <div>
+            <h1 className="text-lg md:text-2xl font-bold text-gray-800 flex items-center gap-2">
+              <FileText className="text-blue-600" size={20} />
+              <span className="hidden md:inline">Detail Purchase Order</span>
+              <span className="md:hidden">Detail PO</span>
+            </h1>
+            <p className="text-gray-600 mt-1 text-sm md:text-base">PO #{poData.po_number}</p>
+          </div>
+        </div>
+        <div className="flex gap-2 md:gap-3">
           <button 
             onClick={handlePrint}
-            className="bg-white text-gray-700 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 flex items-center gap-2"
+            className="bg-white text-gray-700 px-3 md:px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 flex items-center gap-2 text-sm md:text-base"
           >
             <Printer size={16} />
-            Cetak
+            <span className="hidden md:inline">Cetak</span>
           </button>
           <button 
             onClick={exportToPDF}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            className="bg-blue-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm md:text-base"
           >
             <Download size={16} />
-            Export PDF
+            <span className="hidden md:inline">Export PDF</span>
+            <span className="md:hidden">PDF</span>
           </button>
         </div>
       </div>
 
       {/* Status Banner */}
-      <div className={`p-4 rounded-lg ${getStatusColor(poData.status)} flex items-center gap-3`}>
-        {poData.status === 'Pending' && <Clock className="text-yellow-600" size={20} />}
-        {poData.status === 'Dibatalkan' && <XCircle className="text-red-600" size={20} />}
-        {poData.status === 'Sedang diproses' && <Package className="text-blue-600" size={20} />}
+      <div className={`p-3 md:p-4 rounded-lg ${getStatusColor(poData.status)} flex items-center gap-2 md:gap-3`}>
+        {poData.status === 'Pending' && <Clock className="text-yellow-600" size={18} />}
+        {poData.status === 'Dibatalkan' && <XCircle className="text-red-600" size={18} />}
+        {poData.status === 'Sedang diproses' && <Package className="text-blue-600" size={18} />}
         <div>
-          <h3 className="font-semibold">Status: {poData.status}</h3>
-          <p className="text-sm">
+          <h3 className="font-semibold text-sm md:text-base">Status: {poData.status}</h3>
+          <p className="text-xs md:text-sm">
             {poData.status === 'Pending' && 'Menunggu persetujuan'}
             {poData.status === 'Sedang diproses' && 'PO sedang diproses oleh supplier'}
             {poData.status === 'Dibatalkan' && 'PO telah dibatalkan'}
@@ -410,31 +413,31 @@ function OnProgressPO() {
       </div>
 
       {/* PO Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-4 md:space-y-6">
           {/* PO Details Card */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <FileText size={20} />
+          <div className="bg-white rounded-lg shadow p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-3 md:mb-4 flex items-center gap-2">
+              <FileText size={18} />
               Informasi PO
             </h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-500">Nomor PO</label>
-                <p className="font-semibold">{poData.po_number}</p>
+                <label className="block text-xs md:text-sm font-medium text-gray-500">Nomor PO</label>
+                <p className="font-semibold text-sm md:text-base">{poData.po_number}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-500">Tanggal PO</label>
-                <p className="font-semibold">{new Date(poData.po_date).toLocaleDateString('id-ID')}</p>
+                <label className="block text-xs md:text-sm font-medium text-gray-500">Tanggal PO</label>
+                <p className="font-semibold text-sm md:text-base">{new Date(poData.po_date).toLocaleDateString('id-ID')}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-500">Termin Pembayaran</label>
-                <p className="font-semibold">{poData.termin_days} hari</p>
+                <label className="block text-xs md:text-sm font-medium text-gray-500">Termin Pembayaran</label>
+                <p className="font-semibold text-sm md:text-base">{poData.termin_days} hari</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-500">Prioritas</label>
+                <label className="block text-xs md:text-sm font-medium text-gray-500">Prioritas</label>
                 <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(poData.priority)}`}>
                   {poData.priority.toUpperCase()}
                 </span>
@@ -443,20 +446,48 @@ function OnProgressPO() {
 
             {poData.keterangan && (
               <div className="mt-4 pt-4 border-t border-gray-200">
-                <label className="block text-sm font-medium text-gray-500 mb-2">Catatan</label>
-                <p className="text-gray-700 bg-gray-50 p-3 rounded">{poData.keterangan}</p>
+                <label className="block text-xs md:text-sm font-medium text-gray-500 mb-2">Catatan</label>
+                <p className="text-gray-700 bg-gray-50 p-3 rounded text-sm md:text-base">{poData.keterangan}</p>
               </div>
             )}
           </div>
 
           {/* Items Card */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <Package size={20} />
+          <div className="bg-white rounded-lg shadow p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-3 md:mb-4 flex items-center gap-2">
+              <Package size={18} />
               Daftar Item
             </h2>
             
-            <div className="overflow-x-auto">
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-3">
+              {poItems.map((item, index) => (
+                <div key={item.id} className="border border-gray-200 rounded-lg p-3">
+                  <div className="font-medium text-gray-900 mb-2">{item.product_name}</div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-gray-500">Merk:</span>
+                      <span className="ml-1 text-gray-700">{item.merk || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Qty:</span>
+                      <span className="ml-1 font-semibold">{item.qty}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Unit:</span>
+                      <span className="ml-1 text-gray-700">{item.unit_besar}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Ket:</span>
+                      <span className="ml-1 text-gray-700">{item.keterangan || '-'}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-100 text-left">
@@ -494,73 +525,71 @@ function OnProgressPO() {
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
+        <div className="space-y-4 md:space-y-6">
           {/* Supplier Card */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <Building2 size={20} />
+          <div className="bg-white rounded-lg shadow p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-3 md:mb-4 flex items-center gap-2">
+              <Building2 size={18} />
               Supplier
             </h2>
             
-            <div className="space-y-3">
+            <div className="space-y-2 md:space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-500">Nama Supplier</label>
-                <p className="font-semibold">{supplier?.nama_supplier}</p>
+                <label className="block text-xs md:text-sm font-medium text-gray-500">Nama Supplier</label>
+                <p className="font-semibold text-sm md:text-base">{supplier?.nama_supplier}</p>
               </div>
               
               {supplier?.termin_tempo && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500">Tempo Pembayaran</label>
-                  <p className="text-gray-700">{supplier.termin_tempo} hari</p>
+                  <label className="block text-xs md:text-sm font-medium text-gray-500">Tempo Pembayaran</label>
+                  <p className="text-gray-700 text-sm md:text-base">{supplier.termin_tempo} hari</p>
                 </div>
               )}
             </div>
           </div>
 
           {/* Branch Card */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <Building2 size={20} />
+          <div className="bg-white rounded-lg shadow p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-3 md:mb-4 flex items-center gap-2">
+              <Building2 size={18} />
               Cabang
             </h2>
             
-            <div className="space-y-3">
+            <div className="space-y-2 md:space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-500">Nama Cabang</label>
-                <p className="font-semibold">{branch?.nama_branch}</p>
+                <label className="block text-xs md:text-sm font-medium text-gray-500">Nama Cabang</label>
+                <p className="font-semibold text-sm md:text-base">{branch?.nama_branch}</p>
               </div>
               
               {branch?.alamat && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500">Alamat</label>
-                  <p className="text-gray-700">{branch.alamat}</p>
+                  <label className="block text-xs md:text-sm font-medium text-gray-500">Alamat</label>
+                  <p className="text-gray-700 text-sm md:text-base">{branch.alamat}</p>
                 </div>
               )}
               
-
-              
               {branch?.pic && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500">PIC</label>
-                  <p className="text-gray-700">{branch.pic}</p>
+                  <label className="block text-xs md:text-sm font-medium text-gray-500">PIC</label>
+                  <p className="text-gray-700 text-sm md:text-base">{branch.pic}</p>
                 </div>
               )}
             </div>
           </div>
 
           {/* Timeline Card */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <Clock size={20} />
+          <div className="bg-white rounded-lg shadow p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-3 md:mb-4 flex items-center gap-2">
+              <Clock size={18} />
               Timeline
             </h2>
             
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               <div className="flex items-start gap-3">
                 <div className="mt-1 w-3 h-3 rounded-full bg-blue-500"></div>
                 <div>
-                  <p className="font-medium">Dibuat</p>
-                  <p className="text-sm text-gray-500">{new Date(poData.created_at).toLocaleDateString('id-ID')}</p>
+                  <p className="font-medium text-sm md:text-base">Dibuat</p>
+                  <p className="text-xs md:text-sm text-gray-500">{new Date(poData.created_at).toLocaleDateString('id-ID')}</p>
                 </div>
               </div>
               
@@ -568,16 +597,16 @@ function OnProgressPO() {
                 <div className="flex items-start gap-3">
                   <div className="mt-1 w-3 h-3 rounded-full bg-green-500"></div>
                   <div>
-                    <p className="font-medium">Disetujui</p>
-                    <p className="text-sm text-gray-500">{new Date(poData.created_at).toLocaleDateString('id-ID')}</p>
+                    <p className="font-medium text-sm md:text-base">Disetujui</p>
+                    <p className="text-xs md:text-sm text-gray-500">{new Date(poData.created_at).toLocaleDateString('id-ID')}</p>
                   </div>
                 </div>
               ) : poData.status === 'Dibatalkan' && (
                 <div className="flex items-start gap-3">
                   <div className="mt-1 w-3 h-3 rounded-full bg-red-500"></div>
                   <div>
-                    <p className="font-medium">Dibatalkan</p>
-                    <p className="text-sm text-gray-500">{new Date(poData.created_at).toLocaleDateString('id-ID')}</p>
+                    <p className="font-medium text-sm md:text-base">Dibatalkan</p>
+                    <p className="text-xs md:text-sm text-gray-500">{new Date(poData.created_at).toLocaleDateString('id-ID')}</p>
                   </div>
                 </div>
               )}
@@ -588,25 +617,28 @@ function OnProgressPO() {
 
       {/* Action Buttons - Only show if status is Pending */}
       {poData.status === 'Pending' && (
-        <div className="flex justify-between pt-4 border-t border-gray-200">
-          <a href={`/purchaseorder/`} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
+        <div className="flex flex-col md:flex-row md:justify-between gap-3 pt-4 border-t border-gray-200">
+          <a href={`/purchaseorder/`} className="px-4 md:px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 text-sm md:text-base">
             <ArrowLeft size={16} />
-            Back To List Purchase Order
+            <span className="hidden md:inline">Back To List Purchase Order</span>
+            <span className="md:hidden">Kembali ke Daftar PO</span>
           </a>
-          <div className="flex gap-3">
+          <div className="flex gap-2 md:gap-3">
             <button 
               onClick={handleReject}
-              className="bg-red-100 text-red-700 px-6 py-2 rounded-lg hover:bg-red-200 flex items-center gap-2 border border-red-200"
+              className="bg-red-100 text-red-700 px-4 md:px-6 py-2 rounded-lg hover:bg-red-200 flex items-center justify-center gap-2 border border-red-200 flex-1 md:flex-none text-sm md:text-base"
             >
               <XCircle size={16} />
-              Batalkan PO
+              <span className="hidden md:inline">Batalkan PO</span>
+              <span className="md:hidden">Batalkan</span>
             </button>
             <button 
               onClick={handleApprove}
-              className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+              className="bg-green-600 text-white px-4 md:px-6 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 flex-1 md:flex-none text-sm md:text-base"
             >
               <CheckCircle size={16} />
-              Setujui PO
+              <span className="hidden md:inline">Setujui PO</span>
+              <span className="md:hidden">Setujui</span>
             </button>
           </div>
         </div>
@@ -614,7 +646,7 @@ function OnProgressPO() {
       
       {poData.status !== 'Pending' && (
         <div className="flex justify-center pt-4 border-t border-gray-200">
-          <a href="/purchaseorder" className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
+          <a href="/purchaseorder" className="px-4 md:px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-sm md:text-base">
             <ArrowLeft size={16} />
             Kembali ke Daftar PO
           </a>
