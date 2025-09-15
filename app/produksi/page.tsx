@@ -609,7 +609,7 @@ function ProduksiPageContent() {
           </div>
         )}
         <div className="flex items-center gap-3 mb-1">
-          <h1 className="text-sm font-bold text-gray-800">🏭 Production</h1>
+          <h1 className="text-sm font-bold text-gray-800">Production</h1>
         </div>
 
         <div className="bg-white p-1 rounded-lg shadow mb-1">

@@ -4,6 +4,7 @@ export interface SubMenuItem {
   name: string
   href: string
   icon: LucideIcon
+  pageName?: string
 }
 
 export interface MenuItem {
@@ -14,6 +15,7 @@ export interface MenuItem {
   submenu?: SubMenuItem[]
   type?: string
   parent?: string
+  pageName?: string
 }
 
 export interface BreadcrumbItem {

@@ -1128,16 +1128,16 @@ export default function StockOpnameBatchPage() {
                       </div>
                     ) : (
                       // Desktop view for products
-                      <table className="w-full text-sm">
+                      <table className="w-full text-xs">
                         <thead className="bg-gray-50 sticky top-0">
                           <tr>
-                            <th className="px-3 py-2 text-left">Produk</th>
-                            <th className="px-3 py-2 text-left">Stok Sistem{editing ? ' (saat SO)' : ''}</th>
-                            <th className="px-3 py-2 text-left">Stok Sistem (terkini)</th>
-                            <th className="px-3 py-2 text-left">Stok Fisik</th>
-                            <th className="px-3 py-2 text-left">Selisih</th>
-                            <th className="px-3 py-2 text-left">Satuan</th>
-                            <th className="px-3 py-2 text-left">Catatan</th>
+                            <th className="px-2 py-1 text-left">Produk</th>
+                            <th className="px-2 py-1 text-left w-16">Sistem{editing ? ' (SO)' : ''}</th>
+                            <th className="px-2 py-1 text-left w-16">Sistem (Now)</th>
+                            <th className="px-2 py-1 text-left w-20">Stok Fisik</th>
+                            <th className="px-2 py-1 text-left w-16">Selisih</th>
+                            <th className="px-2 py-1 text-left w-12">Unit</th>
+                            <th className="px-2 py-1 text-left w-24">Catatan</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1149,32 +1149,32 @@ export default function StockOpnameBatchPage() {
                             
                             return (
                               <tr key={index} className="border-t">
-                                <td className="px-3 py-2 font-medium">{product.product_name}</td>
-                                <td className="px-3 py-2">{systemStock}</td>
-                                <td className="px-3 py-2 text-blue-600">{product.current_system_stock || product.system_stock}</td>
-                                <td className="px-3 py-2">
+                                <td className="px-2 py-1 font-medium text-xs truncate" title={product.product_name}>{product.product_name}</td>
+                                <td className="px-2 py-1 text-center">{systemStock}</td>
+                                <td className="px-2 py-1 text-center text-blue-600">{product.current_system_stock || product.system_stock}</td>
+                                <td className="px-2 py-1">
                                   <input
                                     type="number"
                                     step="0.01"
                                     min="0"
                                     value={product.physical_stock || ''}
                                     onChange={(e) => handlePhysicalStockChange(product.product_name, e.target.value)}
-                                    className="w-20 border px-2 py-1 rounded text-center"
+                                    className="w-16 border px-1 py-0.5 rounded text-center text-xs"
                                   />
                                 </td>
-                                <td className={`px-3 py-2 font-medium ${
+                                <td className={`px-2 py-1 text-center font-medium ${
                                   difference > 0 ? 'text-green-600' : 
                                   difference < 0 ? 'text-red-600' : 'text-gray-600'
                                 }`}>
                                   {difference.toFixed(2)}
                                 </td>
-                                <td className="px-3 py-2">{product.unit}</td>
-                                <td className="px-3 py-2">
+                                <td className="px-2 py-1 text-xs">{product.unit}</td>
+                                <td className="px-2 py-1">
                                   <input
                                     type="text"
                                     value={product.notes || ''}
                                     onChange={(e) => handleNotesChange(product.product_name, e.target.value)}
-                                    className="w-32 border px-2 py-1 rounded text-xs"
+                                    className="w-20 border px-1 py-0.5 rounded text-xs"
                                     placeholder="Catatan"
                                   />
                                 </td>
@@ -1381,24 +1381,24 @@ export default function StockOpnameBatchPage() {
             ) : (
               // Desktop view for batches
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="px-4 py-3 text-left">ID Batch</th>
-                      <th className="px-4 py-3 text-left">Tanggal</th>
-                      <th className="px-4 py-3 text-left">Waktu</th>
-                      <th className="px-4 py-3 text-left">Cabang</th>
-                      <th className="px-4 py-3 text-left">Sub Kategori</th>
-                      <th className="px-4 py-3 text-left">PIC</th>
-                      <th className="px-4 py-3 text-left">Produk</th>
-                      <th className="px-4 py-3 text-left">Status</th>
-                      <th className="px-4 py-3 text-left">Aksi</th>
+                      <th className="px-2 py-2 text-left w-20">ID</th>
+                      <th className="px-2 py-2 text-left w-24">Tanggal</th>
+                      <th className="px-2 py-2 text-left w-16">Waktu</th>
+                      <th className="px-2 py-2 text-left w-32">Cabang</th>
+                      <th className="px-2 py-2 text-left w-28">Sub Kategori</th>
+                      <th className="px-2 py-2 text-left w-24">PIC</th>
+                      <th className="px-2 py-2 text-left w-16">Produk</th>
+                      <th className="px-2 py-2 text-left w-20">Status</th>
+                      <th className="px-2 py-2 text-left w-32">Aksi</th>
                     </tr>
                   </thead>
                   <tbody>
                     {paginatedBatches.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="px-4 py-4 text-center text-gray-500">
+                        <td colSpan={9} className="px-2 py-3 text-center text-gray-500">
                           {batches.length === 0 ? 'Tidak ada data batch' : 'Tidak ada batch yang sesuai dengan filter'}
                         </td>
                       </tr>
@@ -1406,72 +1406,72 @@ export default function StockOpnameBatchPage() {
                       paginatedBatches.map((batch) => (
                         <React.Fragment key={batch.batch_id}>
                           <tr className="border-t hover:bg-gray-50">
-                            <td className="px-4 py-3">
+                            <td className="px-2 py-2">
                               <button
                                 onClick={() => toggleBatchExpansion(batch.batch_id)}
-                                className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                                className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs"
                               >
-                                {expandedBatch === batch.batch_id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                                BATCH-{batch.batch_id}
+                                {expandedBatch === batch.batch_id ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                                {batch.batch_id}
                               </button>
                             </td>
-                            <td className="px-4 py-3">{batch.batch_date}</td>
-                            <td className="px-4 py-3">{batch.batch_time?.substring(0, 5) || '12:00'}</td>        
-                            <td className="px-4 py-3">{batch.nama_branch}</td>
-                            <td className="px-4 py-3">{batch.sub_category}</td>
-                            <td className="px-4 py-3">{batch.pic_name}</td>
-                            <td className="px-4 py-3">{batch.products_counted}/{batch.total_products}</td>
-                            <td className="px-4 py-3">
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            <td className="px-2 py-2 text-xs">{batch.batch_date}</td>
+                            <td className="px-2 py-2 text-xs">{batch.batch_time?.substring(0, 5) || '12:00'}</td>        
+                            <td className="px-2 py-2 text-xs truncate" title={batch.nama_branch}>{batch.nama_branch}</td>
+                            <td className="px-2 py-2 text-xs truncate" title={batch.sub_category}>{batch.sub_category}</td>
+                            <td className="px-2 py-2 text-xs truncate" title={batch.pic_name}>{batch.pic_name}</td>
+                            <td className="px-2 py-2 text-xs">{batch.products_counted}/{batch.total_products}</td>
+                            <td className="px-2 py-2">
+                              <span className={`px-1 py-0.5 rounded text-xs font-medium ${
                                 batch.status === 'approved' ? 'bg-green-100 text-green-800' :
                                 batch.status === 'rejected' ? 'bg-red-100 text-red-800' :
                                 'bg-yellow-100 text-yellow-800'
                               }`}>
-                                {batch.status_icon} {batch.status}
+                                {batch.status_icon}
                               </span>
                             </td>
-                            <td className="px-4 py-3">
-                              <div className="flex gap-1">
+                            <td className="px-2 py-2">
+                              <div className="flex gap-0.5">
                                 {batch.status === 'pending' && (
                                   <>
                                     <button
                                       onClick={() => handleEditBatch(batch.batch_id)}
-                                      className="text-blue-600 hover:text-blue-800 p-1"
+                                      className="text-blue-600 hover:text-blue-800 p-0.5"
                                       title="Edit"
                                     >
-                                      <Edit2 size={14} />
+                                      <Edit2 size={12} />
                                     </button>
                                     <button
                                       onClick={() => handleDeleteBatch(batch.batch_id)}
                                       disabled={processingBatch === batch.batch_id}
-                                      className="text-red-600 hover:text-red-800 p-1 disabled:opacity-50"
+                                      className="text-red-600 hover:text-red-800 p-0.5 disabled:opacity-50"
                                       title="Hapus"
                                     >
                                       {processingBatch === batch.batch_id ? 
-                                        <Loader2 size={14} className="animate-spin" /> : 
-                                        <Trash2 size={14} />
+                                        <Loader2 size={12} className="animate-spin" /> : 
+                                        <Trash2 size={12} />
                                       }
                                     </button>
                                     <button
                                       onClick={() => exportToPDF(batch.batch_id)}
                                       disabled={processingBatch === batch.batch_id}
-                                      className="text-purple-600 hover:text-purple-800 p-1 disabled:opacity-50"
+                                      className="text-purple-600 hover:text-purple-800 p-0.5 disabled:opacity-50"
                                       title="Export PDF"
                                     >
                                       {processingBatch === batch.batch_id ? 
-                                        <Loader2 size={14} className="animate-spin" /> : 
-                                        <FileText size={14} />
+                                        <Loader2 size={12} className="animate-spin" /> : 
+                                        <FileText size={12} />
                                       }
                                     </button>
                                     <button
                                       onClick={() => handleApproveBatch(batch.batch_id)}
                                       disabled={processingBatch === batch.batch_id}
-                                      className="text-green-600 hover:text-green-800 p-1 text-xs px-2 py-1 border border-green-600 rounded disabled:opacity-50"
+                                      className="text-green-600 hover:text-green-800 text-xs px-1 py-0.5 border border-green-600 rounded disabled:opacity-50"
                                       title="Setujui"
                                     >
                                       {processingBatch === batch.batch_id ? 
-                                        <Loader2 size={12} className="animate-spin inline mr-1" /> : 
-                                        'Setujui'
+                                        <Loader2 size={10} className="animate-spin" /> : 
+                                        '✓'
                                       }
                                     </button>
                                   </>
@@ -1480,31 +1480,31 @@ export default function StockOpnameBatchPage() {
                                   <>
                                     <button
                                       onClick={() => handleEditBatch(batch.batch_id)}
-                                      className="text-orange-600 hover:text-orange-800 p-1"
+                                      className="text-orange-600 hover:text-orange-800 p-0.5"
                                       title="Edit (akan mengembalikan ke pending)"
                                     >
-                                      <Edit2 size={14} />
+                                      <Edit2 size={12} />
                                     </button>
                                     <button
                                       onClick={() => exportToPDF(batch.batch_id)}
                                       disabled={processingBatch === batch.batch_id}
-                                      className="text-purple-600 hover:text-purple-800 p-1 disabled:opacity-50"
+                                      className="text-purple-600 hover:text-purple-800 p-0.5 disabled:opacity-50"
                                       title="Export PDF"
                                     >
                                       {processingBatch === batch.batch_id ? 
-                                        <Loader2 size={14} className="animate-spin" /> : 
-                                        <FileText size={14} />
+                                        <Loader2 size={12} className="animate-spin" /> : 
+                                        <FileText size={12} />
                                       }
                                     </button>
                                     <button
                                       onClick={() => handleRevertBatch(batch.batch_id)}
                                       disabled={processingBatch === batch.batch_id}
-                                      className="text-red-600 hover:text-red-800 p-1 text-xs px-2 py-1 border border-red-600 rounded disabled:opacity-50"
+                                      className="text-red-600 hover:text-red-800 text-xs px-1 py-0.5 border border-red-600 rounded disabled:opacity-50"
                                       title="Kembalikan ke Pending"
                                     >
                                       {processingBatch === batch.batch_id ? 
-                                        <Loader2 size={12} className="animate-spin inline mr-1" /> : 
-                                        'Kembalikan'
+                                        <Loader2 size={10} className="animate-spin" /> : 
+                                        '↶'
                                       }
                                     </button>
                                   </>
@@ -1514,22 +1514,22 @@ export default function StockOpnameBatchPage() {
                           </tr>
                           {expandedBatch === batch.batch_id && (
                             <tr>
-                              <td colSpan={9} className="px-4 py-2 bg-gray-50">
-                                <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
+                              <td colSpan={9} className="px-2 py-1 bg-gray-50">
+                                <div className="grid grid-cols-4 gap-1 mb-1 text-xs">
                                   <div><strong>Tanggal:</strong> {batch.batch_date}</div>
                                   <div><strong>Waktu:</strong> {batch.batch_time?.substring(0, 5) || '12:00'}</div>
                                   <div><strong>Cabang:</strong> {batch.nama_branch}</div>
                                   <div><strong>Sub Kategori:</strong> {batch.sub_category}</div>
                                 </div>
-                                <div className="max-h-64 overflow-y-auto">
+                                <div className="max-h-48 overflow-y-auto">
                                   <table className="w-full text-xs">
                                     <thead>
                                       <tr className="bg-gray-100">
-                                        <th className="px-2 py-1 text-left">Produk</th>
-                                        <th className="px-2 py-1 text-left">Sistem</th>
-                                        <th className="px-2 py-1 text-left">Fisik</th>
-                                        <th className="px-2 py-1 text-left">Selisih</th>
-                                        <th className="px-2 py-1 text-left">Catatan</th>
+                                        <th className="px-1 py-1 text-left">Produk</th>
+                                        <th className="px-1 py-1 text-left w-16">Sistem</th>
+                                        <th className="px-1 py-1 text-left w-16">Fisik</th>
+                                        <th className="px-1 py-1 text-left w-16">Selisih</th>
+                                        <th className="px-1 py-1 text-left w-20">Catatan</th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -1537,16 +1537,16 @@ export default function StockOpnameBatchPage() {
                                         const difference = detail.physical_stock - (detail.system_stock || 0)
                                         return (
                                           <tr key={detail.detail_id} className="border-t">
-                                            <td className="px-2 py-1">{detail.product_name}</td>
-                                            <td className="px-2 py-1">{detail.system_stock}</td>
-                                            <td className="px-2 py-1">{detail.physical_stock}</td>
-                                            <td className={`px-2 py-1 font-medium ${
+                                            <td className="px-1 py-1 truncate" title={detail.product_name}>{detail.product_name}</td>
+                                            <td className="px-1 py-1 text-center">{detail.system_stock}</td>
+                                            <td className="px-1 py-1 text-center">{detail.physical_stock}</td>
+                                            <td className={`px-1 py-1 text-center font-medium ${
                                               difference > 0 ? 'text-green-600' : 
                                               difference < 0 ? 'text-red-600' : 'text-gray-600'
                                             }`}>
                                               {difference.toFixed(2)}
                                             </td>
-                                            <td className="px-2 py-1">{detail.notes || '-'}</td>
+                                            <td className="px-1 py-1 truncate" title={detail.notes || '-'}>{detail.notes || '-'}</td>
                                           </tr>
                                         )
                                       })}

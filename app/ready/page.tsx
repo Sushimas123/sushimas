@@ -59,7 +59,7 @@ function ReadyPageContent() {
   const [branchFilter, setBranchFilter] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(5);
+  const [itemsPerPage] = useState(10);
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -1014,7 +1014,7 @@ function ReadyPageContent() {
         {showAddForm && (
           <div className="mb-6 bg-white p-4 shadow rounded-lg">
             <h2 className="font-semibold text-base mb-4 text-gray-800">
-              🍽️ Input Ready Stock Harian
+              Input Ready Stock Harian
             </h2>
             
             <form onSubmit={handleSubmit}>

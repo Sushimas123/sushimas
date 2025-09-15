@@ -34,6 +34,7 @@ import {
 import { canAccessPage } from '@/src/utils/dbPermissions'
 import { supabase } from '@/src/lib/supabaseClient'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useNavigationPermissions } from '@/hooks/useNavigationPermissions'
 import { MenuItem, AppRoutes, BreadcrumbItem, SearchResult } from '@/types/layout'
 import PurchaseOrderPage from "@/app/purchaseorder/page"
 
@@ -62,23 +63,27 @@ export default function Layout({ children }: LayoutProps) {
   const sidebarRef = useRef<HTMLDivElement>(null)
   const debouncedSearch = useDebounce(searchQuery, 300)
 
-  // Menu items structure - memoized for performance
-  const menuItems = useMemo<MenuItem[]>(() => [
+  // Get user permissions
+  const { permissions, loading: permissionsLoading } = useNavigationPermissions()
+
+  // Menu items structure with page names for permission checking
+  const allMenuItems = useMemo<MenuItem[]>(() => [
     {
       id: 'dashboard',
       name: 'Dashboard',
       href: AppRoutes.DASHBOARD,
       icon: LayoutDashboard,
+      pageName: 'dashboard'
     },
     {
       id: 'operations',
       name: 'Operations',
       icon: Package,
       submenu: [
-        { name: "Ready Stock", href: AppRoutes.READY_STOCK, icon: Package },
-        { name: "Production", href: AppRoutes.PRODUCTION, icon: Factory },
-        { name: "Gudang", href: AppRoutes.GUDANG, icon: Warehouse },
-        { name: "SO Batch", href: AppRoutes.SO_BATCH, icon: FileText },
+        { name: "Ready Stock", href: AppRoutes.READY_STOCK, icon: Package, pageName: 'ready' },
+        { name: "Production", href: AppRoutes.PRODUCTION, icon: Factory, pageName: 'produksi' },
+        { name: "Gudang", href: AppRoutes.GUDANG, icon: Warehouse, pageName: 'gudang' },
+        { name: "SO Batch", href: AppRoutes.SO_BATCH, icon: FileText, pageName: 'stock_opname_batch' },
       ]
     },
     {
@@ -86,9 +91,9 @@ export default function Layout({ children }: LayoutProps) {
       name: 'Purchase Order',
       icon: Building,
       submenu: [
-        { name: "Purchase Order", href: "/purchaseorder", icon: Package },
-        { name: "Barang Masuk", href: "/purchaseorder/barang_masuk", icon: PackageCheck},
-        { name: "Transfer Cabang", href:AppRoutes.TRANSFER_BARANG, icon:FolderSync}
+        { name: "Purchase Order", href: "/purchaseorder", icon: Package, pageName: 'purchaseorder' },
+        { name: "Barang Masuk", href: "/purchaseorder/barang_masuk", icon: PackageCheck, pageName: 'barang_masuk'},
+        { name: "Transfer Cabang", href:AppRoutes.TRANSFER_BARANG, icon:FolderSync, pageName: 'transfer_barang'}
       ]
     },    
     {
@@ -96,10 +101,10 @@ export default function Layout({ children }: LayoutProps) {
       name: 'Reports',
       icon: BarChart3,
       submenu: [
-        { name: "Analysis", href: AppRoutes.ANALYSIS, icon: BarChart3 },
-        { name: "Pivot Analysis", href: "/pivot", icon: BarChart3 },
-        { name: "Esb Report", href: AppRoutes.ESB, icon: BarChart3 },
-        { name: "Production Detail", href: AppRoutes.PRODUCTION_DETAIL, icon: FileText },
+        { name: "Analysis", href: AppRoutes.ANALYSIS, icon: BarChart3, pageName: 'analysis' },
+        { name: "Pivot Analysis", href: "/pivot", icon: BarChart3, pageName: 'pivot' },
+        { name: "Esb Report", href: AppRoutes.ESB, icon: BarChart3, pageName: 'esb' },
+        { name: "Production Detail", href: AppRoutes.PRODUCTION_DETAIL, icon: FileText, pageName: 'produksi_detail' },
       ]
     },
     {
@@ -107,13 +112,13 @@ export default function Layout({ children }: LayoutProps) {
       name: 'Master Data',
       icon: BookOpen,
       submenu: [
-        { name: "Product Name Report", href: AppRoutes.PRODUCT_NAME, icon: Package },
-        { name: "Categories", href: AppRoutes.CATEGORIES, icon: BookOpen },
-        { name: "Recipes", href: AppRoutes.RECIPES, icon: BookOpen },
-        { name: "Supplier", href: AppRoutes.SUPPLIER, icon: Truck },
-        { name: "Branches", href: AppRoutes.BRANCHES, icon: Store },
-        { name: "Users", href: AppRoutes.USERS, icon: Users },
-        { name: "Price History", href: AppRoutes.PRICE_HISTORY, icon: ChartArea}
+        { name: "Product Name Report", href: AppRoutes.PRODUCT_NAME, icon: Package, pageName: 'product_name' },
+        { name: "Categories", href: AppRoutes.CATEGORIES, icon: BookOpen, pageName: 'categories' },
+        { name: "Recipes", href: AppRoutes.RECIPES, icon: BookOpen, pageName: 'recipes' },
+        { name: "Supplier", href: AppRoutes.SUPPLIER, icon: Truck, pageName: 'supplier' },
+        { name: "Branches", href: AppRoutes.BRANCHES, icon: Store, pageName: 'branches' },
+        { name: "Users", href: AppRoutes.USERS, icon: Users, pageName: 'users' },
+        { name: "Price History", href: AppRoutes.PRICE_HISTORY, icon: ChartArea, pageName: 'price_history'}
       ]
     },
     {
@@ -121,13 +126,45 @@ export default function Layout({ children }: LayoutProps) {
       name: 'Settings',
       icon: Settings2Icon,
       submenu: [
-        { name: "Product Settings", href: AppRoutes.PRODUCT_SETTINGS, icon: Settings2Icon },
-        { name: "Permissions", href: AppRoutes.PERMISSIONS_DB, icon: Settings2Icon },
-        { name: "CRUD Permissions", href: AppRoutes.CRUD_PERMISSIONS, icon: Settings2Icon },
-        { name: "Audit Log", href: AppRoutes.AUDIT_LOG, icon: FileText },
+        { name: "Product Settings", href: AppRoutes.PRODUCT_SETTINGS, icon: Settings2Icon, pageName: 'product_settings' },
+        { name: "Permissions", href: AppRoutes.PERMISSIONS_DB, icon: Settings2Icon, pageName: 'permissions-db' },
+        { name: "CRUD Permissions", href: AppRoutes.CRUD_PERMISSIONS, icon: Settings2Icon, pageName: 'crud_permissions' },
+        { name: "Audit Log", href: AppRoutes.AUDIT_LOG, icon: FileText, pageName: 'audit_log' },
       ]
     },
   ], [])
+
+  // Filter menu items based on permissions
+  const menuItems = useMemo(() => {
+    if (permissionsLoading) return []
+    
+    return allMenuItems.filter(item => {
+      if (item.submenu) {
+        // Filter submenu items based on permissions
+        const accessibleSubmenu = item.submenu.filter(subItem => 
+          subItem.pageName && permissions[subItem.pageName] === true
+        )
+        
+        // Only show parent menu if it has accessible submenu items
+        if (accessibleSubmenu.length > 0) {
+          return { ...item, submenu: accessibleSubmenu }
+        }
+        return false
+      }
+      
+      // For menu without submenu, check direct permission
+      return item.pageName ? permissions[item.pageName] === true : true
+    }).map(item => {
+      if (item.submenu) {
+        // Update submenu with filtered items
+        const accessibleSubmenu = item.submenu.filter(subItem => 
+          subItem.pageName && permissions[subItem.pageName] === true
+        )
+        return { ...item, submenu: accessibleSubmenu }
+      }
+      return item
+    })
+  }, [allMenuItems, permissions, permissionsLoading])
 
   const handleLogout = () => {
     localStorage.removeItem('user')
@@ -340,7 +377,7 @@ export default function Layout({ children }: LayoutProps) {
     return pathname === href
   }, [pathname])
 
-  if (isLoading) {
+  if (isLoading || permissionsLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 animate-pulse">
         <div className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"></div>
