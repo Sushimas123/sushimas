@@ -70,7 +70,7 @@ const getDefaultPermissions = (userRole: string) => {
   }
   
   if (userRole === 'finance') {
-    const financePages = ['ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'stock_opname_batch', 'esb', 'users']
+    const financePages = ['dashboard', 'ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'stock_opname_batch', 'esb', 'users', 'product_settings']
     financePages.forEach(page => {
       permissions[page] = ['*']
     })
@@ -78,7 +78,7 @@ const getDefaultPermissions = (userRole: string) => {
   }
   
   if (userRole === 'pic_branch' || userRole === 'pic') {
-    const picPages = ['ready', 'produksi', 'gudang', 'stock_opname_batch', 'esb']
+    const picPages = ['dashboard', 'ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'stock_opname_batch', 'esb']
     picPages.forEach(page => {
       permissions[page] = ['*']
     })
@@ -86,7 +86,7 @@ const getDefaultPermissions = (userRole: string) => {
   }
   
   if (userRole === 'staff') {
-    const staffPages = ['ready', 'produksi', 'stock_opname_batch', 'esb']
+    const staffPages = ['dashboard', 'ready', 'produksi', 'gudang', 'stock_opname_batch', 'esb']
     staffPages.forEach(page => {
       permissions[page] = ['*']
     })
@@ -120,6 +120,11 @@ export const canAccessPage = async (userRole: string, pagePath: string): Promise
 
 // Function to check if user can view a column
 export const canViewColumn = async (userRole: string, tableName: string, columnName: string): Promise<boolean> => {
+  // Super admin and admin always have full access
+  if (userRole === 'super admin' || userRole === 'admin') {
+    return true
+  }
+  
   const permissions = await getPermissions(userRole)
   const tablePermissions = permissions[tableName]
   
@@ -131,6 +136,11 @@ export const canViewColumn = async (userRole: string, tableName: string, columnN
 
 // Function to get visible columns for a table
 export const getVisibleColumns = async (userRole: string, tableName: string, allColumns: string[]): Promise<string[]> => {
+  // Super admin and admin always have full access
+  if (userRole === 'super admin' || userRole === 'admin') {
+    return allColumns
+  }
+  
   const permissions = await getPermissions(userRole)
   const tablePermissions = permissions[tableName]
   
@@ -148,6 +158,13 @@ export const clearPermissionsCache = () => {
 
 // Clear cache immediately on module load to ensure fresh permissions
 clearPermissionsCache()
+
+// Force clear all permission caches for immediate effect
+if (typeof window !== 'undefined') {
+  // Clear localStorage cache if any
+  localStorage.removeItem('permissionsCache')
+  localStorage.removeItem('permissionsCacheTimestamp')
+}
 
 // Function to update permissions in database
 export const updatePermissions = async (role: string, page: string, columns: string[], canAccess: boolean = true) => {

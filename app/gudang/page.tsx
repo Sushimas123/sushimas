@@ -13,6 +13,21 @@ import { hasPageAccess } from '@/src/utils/permissionChecker';
 import { insertWithAudit, updateWithAudit, hardDeleteWithAudit } from '@/src/utils/auditTrail';
 import { canViewColumn } from '@/src/utils/dbPermissions';
 
+// XSS protection utility
+const sanitizeText = (text: any): string => {
+  if (text === null || text === undefined) return '';
+  return String(text).replace(/[<>"'&]/g, (match) => {
+    const entities: { [key: string]: string } = {
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#x27;',
+      '&': '&amp;'
+    };
+    return entities[match] || match;
+  });
+};
+
 interface Gudang {
   order_no: number;
   id_product: number;
@@ -1384,7 +1399,7 @@ function GudangPageContent() {
                     {visibleColumns.includes('tanggal') && <td className="px-1 py-1">{item.tanggal.split('T')[0]}</td>}
                     {visibleColumns.includes('tanggal') && <td className="px-1 py-1">{new Date(item.tanggal).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}</td>}
                     {visibleColumns.includes('branch_name') && <td className="px-1 py-1">{item.branch_name}</td>}
-                    {visibleColumns.includes('product_name') && <td className="px-1 py-1">{item.product_name}</td>}
+                    {visibleColumns.includes('product_name') && <td className="px-1 py-1">{sanitizeText(item.product_name)}</td>}
                     {visibleColumns.includes('jumlah_masuk') && <td className="px-1 py-1 text-green-600">{item.jumlah_masuk}</td>}
                     {visibleColumns.includes('jumlah_keluar') && <td className="px-1 py-1 text-red-600">{item.jumlah_keluar}</td>}
                     {visibleColumns.includes('total_gudang') && (
@@ -1413,7 +1428,7 @@ function GudangPageContent() {
                         </button>
                       )}
                     </td>
-                    {visibleColumns.includes('nama_pengambil_barang') && <td className="px-1 py-1">{item.nama_pengambil_barang}</td>}
+                    {visibleColumns.includes('nama_pengambil_barang') && <td className="px-1 py-1">{sanitizeText(item.nama_pengambil_barang)}</td>}
                     <td className="px-1 py-1">
                       {(item as any).source_type === 'stock_opname_batch' ? (
                         <span className="px-1 py-0.5 text-black-800 rounded text-xs font-semibold">

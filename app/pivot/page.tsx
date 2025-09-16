@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { getBranchFilter, applyBranchFilter } from '@/src/utils/branchAccess';
 import PageAccessControl from '../../components/PageAccessControl';
+import { safeLog } from '@/src/utils/logSanitizer';
 
 interface AnalysisData {
   id_product: number;
@@ -88,7 +89,7 @@ export default function PivotPage() {
       try {
         setDateRange(JSON.parse(saved));
       } catch (e) {
-        console.error('Error loading saved date range:', e);
+        safeLog('Error loading saved date range:', e);
       }
     }
   }, []);
@@ -134,15 +135,15 @@ export default function PivotPage() {
             .eq('is_active', true);
           
           if (error) {
-            console.error('Error fetching user branches:', error);
+            safeLog('Error fetching user branches:', error);
           }
           
           if (userBranches && userBranches.length > 0) {
             const branchNames = userBranches.map(ub => (ub.branches as any).nama_branch);
-            console.log('🔍 User branches found:', branchNames);
+            safeLog('🔍 User branches found:', branchNames);
             setAllowedBranches(branchNames);
           } else {
-            console.log('⚠️ No user branches found, using fallback');
+            safeLog('⚠️ No user branches found, using fallback');
             const fallbackBranch = user.cabang || '';
             setAllowedBranches([fallbackBranch].filter(Boolean));
           }
@@ -157,17 +158,17 @@ export default function PivotPage() {
       
       // Filter branches for non-admin users
       if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranches.length > 0) {
-        console.log('🔍 Filtering branches by allowedBranches:', allowedBranches);
+        safeLog('🔍 Filtering branches by allowedBranches:', allowedBranches);
         branchQuery = branchQuery.in('nama_branch', allowedBranches);
       } else {
-        console.log('🔍 User role:', userRole, 'allowedBranches:', allowedBranches);
+        safeLog('🔍 User role:', userRole, 'allowedBranches:', allowedBranches);
       }
       
       const { data: branchData } = await branchQuery;
-      console.log('🔍 Final branches loaded:', branchData?.map(b => b.nama_branch));
+      safeLog('🔍 Final branches loaded:', branchData?.map(b => b.nama_branch));
       setBranches(branchData || []);
     } catch (error) {
-      console.error('Error fetching branches:', error);
+      safeLog('Error fetching branches:', error);
     }
   };
 
@@ -316,7 +317,7 @@ export default function PivotPage() {
       setData(filteredAnalysisData);
       setPivotData(pivotDataTemp);
     } catch (error: any) {
-      console.error('Error fetching analysis data:', error);
+      safeLog('Error fetching analysis data:', error);
       showToast(`Error: ${error.message}`, 'error');
     } finally {
       setLoading(false);

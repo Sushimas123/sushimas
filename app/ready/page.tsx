@@ -816,7 +816,9 @@ function ReadyPageContent() {
           tanggalInput = utcDate.toISOString().split('T')[0];
         }
         
-        console.log(`Converting date: ${row['Tanggal']} (type: ${typeof row['Tanggal']}) -> ${tanggalInput}`);
+        // Sanitize log data to prevent log injection
+        const sanitizedDate = String(row['Tanggal']).replace(/[\r\n\t]/g, ' ');
+        console.log(`Converting date: ${sanitizedDate} (type: ${typeof row['Tanggal']}) -> ${tanggalInput}`);
 
         processedData.push({
           ready_no: row['Ready No'],

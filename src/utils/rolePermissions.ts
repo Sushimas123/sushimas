@@ -145,6 +145,11 @@ const loadPermissionsFromDB = async (): Promise<void> => {
 
 export const canPerformAction = async (userRole: string, page: string, action: 'create' | 'edit' | 'delete', userId?: number): Promise<boolean> => {
   try {
+    // Super admin and admin always have full access
+    if (userRole === 'super admin' || userRole === 'admin') {
+      return true;
+    }
+    
     // Check if cache is expired
     if (Date.now() - cacheTimestamp > CACHE_DURATION) {
       await loadPermissionsFromDB();
@@ -197,6 +202,11 @@ export const canPerformAction = async (userRole: string, page: string, action: '
 
 // Synchronous version for immediate use (uses cache only)
 export const canPerformActionSync = (userRole: string, page: string, action: 'create' | 'edit' | 'delete', userId?: number): boolean => {
+  // Super admin and admin always have full access
+  if (userRole === 'super admin' || userRole === 'admin') {
+    return true;
+  }
+  
   // Load permissions only once if cache is empty
   if (permissionsCache.size === 0 && Date.now() - cacheTimestamp > 1000) {
     loadPermissionsFromDB();

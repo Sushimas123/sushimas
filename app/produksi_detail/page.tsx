@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import PageAccessControl from '../../components/PageAccessControl';
+import { safeLog } from '@/src/utils/logSanitizer';
 
 interface ProduksiDetail {
   id: number;
@@ -105,7 +106,7 @@ function ProduksiDetailPageContent() {
             .eq('is_active', true);
           
           if (error) {
-            console.error('Error fetching user branches:', error);
+            safeLog('Error fetching user branches:', error);
           }
           
           if (userBranches && userBranches.length > 0) {
@@ -152,7 +153,7 @@ function ProduksiDetailPageContent() {
       
       setBranches(uniqueBranches);
     } catch (error) {
-      console.error('Error fetching branches:', error);
+      safeLog('Error fetching branches:', error);
     }
   };
 
@@ -217,11 +218,11 @@ function ProduksiDetailPageContent() {
       ]);
       
       if (productResult.error) {
-        console.error('Error fetching product names:', productResult.error);
+        safeLog('Error fetching product names:', productResult.error);
       }
       
       if (branchResult.error) {
-        console.error('Error fetching branches:', branchResult.error);
+        safeLog('Error fetching branches:', branchResult.error);
       }
       
       // Create lookup maps with proper fallbacks
@@ -238,7 +239,7 @@ function ProduksiDetailPageContent() {
       
       setDetails(detailsWithNames);
     } catch (error) {
-      console.error('Error fetching details:', error);
+      safeLog('Error fetching details:', error);
       setDetails([]);
     } finally {
       setLoading(false);
@@ -247,7 +248,7 @@ function ProduksiDetailPageContent() {
 
   const generateProductionDetails = async (produksiId: number) => {
     try {
-      console.log('Generating details for produksi ID:', produksiId);
+      safeLog('Generating details for produksi ID:', produksiId);
       
       // Get production data
       const { data: produksi, error: produksiError } = await supabase
@@ -257,7 +258,7 @@ function ProduksiDetailPageContent() {
         .single();
 
       if (produksiError) {
-        console.error('Error fetching produksi:', produksiError);
+        safeLog('Error fetching produksi:', produksiError);
         throw produksiError;
       }
       
@@ -265,7 +266,7 @@ function ProduksiDetailPageContent() {
         throw new Error('Production record not found');
       }
       
-      console.log('Production data:', produksi);
+      safeLog('Production data:', produksi);
 
       // Check if details already exist
       const { data: existingDetails } = await supabase
@@ -281,7 +282,7 @@ function ProduksiDetailPageContent() {
           .eq('produksi_id', produksiId);
         
         if (deleteError) {
-          console.error('Error deleting existing details:', deleteError);
+          safeLog('Error deleting existing details:', deleteError);
           throw deleteError;
         }
       }
@@ -293,7 +294,7 @@ function ProduksiDetailPageContent() {
         .eq('id_product', produksi.id_product);
 
       if (recipeError) {
-        console.error('Error fetching recipes:', recipeError);
+        safeLog('Error fetching recipes:', recipeError);
         showToast('❌ Error accessing recipes table', 'error');
         return;
       }
@@ -303,7 +304,7 @@ function ProduksiDetailPageContent() {
         return;
       }
       
-      console.log('Found recipes:', recipes);
+      safeLog('Found recipes:', recipes);
 
       // Calculate details for each recipe item
       const detailsToInsert = recipes.map((recipe: any) => ({
@@ -318,7 +319,7 @@ function ProduksiDetailPageContent() {
         branch: produksi.branch
       }));
       
-      console.log('Details to insert:', detailsToInsert);
+      safeLog('Details to insert:', detailsToInsert);
 
       // Insert details
       const { error: insertError } = await supabase
@@ -326,14 +327,14 @@ function ProduksiDetailPageContent() {
         .insert(detailsToInsert);
 
       if (insertError) {
-        console.error('Error inserting details:', insertError);
+        safeLog('Error inserting details:', insertError);
         throw insertError;
       }
 
       await fetchDetails();
       showToast('✅ Production details generated successfully', 'success');
     } catch (error) {
-      console.error('Error generating details:', error);
+      safeLog('Error generating details:', error);
       showToast(`❌ Failed to generate production details: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
     }
   };
@@ -377,7 +378,7 @@ function ProduksiDetailPageContent() {
       
       showToast('✅ All production details recalculated successfully', 'success');
     } catch (error) {
-      console.error('Error recalculating:', error);
+      safeLog('Error recalculating:', error);
       showToast('❌ Failed to recalculate details', 'error');
     } finally {
       setIsRecalculating(false);

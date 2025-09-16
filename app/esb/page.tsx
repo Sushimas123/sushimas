@@ -9,10 +9,21 @@ import { canViewColumn } from '@/src/utils/dbPermissions'
 import { getBranchFilter } from '@/src/utils/branchAccess'
 import PageAccessControl from '../../components/PageAccessControl'
 
-// Helper function to convert text to Title Case
+// Helper function to convert text to Title Case with XSS protection
 const toTitleCase = (str: any) => {
   if (str === null || str === undefined) return ""
-  return String(str)
+  // Sanitize input to prevent XSS
+  const sanitized = String(str).replace(/[<>"'&]/g, (match) => {
+    const entities: { [key: string]: string } = {
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#x27;',
+      '&': '&amp;'
+    }
+    return entities[match] || match
+  })
+  return sanitized
     .toLowerCase()
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (l) => l.toUpperCase())
@@ -221,7 +232,7 @@ function ESBPageContent() {
     try {
       const header = visibleColumns.map(col => toTitleCase(col)).join(",")
       const rows = data.map(row =>
-        visibleColumns.map(col => `"${row[col] ?? ""}"`).join(",")
+        visibleColumns.map(col => `"${toTitleCase(row[col] ?? "")}"`).join(",")
       )
       const csvContent = [header, ...rows].join("\n")
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
@@ -258,7 +269,7 @@ function ESBPageContent() {
           toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
         }`}>
           <span className="mr-2">{toast.type === 'success' ? '✅' : '❌'}</span>
-          {toast.message}
+          {toTitleCase(toast.message)}
         </div>
       )}
 

@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { getBranchFilter, applyBranchFilter } from '@/src/utils/branchAccess';
 import PageAccessControl from '../../components/PageAccessControl';
+import { safeLog } from '@/src/utils/logSanitizer';
 
 
 interface AnalysisData {
@@ -336,7 +337,7 @@ export default function AnalysisPage() {
 
       setData(filteredAnalysisData);
     } catch (error) {
-      console.error('Error fetching analysis data:', error);
+      safeLog('Error fetching analysis data:', error);
       showToast('Failed to fetch analysis data', 'error');
     } finally {
       setLoading(false);

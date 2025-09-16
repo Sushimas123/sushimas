@@ -345,7 +345,14 @@ function ProduksiPageContent() {
 
     try {
       if (editingId) {
-        console.log('Updating produksi with ID:', editingId, 'Data:', submitData);
+        // Sanitize log data to prevent log injection
+        const sanitizedData = {
+          ...submitData,
+          production_no: String(submitData.production_no).replace(/[\r\n\t]/g, ' '),
+          divisi: String(submitData.divisi).replace(/[\r\n\t]/g, ' '),
+          branch: String(submitData.branch).replace(/[\r\n\t]/g, ' ')
+        };
+        console.log('Updating produksi with ID:', editingId, 'Data:', sanitizedData);
         
         // Direct update without audit trail columns that don't exist
         const { error } = await supabase

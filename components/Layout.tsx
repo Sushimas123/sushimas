@@ -132,8 +132,8 @@ export default function Layout({ children }: LayoutProps) {
       submenu: [
         { name: "Product Settings", href: AppRoutes.PRODUCT_SETTINGS, icon: Settings2Icon, pageName: 'product_settings' },
         { name: "Permissions", href: AppRoutes.PERMISSIONS_DB, icon: Settings2Icon, pageName: 'permissions-db' },
-        { name: "CRUD Permissions", href: AppRoutes.CRUD_PERMISSIONS, icon: Settings2Icon, pageName: 'crud_permissions' },
-        { name: "Audit Log", href: AppRoutes.AUDIT_LOG, icon: FileText, pageName: 'audit_log' },
+        { name: "CRUD Permissions", href: AppRoutes.CRUD_PERMISSIONS, icon: Settings2Icon, pageName: 'crud-permissions' },
+        { name: "Audit Log", href: AppRoutes.AUDIT_LOG, icon: FileText, pageName: 'audit-log' },
       ]
     },
   ], [])

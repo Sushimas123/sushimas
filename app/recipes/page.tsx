@@ -10,9 +10,11 @@ import { canPerformActionSync } from '@/src/utils/rolePermissions'
 import PageAccessControl from '../../components/PageAccessControl'
 
 // Helper function to convert text to Title Case
-const toTitleCase = (str: any) => {
+const toTitleCase = (str: string | null | undefined): string => {
   if (str === null || str === undefined) return ""
-  return String(str)
+  // Sanitize input to prevent XSS
+  const sanitized = String(str).replace(/[<>"'&]/g, '')
+  return sanitized
     .toLowerCase()
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (l) => l.toUpperCase())
