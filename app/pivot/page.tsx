@@ -68,6 +68,8 @@ export default function PivotPage() {
   const [branches, setBranches] = useState<any[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [displayMode, setDisplayMode] = useState<'selisih' | 'pemakaian'>('selisih');
+  const [userRole, setUserRole] = useState('');
+  const [allowedBranches, setAllowedBranches] = useState<string[]>([]);
 
   // Fungsi untuk menghasilkan cache key berdasarkan parameter
   const getCacheKey = useCallback((startDate: string, endDate: string, branchFilter: string) => {
@@ -75,7 +77,10 @@ export default function PivotPage() {
   }, []);
 
   useEffect(() => {
-    fetchBranches();
+    const init = async () => {
+      await initializeUserData();
+    };
+    init();
     
     // Load saved date range from localStorage
     const saved = localStorage.getItem('pivot-date-range');
@@ -92,14 +97,74 @@ export default function PivotPage() {
     fetchAnalysisData();
   }, [dateRange, branchFilter]);
 
+  useEffect(() => {
+    if (userRole) {
+      fetchBranches();
+    }
+  }, [userRole]);
+
+  useEffect(() => {
+    if (userRole && (allowedBranches.length > 0 || userRole === 'super admin' || userRole === 'admin')) {
+      fetchBranches();
+    }
+  }, [allowedBranches]);
+
   // Save dateRange to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('pivot-date-range', JSON.stringify(dateRange));
   }, [dateRange]);
 
+  const initializeUserData = async () => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      setUserRole(user.role);
+      
+      if (user.role === 'super admin' || user.role === 'admin') {
+        setAllowedBranches([]);
+      } else {
+        if (user.id_user) {
+          const { data: userBranches, error } = await supabase
+            .from('user_branches')
+            .select(`
+              kode_branch, 
+              branches!inner(nama_branch)
+            `)
+            .eq('id_user', user.id_user)
+            .eq('is_active', true);
+          
+          if (error) {
+            console.error('Error fetching user branches:', error);
+          }
+          
+          if (userBranches && userBranches.length > 0) {
+            const branchNames = userBranches.map(ub => (ub.branches as any).nama_branch);
+            console.log('🔍 User branches found:', branchNames);
+            setAllowedBranches(branchNames);
+          } else {
+            console.log('⚠️ No user branches found, using fallback');
+            const fallbackBranch = user.cabang || '';
+            setAllowedBranches([fallbackBranch].filter(Boolean));
+          }
+        }
+      }
+    }
+  };
+
   const fetchBranches = async () => {
     try {
-      const { data: branchData } = await supabase.from('branches').select('*');
+      let branchQuery = supabase.from('branches').select('*');
+      
+      // Filter branches for non-admin users
+      if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranches.length > 0) {
+        console.log('🔍 Filtering branches by allowedBranches:', allowedBranches);
+        branchQuery = branchQuery.in('nama_branch', allowedBranches);
+      } else {
+        console.log('🔍 User role:', userRole, 'allowedBranches:', allowedBranches);
+      }
+      
+      const { data: branchData } = await branchQuery;
+      console.log('🔍 Final branches loaded:', branchData?.map(b => b.nama_branch));
       setBranches(branchData || []);
     } catch (error) {
       console.error('Error fetching branches:', error);
@@ -154,10 +219,19 @@ export default function PivotPage() {
         .order('tanggal_input', { ascending: false })
         .limit(1000);
 
+      // Apply branch filter
       if (branchFilter) {
         const selectedBranchData = branches.find(b => b.nama_branch === branchFilter);
         if (selectedBranchData) {
           readyQuery = readyQuery.eq('id_branch', selectedBranchData.id_branch);
+        }
+      } else if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranches.length > 0) {
+        // For non-admin users, filter by their allowed branches
+        const allowedBranchIds = branches
+          .filter(b => allowedBranches.includes(b.nama_branch))
+          .map(b => b.id_branch);
+        if (allowedBranchIds.length > 0) {
+          readyQuery = readyQuery.in('id_branch', allowedBranchIds);
         }
       }
 
@@ -496,7 +570,12 @@ export default function PivotPage() {
     const [filterBranch, setFilterBranch] = useState(branchFilter);
     const [savingNotes, setSavingNotes] = useState<Set<number>>(new Set());
 
-    const negativeData = data.filter(item => item.selisih < 0);
+    let negativeData = data.filter(item => item.selisih < 0);
+    
+    // Filter by user's allowed branches for non-admin users
+    if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranches.length > 0) {
+      negativeData = negativeData.filter(item => allowedBranches.includes(item.cabang));
+    }
 
     useEffect(() => {
       if (negativeData.length > 0) {
@@ -570,7 +649,11 @@ export default function PivotPage() {
     });
 
     const categories = [...new Set(negativeData.map(item => item.sub_category))];
-    const branches = [...new Set(negativeData.map(item => item.cabang))];
+    const allBranches = [...new Set(negativeData.map(item => item.cabang))];
+    // Filter branches based on user's allowed branches
+    const branches = userRole === 'super admin' || userRole === 'admin' 
+      ? allBranches 
+      : allBranches.filter(branch => allowedBranches.includes(branch));
 
     if (negativeData.length === 0) {
       return (
@@ -733,7 +816,7 @@ export default function PivotPage() {
 
   return (
     <Layout>
-      <PageAccessControl pageName="analysis">
+      <PageAccessControl pageName="pivot">
         <div className="p-6 space-y-6">
           {/* Header */}
           <div className="flex justify-between items-center">
@@ -787,7 +870,7 @@ export default function PivotPage() {
                   onChange={(e) => setBranchFilter(e.target.value)}
                   className="px-3 py-2 border rounded text-sm"
                 >
-                  <option value="">All Branches</option>
+                  <option value="">{userRole === 'super admin' || userRole === 'admin' ? 'All Branches' : 'All My Branches'}</option>
                   {branches.map(branch => (
                     <option key={branch.id_branch} value={branch.nama_branch}>
                       {branch.nama_branch}

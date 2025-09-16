@@ -1,19 +1,43 @@
 "use client"
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '@/src/lib/supabaseClient'
 import PageAccessControl from '../../components/PageAccessControl'
-import { Filter, X, Search, Menu } from 'lucide-react'
+import { Filter, X } from 'lucide-react'
+
+// Define types for better type safety
+interface PermissionRecord {
+  id?: number;
+  role: string;
+  page: string;
+  columns: string[];
+  can_access: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface PageColumns {
+  [key: string]: string[];
+}
+
+
+
+const USER_ROLES = ['super admin', 'admin', 'finance', 'pic_branch', 'staff'] as const;
+type UserRole = typeof USER_ROLES[number];
 
 export default function PermissionsDBPage() {
-  const [permissions, setPermissions] = useState<any[]>([])
+  const [permissions, setPermissions] = useState<PermissionRecord[]>([])
   const [loading, setLoading] = useState(true)
-  const [userRole, setUserRole] = useState('')
+  const [userRole, setUserRole] = useState<UserRole | ''>('')
   const [selectedPage, setSelectedPage] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [pageColumns, setPageColumns] = useState<PageColumns>({})
   
   // Mobile specific states
   const [isMobile, setIsMobile] = useState(false)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+
+  const pages = useMemo(() => Object.keys(pageColumns), [pageColumns]);
 
   // Check if mobile on mount and on resize
   useEffect(() => {
@@ -29,48 +53,122 @@ export default function PermissionsDBPage() {
     }
   }, [])
 
-  const roles = ['super admin', 'admin', 'finance', 'pic_branch', 'staff']
-  
-  const pageColumns = {
-    esb: ['id', 'sales_date', 'branch', 'product', 'product_code', 'category', 'sub_category', 'unit', 'qty_total', 'value_total', 'product_id', 'created_at', 'updated_at'],
-    ready: ['id', 'ready_no', 'tanggal_input', 'branch_name', 'sub_category', 'product_name', 'id_product', 'ready', 'waste', 'created_by', 'updated_by', 'created_at', 'updated_at'],
-    users: ['id_user', 'email', 'nama_lengkap', 'no_telp', 'role', 'cabang', 'is_active', 'password_hash', 'created_by', 'updated_by', 'created_at', 'updated_at'],
-    produksi: ['id', 'tanggal_produksi', 'product_name', 'quantity', 'status', 'branch', 'notes', 'created_by', 'updated_by', 'created_at', 'updated_at'],
-    analysis: ['id', 'date', 'branch', 'product', 'ready_stock', 'production', 'consumption', 'balance', 'variance', 'created_at'],
-    gudang: ['id', 'order_no', 'tanggal', 'id_product', 'jumlah_masuk', 'jumlah_keluar', 'total_gudang', 'cabang', 'source_type', 'is_locked', 'locked_by_so', 'locked_date', 'created_by', 'updated_by', 'created_at', 'updated_at'],
-    produksi_detail: ['id', 'produksi_id', 'tanggal_produksi', 'item_id', 'quantity_used', 'unit', 'branch', 'cost', 'created_by', 'updated_by', 'created_at', 'updated_at'],
-    stock_opname_batch: ['batch_id', 'batch_date', 'batch_time', 'branch_code', 'sub_category', 'pic_name', 'status', 'created_at', 'updated_at'],
-    stock_opname_detail: ['detail_id', 'batch_id', 'product_name', 'system_stock', 'physical_stock', 'difference', 'unit', 'notes'],
-    branches: ['id_branch', 'nama_branch', 'kode_branch', 'alamat', 'kota', 'provinsi', 'kode_pos', 'tanggal_berdiri', 'parent_branch_id', 'branch_level', 'timezone', 'currency', 'tax_rate', 'delivery_radius', 'max_staff', 'monthly_target', 'status', 'notes', 'is_active', 'created_by', 'updated_by', 'created_at', 'updated_at'],
-    categories: ['id', 'category_name', 'description', 'is_active', 'created_by', 'updated_by', 'created_at', 'updated_at'],
-    product_name: ['id', 'product_name', 'category', 'sub_category', 'unit', 'price', 'is_active', 'created_by', 'updated_by', 'created_at', 'updated_at'],
-    product_settings: ['id', 'setting_name', 'setting_value', 'description', 'data_type', 'created_at', 'updated_at'],
-    recipes: ['id', 'recipe_name', 'ingredients', 'quantity', 'unit', 'instructions', 'cost', 'prep_time', 'created_by', 'updated_by', 'created_at', 'updated_at'],
-    supplier: ['id', 'supplier_name', 'contact_person', 'phone', 'email', 'address', 'city', 'province', 'postal_code', 'tax_id', 'payment_terms', 'is_active', 'created_by', 'updated_by', 'created_at', 'updated_at'],
-    audit_log: ['id', 'table_name', 'record_id', 'action', 'user_id', 'user_name', 'branch_id', 'old_values', 'new_values', 'created_at'],
-    branch_settings: ['id', 'branch_id', 'setting_key', 'setting_value', 'data_type', 'created_at', 'updated_at'],
-    branch_transfers: ['id', 'transfer_no', 'from_branch_id', 'to_branch_id', 'product_id', 'quantity', 'unit_price', 'total_value', 'status', 'request_date', 'approved_date', 'shipped_date', 'received_date', 'notes', 'created_by', 'approved_by', 'created_at', 'updated_at'],
-    branch_notifications: ['id', 'branch_id', 'notification_type', 'title', 'message', 'priority', 'is_read', 'read_by', 'read_at', 'expires_at', 'created_at'],
-    user_branches: ['id', 'id_user', 'kode_branch', 'is_active', 'created_at', 'updated_at'],
-    user_permissions: ['id', 'role', 'page', 'columns', 'can_access', 'created_at', 'updated_at'],
-    crud_permissions: ['id', 'user_id', 'role', 'page', 'can_create', 'can_read', 'can_update', 'can_delete', 'created_at', 'updated_at'],
-    pivot: ['id', 'date', 'subcategory', 'product', 'selisih', 'pemakaian', 'branch', 'analysis_data', 'created_at'],
-    dashboard: ['id', 'widget_type', 'widget_data', 'user_id', 'position', 'is_visible', 'created_at', 'updated_at'],
-    'stock-alert': ['id_product', 'product_name', 'branch_code', 'branch_name', 'current_stock', 'safety_stock', 'reorder_point', 'urgency_level', 'po_status', 'po_number'],
-  }
-
-  const pages = Object.keys(pageColumns)
-
-  useEffect(() => {
-    const userData = localStorage.getItem('user')
-    if (userData) {
-      const user = JSON.parse(userData)
-      setUserRole(user.role)
+  const fetchDatabaseSchema = useCallback(async () => {
+    try {
+      // Try to get schema from existing permissions first
+      const { data: existingPages } = await supabase
+        .from('user_permissions')
+        .select('page')
+        .not('page', 'is', null)
+      
+      const knownTables = [...new Set(existingPages?.map(p => p.page) || [])]
+      const schemaMap: PageColumns = {}
+      
+      // For each known table, try to get a sample row to determine columns
+      for (const tableName of knownTables) {
+        try {
+          const { data, error } = await supabase
+            .from(tableName)
+            .select('*')
+            .limit(1)
+          
+          if (!error && data && data.length > 0) {
+            schemaMap[tableName] = Object.keys(data[0])
+          } else if (!error) {
+            // Table exists but is empty, try to get columns another way
+            const { data: emptyData, error: emptyError } = await supabase
+              .from(tableName)
+              .select('*')
+              .limit(0)
+            
+            if (!emptyError) {
+              // Use common columns as fallback
+              schemaMap[tableName] = ['id', 'created_at', 'updated_at']
+            }
+          }
+        } catch (tableError) {
+          console.log(`Could not access table ${tableName}:`, tableError)
+        }
+      }
+      
+      // Add all actual pages from the app directory
+      const allPages = [
+        'analysis', 'audit-log', 'branches', 'categories', 'crud-permissions',
+        'dashboard', 'esb', 'gudang', 'permissions-db', 'pivot', 'price-history',
+        'product_name', 'product_settings', 'produksi', 'produksi_detail',
+        'purchaseorder', 'ready', 'recipes', 'stock_opname_batch', 'supplier',
+        'transfer-barang', 'users', 'stock-alert'
+      ]
+      
+      // Also try database tables that might exist
+      const dbTables = [
+        'nama_product', 'user_permissions', 'audit_log', 'branch_transfers',
+        'branch_notifications', 'user_branches', 'suppliers', 'po_items',
+        'purchase_orders'
+      ]
+      
+      // Add all pages (even if no corresponding database table)
+      for (const pageName of allPages) {
+        if (!schemaMap[pageName]) {
+          try {
+            const { data, error } = await supabase
+              .from(pageName.replace('-', '_'))
+              .select('*')
+              .limit(1)
+            
+            if (!error && data && data.length > 0) {
+              schemaMap[pageName] = Object.keys(data[0])
+            } else {
+              // Page exists but no database table, add basic columns
+              schemaMap[pageName] = ['view', 'access']
+            }
+          } catch {
+            // Page exists but no database table, add basic columns
+            schemaMap[pageName] = ['view', 'access']
+          }
+        }
+      }
+      
+      // Try database tables
+      for (const tableName of dbTables) {
+        if (!schemaMap[tableName]) {
+          try {
+            const { data, error } = await supabase
+              .from(tableName)
+              .select('*')
+              .limit(1)
+            
+            if (!error && data && data.length > 0) {
+              schemaMap[tableName] = Object.keys(data[0])
+            }
+          } catch {
+            // Ignore tables that don't exist
+          }
+        }
+      }
+      
+      setPageColumns(schemaMap)
+    } catch (error) {
+      console.error('Error fetching database schema:', error)
+      // Fallback to all pages with basic permissions
+      const fallbackSchema: PageColumns = {}
+      const allPages = [
+        'analysis', 'audit-log', 'branches', 'categories', 'crud-permissions',
+        'dashboard', 'esb', 'gudang', 'permissions-db', 'pivot', 'price-history',
+        'product_name', 'product_settings', 'produksi', 'produksi_detail',
+        'purchaseorder', 'ready', 'recipes', 'stock_opname_batch', 'supplier',
+        'transfer-barang', 'users', 'stock-alert'
+      ]
+      
+      allPages.forEach(page => {
+        fallbackSchema[page] = ['view', 'access', 'create', 'edit', 'delete']
+      })
+      
+      setPageColumns(fallbackSchema)
     }
-    fetchPermissions()
   }, [])
 
-  const fetchPermissions = async () => {
+  const fetchPermissions = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('user_permissions')
@@ -78,85 +176,141 @@ export default function PermissionsDBPage() {
         .order('role')
 
       if (error) throw error
-      setPermissions(data || [])
+      setPermissions(data as PermissionRecord[] || [])
+      setError(null)
     } catch (error) {
       console.error('Error fetching permissions:', error)
-    } finally {
-      setLoading(false)
+      setError('Failed to load permissions. Please refresh the page.')
     }
-  }
+  }, [])
 
-  const togglePageAccess = async (role: string, page: string) => {
+  useEffect(() => {
+    const initializeData = async () => {
+      setLoading(true)
+      const userData = localStorage.getItem('user')
+      if (userData) {
+        try {
+          const user = JSON.parse(userData)
+          setUserRole(user.role)
+        } catch (parseError) {
+          console.error('Error parsing user data:', parseError)
+          setError('Invalid user data format')
+        }
+      }
+      
+      try {
+        await fetchDatabaseSchema()
+        await fetchPermissions()
+      } catch (error) {
+        console.error('Error initializing data:', error)
+        setError('Failed to initialize permissions data')
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    initializeData()
+  }, [fetchDatabaseSchema, fetchPermissions])
+
+  const togglePageAccess = async (role: UserRole, page: string) => {
     try {
       const existing = permissions.find(p => p.role === role && p.page === page)
       const newAccess = !existing?.can_access
-      
-      // When enabling page access, give access to all columns
-      // When disabling, remove all column access
       const columns = newAccess ? ['*'] : []
       
-      const { error } = await supabase
+      // Optimistic update
+      const updatedPermission = { role, page, columns, can_access: newAccess }
+      setPermissions(prev => {
+        const filtered = prev.filter(p => !(p.role === role && p.page === page))
+        return [...filtered, updatedPermission]
+      })
+      setError(null)
+      
+      const { error: updateError } = await supabase
         .from('user_permissions')
-        .upsert({
-          role,
-          page,
-          columns,
-          can_access: newAccess
-        }, {
-          onConflict: 'role,page'
-        })
+        .upsert(updatedPermission, { onConflict: 'role,page' })
 
-      if (error) throw error
+      if (updateError) throw updateError
+    } catch (err) {
+      console.error('Error updating permission:', err)
+      setError('Failed to update page permission. Please try again.')
+      // Revert optimistic update
       await fetchPermissions()
-    } catch (error) {
-      console.error('Error updating permission:', error)
-      alert('Error updating permission')
     }
   }
 
-  const toggleColumnAccess = async (role: string, page: string, column: string) => {
+  const toggleColumnAccess = async (role: UserRole, page: string, column: string) => {
     try {
       const existing = permissions.find(p => p.role === role && p.page === page)
       let currentColumns = existing?.columns || []
       
       if (currentColumns.includes('*')) {
-        currentColumns = pageColumns[page as keyof typeof pageColumns] || []
+        currentColumns = pageColumns[page] || []
       }
       
       const newColumns = currentColumns.includes(column)
         ? currentColumns.filter((c: string) => c !== column)
         : [...currentColumns, column]
       
-      const { error } = await supabase
+      // Optimistic update
+      const updatedPermission = { role, page, columns: newColumns, can_access: newColumns.length > 0 }
+      setPermissions(prev => {
+        const filtered = prev.filter(p => !(p.role === role && p.page === page))
+        return [...filtered, updatedPermission]
+      })
+      setError(null)
+      
+      const { error: updateError } = await supabase
         .from('user_permissions')
-        .upsert({
-          role,
-          page,
-          columns: newColumns,
-          can_access: newColumns.length > 0
-        }, {
-          onConflict: 'role,page'
-        })
+        .upsert(updatedPermission, { onConflict: 'role,page' })
 
-      if (error) throw error
+      if (updateError) throw updateError
+    } catch (err) {
+      console.error('Error updating column permission:', err)
+      setError('Failed to update column permission. Please try again.')
+      // Revert optimistic update
       await fetchPermissions()
-    } catch (error) {
-      console.error('Error updating column permission:', error)
-      alert('Error updating column permission')
     }
   }
 
-  const hasColumnAccess = (role: string, page: string, column: string) => {
-    const perm = permissions.find(p => p.role === role && p.page === page)
-    if (!perm) return false
-    if (perm.columns?.includes('*')) return true
-    return perm.columns?.includes(column) || false
-  }
+  // Create permission lookup objects for better performance
+  const { pageAccessLookup, columnAccessLookup } = useMemo(() => {
+    const pageAccess: Record<string, Record<string, boolean>> = {};
+    const columnAccess: Record<string, Record<string, Set<string>>> = {};
+    
+    permissions.forEach(perm => {
+      // Initialize page access
+      if (!pageAccess[perm.role]) pageAccess[perm.role] = {};
+      pageAccess[perm.role][perm.page] = perm.can_access;
+      
+      // Initialize column access
+      if (!columnAccess[perm.role]) columnAccess[perm.role] = {};
+      if (!columnAccess[perm.role][perm.page]) columnAccess[perm.role][perm.page] = new Set();
+      
+      if (perm.columns.includes('*')) {
+        // Add all columns for this page
+        (pageColumns[perm.page] || []).forEach(col => {
+          columnAccess[perm.role][perm.page].add(col);
+        });
+      } else {
+        // Add specific columns
+        perm.columns.forEach(col => {
+          columnAccess[perm.role][perm.page].add(col);
+        });
+      }
+    });
+    
+    return { pageAccessLookup: pageAccess, columnAccessLookup: columnAccess };
+  }, [permissions, pageColumns]);
 
-  const canAccessPage = (role: string, page: string) => {
-    const perm = permissions.find(p => p.role === role && p.page === page)
-    return perm?.can_access || false
-  }
+  // Optimized access functions
+  const canAccessPage = useCallback((role: UserRole, page: string): boolean => {
+    return pageAccessLookup[role]?.[page] || false;
+  }, [pageAccessLookup]);
+
+  const hasColumnAccess = useCallback((role: UserRole, page: string, column: string): boolean => {
+    return columnAccessLookup[role]?.[page]?.has(column) || false;
+  }, [columnAccessLookup]);
 
   // Mobile filter component
   const MobileFilters = () => (
@@ -164,7 +318,11 @@ export default function PermissionsDBPage() {
       <div className="bg-white w-4/5 h-full p-4 overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold">Select Page</h3>
-          <button onClick={() => setShowMobileFilters(false)}>
+          <button 
+            onClick={() => setShowMobileFilters(false)} 
+            aria-label="Close filters"
+            className="p-1 hover:bg-gray-100 rounded"
+          >
             <X size={20} />
           </button>
         </div>
@@ -202,6 +360,9 @@ export default function PermissionsDBPage() {
     )
   }
 
+  // Get columns for selected page with fallback
+  const currentPageColumns = selectedPage ? pageColumns[selectedPage] || [] : []
+
   return (
     <Layout>
       <PageAccessControl pageName="permissions-db">
@@ -215,12 +376,27 @@ export default function PermissionsDBPage() {
             {isMobile && (
               <button 
                 onClick={() => setShowMobileFilters(true)}
-                className="ml-auto p-2 bg-gray-200 rounded-md"
+                className="ml-auto p-2 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+                aria-label="Open filters"
               >
                 <Filter size={20} />
               </button>
             )}
           </div>
+          
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 flex justify-between items-center">
+              <span>{error}</span>
+              <button 
+                onClick={() => setError(null)} 
+                className="text-red-700 hover:text-red-900"
+                aria-label="Dismiss error"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
           
           {/* Desktop Page Selector */}
           {!isMobile && (
@@ -229,7 +405,7 @@ export default function PermissionsDBPage() {
               <select 
                 value={selectedPage} 
                 onChange={(e) => setSelectedPage(e.target.value)}
-                className="border rounded px-3 py-2"
+                className="border rounded px-3 py-2 w-full max-w-md"
               >
                 <option value="">-- Select Page --</option>
                 {pages.map(page => (
@@ -240,7 +416,7 @@ export default function PermissionsDBPage() {
           )}
 
           {loading ? (
-            <div className="text-center">Loading...</div>
+            <div className="text-center py-8">Loading permissions...</div>
           ) : selectedPage ? (
             <div className="bg-white p-2 md:p-4 rounded shadow">
               <h2 className="text-sm md:text-lg font-semibold mb-4">{selectedPage.toUpperCase()} Permissions</h2>
@@ -249,7 +425,7 @@ export default function PermissionsDBPage() {
               {!isMobile ? (
                 <>
                   {/* Page Access */}
-                  <div className="mb-6">
+                  <div className="mb-6 overflow-x-auto">
                     <h3 className="font-medium mb-2">Page Access</h3>
                     <table className="w-full text-sm border">
                       <thead>
@@ -259,9 +435,8 @@ export default function PermissionsDBPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {roles.map(role => {
-                          const perm = permissions.find(p => p.role === role && p.page === selectedPage)
-                          const hasAccess = perm?.can_access || false
+                        {USER_ROLES.map(role => {
+                          const hasAccess = canAccessPage(role, selectedPage)
                           
                           return (
                             <tr key={role}>
@@ -271,6 +446,8 @@ export default function PermissionsDBPage() {
                                   type="checkbox"
                                   checked={hasAccess}
                                   onChange={() => togglePageAccess(role, selectedPage)}
+                                  aria-label={`Toggle page access for ${role}`}
+                                  className="w-4 h-4"
                                 />
                               </td>
                             </tr>
@@ -281,22 +458,22 @@ export default function PermissionsDBPage() {
                   </div>
 
                   {/* Column Access */}
-                  <div>
+                  <div className="overflow-x-auto">
                     <h3 className="font-medium mb-2">Column Access</h3>
                     <table className="w-full text-sm border">
                       <thead>
                         <tr className="bg-gray-100">
                           <th className="p-2 text-left border">Column</th>
-                          {roles.map(role => (
+                          {USER_ROLES.map(role => (
                             <th key={role} className="p-2 text-center border capitalize">{role}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {pageColumns[selectedPage as keyof typeof pageColumns]?.map(column => (
+                        {currentPageColumns.map(column => (
                           <tr key={column}>
                             <td className="p-2 border font-medium">{column}</td>
-                            {roles.map(role => {
+                            {USER_ROLES.map(role => {
                               const pageAccess = canAccessPage(role, selectedPage)
                               const columnAccess = hasColumnAccess(role, selectedPage, column)
                               
@@ -307,7 +484,8 @@ export default function PermissionsDBPage() {
                                     checked={columnAccess}
                                     disabled={!pageAccess}
                                     onChange={() => toggleColumnAccess(role, selectedPage, column)}
-                                    className={!pageAccess ? 'opacity-50 cursor-not-allowed' : ''}
+                                    className={`w-4 h-4 ${!pageAccess ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    aria-label={`Toggle ${column} access for ${role}`}
                                   />
                                   {!pageAccess && (
                                     <div className="text-xs text-red-500 mt-1">No page access</div>
@@ -328,9 +506,8 @@ export default function PermissionsDBPage() {
                   <div>
                     <h3 className="font-medium mb-3 text-sm">Page Access</h3>
                     <div className="space-y-2">
-                      {roles.map(role => {
-                        const perm = permissions.find(p => p.role === role && p.page === selectedPage)
-                        const hasAccess = perm?.can_access || false
+                      {USER_ROLES.map(role => {
+                        const hasAccess = canAccessPage(role, selectedPage)
                         
                         return (
                           <div key={role} className="flex items-center justify-between p-3 bg-gray-50 rounded">
@@ -340,6 +517,7 @@ export default function PermissionsDBPage() {
                               checked={hasAccess}
                               onChange={() => togglePageAccess(role, selectedPage)}
                               className="w-5 h-5"
+                              aria-label={`Toggle page access for ${role}`}
                             />
                           </div>
                         )
@@ -351,11 +529,11 @@ export default function PermissionsDBPage() {
                   <div>
                     <h3 className="font-medium mb-3 text-sm">Column Access</h3>
                     <div className="space-y-3">
-                      {pageColumns[selectedPage as keyof typeof pageColumns]?.map(column => (
+                      {currentPageColumns.map(column => (
                         <div key={column} className="bg-gray-50 rounded p-3">
                           <h4 className="font-medium text-sm mb-2">{column}</h4>
                           <div className="grid grid-cols-2 gap-2">
-                            {roles.map(role => {
+                            {USER_ROLES.map(role => {
                               const pageAccess = canAccessPage(role, selectedPage)
                               const columnAccess = hasColumnAccess(role, selectedPage, column)
                               
@@ -368,12 +546,13 @@ export default function PermissionsDBPage() {
                                     disabled={!pageAccess}
                                     onChange={() => toggleColumnAccess(role, selectedPage, column)}
                                     className={`w-4 h-4 ${!pageAccess ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    aria-label={`Toggle ${column} access for ${role}`}
                                   />
                                 </div>
                               )
                             })}
                           </div>
-                          {roles.some(role => !canAccessPage(role, selectedPage)) && (
+                          {USER_ROLES.some(role => !canAccessPage(role, selectedPage)) && (
                             <div className="text-xs text-red-500 mt-2">
                               Some roles don't have page access
                             </div>
@@ -392,7 +571,7 @@ export default function PermissionsDBPage() {
                   <p className="mb-4">Please select a page to configure permissions</p>
                   <button 
                     onClick={() => setShowMobileFilters(true)}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-md"
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
                   >
                     Select Page
                   </button>

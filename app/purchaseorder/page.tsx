@@ -53,12 +53,18 @@ function PurchaseOrderPageContent() {
   const [showFilters, setShowFilters] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
+  const [userRole, setUserRole] = useState('')
+  const [allowedBranches, setAllowedBranches] = useState<string[]>([])
   const itemsPerPage = 10
 
   useEffect(() => {
-    fetchFilterOptions()
-    fetchPurchaseOrders()
-    fetchStockAlerts()
+    const init = async () => {
+      await initializeUserData()
+      fetchFilterOptions()
+      fetchPurchaseOrders()
+      fetchStockAlerts()
+    }
+    init()
     
     // Check if coming from stock alert
     const fromAlert = searchParams.get('from')
@@ -69,6 +75,14 @@ function PurchaseOrderPageContent() {
   }, [])
 
   useEffect(() => {
+    if (userRole) {
+      fetchFilterOptions()
+      fetchPurchaseOrders()
+      fetchStockAlerts()
+    }
+  }, [userRole])
+
+  useEffect(() => {
     setCurrentPage(1)
     fetchPurchaseOrders()
   }, [filters])
@@ -77,13 +91,62 @@ function PurchaseOrderPageContent() {
     fetchPurchaseOrders()
   }, [currentPage])
 
+  const initializeUserData = async () => {
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      const user = JSON.parse(userData)
+      setUserRole(user.role)
+      
+      if (user.role === 'super admin' || user.role === 'admin') {
+        setAllowedBranches([])
+        localStorage.removeItem('user_branch_ids')
+      } else {
+        if (user.id_user) {
+          const { data: userBranches, error } = await supabase
+            .from('user_branches')
+            .select(`
+              kode_branch, 
+              branches!inner(id_branch, nama_branch)
+            `)
+            .eq('id_user', user.id_user)
+            .eq('is_active', true)
+          
+          if (error) {
+            console.error('Error fetching user branches:', error)
+          }
+          
+          if (userBranches && userBranches.length > 0) {
+            const branchNames = userBranches.map(ub => (ub.branches as any).nama_branch)
+            const branchIds = userBranches.map(ub => (ub.branches as any).id_branch)
+            setAllowedBranches(branchNames)
+            localStorage.setItem('user_branch_ids', JSON.stringify(branchIds))
+          } else {
+            const fallbackBranch = user.cabang || ''
+            setAllowedBranches([fallbackBranch].filter(Boolean))
+          }
+        }
+      }
+    }
+  }
+
   const fetchFilterOptions = async () => {
     try {
+      // Get user branch IDs from localStorage if available
+      const userBranchIdsStr = localStorage.getItem('user_branch_ids')
+      const userBranchIds = userBranchIdsStr ? JSON.parse(userBranchIdsStr) : []
+      
       // Fetch branches
-      const { data: branches } = await supabase
+      let branchQuery = supabase
         .from('branches')
         .select('id_branch, nama_branch')
         .order('nama_branch')
+      
+      // Filter branches for non-admin users
+      if (userRole !== 'super admin' && userRole !== 'admin' && userBranchIds.length > 0) {
+        branchQuery = branchQuery.in('id_branch', userBranchIds)
+      }
+      
+      const { data: branches } = await branchQuery
 
       // Fetch suppliers with distinct names
       const { data: suppliersRaw } = await supabase
@@ -114,6 +177,10 @@ function PurchaseOrderPageContent() {
   const fetchPurchaseOrders = async () => {
     setLoading(true)
     try {
+      // Get user branch IDs from localStorage if available
+      const userBranchIdsStr = localStorage.getItem('user_branch_ids')
+      const userBranchIds = userBranchIdsStr ? JSON.parse(userBranchIdsStr) : []
+      
       // Count total records first
       let countQuery = supabase
         .from('purchase_orders')
@@ -131,6 +198,11 @@ function PurchaseOrderPageContent() {
       }
       if (filters.priority) {
         countQuery = countQuery.eq('priority', filters.priority)
+      }
+      
+      // Filter by allowed branches for non-admin users
+      if (userRole !== 'super admin' && userRole !== 'admin' && userBranchIds.length > 0) {
+        countQuery = countQuery.in('cabang_id', userBranchIds)
       }
 
       const { count } = await countQuery
@@ -158,6 +230,11 @@ function PurchaseOrderPageContent() {
       }
       if (filters.priority) {
         query = query.eq('priority', filters.priority)
+      }
+      
+      // Filter by allowed branches for non-admin users
+      if (userRole !== 'super admin' && userRole !== 'admin' && userBranchIds.length > 0) {
+        query = query.in('cabang_id', userBranchIds)
       }
 
       const { data: poData, error } = await query
@@ -327,11 +404,10 @@ function PurchaseOrderPageContent() {
       let { data, error } = await supabase.rpc('get_stock_alerts_with_po_status')
       
       if (error) {
-        console.log('❌ New function failed, using original:', error.message)
         const result = await supabase.rpc('get_products_needing_po')
         data = result.data
         error = result.error
-        console.log('✅ Using original function, got', data?.length, 'alerts')
+
         
         // Add default PO status fields for compatibility
         if (data) {
@@ -342,19 +418,33 @@ function PurchaseOrderPageContent() {
             po_created_at: null
           }))
         }
-      } else {
-        console.log('✅ Using new function, got', data?.length, 'alerts with PO status')
       }
       
       if (!error && data) {
-        console.log('📊 Stock alerts loaded:', data.length, 'items')
-        if (data.length > 0) {
-          console.log('First alert:', data[0])
+        let filteredData = data
+        
+        // Filter by allowed branches for non-admin users
+        if (userRole !== 'super admin' && userRole !== 'admin') {
+          const userBranchIdsStr = localStorage.getItem('user_branch_ids')
+          const userBranchIds = userBranchIdsStr ? JSON.parse(userBranchIdsStr) : []
+          
+          if (userBranchIds.length > 0) {
+            // Get branch names from IDs
+            const { data: userBranches } = await supabase
+              .from('branches')
+              .select('nama_branch')
+              .in('id_branch', userBranchIds)
+            
+            if (userBranches) {
+              const userBranchNames = userBranches.map(b => b.nama_branch)
+              filteredData = data.filter((alert: any) => 
+                userBranchNames.includes(alert.branch_name)
+              )
+            }
+          }
         }
-        setStockAlerts(data)
-        setFilteredStockAlerts(data)
-      } else {
-        console.log('❌ No stock alerts data:', error)
+        setStockAlerts(filteredData)
+        setFilteredStockAlerts(filteredData)
       }
     } catch (error) {
       console.error('Error fetching stock alerts:', error)
@@ -508,7 +598,10 @@ function PurchaseOrderPageContent() {
                     }}
                   >
                     <option value="">All Branches</option>
-                    {[...new Set(stockAlerts.map(alert => alert.branch_name))].map(branchName => (
+                    {[...new Set(stockAlerts
+                      .filter(alert => allowedBranches.length === 0 || allowedBranches.includes(alert.branch_name))
+                      .map(alert => alert.branch_name)
+                    )].map(branchName => (
                       <option key={branchName} value={branchName}>{branchName}</option>
                     ))}
                   </select>

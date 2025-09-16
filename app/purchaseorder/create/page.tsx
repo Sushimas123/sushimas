@@ -61,6 +61,10 @@ function CreatePurchaseOrder() {
   const [searchProduct, setSearchProduct] = useState('')
   const [poItems, setPOItems] = useState<POItem[]>([])
   const [selectedProductSupplier, setSelectedProductSupplier] = useState<{product: Product, supplier: Supplier} | null>(null)
+  const [userRole, setUserRole] = useState('')
+  const [userBranch, setUserBranch] = useState('')
+  const [allowedBranches, setAllowedBranches] = useState<string[]>([])
+  const [isUserDataLoaded, setIsUserDataLoaded] = useState(false)
   const [formData, setFormData] = useState({
     supplier_id: '',
     cabang_id: '',
@@ -73,8 +77,18 @@ function CreatePurchaseOrder() {
   })
 
   useEffect(() => {
-    fetchInitialData()
-    
+    initializeUserData()
+  }, [])
+  
+  useEffect(() => {
+    if (isUserDataLoaded) {
+      console.log('User data loaded, fetching branches and suppliers')
+      fetchBranches()
+      fetchSuppliers()
+    }
+  }, [isUserDataLoaded, allowedBranches])
+  
+  useEffect(() => {
     // Check for prefill data from stock alert
     const prefillData = localStorage.getItem('po_prefill')
     if (prefillData) {
@@ -101,6 +115,82 @@ function CreatePurchaseOrder() {
       setProductSuppliers([])
     }
   }, [searchProduct, allProducts, suppliers])
+
+  const initializeUserData = async () => {
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      try {
+        const user = JSON.parse(userData)
+        console.log('User data:', user)
+        setUserRole(user.role || '')
+        
+        let userAllowedBranches: string[] = []
+        
+        // Set allowed branches based on role first
+        if (user.role === 'super admin' || user.role === 'admin') {
+          console.log('User is admin/super admin - all branches allowed')
+          userAllowedBranches = [] // Empty array means all branches are allowed
+        } else {
+          // For non-admin users, check user_branches table first
+          if (user.id_user) {
+            console.log('Checking user_branches table for user:', user.id_user)
+            const { data: userBranches } = await supabase
+              .from('user_branches')
+              .select('kode_branch, branches!inner(nama_branch)')
+              .eq('id_user', user.id_user)
+              .eq('is_active', true)
+            
+            if (userBranches && userBranches.length > 0) {
+              const branchNames = userBranches.map(ub => (ub.branches as any).nama_branch)
+              userAllowedBranches = branchNames
+              console.log('Found branches from user_branches:', branchNames)
+            } else {
+              // Fallback 1: check if user is PIC of any branch
+              console.log('No user_branches found, checking if user is PIC of any branch')
+              const { data: branchData } = await supabase
+                .from('branches')
+                .select('nama_branch')
+                .eq('pic_id', user.id_user)
+                .eq('is_active', true)
+                .single()
+              
+              if (branchData?.nama_branch) {
+                userAllowedBranches = [branchData.nama_branch]
+                console.log('Found branch from PIC relationship:', branchData.nama_branch)
+              } else {
+                // Fallback 2: check cabang field in users table
+                console.log('Not found as PIC, checking cabang field in users table')
+                const { data: userProfile } = await supabase
+                  .from('users')
+                  .select('cabang')
+                  .eq('id_user', user.id_user)
+                  .single()
+                
+                if (userProfile?.cabang) {
+                  userAllowedBranches = [userProfile.cabang]
+                  console.log('Found branch from users table:', userProfile.cabang)
+                } else {
+                  console.warn('⚠️ User not assigned to any branch')
+                  userAllowedBranches = [] // Show all branches with warning
+                }
+              }
+            }
+          }
+        }
+        
+        console.log('Final allowed branches for user:', userAllowedBranches)
+        console.log('User role:', user.role)
+        setAllowedBranches(userAllowedBranches)
+        setUserBranch(userAllowedBranches.length > 0 ? userAllowedBranches[0] : '')
+        setIsUserDataLoaded(true)
+      } catch (error) {
+        console.error('Error parsing user data:', error)
+        setIsUserDataLoaded(true)
+      }
+    } else {
+      setIsUserDataLoaded(true)
+    }
+  }
 
   const handleStockAlertPrefill = async (alertData: any) => {
     // Set branch
@@ -143,29 +233,61 @@ function CreatePurchaseOrder() {
     }, 1000)
   }
 
-  const fetchInitialData = async () => {
+  const fetchBranches = async () => {
+    try {
+      console.log('Fetching branches with allowedBranches:', allowedBranches)
+      
+      let query = supabase
+        .from('branches')
+        .select('*')
+        .order('nama_branch')
+      
+      // Jika user bukan admin, filter berdasarkan branch yang diizinkan
+      if (allowedBranches.length > 0) {
+        console.log('Filtering branches by:', allowedBranches)
+        query = query.in('nama_branch', allowedBranches)
+      } else {
+        console.log('No branch filter applied (admin/super admin)')
+      }
+      
+      const { data: branchesData, error } = await query
+      
+      if (error) throw error
+      
+      console.log('Fetched branches count:', branchesData?.length)
+      console.log('Fetched branches:', branchesData)
+      console.log('Current user role:', userRole)
+      console.log('Current allowedBranches:', allowedBranches)
+      setBranches(branchesData || [])
+      
+      // Auto-select branch jika hanya ada satu pilihan
+      if (branchesData && branchesData.length === 1) {
+        setFormData(prev => ({ 
+          ...prev, 
+          cabang_id: branchesData[0].id_branch.toString() 
+        }))
+      }
+    } catch (error) {
+      console.error('Error fetching branches:', error)
+    }
+  }
+
+  const fetchSuppliers = async () => {
     try {
       const { data: suppliersData } = await supabase
         .from('suppliers')
         .select('id_supplier, nama_supplier, nomor_rekening, bank_penerima, nama_penerima, termin_tempo, estimasi_pengiriman, divisi, nama_barang, merk')
         .order('nama_supplier')
 
-      const { data: branchesData } = await supabase
-        .from('branches')
-        .select('*')
-        .order('nama_branch')
-
-      // Keep all supplier records but create unique list for dropdown
       const allSuppliers = suppliersData || []
       const uniqueSuppliers = allSuppliers.filter((supplier, index, self) => 
         index === self.findIndex(s => s.nama_supplier.toLowerCase() === supplier.nama_supplier.toLowerCase())
       )
 
-      setSuppliers(allSuppliers) // Keep all records for product lookup
-      setUniqueSuppliers(uniqueSuppliers) // For dropdown display
-      setBranches(branchesData || [])
+      setSuppliers(allSuppliers)
+      setUniqueSuppliers(uniqueSuppliers)
     } catch (error) {
-      console.error('Error fetching data:', error)
+      console.error('Error fetching suppliers:', error)
     } finally {
       setLoading(false)
     }
@@ -394,11 +516,17 @@ function CreatePurchaseOrder() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cabang *</label>
+              {userRole !== 'super admin' && userRole !== 'admin' && !userBranch && (
+                <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
+                  ⚠️ Data cabang Anda belum diset. Silakan hubungi admin untuk mengupdate data user.
+                </div>
+              )}
               <select
                 value={formData.cabang_id}
                 onChange={(e) => setFormData({...formData, cabang_id: e.target.value})}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
                 required
+                disabled={branches.length === 1}
               >
                 <option value="">Pilih Cabang</option>
                 {branches.map(branch => (

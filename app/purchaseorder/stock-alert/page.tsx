@@ -52,6 +52,9 @@ function StockAlertPOPage() {
   const [saving, setSaving] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [userRole, setUserRole] = useState('');
+  const [userBranch, setUserBranch] = useState('');
+  const [allowedBranches, setAllowedBranches] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     po_date: new Date().toISOString().split('T')[0],
     priority: 'tinggi',
@@ -59,9 +62,52 @@ function StockAlertPOPage() {
   });
 
   useEffect(() => {
-    fetchStockAlerts();
-    fetchSuppliers();
+    const init = async () => {
+      await initializeUserData();
+      fetchSuppliers();
+    };
+    init();
   }, []);
+
+  useEffect(() => {
+    if (userRole) {
+      fetchStockAlerts();
+    }
+  }, [userRole, allowedBranches]);
+
+  const initializeUserData = async () => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      setUserRole(user.role);
+      
+      if (user.role === 'super admin' || user.role === 'admin') {
+        setAllowedBranches([]);
+      } else {
+        // For non-admin users, get branches from user_branches table
+        if (user.id_user) {
+          const { data: userBranches } = await supabase
+            .from('user_branches')
+            .select('kode_branch, branches!inner(nama_branch)')
+            .eq('id_user', user.id_user)
+            .eq('is_active', true);
+          
+          if (userBranches && userBranches.length > 0) {
+            const branchNames = userBranches.map(ub => (ub.branches as any).nama_branch);
+            setAllowedBranches(branchNames);
+            setUserBranch(branchNames[0]);
+            setSelectedBranch(branchNames[0]);
+          } else {
+            // Fallback to user.cabang if no user_branches found
+            const fallbackBranch = user.cabang || '';
+            setAllowedBranches([fallbackBranch].filter(Boolean));
+            setUserBranch(fallbackBranch);
+            setSelectedBranch(fallbackBranch);
+          }
+        }
+      }
+    }
+  };
 
   useEffect(() => {
     if (filteredStockAlerts.length > 0 && suppliers.length > 0) {
@@ -70,6 +116,9 @@ function StockAlertPOPage() {
   }, [filteredStockAlerts, suppliers]);
 
   const handleBranchFilter = (branch: string) => {
+    if (allowedBranches.length > 0 && branch !== '' && !allowedBranches.includes(branch)) {
+      return;
+    }
     setSelectedBranch(branch);
     const filtered = branch === '' 
       ? stockAlerts 
@@ -99,8 +148,18 @@ function StockAlertPOPage() {
       }
       
       if (!error && data) {
-        setStockAlerts(data);
-        setFilteredStockAlerts(data);
+        let filteredData = data;
+        
+        // Filter by allowed branches for non-admin users
+        if (allowedBranches.length > 0) {
+          filteredData = data.filter((alert: StockAlert) => 
+            allowedBranches.includes(alert.branch_name)
+          );
+          console.log('Filtered stock alerts by branches:', allowedBranches, 'Result count:', filteredData.length);
+        }
+        
+        setStockAlerts(filteredData);
+        setFilteredStockAlerts(filteredData);
       }
     } catch (error) {
       console.error('Error fetching stock alerts:', error);
@@ -533,16 +592,37 @@ function StockAlertPOPage() {
                 {selectedBranch && ` (${selectedBranch})`}
               </span>
             </h1>
-            <select
-              value={selectedBranch}
-              onChange={(e) => handleBranchFilter(e.target.value)}
-              className="border border-gray-300 rounded px-3 py-2 text-sm"
-            >
-              <option value="">All Branches</option>
-              {[...new Set(stockAlerts.map(alert => alert.branch_name))].map(branchName => (
-                <option key={branchName} value={branchName}>{branchName}</option>
-              ))}
-            </select>
+            {(userRole === 'super admin' || userRole === 'admin') && (
+              <select
+                value={selectedBranch}
+                onChange={(e) => handleBranchFilter(e.target.value)}
+                className="border border-gray-300 rounded px-3 py-2 text-sm"
+              >
+                <option value="">All Branches</option>
+                {[...new Set(stockAlerts.map(alert => alert.branch_name))].map(branchName => (
+                  <option key={branchName} value={branchName}>{branchName}</option>
+                ))}
+              </select>
+            )}
+            {userRole !== 'super admin' && userRole !== 'admin' && (
+              <div className="flex items-center gap-2">
+                {allowedBranches.length > 1 ? (
+                  <select
+                    value={selectedBranch}
+                    onChange={(e) => handleBranchFilter(e.target.value)}
+                    className="border border-gray-300 rounded px-3 py-2 text-sm bg-blue-50"
+                  >
+                    {allowedBranches.map(branchName => (
+                      <option key={branchName} value={branchName}>{branchName}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="bg-blue-100 text-blue-800 px-3 py-2 rounded text-sm font-medium">
+                    {allowedBranches[0] || userBranch}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <p className="text-gray-600 text-sm mt-1">
             Create purchase orders for products with low stock levels
