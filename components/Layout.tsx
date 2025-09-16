@@ -74,6 +74,7 @@ export default function Layout({ children }: LayoutProps) {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [recentPages, setRecentPages] = useState<string[]>([])
   const [notifications, setNotifications] = useState<any[]>([])
+  const [showNotifications, setShowNotifications] = useState(false)
   const [isSearchFocused, setIsSearchFocused] = useState(false)
   const profileDropdownRef = useRef<HTMLDivElement>(null)
   const sidebarRef = useRef<HTMLDivElement>(null)
@@ -398,13 +399,19 @@ export default function Layout({ children }: LayoutProps) {
 
   if (isLoading || permissionsLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 animate-pulse">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
         <div className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"></div>
-        <div className="flex">
-          <div className="w-64 h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700"></div>
-          <div className="flex-1 p-6">
-            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
-            <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded"></div>
+        <div className="flex flex-1">
+          <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden lg:block"></div>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="inline-flex">
+                <div className="w-4 h-4 bg-blue-600 rounded-full mr-1 animate-bounce"></div>
+                <div className="w-4 h-4 bg-blue-600 rounded-full mr-1 animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                <div className="w-4 h-4 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+              </div>
+              <p className="mt-4 text-gray-600 dark:text-gray-400">Memuat sistem...</p>
+            </div>
           </div>
         </div>
       </div>
@@ -435,7 +442,7 @@ export default function Layout({ children }: LayoutProps) {
               <Link href="/" className="flex items-center">
                 <div className="flex-shrink-0 flex items-center">
                   <div className="h-8 w-20 bg-red-600 rounded-lg flex items-center justify-center text-white font-bold mr-2">
-                    Home
+                    Sushimas
                   </div>
                 </div>
               </Link>
@@ -461,6 +468,9 @@ export default function Layout({ children }: LayoutProps) {
                 {/* Search Results Dropdown for Mobile */}
                 {searchResults.length > 0 && isSearchFocused && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+                    <div className="px-3 py-2 text-xs font-semibold text-gray-500 border-b border-gray-100 dark:border-gray-700">
+                      Hasil Pencarian
+                    </div>
                     {searchResults.map((result, index) => (
                       <Link
                         key={index}
@@ -469,16 +479,25 @@ export default function Layout({ children }: LayoutProps) {
                           setSearchQuery('')
                           setIsSearchFocused(false)
                         }}
-                        className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                        className="block px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                       >
                         <div className="flex items-center">
-                          <result.icon size={16} className="mr-2 text-gray-400" />
-                          <div>
+                          <div className={`p-2 rounded-lg mr-3 ${
+                            result.type === 'menu' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            <result.icon size={16} />
+                          </div>
+                          <div className="flex-1">
                             <div className="text-sm font-medium text-gray-900 dark:text-white">{result.name}</div>
                             {result.parent && (
-                              <div className="text-xs text-gray-500 dark:text-gray-400">{result.parent}</div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center">
+                                <span>{result.parent}</span>
+                                <ChevronRight size={12} className="mx-1" />
+                                <span>{result.type === 'submenu' ? 'Submenu' : 'Menu'}</span>
+                              </div>
                             )}
                           </div>
+                          <ChevronRight size={16} className="text-gray-400" />
                         </div>
                       </Link>
                     ))}
@@ -505,24 +524,39 @@ export default function Layout({ children }: LayoutProps) {
                 {/* Search Results Dropdown */}
                 {searchResults.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50">
+                    <div className="px-3 py-2 text-xs font-semibold text-gray-500 border-b border-gray-100 dark:border-gray-700">
+                      Hasil Pencarian
+                    </div>
                     {searchResults.map((result, index) => (
                       <Link
                         key={index}
                         href={result.href || '#'}
                         onClick={() => setSearchQuery('')}
-                        className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                        className="block px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                       >
                         <div className="flex items-center">
-                          <result.icon size={16} className="mr-2 text-gray-400" />
-                          <div>
+                          <div className={`p-2 rounded-lg mr-3 ${
+                            result.type === 'menu' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            <result.icon size={16} />
+                          </div>
+                          <div className="flex-1">
                             <div className="text-sm font-medium text-gray-900 dark:text-white">{result.name}</div>
                             {result.parent && (
-                              <div className="text-xs text-gray-500 dark:text-gray-400">{result.parent}</div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center">
+                                <span>{result.parent}</span>
+                                <ChevronRight size={12} className="mx-1" />
+                                <span>{result.type === 'submenu' ? 'Submenu' : 'Menu'}</span>
+                              </div>
                             )}
                           </div>
+                          <ChevronRight size={16} className="text-gray-400" />
                         </div>
                       </Link>
                     ))}
+                    <div className="px-3 py-2 text-xs text-gray-500 border-t border-gray-100 dark:border-gray-700">
+                      Tekan Enter untuk pencarian lengkap
+                    </div>
                   </div>
                 )}
               </div>
@@ -533,14 +567,38 @@ export default function Layout({ children }: LayoutProps) {
 
               
               {/* Notifications */}
-              <button className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mr-2 relative">
-                <Bell size={20} />
-                {notifications.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {notifications.length}
-                  </span>
+              <div className="relative mr-2">
+                <button 
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 relative"
+                >
+                  <Bell size={20} />
+                  {notifications.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                      {notifications.length}
+                    </span>
+                  )}
+                </button>
+                
+                {showNotifications && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                    <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                      <h3 className="font-semibold">Notifikasi</h3>
+                      <button className="text-blue-600 text-sm">Tandai sudah dibaca</button>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto">
+                      <div className="p-4 text-center text-gray-500">
+                        Tidak ada notifikasi
+                      </div>
+                    </div>
+                    <div className="p-2 border-t border-gray-200 dark:border-gray-700">
+                      <Link href="/notifications" className="block text-center text-sm text-blue-600 hover:text-blue-800 p-2">
+                        Lihat semua notifikasi
+                      </Link>
+                    </div>
+                  </div>
                 )}
-              </button>
+              </div>
 
               {/* User profile dropdown */}
               <div className="relative ml-3" ref={profileDropdownRef}>
@@ -640,12 +698,12 @@ export default function Layout({ children }: LayoutProps) {
             </button>
           </div>
 
-          <nav className="mt-8 px-4 h-[calc(100vh-8rem)] overflow-y-auto">
+          <nav className="mt-8 px-4 h-[calc(100vh-12rem)] overflow-y-auto">
             <div className="space-y-1">
               {menuItems.map((item) => (
                 <div key={item.id}>
                   {item.submenu ? (
-                    <div>
+                    <div className="relative group">
                       <button
                         onClick={() => toggleSubmenu(item.id)}
                         className={`group flex items-center w-full px-3 py-2 text-sm font-medium rounded-md transition-colors
@@ -673,6 +731,11 @@ export default function Layout({ children }: LayoutProps) {
                           </>
                         )}
                       </button>
+                      {isSidebarCollapsed && (
+                        <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                          {item.name}
+                        </div>
+                      )}
                       
                       {/* Submenu items */}
                       {activeSubmenu === item.id && !isSidebarCollapsed && (
@@ -706,30 +769,37 @@ export default function Layout({ children }: LayoutProps) {
                       )}
                     </div>
                   ) : (
-                    <Link
-                      href={item.href || '#'}
-                      onClick={() => setIsSidebarOpen(false)}
-                      className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors
-                        ${isActiveMenu(item.href || '')
-                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' 
-                          : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                        }`}
-                    >
-                      <item.icon
-                        size={18}
-                        className={`${isSidebarCollapsed ? 'mx-auto' : 'mr-3'} flex-shrink-0 
+                    <div className="relative group">
+                      <Link
+                        href={item.href || '#'}
+                        onClick={() => setIsSidebarOpen(false)}
+                        className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors
                           ${isActiveMenu(item.href || '')
-                            ? 'text-blue-600 dark:text-blue-400'
-                            : 'text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300'
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' 
+                            : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                           }`}
-                      />
-                      {!isSidebarCollapsed && item.name}
-                    </Link>
+                      >
+                        <item.icon
+                          size={18}
+                          className={`${isSidebarCollapsed ? 'mx-auto' : 'mr-3'} flex-shrink-0 
+                            ${isActiveMenu(item.href || '')
+                              ? 'text-blue-600 dark:text-blue-400'
+                              : 'text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300'
+                            }`}
+                        />
+                        {!isSidebarCollapsed && item.name}
+                      </Link>
+                      {isSidebarCollapsed && (
+                        <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                          {item.name}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               ))}
             </div>
-
+            
 
           </nav>
         </div>
@@ -751,7 +821,7 @@ export default function Layout({ children }: LayoutProps) {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                   {getCurrentPageInfo()?.name || 'Dashboard'}
                 </h1>
-                <nav className="flex mt-2" aria-label="Breadcrumb">
+                <nav className="flex mt-2 items-center" aria-label="Breadcrumb">
                   <ol className="flex items-center space-x-1 overflow-x-auto">
                     {getBreadcrumbs().map((crumb, index) => (
                       <li key={index} className="flex items-center whitespace-nowrap">
@@ -759,7 +829,7 @@ export default function Layout({ children }: LayoutProps) {
                         {crumb.href !== '#' ? (
                           <Link 
                             href={crumb.href} 
-                            className="text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                            className="text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 flex items-center"
                           >
                             {index === 0 ? <Home size={14} className="inline mr-1" /> : null}
                             {crumb.name}
@@ -767,26 +837,50 @@ export default function Layout({ children }: LayoutProps) {
                         ) : (
                           <span className={`text-sm font-medium ${
                             index === getBreadcrumbs().length - 1 
-                              ? 'text-gray-700 dark:text-gray-300' 
+                              ? 'text-gray-700 dark:text-gray-300 flex items-center' 
                               : 'text-gray-500 dark:text-gray-400'
                           }`}>
                             {crumb.name}
+                            {index === getBreadcrumbs().length - 1 && (
+                              <span className="ml-2 text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+                                {new Date().toLocaleDateString()}
+                              </span>
+                            )}
                           </span>
                         )}
                       </li>
                     ))}
                   </ol>
+                  {/* Quick action buttons */}
+                  {pathname.includes('/purchaseorder') && (
+                    <Link href="/purchaseorder/create" className="ml-4 flex items-center text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg">
+                      <Plus size={14} className="mr-1" />
+                      PO Baru
+                    </Link>
+                  )}
                 </nav>
               </div>
 
               {/* Content */}
-              <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 sm:p-6">
+              <div className="bg-white dark:bg-gray-800 shadow-lg dark:shadow-gray-900/20 rounded-xl p-4 sm:p-6">
                 {children}
               </div>
             </div>
           </div>
         </main>
       </div>
+
+      {/* Footer with system info */}
+      <footer className="py-4 px-6 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 hidden lg:block">
+        <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
+          <div>
+            © 2025 Sushimas Inventory System • v1.0.1 (P.S)
+          </div>
+          <div className="flex items-center">
+
+          </div>
+        </div>
+      </footer>
 
       {/* Mobile bottom navigation */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-40 safe-area-inset-bottom">
