@@ -103,21 +103,30 @@ function RecentActivity() {
 
   return (
     <div className="space-y-3">
-      {activities.length > 0 ? activities.map((activity, index) => (
-        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-          <div className="flex items-center">
-            <div className={`w-3 h-3 rounded-full mr-3 ${
-              activity.type === 'success' ? 'bg-gray-600' :
-              activity.type === 'warning' ? 'bg-gray-500' : 'bg-gray-700'
-            }`}></div>
-            <div>
-              <p className="text-sm font-medium text-gray-800 dark:text-white">{activity.action}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{activity.item}</p>
+      {activities.length > 0 ? activities.map((activity, index) => {
+        const getActivityLink = (activity: any) => {
+          if (activity.action === 'PO Baru Dibuat') return '/purchaseorder'
+          if (activity.action === 'Barang Masuk') return '/purchaseorder/barang_masuk'
+          if (activity.action.includes('Produksi')) return '/produksi'
+          return '#'
+        }
+        
+        return (
+          <a key={index} href={getActivityLink(activity)} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer">
+            <div className="flex items-center">
+              <div className={`w-3 h-3 rounded-full mr-3 ${
+                activity.type === 'success' ? 'bg-gray-600' :
+                activity.type === 'warning' ? 'bg-gray-500' : 'bg-gray-700'
+              }`}></div>
+              <div>
+                <p className="text-sm font-medium text-gray-800 dark:text-white">{activity.action}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{activity.item}</p>
+              </div>
             </div>
-          </div>
-          <span className="text-xs text-gray-400">{activity.time}</span>
-        </div>
-      )) : (
+            <span className="text-xs text-gray-400">{activity.time}</span>
+          </a>
+        )
+      }) : (
         <div className="p-4 text-center text-gray-500">
           Belum ada aktivitas terbaru
         </div>
@@ -154,15 +163,15 @@ function DashboardContent() {
           </h3>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { name: 'Buat PO Baru', href: '/purchaseorder/create', color: 'bg-gray-700 hover:bg-gray-800' },
-              { name: 'Input Produksi', href: '/produksi', color: 'bg-gray-600 hover:bg-gray-700' },
-              { name: 'Cek Stock Alert', href: '/purchaseorder/stock-alert', color: 'bg-gray-800 hover:bg-gray-900' },
-              { name: 'Lihat Gudang', href: '/gudang', color: 'bg-gray-500 hover:bg-gray-600' }
+              { name: 'Buat PO Baru', href: '/purchaseorder/create', color: 'bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-800 hover:bg-white/90' },
+              { name: 'Input Produksi', href: '/produksi', color: 'bg-white/70 backdrop-blur-sm border border-gray-200 text-gray-800 hover:bg-white/80' },
+              { name: 'Cek Stock Alert', href: '/purchaseorder/stock-alert', color: 'bg-white/60 backdrop-blur-sm border border-gray-200 text-gray-800 hover:bg-white/70' },
+              { name: 'Lihat Gudang', href: '/gudang', color: 'bg-white/90 backdrop-blur-sm border border-gray-200 text-gray-800 hover:bg-white' }
             ].map((action, index) => (
               <a
                 key={index}
                 href={action.href}
-                className={`${action.color} text-white p-4 rounded-lg text-center text-sm font-medium transition-colors hover:shadow-lg`}
+                className={`${action.color} p-4 rounded-lg text-center text-sm font-medium transition-all hover:shadow-lg hover:scale-105`}
               >
                 {action.name}
               </a>

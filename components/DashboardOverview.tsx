@@ -108,7 +108,8 @@ export default function DashboardOverview() {
       value: formatNumber(data.totalStock),
       change: `+${data.stockChange}% dari bulan lalu`,
       icon: PackageCheck,
-      gradient: 'from-gray-700 to-gray-800',
+      bgColor: 'bg-white/80 backdrop-blur-sm border border-gray-200',
+      textColor: 'text-gray-800',
       changePositive: data.stockChange > 0
     },
     {
@@ -116,7 +117,8 @@ export default function DashboardOverview() {
       value: data.activePOs.toString(),
       change: `${data.urgentPOs} perlu perhatian`,
       icon: ShoppingBasket,
-      gradient: 'from-gray-600 to-gray-700',
+      bgColor: 'bg-white/70 backdrop-blur-sm border border-gray-200',
+      textColor: 'text-gray-800',
       changePositive: data.urgentPOs === 0
     },
     {
@@ -124,7 +126,8 @@ export default function DashboardOverview() {
       value: data.productionItems.toString(),
       change: `${data.productionInProgress} dalam proses`,
       icon: Factory,
-      gradient: 'from-gray-800 to-gray-900',
+      bgColor: 'bg-white/60 backdrop-blur-sm border border-gray-200',
+      textColor: 'text-gray-800',
       changePositive: data.productionInProgress > 0
     },
     {
@@ -132,7 +135,8 @@ export default function DashboardOverview() {
       value: data.stockAlerts.toString(),
       change: 'Stok menipis',
       icon: AlertTriangle,
-      gradient: 'from-gray-500 to-gray-600',
+      bgColor: 'bg-white/90 backdrop-blur-sm border border-gray-200',
+      textColor: 'text-gray-800',
       changePositive: data.stockAlerts === 0
     }
   ]
@@ -153,23 +157,26 @@ export default function DashboardOverview() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      {cards.map((card, index) => (
-        <div key={index} className={`bg-gradient-to-r ${card.gradient} rounded-lg p-4 text-white shadow-lg hover:shadow-xl transition-shadow`}>
-          <div className="flex justify-between items-center">
-            <card.icon size={24} />
-            <span className="text-sm opacity-90">{card.title}</span>
+      {cards.map((card, index) => {
+        const IconComponent = card.icon
+        return (
+          <div key={index} className={`${card.bgColor} ${card.textColor} rounded-lg p-4 shadow-lg hover:shadow-xl transition-all hover:scale-105`}>
+            <div className="flex justify-between items-center">
+              <IconComponent size={24} className="text-gray-600" />
+              <span className="text-sm text-gray-600">{card.title}</span>
+            </div>
+            <div className="text-2xl font-bold mt-2">{card.value}</div>
+            <div className="text-xs text-gray-500 flex items-center mt-1">
+              {card.changePositive ? (
+                <TrendingUp size={12} className="mr-1 text-gray-500" />
+              ) : (
+                <TrendingDown size={12} className="mr-1 text-gray-500" />
+              )}
+              {card.change}
+            </div>
           </div>
-          <div className="text-2xl font-bold mt-2">{card.value}</div>
-          <div className="text-xs opacity-80 flex items-center mt-1">
-            {card.changePositive ? (
-              <TrendingUp size={12} className="mr-1" />
-            ) : (
-              <TrendingDown size={12} className="mr-1" />
-            )}
-            {card.change}
-          </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
