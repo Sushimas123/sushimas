@@ -346,12 +346,23 @@ function PurchaseOrderPageContent() {
   }
 
   const handleDeletePO = async (poId: number, poNumber: string) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus PO ${poNumber}? Semua data barang masuk dan gudang terkait juga akan dihapus.`)) {
+    if (!confirm(`Apakah Anda yakin ingin menghapus PO ${poNumber}? Semua data barang masuk, gudang, dan price history terkait juga akan dihapus.`)) {
       return
     }
 
     try {
-      // First delete related gudang records
+      // First delete related price history records
+      const { error: priceHistoryError } = await supabase
+        .from('price_history')
+        .delete()
+        .eq('po_number', poNumber)
+
+      if (priceHistoryError) {
+        console.error('Error deleting price history:', priceHistoryError)
+        throw priceHistoryError
+      }
+
+      // Then delete related gudang records
       const { error: gudangError } = await supabase
         .from('gudang')
         .delete()
@@ -382,7 +393,7 @@ function PurchaseOrderPageContent() {
 
       if (poError) throw poError
 
-      alert('PO dan semua data barang masuk & gudang terkait berhasil dihapus!')
+      alert('PO dan semua data barang masuk, gudang & price history terkait berhasil dihapus!')
       fetchPurchaseOrders()
     } catch (error) {
       console.error('Error deleting PO:', error)

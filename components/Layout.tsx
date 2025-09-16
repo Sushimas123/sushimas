@@ -142,14 +142,11 @@ export default function Layout({ children }: LayoutProps) {
   const menuItems = useMemo(() => {
     if (permissionsLoading) return []
     
-
-    
     return allMenuItems.filter(item => {
       if (item.submenu) {
         // Filter submenu items based on permissions
         const accessibleSubmenu = item.submenu.filter(subItem => {
           const hasPermission = subItem.pageName && permissions[subItem.pageName] === true
-
           return hasPermission
         })
         
@@ -161,7 +158,8 @@ export default function Layout({ children }: LayoutProps) {
       }
       
       // For menu without submenu, check direct permission
-      return item.pageName ? permissions[item.pageName] === true : true
+      const hasPermission = item.pageName ? permissions[item.pageName] === true : true
+      return hasPermission
     }).map(item => {
       if (item.submenu) {
         // Update submenu with filtered items
@@ -172,7 +170,7 @@ export default function Layout({ children }: LayoutProps) {
       }
       return item
     })
-  }, [allMenuItems, permissions, permissionsLoading])
+  }, [allMenuItems, permissions, permissionsLoading, userRole])
 
   const handleLogout = () => {
     localStorage.removeItem('user')

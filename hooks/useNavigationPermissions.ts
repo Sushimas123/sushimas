@@ -29,11 +29,13 @@ export const useNavigationPermissions = () => {
             'analysis', 'audit-log', 'barang_masuk', 'branches', 'categories',
             'crud-permissions', 'esb', 'gudang', 'permissions-db', 'pivot',
             'price-history', 'product_name', 'product_settings', 'recipes',
-            'purchaseorder', 'stock-alert', 'supplier', 'transfer_barang', 'users'
+            'purchaseorder', 'stock-alert', 'supplier', 'transfer_barang', 'users',
+            'price_history' // Add underscore version for compatibility
           ]
           
           allPossiblePages.forEach(page => {
-            userPermissions[page] = allowedPages.includes(page)
+            // Super admin always gets all permissions
+            userPermissions[page] = user.role === 'super admin' ? true : allowedPages.includes(page)
           })
           
           setPermissions(userPermissions)
@@ -63,6 +65,7 @@ export const useNavigationPermissions = () => {
             esb: true,
             gudang: true,
             'permissions-db': true,
+            price_history: true,
             pivot: true,
             'price-history': true,
             product_name: true,
