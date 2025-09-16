@@ -171,8 +171,37 @@ function ProduksiPageContent() {
   const fetchProduksi = async () => {
     try {
       console.log('Fetching produksi data...');
+      
+      // Get user data for branch filtering
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      let produksiQuery = supabase.from('produksi').select('*').order('tanggal_input', { ascending: false });
+      
+      // Apply branch filter for non-admin users
+      if (user.role !== 'super admin' && user.role !== 'admin') {
+        const { data: userBranches } = await supabase
+          .from('user_branches')
+          .select('kode_branch')
+          .eq('id_user', user.id_user)
+          .eq('is_active', true);
+        
+        if (userBranches && userBranches.length > 0) {
+          const allowedBranchCodes = userBranches.map(b => b.kode_branch);
+          
+          // Convert branch codes to branch names for filtering
+          const { data: branchNames } = await supabase
+            .from('branches')
+            .select('nama_branch')
+            .in('kode_branch', allowedBranchCodes);
+          
+          if (branchNames && branchNames.length > 0) {
+            const namaBranches = branchNames.map(b => b.nama_branch);
+            produksiQuery = produksiQuery.in('branch', namaBranches);
+          }
+        }
+      }
+      
       const [produksiData, productsData] = await Promise.all([
-        supabase.from('produksi').select('*').order('tanggal_input', { ascending: false }),
+        produksiQuery,
         supabase.from('nama_product').select('id_product, product_name')
       ]);
 

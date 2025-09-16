@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { checkPageAccess } from '@/src/utils/pagePermissions'
+import { useNavigationPermissions } from '@/hooks/useNavigationPermissions'
 
 interface PageAccessControlProps {
   children: React.ReactNode
@@ -12,9 +12,10 @@ export default function PageAccessControl({ children, pageName }: PageAccessCont
   const [hasAccess, setHasAccess] = useState<boolean | null>(null)
   const [userRole, setUserRole] = useState<string>('')
   const router = useRouter()
+  const { permissions, loading: permissionsLoading } = useNavigationPermissions()
 
   useEffect(() => {
-    const checkAccess = async () => {
+    const checkAccess = () => {
       const userData = localStorage.getItem('user')
       if (!userData) {
         router.push('/login')
@@ -25,8 +26,11 @@ export default function PageAccessControl({ children, pageName }: PageAccessCont
         const user = JSON.parse(userData)
         setUserRole(user.role)
         
-        const access = await checkPageAccess(user.role, pageName)
-        setHasAccess(access)
+        // Use the same permission system as navigation
+        if (!permissionsLoading) {
+          const access = permissions[pageName] === true
+          setHasAccess(access)
+        }
       } catch (error) {
         console.error('Error checking access:', error)
         setHasAccess(false)
@@ -34,9 +38,9 @@ export default function PageAccessControl({ children, pageName }: PageAccessCont
     }
 
     checkAccess()
-  }, [pageName, router])
+  }, [pageName, router, permissions, permissionsLoading])
 
-  if (hasAccess === null) {
+  if (hasAccess === null || permissionsLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>

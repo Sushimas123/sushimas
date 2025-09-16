@@ -6,7 +6,7 @@ const ROLE_PAGE_ACCESS = {
   'super admin': ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname_batch', 'supplier', 'permissions-db'],
   admin: ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname_batch', 'supplier'],
   finance: ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'gudang', 'product_settings', 'produksi_detail', 'stock_opname_batch'],
-  pic_branch: ['dashboard', 'esb', 'ready', 'produksi', 'analysis', 'gudang', 'stock_opname_batch'],
+  pic_branch: ['dashboard', 'esb', 'ready', 'produksi', 'analysis', 'gudang', 'stock_opname_batch', 'produksi_detail'],
   staff: ['dashboard', 'esb', 'ready', 'produksi', 'gudang', 'stock_opname_batch']
 }
 

@@ -206,7 +206,7 @@ export const getBranchHierarchy = async (parentId?: number) => {
 };
 
 // Branch validation
-export const validateBranchCode = async (kodeB ranch: string, excludeId?: number): Promise<boolean> => {
+export const validateBranchCode = async (kodeBranch: string, excludeId?: number): Promise<boolean> => {
   let query = supabase
     .from('branches')
     .select('id_branch')
