@@ -31,7 +31,20 @@ import {
   ChartArea,
   FolderSync,
   AlertTriangle,
-  AlertTriangleIcon
+  AlertTriangleIcon,
+  CircleDollarSign,
+  SquareSigma,
+  ShoppingBasket,
+  BaggageClaim,
+  NotepadText,
+  SquareActivity,
+  MapPinHouse,
+  Database,
+  ScanBarcode,
+  PencilRuler,
+  SlidersHorizontal,
+  GlobeLock,
+  ScrollText
 } from "lucide-react"
 import { canAccessPage } from '@/src/utils/dbPermissions'
 import { supabase } from '@/src/lib/supabaseClient'
@@ -83,10 +96,10 @@ export default function Layout({ children }: LayoutProps) {
       name: 'Operations',
       icon: Package,
       submenu: [
-        { name: "Ready Stock", href: AppRoutes.READY_STOCK, icon: Package, pageName: 'ready' },
+        { name: "Ready Stock", href: AppRoutes.READY_STOCK, icon: NotepadText, pageName: 'ready' },
         { name: "Production", href: AppRoutes.PRODUCTION, icon: Factory, pageName: 'produksi' },
         { name: "Gudang", href: AppRoutes.GUDANG, icon: Warehouse, pageName: 'gudang' },
-        { name: "SO Batch", href: AppRoutes.SO_BATCH, icon: FileText, pageName: 'stock_opname_batch' },
+        { name: "SO Batch", href: AppRoutes.SO_BATCH, icon: SquareActivity, pageName: 'stock_opname_batch' },
       ]
     },
     {
@@ -94,10 +107,10 @@ export default function Layout({ children }: LayoutProps) {
       name: 'Purchase Order',
       icon: Building,
       submenu: [
-        { name: "Purchase Order", href: "/purchaseorder", icon: Package, pageName: 'purchaseorder' },
-        { name: "Barang Masuk", href: "/purchaseorder/barang_masuk", icon: PackageCheck, pageName: 'barang_masuk'},
-        { name: "Transfer Cabang", href: AppRoutes.TRANSFER_BARANG, icon: FolderSync, pageName: 'transfer_barang'},
         { name: "Stock Alert", href: AppRoutes.STOCK_ALERT, icon: AlertTriangleIcon, pageName: 'stock-alert'},
+        { name: "Purchase Order", href: "/purchaseorder", icon: BaggageClaim, pageName: 'purchaseorder' },
+        { name: "Barang Masuk", href: "/purchaseorder/barang_masuk", icon: ShoppingBasket, pageName: 'barang_masuk'},
+        { name: "Transfer Cabang", href: AppRoutes.TRANSFER_BARANG, icon: FolderSync, pageName: 'transfer_barang'},
       ]
     },    
     {
@@ -106,23 +119,24 @@ export default function Layout({ children }: LayoutProps) {
       icon: BarChart3,
       submenu: [
         { name: "Analysis", href: AppRoutes.ANALYSIS, icon: BarChart3, pageName: 'analysis' },
-        { name: "Pivot Analysis", href: "/pivot", icon: BarChart3, pageName: 'pivot' },
-        { name: "Esb Report", href: AppRoutes.ESB, icon: BarChart3, pageName: 'esb' },
+        { name: "Pivot Analysis", href: "/pivot", icon: SquareSigma, pageName: 'pivot' },
+        { name: "Esb Report", href: AppRoutes.ESB, icon: CircleDollarSign , pageName: 'esb' },
         { name: "Production Detail", href: AppRoutes.PRODUCTION_DETAIL, icon: FileText, pageName: 'produksi_detail' },
+        { name: "Price History", href: AppRoutes.PRICE_HISTORY, icon: ChartArea, pageName: 'price_history'}
       ]
     },
     {
       id: 'master-data',
       name: 'Master Data',
-      icon: BookOpen,
+      icon: Database,
       submenu: [
-        { name: "Product Name Report", href: AppRoutes.PRODUCT_NAME, icon: Package, pageName: 'product_name' },
-        { name: "Categories", href: AppRoutes.CATEGORIES, icon: BookOpen, pageName: 'categories' },
+        { name: "Product Name Report", href: AppRoutes.PRODUCT_NAME, icon: ScanBarcode, pageName: 'product_name' },
+        { name: "Product Settings", href: AppRoutes.PRODUCT_SETTINGS, icon: Settings2Icon, pageName: 'product_settings' },
+        { name: "Categories", href: AppRoutes.CATEGORIES, icon: PencilRuler, pageName: 'categories' },
         { name: "Recipes", href: AppRoutes.RECIPES, icon: BookOpen, pageName: 'recipes' },
         { name: "Supplier", href: AppRoutes.SUPPLIER, icon: Truck, pageName: 'supplier' },
-        { name: "Branches", href: AppRoutes.BRANCHES, icon: Store, pageName: 'branches' },
+        { name: "Branches", href: AppRoutes.BRANCHES, icon: MapPinHouse, pageName: 'branches' },
         { name: "Users", href: AppRoutes.USERS, icon: Users, pageName: 'users' },
-        { name: "Price History", href: AppRoutes.PRICE_HISTORY, icon: ChartArea, pageName: 'price_history'}
       ]
     },
     {
@@ -130,10 +144,9 @@ export default function Layout({ children }: LayoutProps) {
       name: 'Settings',
       icon: Settings2Icon,
       submenu: [
-        { name: "Product Settings", href: AppRoutes.PRODUCT_SETTINGS, icon: Settings2Icon, pageName: 'product_settings' },
-        { name: "Permissions", href: AppRoutes.PERMISSIONS_DB, icon: Settings2Icon, pageName: 'permissions-db' },
-        { name: "CRUD Permissions", href: AppRoutes.CRUD_PERMISSIONS, icon: Settings2Icon, pageName: 'crud-permissions' },
-        { name: "Audit Log", href: AppRoutes.AUDIT_LOG, icon: FileText, pageName: 'audit-log' },
+        { name: "Permissions", href: AppRoutes.PERMISSIONS_DB, icon: SlidersHorizontal, pageName: 'permissions-db' },
+        { name: "CRUD Permissions", href: AppRoutes.CRUD_PERMISSIONS, icon: GlobeLock, pageName: 'crud-permissions' },
+        { name: "Audit Log", href: AppRoutes.AUDIT_LOG, icon: ScrollText, pageName: 'audit-log' },
       ]
     },
   ], [])
