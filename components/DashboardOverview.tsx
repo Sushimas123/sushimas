@@ -155,28 +155,5 @@ export default function DashboardOverview() {
     )
   }
 
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      {cards.map((card, index) => {
-        const IconComponent = card.icon
-        return (
-          <div key={index} className={`${card.bgColor} ${card.textColor} rounded-lg p-4 shadow-lg hover:shadow-xl transition-all hover:scale-105`}>
-            <div className="flex justify-between items-center">
-              <IconComponent size={24} className="text-gray-600" />
-              <span className="text-sm text-gray-600">{card.title}</span>
-            </div>
-            <div className="text-2xl font-bold mt-2">{card.value}</div>
-            <div className="text-xs text-gray-500 flex items-center mt-1">
-              {card.changePositive ? (
-                <TrendingUp size={12} className="mr-1 text-gray-500" />
-              ) : (
-                <TrendingDown size={12} className="mr-1 text-gray-500" />
-              )}
-              {card.change}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
+  
 }
