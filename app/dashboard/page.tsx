@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
 import PageAccessControl from '../../components/PageAccessControl'
-import DashboardOverview from '../../components/DashboardOverview'
 import { BarChart3, TrendingUp, Package, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/src/lib/supabaseClient'
 
@@ -138,8 +137,6 @@ function RecentActivity() {
 function DashboardContent() {
   return (
     <div className="space-y-6">
-      {/* Overview Cards */}
-      <DashboardOverview />
       
       {/* Quick Stats Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
