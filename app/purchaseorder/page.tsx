@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { Search, Filter, Plus, Eye, Edit, Trash2, Calendar, Building2, User, Package, ChevronDown, ChevronUp, Download, AlertTriangle, ShoppingCart, CheckCheck, CheckIcon, BookCheck, SquareCheckIcon, Check } from 'lucide-react'
+import { Search, Filter, Plus, Eye, Edit, Trash2, Calendar, Building2, User, Package, ChevronDown, ChevronUp, Download, AlertTriangle, ShoppingCart, CheckCheck, CheckIcon, BookCheck, SquareCheckIcon, Check, Image } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useSearchParams } from 'next/navigation'
 import Layout from '../../components/Layout'
@@ -55,6 +55,8 @@ function PurchaseOrderPageContent() {
   const [totalCount, setTotalCount] = useState(0)
   const [userRole, setUserRole] = useState('')
   const [allowedBranches, setAllowedBranches] = useState<string[]>([])
+  const [showPhotoModal, setShowPhotoModal] = useState(false)
+  const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string | null>(null)
   const itemsPerPage = 10
 
   useEffect(() => {
@@ -464,6 +466,30 @@ function PurchaseOrderPageContent() {
 
   const handleCreatePOFromAlert = () => {
     window.location.href = '/purchaseorder/stock-alert'
+  }
+
+  const handleViewPhoto = async (poNumber: string) => {
+    try {
+      const { data: files } = await supabase.storage
+        .from('po-photos')
+        .list('', {
+          search: poNumber
+        })
+      
+      if (files && files.length > 0) {
+        const { data } = supabase.storage
+          .from('po-photos')
+          .getPublicUrl(files[0].name)
+        
+        setSelectedPhotoUrl(data.publicUrl)
+        setShowPhotoModal(true)
+      } else {
+        alert('Foto tidak ditemukan untuk PO ini')
+      }
+    } catch (error) {
+      console.error('Error fetching photo:', error)
+      alert('Gagal memuat foto')
+    }
   }
 
   const handleExport = async () => {
@@ -984,6 +1010,15 @@ function PurchaseOrderPageContent() {
                                   <Package size={14} />
                                 </a>
                               )}
+                              {po.status === 'Barang sampai' && (
+                                <button
+                                  onClick={() => handleViewPhoto(po.po_number)}
+                                  className="text-green-600 hover:text-green-800 p-1 rounded"
+                                  title="Lihat Foto Invoice"
+                                >
+                                  <Image size={14} />
+                                </button>
+                              )}
                               {po.status !== 'Dibatalkan' ? (
                                 <a 
                                   href={`/purchaseorder/edit?id=${po.id}`}
@@ -1107,6 +1142,15 @@ function PurchaseOrderPageContent() {
                                 <Package size={20} />
                               </a>
                             )}
+                            {po.status === 'Barang sampai' && (
+                              <button
+                                onClick={() => handleViewPhoto(po.po_number)}
+                                className="text-green-600 hover:text-green-800 p-1 rounded"
+                                title="Lihat Foto Invoice"
+                              >
+                                <Image size={20} />
+                              </button>
+                            )}
                             {po.status !== 'Dibatalkan' ? (
                               <a 
                                 href={`/purchaseorder/edit?id=${po.id}`}
@@ -1125,7 +1169,7 @@ function PurchaseOrderPageContent() {
                             )}
                             <button
                               onClick={() => handleDeletePO(po.id, po.po_number)}
-                              className="text-red -600 hover:text-red-800 p-1 rounded"
+                              className="text-red-600 hover:text-red-800 p-1 rounded"
                               title="Delete PO"
                             >
                               <Trash2 size={20} />
@@ -1210,6 +1254,38 @@ function PurchaseOrderPageContent() {
               </div>
             )}
           </div>
+
+          {/* Photo Modal */}
+          {showPhotoModal && selectedPhotoUrl && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg max-w-2xl max-h-[90vh] overflow-auto">
+                <div className="p-4 border-b flex justify-between items-center">
+                  <h3 className="text-lg font-medium">Foto Invoice</h3>
+                  <button
+                    onClick={() => {
+                      setShowPhotoModal(false)
+                      setSelectedPhotoUrl(null)
+                    }}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="p-4">
+                  <img 
+                    src={selectedPhotoUrl} 
+                    alt="Invoice" 
+                    className="w-full h-auto rounded-lg"
+                    onError={() => {
+                      alert('Gagal memuat foto')
+                      setShowPhotoModal(false)
+                      setSelectedPhotoUrl(null)
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
     </div>
   )

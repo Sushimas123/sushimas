@@ -83,6 +83,36 @@ export default function FinishPO() {
       }
 
       console.log('PO data:', po)
+      
+      // Load existing invoice number if PO already has arrival date
+      if (po.tanggal_barang_sampai) {
+        const { data: barangMasuk } = await supabase
+          .from('barang_masuk')
+          .select('invoice_number')
+          .eq('no_po', po.po_number)
+          .limit(1)
+          .single()
+        
+        if (barangMasuk?.invoice_number) {
+          setFormData(prev => ({
+            ...prev,
+            invoice_number: barangMasuk.invoice_number,
+            tanggal_barang_sampai: po.tanggal_barang_sampai
+          }))
+        }
+        
+        // Load existing photo if exists
+        const { data: files } = await supabase.storage
+          .from('po-photos')
+          .list('', { search: po.po_number })
+        
+        if (files && files.length > 0) {
+          const { data } = supabase.storage
+            .from('po-photos')
+            .getPublicUrl(files[0].name)
+          setPreviewUrl(data.publicUrl)
+        }
+      }
 
       // Get supplier name
       const { data: supplier } = await supabase
@@ -416,7 +446,6 @@ export default function FinishPO() {
                     onChange={handleFileChange}
                     className="hidden"
                     id="foto-upload"
-                    required
                   />
                   {previewUrl ? (
                     <div className="space-y-2">
