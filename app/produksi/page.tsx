@@ -90,8 +90,6 @@ function ProduksiPageContent() {
         const allColumns = Object.keys(produksi[0])
         const permitted = []
         
-        console.log('All columns in produksi:', allColumns)
-        console.log('User role:', userRole)
         
         for (const col of allColumns) {
           let hasPermission = false
@@ -105,13 +103,11 @@ function ProduksiPageContent() {
             hasPermission = await canViewColumn(userRole, 'produksi', col)
           }
           
-          console.log(`Column ${col}: ${hasPermission ? 'ALLOWED' : 'DENIED'}`)
           if (hasPermission) {
             permitted.push(col)
           }
         }
         
-        console.log('Permitted columns:', permitted)
         setPermittedColumns(permitted)
       }
     }
@@ -170,7 +166,6 @@ function ProduksiPageContent() {
 
   const fetchProduksi = async () => {
     try {
-      console.log('Fetching produksi data...');
       
       // Get user data for branch filtering
       const user = JSON.parse(localStorage.getItem('user') || '{}');

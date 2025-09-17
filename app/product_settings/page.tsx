@@ -128,8 +128,6 @@ export default function ProductSettingsPage() {
 
       if (branchSettingsError) throw branchSettingsError;
 
-      console.log('Products data:', productsData?.length, 'products');
-      console.log('Branch settings data:', branchSettingsData?.length, 'settings');
       
       const formattedData = productsData?.map(product => {
         const branchSettings = branchSettingsData?.filter(bs => bs.id_product === product.id_product) || [];
@@ -137,7 +135,6 @@ export default function ProductSettingsPage() {
         // Get tolerance from first branch setting or default to 5
         const toleranceValue = branchSettings.length > 0 ? branchSettings[0].tolerance_percentage : 5;
         
-        console.log(`Product ${product.id_product} (${product.product_name}) tolerance:`, toleranceValue);
         
         return {
           id_product: product.id_product,
@@ -300,7 +297,6 @@ export default function ProductSettingsPage() {
         }
       }
 
-      console.log('All settings saved successfully');
       showToast('Settings saved successfully', 'success');
       
       // Force refresh data to show updated values

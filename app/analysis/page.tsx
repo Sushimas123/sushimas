@@ -82,7 +82,6 @@ export default function AnalysisPage() {
       try {
         setVisibleColumns(JSON.parse(saved));
       } catch (e) {
-        console.error('Error loading column settings:', e);
       }
     }
   }, []);
@@ -103,7 +102,6 @@ export default function AnalysisPage() {
     try {
       localStorage.setItem('analysis-visible-columns', JSON.stringify(visibleColumns));
     } catch (e) {
-      console.error('Error saving column settings:', e);
     }
   }, [visibleColumns]);
 
@@ -173,9 +171,7 @@ export default function AnalysisPage() {
       return;
     }
 
-    try {
-      console.log('Updating tolerance:', { productId, tolerance });
-      
+    try {      
       // Update tolerance in all branch settings for this product
       const { data: branchSettings } = await supabase
         .from('product_branch_settings')
@@ -337,7 +333,6 @@ export default function AnalysisPage() {
 
       setData(filteredAnalysisData);
     } catch (error) {
-      safeLog('Error fetching analysis data:', error);
       showToast('Failed to fetch analysis data', 'error');
     } finally {
       setLoading(false);

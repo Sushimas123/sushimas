@@ -87,7 +87,6 @@ export default function PermissionsDBPage() {
             }
           }
         } catch (tableError) {
-          console.log(`Could not access table ${tableName}:`, tableError)
         }
       }
       

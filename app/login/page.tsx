@@ -49,7 +49,6 @@ export default function LoginPage() {
       })
 
       if (error) {
-        console.log('Supabase auth error:', error)
         throw new Error('Invalid email or password')
       }
 

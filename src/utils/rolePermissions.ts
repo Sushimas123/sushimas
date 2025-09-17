@@ -259,7 +259,6 @@ export const getUserRole = (): string => {
 
 // Force reload permissions from database
 export const reloadPermissions = async (): Promise<void> => {
-  console.log('Clearing permission cache and reloading from DB...');
   permissionsCache.clear();
   cacheTimestamp = 0;
   await loadPermissionsFromDB();

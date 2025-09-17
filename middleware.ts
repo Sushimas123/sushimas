@@ -25,7 +25,6 @@ async function canAccessPage(userRole: string, pagePath: string): Promise<boolea
     const allowedPages = ROLE_PAGE_ACCESS[userRole as keyof typeof ROLE_PAGE_ACCESS] || []
     return allowedPages.includes(pageName)
   } catch (error) {
-    console.error('Error checking page access:', error)
     return false
   }
 }

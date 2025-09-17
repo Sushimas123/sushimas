@@ -139,7 +139,6 @@ function GudangPageContent() {
       let { data, error } = await supabase.rpc('get_stock_alerts_with_po_status');
       
       if (error) {
-        console.log('New function not available, using original:', error.message);
         const result = await supabase.rpc('get_products_needing_po');
         data = result.data;
         error = result.error;
@@ -182,16 +181,12 @@ function GudangPageContent() {
       if (gudang.length > 0 && userRole && userRole !== 'user') {
         const allColumns = Object.keys(gudang[0])
         const permitted = []
-        
-        console.log('=== GUDANG PERMISSION DEBUG ===')
-        console.log('All columns in gudang:', allColumns)
-        console.log('User role:', userRole)
+      
         
         // Get raw permissions to debug
         const { getPermissions } = await import('@/src/utils/dbPermissions')
         const rawPermissions = await getPermissions(userRole)
-        console.log('Raw permissions for role:', rawPermissions)
-        console.log('Gudang permissions:', rawPermissions['gudang'])
+
         
         for (const col of allColumns) {
           let hasPermission = false
@@ -212,13 +207,11 @@ function GudangPageContent() {
             hasPermission = await canViewColumn(userRole, 'gudang', col)
           }
           
-          console.log(`Column ${col}: ${hasPermission ? 'ALLOWED' : 'DENIED'}`)
           if (hasPermission) {
             permitted.push(col)
           }
         }
         
-        console.log('Permitted columns:', permitted)
         setPermittedColumns(permitted)
       }
     }

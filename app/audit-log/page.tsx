@@ -63,7 +63,7 @@ export default function AuditLogPage() {
       if (error) throw error;
       setLogs(data || []);
     } catch (error) {
-      console.error('Error fetching audit logs:', error);
+      
     } finally {
       setLoading(false);
     }
@@ -94,7 +94,7 @@ export default function AuditLogPage() {
       XLSX.utils.book_append_sheet(wb, ws, "Audit Log");
       XLSX.writeFile(wb, `audit_log_${new Date().toISOString().split('T')[0]}.xlsx`);
     } catch (error) {
-      console.error('Error exporting data:', error);
+      
     } finally {
       setExporting(false);
     }
