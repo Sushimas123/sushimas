@@ -62,7 +62,7 @@ function RecentActivity() {
       // Sort by time and take top 4
       setActivities(allActivities.slice(0, 4))
     } catch (error) {
-      console.error('Error fetching recent activities:', error)
+      // Error fetching recent activities
     } finally {
       setLoading(false)
     }

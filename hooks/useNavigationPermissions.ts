@@ -42,7 +42,7 @@ export const useNavigationPermissions = () => {
           setLoading(false)
           return
         } catch (dbError) {
-          console.warn('Failed to load permissions from database, using fallback:', dbError)
+
         }
 
         // Fallback to hardcoded permissions
@@ -221,7 +221,7 @@ export const useNavigationPermissions = () => {
 
         setPermissions(userPermissions)
       } catch (error) {
-        console.error('Error loading permissions:', error)
+
       } finally {
         setLoading(false)
       }

@@ -26,9 +26,29 @@ export default function PageAccessControl({ children, pageName }: PageAccessCont
         const user = JSON.parse(userData)
         setUserRole(user.role)
         
+
+        
+        // Super admin and admin always have access
+        if (user.role === 'super admin' || user.role === 'admin') {
+
+          setHasAccess(true)
+          return
+        }
+        
         // Use the same permission system as navigation
         if (!permissionsLoading) {
-          const access = permissions[pageName] === true
+          // For nested routes, check parent permission
+          let permissionKey = pageName
+          
+          // Handle special cases for nested routes
+          if (pageName === 'stock-alert') {
+            permissionKey = 'purchaseorder' // stock-alert is under purchaseorder
+          } else if (pageName === 'barang_masuk') {
+            permissionKey = 'purchaseorder' // barang_masuk is under purchaseorder
+          }
+          
+          const access = permissions[permissionKey] === true || permissions[pageName] === true
+
           setHasAccess(access)
         }
       } catch (error) {
