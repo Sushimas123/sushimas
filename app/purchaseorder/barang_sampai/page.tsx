@@ -38,6 +38,7 @@ export default function FinishPO() {
     foto_barang: null as File | null,
     keterangan: ''
   })
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   const [receivedItems, setReceivedItems] = useState<Record<number, {qty: number, harga: number, status: 'received' | 'partial' | 'not_received'}>>({})
 
@@ -53,6 +54,12 @@ export default function FinishPO() {
       console.error('Invalid or missing PO ID')
       alert('PO ID tidak ditemukan. Akan diarahkan ke halaman Purchase Order.')
       window.location.href = '/purchaseorder'
+    }
+    
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl)
+      }
     }
   }, [])
 
@@ -157,6 +164,8 @@ export default function FinishPO() {
         return
       }
       
+      const url = URL.createObjectURL(file)
+      setPreviewUrl(url)
       setFormData(prev => ({ ...prev, foto_barang: file }))
     }
   }
@@ -409,18 +418,38 @@ export default function FinishPO() {
                     id="foto-upload"
                     required
                   />
-                  <label
-                    htmlFor="foto-upload"
-                    className="cursor-pointer flex flex-col items-center space-y-2"
-                  >
-                    <Camera className="text-gray-400" size={32} />
-                    <span className="text-sm text-gray-600">
-                      {formData.foto_barang ? formData.foto_barang.name : 'Klik untuk upload foto'}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      Format: JPG, PNG (Max 5MB)
-                    </span>
-                  </label>
+                  {previewUrl ? (
+                    <div className="space-y-2">
+                      <img 
+                        src={previewUrl} 
+                        alt="Preview" 
+                        className="w-32 h-32 object-cover rounded-lg mx-auto"
+                      />
+                      <p className="text-sm text-center text-gray-600">{formData.foto_barang?.name}</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (previewUrl) URL.revokeObjectURL(previewUrl)
+                          setPreviewUrl(null)
+                          setFormData(prev => ({ ...prev, foto_barang: null }))
+                        }}
+                        className="text-red-600 text-sm hover:underline block mx-auto"
+                      >
+                        Hapus foto
+                      </button>
+                    </div>
+                  ) : (
+                    <label
+                      htmlFor="foto-upload"
+                      className="cursor-pointer flex flex-col items-center space-y-2"
+                    >
+                      <Camera className="text-gray-400" size={32} />
+                      <span className="text-sm text-gray-600">Klik untuk upload foto</span>
+                      <span className="text-xs text-gray-500">
+                        Format: JPG, PNG (Max 5MB)
+                      </span>
+                    </label>
+                  )}
                 </div>
               </div>
             </div>
