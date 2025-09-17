@@ -407,6 +407,7 @@ export default function FinishPO() {
                     onChange={handleFileChange}
                     className="hidden"
                     id="foto-upload"
+                    required
                   />
                   <label
                     htmlFor="foto-upload"
