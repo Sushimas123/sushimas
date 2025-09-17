@@ -37,9 +37,9 @@ export default function DashboardOverview() {
       // Fetch total stock from gudang
       const { data: stockData } = await supabase
         .from('gudang')
-        .select('qty')
+        .select('total_gudang')
       
-      const totalStock = stockData?.reduce((sum, item) => sum + (item.qty || 0), 0) || 0
+      const totalStock = stockData?.reduce((sum, item) => sum + (item.total_gudang || 0), 0) || 0
 
       // Fetch active POs
       const { data: poData } = await supabase
@@ -53,16 +53,16 @@ export default function DashboardOverview() {
       // Fetch production data
       const { data: productionData } = await supabase
         .from('produksi')
-        .select('status')
+        .select('jumlah_buat')
       
       const productionItems = productionData?.length || 0
-      const productionInProgress = productionData?.filter(p => p.status === 'in_progress').length || 0
+      const productionInProgress = productionData?.filter(p => p.jumlah_buat > 0).length || 0
 
       // Fetch stock alerts (simplified)
       const { data: alertData } = await supabase
         .from('gudang')
-        .select('qty')
-        .lt('qty', 10) // Items with less than 10 qty
+        .select('total_gudang')
+        .lt('total_gudang', 10) // Items with less than 10 qty
       
       const stockAlerts = alertData?.length || 0
 
