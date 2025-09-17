@@ -156,7 +156,7 @@ function DashboardContent() {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
             <Package className="mr-2 text-gray-600" size={20} />
-            Aksi Cepat
+            Quick Actions
           </h3>
           <div className="grid grid-cols-2 gap-3">
             {[
