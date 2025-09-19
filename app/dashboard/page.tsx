@@ -161,8 +161,8 @@ function DashboardContent() {
           <div className="grid grid-cols-2 gap-3">
             {[
               { name: 'Buat PO Baru', href: '/purchaseorder/create', color: 'bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-800 hover:bg-white/90' },
-              { name: 'Input Produksi', href: '/produksi', color: 'bg-white/70 backdrop-blur-sm border border-gray-200 text-gray-800 hover:bg-white/80' },
-              { name: 'Cek Stock Alert', href: '/purchaseorder/stock-alert', color: 'bg-white/60 backdrop-blur-sm border border-gray-200 text-gray-800 hover:bg-white/70' },
+              { name: 'Barang Keluar FIFO', href: '/inventory/stock_out', color: 'bg-white/70 backdrop-blur-sm border border-gray-200 text-gray-800 hover:bg-white/80' },
+              { name: 'Stock Batch FIFO', href: '/inventory/stock_batch', color: 'bg-white/60 backdrop-blur-sm border border-gray-200 text-gray-800 hover:bg-white/70' },
               { name: 'Lihat Gudang', href: '/gudang', color: 'bg-white/90 backdrop-blur-sm border border-gray-200 text-gray-800 hover:bg-white' }
             ].map((action, index) => (
               <a
