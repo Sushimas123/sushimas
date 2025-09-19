@@ -26,6 +26,7 @@ interface Branch {
   pic_nama: string;
   pic_no_telp: string | null;
   pic_email: string;
+  badan: string
 }
 
 interface User {
@@ -55,7 +56,8 @@ function BranchesPageContent() {
     jam_tutup: '17:00',
     hari_operasional: 'Senin-Jumat',
     pic_id: 0,
-    tanggal_berdiri: ''
+    tanggal_berdiri: '',
+    badan: ''
   });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [importLoading, setImportLoading] = useState(false);
@@ -212,7 +214,8 @@ function BranchesPageContent() {
         jam_tutup: '17:00',
         hari_operasional: 'Senin-Jumat',
         pic_id: 0,
-        tanggal_berdiri: ''
+        tanggal_berdiri: '',
+        badan: ''
       });
       setPicSearch('');
       setShowAddForm(false);
@@ -282,7 +285,8 @@ function BranchesPageContent() {
       jam_tutup: branch.jam_tutup,
       hari_operasional: branch.hari_operasional,
       pic_id: branch.pic_id,
-      tanggal_berdiri: (branch as any).tanggal_berdiri || ''
+      tanggal_berdiri: (branch as any).tanggal_berdiri || '',
+      badan: branch.badan
     });
     setPicSearch(branch.pic_nama);
     setEditingId(branch.id_branch);
@@ -303,7 +307,8 @@ function BranchesPageContent() {
       jam_buka: branch.jam_buka,
       jam_tutup: branch.jam_tutup,
       hari_operasional: branch.hari_operasional,
-      pic_id: branch.pic_id
+      pic_id: branch.pic_id,
+      badan: branch.badan
     })));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Branches");
@@ -331,6 +336,7 @@ function BranchesPageContent() {
         jam_tutup: row.jam_tutup?.toString().trim() || '',
         hari_operasional: row.hari_operasional?.toString().trim() || '',
         pic_id: parseInt(row.pic_id) || 0,
+        badan: row.badan?.toString().trim() ||'',
         is_active: true
       })).filter((item: any) => item.nama_branch);
 
@@ -556,7 +562,8 @@ function BranchesPageContent() {
                   jam_tutup: '17:00',
                   hari_operasional: 'Senin-Jumat',
                   pic_id: 0,
-                  tanggal_berdiri: ''
+                  tanggal_berdiri: '',
+                  badan: '',
                 });
                 setPicSearch('');
               }}
@@ -713,6 +720,17 @@ function BranchesPageContent() {
                   className="border px-3 py-2 rounded-md text-sm w-full"
                 />
               </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Badan</label>
+                <input
+                  type="text"
+                  name="badan"
+                  value={formData.badan}
+                  onChange={handleInputChange}
+                  className="border px-3 py-2 rounded-md text-sm w-full"
+                  placeholder="Badan (PT, CV, dll)"
+                />
+              </div>
             </div>
             <div className="flex gap-2 pt-2">
               <button
@@ -738,7 +756,8 @@ function BranchesPageContent() {
                     jam_tutup: '17:00',
                     hari_operasional: 'Senin-Jumat',
                     pic_id: 0,
-                    tanggal_berdiri: ''
+                    tanggal_berdiri: '',
+                    badan: '',
                   });
                   setPicSearch('');
                 }}
@@ -790,6 +809,10 @@ function BranchesPageContent() {
                           {formatTime(branch.jam_buka)} - {formatTime(branch.jam_tutup)}
                         </div>
                         <div className="text-sm text-gray-500">{branch.hari_operasional}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">Badan</div>
+                        <div className="text-sm">{branch.badan || '-'}</div>
                       </div>
                       <div>
                         <div className="text-xs text-gray-500">PIC</div>
@@ -847,6 +870,7 @@ function BranchesPageContent() {
               <tr>
                 <th className="px-4 py-2 text-left font-medium text-gray-700">Kode</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-700">Nama Branch</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">Badan</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-700">Lokasi</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-700">Jam Operasional</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-700">PIC</th>
@@ -856,7 +880,7 @@ function BranchesPageContent() {
             <tbody className="divide-y divide-gray-200">
               {filteredBranches.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-4 text-center text-gray-500 text-sm">
+                  <td colSpan={7} className="px-4 py-4 text-center text-gray-500 text-sm">
                     {searchTerm ? 'Tidak ada branch yang sesuai dengan pencarian' : 'Belum ada data branch'}
                   </td>
                 </tr>
@@ -869,6 +893,9 @@ function BranchesPageContent() {
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-900">{branch.nama_branch}</div>
                       <div className="text-gray-500 text-xs mt-1">{branch.alamat}</div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="text-gray-900">{branch.badan || '-'}</div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="text-gray-900">{branch.kota}</div>

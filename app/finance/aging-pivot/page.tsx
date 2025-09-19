@@ -19,6 +19,7 @@ export default function AgingPivotReport() {
   const [dueDates, setDueDates] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedBranches, setExpandedBranches] = useState<{[key: string]: boolean}>({})
+  const [dateFilter, setDateFilter] = useState({ from: '', to: '' })
 
   useEffect(() => {
     fetchAgingPivotData()
@@ -83,12 +84,25 @@ export default function AgingPivotReport() {
         pivotItem.total += outstanding
       }
 
-      // Sort due dates (only overdue dates)
-      const sortedDueDates = Array.from(dueDateSet).sort((a, b) => {
+      // Sort and filter due dates
+      let sortedDueDates = Array.from(dueDateSet).sort((a, b) => {
         const dateA = new Date(a.split('/').reverse().join('-'))
         const dateB = new Date(b.split('/').reverse().join('-'))
         return dateA.getTime() - dateB.getTime()
       })
+      
+      // Apply date filter if set
+      if (dateFilter.from || dateFilter.to) {
+        sortedDueDates = sortedDueDates.filter(dateStr => {
+          const date = new Date(dateStr.split('/').reverse().join('-'))
+          const fromDate = dateFilter.from ? new Date(dateFilter.from) : null
+          const toDate = dateFilter.to ? new Date(dateFilter.to) : null
+          
+          if (fromDate && date < fromDate) return false
+          if (toDate && date > toDate) return false
+          return true
+        })
+      }
       
       setDueDates(sortedDueDates)
       setData(Array.from(pivotMap.values()))
@@ -191,18 +205,65 @@ export default function AgingPivotReport() {
     <Layout>
       <PageAccessControl pageName="aging-report">
         <div className="p-6">
-          <div className="mb-6 flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Aging Pivot Report</h1>
-              <p className="text-gray-600">Laporan aging berdasarkan tanggal jatuh tempo</p>
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Aging Pivot Report</h1>
+                <p className="text-gray-600">Laporan aging berdasarkan tanggal jatuh tempo</p>
+              </div>
+              <button
+                onClick={exportToExcel}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+              >
+                <Download size={16} />
+                Export Excel
+              </button>
             </div>
-            <button
-              onClick={exportToExcel}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
-            >
-              <Download size={16} />
-              Export Excel
-            </button>
+            
+            {/* Date Filter */}
+            <div className="bg-white p-4 rounded-lg shadow border mb-4">
+              <div className="flex items-center gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
+                  <input
+                    type="date"
+                    value={dateFilter.from}
+                    onChange={(e) => setDateFilter({...dateFilter, from: e.target.value})}
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
+                  <input
+                    type="date"
+                    value={dateFilter.to}
+                    onChange={(e) => setDateFilter({...dateFilter, to: e.target.value})}
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex items-end gap-2">
+                  <button
+                    onClick={() => {
+                      setLoading(true)
+                      fetchAgingPivotData()
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Filter
+                  </button>
+                  <button
+                    onClick={() => {
+                      setDateFilter({ from: '', to: '' })
+                      setLoading(true)
+                      fetchAgingPivotData()
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="bg-white rounded-lg shadow border overflow-hidden">
