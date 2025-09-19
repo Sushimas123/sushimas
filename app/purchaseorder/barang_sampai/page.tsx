@@ -271,36 +271,79 @@ export default function FinishPO() {
               .eq('id_product', poItem.product_id)
               .single()
 
-            // Check if actual price differs from master price
+            // Update po_items with actual received price (don't update master price)
+            const { error: poItemUpdateError } = await supabase
+              .from('po_items')
+              .update({ 
+                actual_price: receivedData.harga,
+                received_qty: receivedData.qty
+              })
+              .eq('id', parseInt(itemId))
+            
+            if (poItemUpdateError) {
+              console.error(`Error updating PO item ${itemId}:`, poItemUpdateError)
+            }
+            
+            // Record price difference in po_price_history if there's a difference
+            const originalPrice = poItem.harga || 0
+            if (Math.abs(receivedData.harga - originalPrice) > 0.01) {
+              const { error: historyError } = await supabase
+                .from('po_price_history')
+                .insert({
+                  po_id: poData.id,
+                  po_number: poData.po_number,
+                  product_id: poItem.product_id,
+                  po_price: originalPrice,
+                  actual_price: receivedData.harga,
+                  price_difference: receivedData.harga - originalPrice,
+                  percentage_difference: originalPrice > 0 ? ((receivedData.harga - originalPrice) / originalPrice) * 100 : 0,
+                  master_price_at_time: productDetails?.harga || 0,
+                  received_date: formData.tanggal_barang_sampai,
+                  invoice_number: formData.invoice_number,
+                  notes: `Price difference recorded for ${poItem.product_name}`,
+                  created_by: user.id_user || null
+                })
+              
+              if (historyError) {
+                console.error(`Error saving PO price history for ${poItem.product_name}:`, historyError)
+              }
+            }
+            
+            // Only update master price if this is significantly different and user confirms
             const currentPrice = productDetails?.harga || 0
             const actualPrice = receivedData.harga
             
-            if (Math.abs(actualPrice - currentPrice) > 0.01) { // Allow small rounding differences
-              // Update master price - this will trigger the price_history via database trigger
-              const { error: priceUpdateError } = await supabase
-                .from('nama_product')
-                .update({ harga: actualPrice })
-                .eq('id_product', poItem.product_id)
+            const threshold = currentPrice > 0 ? currentPrice * 0.1 : 1000 // 10% or Rp 1000 if price is 0
+            if (Math.abs(actualPrice - currentPrice) > threshold) {
+              const shouldUpdateMaster = confirm(
+                `Harga aktual ${poItem.product_name} (${new Intl.NumberFormat('id-ID', {style: 'currency', currency: 'IDR'}).format(actualPrice)}) berbeda signifikan dari harga master (${new Intl.NumberFormat('id-ID', {style: 'currency', currency: 'IDR'}).format(currentPrice)}).\n\nApakah ingin mengupdate harga master? Ini akan mempengaruhi PO lain yang belum selesai.`
+              )
               
-              if (priceUpdateError) {
-                console.error(`Error updating price for product ${poItem.product_id}:`, priceUpdateError)
-              } else {
-                // Manually add PO context to price history since trigger doesn't have PO info
-                const { error: historyError } = await supabase
-                  .from('price_history')
-                  .update({ 
-                    po_number: poData.po_number,
-                    change_reason: 'po_completion',
-                    created_by: user.id_user || null,
-                    notes: `Price updated from PO completion. Invoice: ${formData.invoice_number}`
-                  })
-                  .eq('product_id', poItem.product_id)
-                  .eq('new_price', actualPrice)
-                  .order('change_date', { ascending: false })
-                  .limit(1)
+              if (shouldUpdateMaster) {
+                const { error: priceUpdateError } = await supabase
+                  .from('nama_product')
+                  .update({ harga: actualPrice })
+                  .eq('id_product', poItem.product_id)
                 
-                if (historyError) {
-                  console.warn(`Could not update price history context:`, historyError)
+                if (!priceUpdateError) {
+                  // Add to price history
+                  const { error: priceHistoryError } = await supabase
+                    .from('price_history')
+                    .insert({
+                      product_id: poItem.product_id,
+                      old_price: currentPrice,
+                      new_price: actualPrice,
+                      price_change: actualPrice - currentPrice,
+                      change_percentage: currentPrice > 0 ? ((actualPrice - currentPrice) / currentPrice) * 100 : 0,
+                      change_reason: 'po_completion',
+                      po_number: poData.po_number,
+                      notes: `Price updated from PO completion. Invoice: ${formData.invoice_number}`,
+                      created_by: user.id_user || null
+                    })
+                  
+                  if (priceHistoryError) {
+                    console.error(`Error saving price history for ${poItem.product_name}:`, priceHistoryError)
+                  }
                 }
               }
             }
@@ -317,6 +360,7 @@ export default function FinishPO() {
                 satuan_kecil: productDetails?.unit_kecil || null,
                 satuan_besar: productDetails?.unit_besar || null,
                 harga: receivedData.harga,
+                harga_po: poItem.harga, // Store original PO price
                 id_supplier: poData.supplier_id,
                 id_branch: poData.cabang_id,
                 no_po: poData.po_number,

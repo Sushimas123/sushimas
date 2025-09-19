@@ -43,7 +43,40 @@ export default function FinancePurchaseOrders() {
         .order('po_date', { ascending: false })
 
       if (error) throw error
-      setData(financeData || [])
+      
+      // Recalculate totals in frontend
+      const correctedData = await Promise.all(
+        (financeData || []).map(async (item: any) => {
+          // Get actual items data
+          const { data: items } = await supabase
+            .from('po_items')
+            .select('qty, actual_price, received_qty, product_id')
+            .eq('po_id', item.id)
+
+          let correctedTotal = 0
+          for (const poItem of items || []) {
+            if (poItem.actual_price && poItem.received_qty) {
+              correctedTotal += poItem.received_qty * poItem.actual_price
+            } else {
+              const { data: product } = await supabase
+                .from('nama_product')
+                .select('harga')
+                .eq('id_product', poItem.product_id)
+                .single()
+              correctedTotal += poItem.qty * (product?.harga || 0)
+            }
+          }
+
+          return {
+            ...item,
+            total_po: correctedTotal,
+            sisa_bayar: correctedTotal - item.total_paid,
+            status_payment: item.total_paid === 0 ? 'unpaid' : item.total_paid >= correctedTotal ? 'paid' : 'partial'
+          }
+        })
+      )
+      
+      setData(correctedData)
     } catch (error) {
       console.error('Error fetching finance data:', error)
     } finally {
@@ -185,29 +218,75 @@ export default function FinancePurchaseOrders() {
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">PO Info</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rekening</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">PO Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total PO</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dibayar</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sisa</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Termin</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jatuh Tempo</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Barang Sampai</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredData.map((item) => (
-                    <tr key={item.id} className={`hover:bg-gray-50 ${item.is_overdue ? 'bg-red-50' : ''}`}>
+                  {filteredData.map((item) => {
+                    const rowClass = `hover:bg-gray-50 ${item.is_overdue ? 'bg-red-50' : ''}`
+                    return (
+                    <tr key={item.id} className={rowClass}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
-                          <div className="text-sm font-medium text-gray-900">{item.po_number}</div>
+                          <a 
+                            href={`/purchaseorder/received-preview?id=${item.id}`}
+                            className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {item.po_number}
+                          </a>
                           <div className="text-sm text-gray-500">{new Date(item.po_date).toLocaleDateString('id-ID')}</div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {item.nama_supplier}
+                        <div>{item.nama_supplier}</div>
+                        {(item as any).nama_penerima && (
+                          <div className="text-xs text-gray-500">{(item as any).nama_penerima}</div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {(item as any).nomor_rekening ? (
+                          <div>
+                            <div className="font-medium">{(item as any).bank_penerima}</div>
+                            <div className="text-xs text-gray-500">{(item as any).nomor_rekening}</div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {item.nama_branch}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          (item as any).priority === 'tinggi' ? 'bg-red-100 text-red-800' :
+                          (item as any).priority === 'sedang' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-green-100 text-green-800'
+                        }`}>
+                          {(item as any).priority || 'biasa'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          (item as any).po_status === 'Barang sampai' ? 'bg-green-100 text-green-800' :
+                          (item as any).po_status === 'Sedang diproses' ? 'bg-blue-100 text-blue-800' :
+                          (item as any).po_status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {(item as any).po_status}
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {formatCurrency(item.total_po)}
@@ -229,6 +308,9 @@ export default function FinancePurchaseOrders() {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {(item as any).termin_days || 30} hari
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div>{new Date(item.tanggal_jatuh_tempo).toLocaleDateString('id-ID')}</div>
                         {item.last_payment_date && (
                           <div className="text-xs text-gray-500">
@@ -236,22 +318,40 @@ export default function FinancePurchaseOrders() {
                           </div>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        {item.sisa_bayar > 0 && (
-                          <button
-                            onClick={() => {
-                              setSelectedPO(item)
-                              setShowPaymentModal(true)
-                            }}
-                            className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                          >
-                            <Plus className="h-3 w-3 mr-1" />
-                            Bayar
-                          </button>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {(item as any).tanggal_barang_sampai ? (
+                          <div>{new Date((item as any).tanggal_barang_sampai).toLocaleDateString('id-ID')}</div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
                         )}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <div className="flex gap-1 justify-center">
+                          {item.sisa_bayar > 0 && (
+                            <button
+                              onClick={() => {
+                                setSelectedPO(item)
+                                setShowPaymentModal(true)
+                              }}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              Bayar
+                            </button>
+                          )}
+                          {item.total_paid > 0 && (
+                            <a
+                              href={`/finance/payment-detail?po_id=${item.id}`}
+                              className="inline-flex items-center px-3 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            >
+                              Detail
+                            </a>
+                          )}
+                        </div>
+                      </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

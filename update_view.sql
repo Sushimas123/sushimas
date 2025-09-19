@@ -1,4 +1,4 @@
--- Create finance_dashboard_view
+-- Update finance_dashboard_view to use received_qty and actual_price
 CREATE OR REPLACE VIEW finance_dashboard_view AS
 SELECT 
     po.id,
@@ -19,20 +19,22 @@ SELECT
     po.bukti_foto,
     po.tanggal_barang_sampai,
     
-    -- Total PO (use received_qty and actual_price if available, otherwise use original qty and master price)
+    -- Total PO (use actual_price and received_qty if available, otherwise original values)
     COALESCE(SUM(
-        COALESCE(pi.received_qty, pi.qty) * CASE 
-            WHEN pi.actual_price IS NOT NULL AND pi.actual_price > 0 THEN pi.actual_price 
-            ELSE np.harga 
+        CASE 
+            WHEN pi.actual_price IS NOT NULL AND pi.actual_price > 0 AND pi.received_qty IS NOT NULL 
+            THEN pi.received_qty * pi.actual_price
+            ELSE pi.qty * np.harga 
         END
     ), 0) as total_po,
     
     -- Payment info
     COALESCE(SUM(pp.payment_amount), 0) as total_paid,
     COALESCE(SUM(
-        COALESCE(pi.received_qty, pi.qty) * CASE 
-            WHEN pi.actual_price IS NOT NULL AND pi.actual_price > 0 THEN pi.actual_price 
-            ELSE np.harga 
+        CASE 
+            WHEN pi.actual_price IS NOT NULL AND pi.actual_price > 0 AND pi.received_qty IS NOT NULL 
+            THEN pi.received_qty * pi.actual_price
+            ELSE pi.qty * np.harga 
         END
     ), 0) - COALESCE(SUM(pp.payment_amount), 0) as sisa_bayar,
     
@@ -40,9 +42,10 @@ SELECT
     CASE 
         WHEN COALESCE(SUM(pp.payment_amount), 0) = 0 THEN 'unpaid'
         WHEN COALESCE(SUM(pp.payment_amount), 0) >= COALESCE(SUM(
-            COALESCE(pi.received_qty, pi.qty) * CASE 
-                WHEN pi.actual_price IS NOT NULL AND pi.actual_price > 0 THEN pi.actual_price 
-                ELSE np.harga 
+            CASE 
+                WHEN pi.actual_price IS NOT NULL AND pi.actual_price > 0 AND pi.received_qty IS NOT NULL 
+                THEN pi.received_qty * pi.actual_price
+                ELSE pi.qty * np.harga 
             END
         ), 0) THEN 'paid'
         ELSE 'partial'
@@ -52,9 +55,10 @@ SELECT
     CASE 
         WHEN po.po_date + INTERVAL '1 day' * po.termin_days < CURRENT_DATE 
         AND COALESCE(SUM(pp.payment_amount), 0) < COALESCE(SUM(
-            COALESCE(pi.received_qty, pi.qty) * CASE 
-                WHEN pi.actual_price IS NOT NULL AND pi.actual_price > 0 THEN pi.actual_price 
-                ELSE np.harga 
+            CASE 
+                WHEN pi.actual_price IS NOT NULL AND pi.actual_price > 0 AND pi.received_qty IS NOT NULL 
+                THEN pi.received_qty * pi.actual_price
+                ELSE pi.qty * np.harga 
             END
         ), 0) 
         THEN true 

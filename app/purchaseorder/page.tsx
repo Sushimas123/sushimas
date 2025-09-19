@@ -55,8 +55,7 @@ function PurchaseOrderPageContent() {
   const [totalCount, setTotalCount] = useState(0)
   const [userRole, setUserRole] = useState('')
   const [allowedBranches, setAllowedBranches] = useState<string[]>([])
-  const [showPhotoModal, setShowPhotoModal] = useState(false)
-  const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string | null>(null)
+
   const itemsPerPage = 10
 
   useEffect(() => {
@@ -260,10 +259,10 @@ function PurchaseOrderPageContent() {
             .eq('id_branch', po.cabang_id)
             .single()
 
-          // Get PO items
+          // Get PO items with actual prices
           const { data: items } = await supabase
             .from('po_items')
-            .select('qty, product_id')
+            .select('qty, product_id, actual_price, received_qty')
             .eq('po_id', po.id)
 
           // Get product names and calculate total price
@@ -276,12 +275,17 @@ function PurchaseOrderPageContent() {
                 .eq('id_product', item.product_id)
                 .single()
 
-              const itemTotal = (product?.harga || 0) * item.qty
+              // Use actual price if available, otherwise use master price
+              const priceToUse = item.actual_price || product?.harga || 0
+              // Use received quantity if available, otherwise use original quantity
+              const qtyToUse = item.received_qty || item.qty
+              
+              const itemTotal = priceToUse * qtyToUse
               totalHarga += itemTotal
 
               return {
                 product_name: product?.product_name || 'Unknown Product',
-                qty: item.qty
+                qty: item.received_qty || item.qty
               }
             })
           )
@@ -353,7 +357,18 @@ function PurchaseOrderPageContent() {
     }
 
     try {
-      // First delete related price history records
+      // First delete related po_price_history records
+      const { error: poPriceHistoryError } = await supabase
+        .from('po_price_history')
+        .delete()
+        .eq('po_number', poNumber)
+
+      if (poPriceHistoryError) {
+        console.error('Error deleting PO price history:', poPriceHistoryError)
+        throw poPriceHistoryError
+      }
+
+      // Then delete related price history records
       const { error: priceHistoryError } = await supabase
         .from('price_history')
         .delete()
@@ -468,29 +483,7 @@ function PurchaseOrderPageContent() {
     window.location.href = '/purchaseorder/stock-alert'
   }
 
-  const handleViewPhoto = async (poNumber: string) => {
-    try {
-      const { data: files } = await supabase.storage
-        .from('po-photos')
-        .list('', {
-          search: poNumber
-        })
-      
-      if (files && files.length > 0) {
-        const { data } = supabase.storage
-          .from('po-photos')
-          .getPublicUrl(files[0].name)
-        
-        setSelectedPhotoUrl(data.publicUrl)
-        setShowPhotoModal(true)
-      } else {
-        alert('Foto tidak ditemukan untuk PO ini')
-      }
-    } catch (error) {
-      console.error('Error fetching photo:', error)
-      alert('Gagal memuat foto')
-    }
-  }
+
 
   const handleExport = async () => {
     try {
@@ -534,10 +527,10 @@ function PurchaseOrderPageContent() {
             .eq('id_branch', po.cabang_id)
             .single()
 
-          // Get PO items
+          // Get PO items with actual prices
           const { data: items } = await supabase
             .from('po_items')
-            .select('qty, product_id')
+            .select('qty, product_id, actual_price, received_qty')
             .eq('po_id', po.id)
 
           // Get product names and calculate total
@@ -552,11 +545,16 @@ function PurchaseOrderPageContent() {
               .eq('id_product', item.product_id)
               .single()
 
-            const itemTotal = (product?.harga || 0) * item.qty
+            // Use actual price if available, otherwise use master price
+            const priceToUse = item.actual_price || product?.harga || 0
+            // Use received quantity if available, otherwise use original quantity
+            const qtyToUse = item.received_qty || item.qty
+            
+            const itemTotal = priceToUse * qtyToUse
             totalHarga += itemTotal
             
             itemNames.push(product?.product_name || 'Unknown')
-            quantities.push(item.qty)
+            quantities.push(item.received_qty || item.qty)
           }
 
           return {
@@ -994,13 +992,23 @@ function PurchaseOrderPageContent() {
                           </td>
                           <td className="px-2 py-2 text-center">
                             <div className="flex items-center justify-center gap-1">
-                              <a 
-                                href={`/purchaseorder/on_progress?id=${po.id}`}
-                                className="text-blue-600 hover:text-blue-800 p-1 rounded" 
-                                title="Preview PO"
-                              >
-                                <Check size={14} />
-                              </a>
+                              {po.status === 'Barang sampai' || po.status === 'Sampai Sebagian' ? (
+                                <a 
+                                  href={`/purchaseorder/received-preview?id=${po.id}`}
+                                  className="text-green-600 hover:text-green-800 p-1 rounded" 
+                                  title="Preview Barang Diterima"
+                                >
+                                  <Eye size={14} />
+                                </a>
+                              ) : (
+                                <a 
+                                  href={`/purchaseorder/on_progress?id=${po.id}`}
+                                  className="text-blue-600 hover:text-blue-800 p-1 rounded" 
+                                  title="Preview PO"
+                                >
+                                  <Check size={14} />
+                                </a>
+                              )}
                               {po.status === 'Sedang diproses' && (
                                 <a 
                                   href={`/purchaseorder/barang_sampai?id=${po.id}`}
@@ -1010,15 +1018,7 @@ function PurchaseOrderPageContent() {
                                   <Package size={14} />
                                 </a>
                               )}
-                              {po.status === 'Barang sampai' && (
-                                <button
-                                  onClick={() => handleViewPhoto(po.po_number)}
-                                  className="text-green-600 hover:text-green-800 p-1 rounded"
-                                  title="Lihat Foto Invoice"
-                                >
-                                  <Image size={14} />
-                                </button>
-                              )}
+
                               {po.status !== 'Dibatalkan' ? (
                                 <a 
                                   href={`/purchaseorder/edit?id=${po.id}`}
@@ -1126,13 +1126,23 @@ function PurchaseOrderPageContent() {
                           </div>
                           
                           <div className="flex justify-center gap-4 pt-2">
-                            <a 
-                              href={`/purchaseorder/on_progress?id=${po.id}`}
-                              className="text-blue-600 hover:text-blue-800 p-1 rounded" 
-                              title="Preview PO"
-                            >
-                              <Check size={20} />
-                            </a>
+                            {po.status === 'Barang sampai' || po.status === 'Sampai Sebagian' ? (
+                              <a 
+                                href={`/purchaseorder/received-preview?id=${po.id}`}
+                                className="text-green-600 hover:text-green-800 p-1 rounded" 
+                                title="Preview Barang Diterima"
+                              >
+                                <Eye size={20} />
+                              </a>
+                            ) : (
+                              <a 
+                                href={`/purchaseorder/on_progress?id=${po.id}`}
+                                className="text-blue-600 hover:text-blue-800 p-1 rounded" 
+                                title="Preview PO"
+                              >
+                                <Check size={20} />
+                              </a>
+                            )}
                             {po.status === 'Sedang diproses' && (
                               <a 
                                 href={`/purchaseorder/barang_sampai?id=${po.id}`}
@@ -1142,15 +1152,7 @@ function PurchaseOrderPageContent() {
                                 <Package size={20} />
                               </a>
                             )}
-                            {po.status === 'Barang sampai' && (
-                              <button
-                                onClick={() => handleViewPhoto(po.po_number)}
-                                className="text-green-600 hover:text-green-800 p-1 rounded"
-                                title="Lihat Foto Invoice"
-                              >
-                                <Image size={20} />
-                              </button>
-                            )}
+
                             {po.status !== 'Dibatalkan' ? (
                               <a 
                                 href={`/purchaseorder/edit?id=${po.id}`}
@@ -1255,37 +1257,7 @@ function PurchaseOrderPageContent() {
             )}
           </div>
 
-          {/* Photo Modal */}
-          {showPhotoModal && selectedPhotoUrl && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg max-w-2xl max-h-[90vh] overflow-auto">
-                <div className="p-4 border-b flex justify-between items-center">
-                  <h3 className="text-lg font-medium">Foto Invoice</h3>
-                  <button
-                    onClick={() => {
-                      setShowPhotoModal(false)
-                      setSelectedPhotoUrl(null)
-                    }}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <div className="p-4">
-                  <img 
-                    src={selectedPhotoUrl} 
-                    alt="Invoice" 
-                    className="w-full h-auto rounded-lg"
-                    onError={() => {
-                      alert('Gagal memuat foto')
-                      setShowPhotoModal(false)
-                      setSelectedPhotoUrl(null)
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
+
 
     </div>
   )

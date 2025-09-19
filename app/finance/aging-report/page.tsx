@@ -30,21 +30,50 @@ export default function AgingReport() {
 
   const fetchAgingData = async () => {
     try {
-      const { data: agingData, error } = await supabase
+      const { data: financeData, error } = await supabase
         .from('finance_dashboard_view')
         .select('*')
-        .gt('sisa_bayar', 0)
+        .neq('status_payment', 'paid')
         .order('days_overdue', { ascending: false })
 
       if (error) throw error
       
-      const processedData = agingData?.map(item => ({
-        ...item,
-        outstanding: item.sisa_bayar,
-        aging_bucket: getAgingBucket(item.days_overdue)
-      })) || []
+      // Recalculate totals and filter only unpaid/partial
+      const correctedData = await Promise.all(
+        (financeData || []).map(async (item: any) => {
+          const { data: items } = await supabase
+            .from('po_items')
+            .select('qty, actual_price, received_qty, product_id')
+            .eq('po_id', item.id)
 
-      setData(processedData)
+          let correctedTotal = 0
+          for (const poItem of items || []) {
+            if (poItem.actual_price && poItem.received_qty) {
+              correctedTotal += poItem.received_qty * poItem.actual_price
+            } else {
+              const { data: product } = await supabase
+                .from('nama_product')
+                .select('harga')
+                .eq('id_product', poItem.product_id)
+                .single()
+              correctedTotal += poItem.qty * (product?.harga || 0)
+            }
+          }
+
+          const sisaBayar = correctedTotal - item.total_paid
+          return {
+            ...item,
+            total_po: correctedTotal,
+            sisa_bayar: sisaBayar,
+            outstanding: sisaBayar,
+            aging_bucket: getAgingBucket(item.days_overdue)
+          }
+        })
+      )
+      
+      // Filter only items with outstanding balance
+      const filteredData = correctedData.filter(item => item.outstanding > 0)
+      setData(filteredData)
     } catch (error) {
       console.error('Error fetching aging data:', error)
     } finally {
