@@ -158,7 +158,7 @@ export default function AgingReport() {
             </div>
             <div className="bg-white p-4 rounded-lg shadow border">
               <div className="text-center">
-                <p className="text-sm text-red-800 font-medium">>90 Hari</p>
+                <p className="text-sm text-red-800 font-medium">&gt;90 Hari</p>
                 <p className="text-lg font-semibold">{formatCurrency(summary.over90)}</p>
                 <p className="text-xs text-gray-500">
                   {totalOutstanding > 0 ? ((summary.over90 / totalOutstanding) * 100).toFixed(1) : 0}%
