@@ -127,6 +127,15 @@ export default function Layout({ children }: LayoutProps) {
       ]
     },
     {
+      id: 'finance',
+      name: 'Finance',
+      icon: CircleDollarSign,
+      submenu: [
+        { name: "Purchase Orders", href: "/finance/purchase-orders", icon: FileText, pageName: 'finance' },
+        { name: "Aging Report", href: "/finance/aging-report", icon: AlertTriangle, pageName: 'aging-report' }
+      ]
+    },
+    {
       id: 'master-data',
       name: 'Master Data',
       icon: Database,

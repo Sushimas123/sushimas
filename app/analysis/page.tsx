@@ -848,9 +848,9 @@ export default function AnalysisPage() {
           </div>
         )}
 
-        <div className="overflow-x-auto bg-white rounded-lg shadow">
+        <div className="overflow-x-auto bg-white rounded-lg shadow max-h-[70vh]">
           <table className="w-full text-xs border border-gray-200">
-            <thead className="bg-gray-100 text-gray-700">
+            <thead className="bg-gray-100 text-gray-700 sticky top-0 z-10">
               <tr>
                 {visibleColumns.ready_no && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready_no')}>Ready No</th>}
                 {visibleColumns.tanggal && <th className="border px-2 py-1 text-center font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tanggal')}>Tanggal</th>}

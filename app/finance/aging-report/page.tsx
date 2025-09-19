@@ -112,7 +112,7 @@ export default function AgingReport() {
 
   return (
     <Layout>
-      <PageAccessControl allowedRoles={['super admin', 'admin', 'finance']}>
+      <PageAccessControl pageName="aging-report">
         <div className="p-6">
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-900">Aging Report</h1>

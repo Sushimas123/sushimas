@@ -1,27 +1,4 @@
--- Finance Setup SQL
--- Tabel dan View untuk Finance Management
-
--- 1. Tabel untuk tracking pembayaran PO
-CREATE TABLE IF NOT EXISTS public.po_payments (
-    id serial PRIMARY KEY,
-    po_id integer NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
-    payment_date date NOT NULL,
-    payment_amount numeric(15,2) NOT NULL,
-    payment_method varchar(50), -- 'transfer', 'cash', 'check', 'credit'
-    payment_via varchar(100), -- 'BCA', 'Mandiri', 'Cash', etc
-    reference_number varchar(100), -- No transfer/check
-    notes text,
-    status varchar(50) DEFAULT 'completed', -- 'pending', 'completed', 'failed'
-    created_at timestamp DEFAULT now(),
-    created_by integer REFERENCES users(id_user)
-);
-
--- Index untuk performa
-CREATE INDEX IF NOT EXISTS idx_po_payments_po_id ON public.po_payments(po_id);
-CREATE INDEX IF NOT EXISTS idx_po_payments_date ON public.po_payments(payment_date);
-CREATE INDEX IF NOT EXISTS idx_po_payments_status ON public.po_payments(status);
-
--- 2. View untuk Finance Dashboard
+-- Create finance_dashboard_view
 CREATE OR REPLACE VIEW finance_dashboard_view AS
 SELECT 
     po.id,
@@ -85,22 +62,3 @@ GROUP BY
     s.nama_penerima, po.termin_days, po.status, po.priority, 
     po.invoice_number, po.bukti_foto, po.tanggal_barang_sampai, po.created_at
 ORDER BY po.po_date DESC;
-
--- 3. Trigger untuk update updated_at pada po_payments
-CREATE OR REPLACE FUNCTION update_po_payments_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
--- Tambah kolom updated_at jika belum ada
-ALTER TABLE po_payments ADD COLUMN IF NOT EXISTS updated_at timestamp DEFAULT now();
-
--- Create trigger
-DROP TRIGGER IF EXISTS update_po_payments_updated_at ON po_payments;
-CREATE TRIGGER update_po_payments_updated_at
-    BEFORE UPDATE ON po_payments
-    FOR EACH ROW
-    EXECUTE FUNCTION update_po_payments_updated_at();
