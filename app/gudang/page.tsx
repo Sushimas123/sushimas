@@ -824,49 +824,68 @@ function GudangPageContent() {
   };
 
   const handleBulkDelete = async () => {
-    if (!confirm(`Delete ${selectedItems.length} selected items?`)) return;
+    // Filter out locked/protected items before deletion
+    const deletableItems = [];
+    const lockedItems = [];
+    
+    for (const id of selectedItems) {
+      const item = gudang.find(g => g.order_no === id);
+      if (!item) continue;
+      
+      if (item.is_locked || 
+          (item as any).source_type === 'stock_opname_batch' || 
+          (item as any).source_type === 'PO' || 
+          ((item as any).source_reference && (item as any).source_reference.startsWith('TRF-'))) {
+        lockedItems.push(id);
+        continue;
+      }
+      
+      // Check if there are locked records after this timestamp
+      const { data: lockedAfter } = await supabase
+        .from('gudang')
+        .select('tanggal')
+        .eq('id_product', item.id_product)
+        .eq('cabang', item.cabang)
+        .gt('tanggal', item.tanggal)
+        .eq('is_locked', true)
+        .limit(1);
+      
+      if (lockedAfter && lockedAfter.length > 0) {
+        lockedItems.push(id);
+        continue;
+      }
+      
+      deletableItems.push(id);
+    }
+    
+    if (deletableItems.length === 0) {
+      alert('❌ No deletable records selected. All selected records are locked or protected.');
+      return;
+    }
+    
+    if (lockedItems.length > 0) {
+      if (!confirm(`${lockedItems.length} locked/protected records will be skipped. Continue deleting ${deletableItems.length} records?`)) {
+        return;
+      }
+    } else {
+      if (!confirm(`Delete ${deletableItems.length} selected items?`)) return;
+    }
     
     try {
       let deletedCount = 0;
-      let skippedCount = 0;
       
-      for (const id of selectedItems) {
-        const { data: gudangData } = await supabase
-          .from('gudang')
-          .select('source_type, source_reference, is_locked, locked_by_so, id_product, cabang, tanggal')
-          .eq('order_no', id)
-          .single();
-        
-        if (!gudangData || gudangData.is_locked || gudangData.source_type === 'stock_opname_batch' || (gudangData.source_reference && gudangData.source_reference.startsWith('TRF-'))) {
-          skippedCount++;
-          continue;
-        }
-
-        // Check if there are locked records after this timestamp
-        const { data: lockedAfter } = await supabase
-          .from('gudang')
-          .select('tanggal')
-          .eq('id_product', gudangData.id_product)
-          .eq('cabang', gudangData.cabang)
-          .gt('tanggal', gudangData.tanggal)
-          .eq('is_locked', true)
-          .limit(1);
-        
-        if (lockedAfter && lockedAfter.length > 0) {
-          skippedCount++;
-          continue;
-        }
-        
+      for (const id of deletableItems) {
         await hardDeleteWithAudit('gudang', { order_no: id });
         deletedCount++;
       }
       
-      setSelectedItems([]);
+      // Remove deleted items from selection, keep locked ones selected for user awareness
+      setSelectedItems(lockedItems);
       setSelectAll(false);
       await fetchGudang();
       
-      if (skippedCount > 0) {
-        showToast(`✅ Deleted ${deletedCount} records, skipped ${skippedCount} locked/protected records`, 'success');
+      if (lockedItems.length > 0) {
+        showToast(`✅ Deleted ${deletedCount} records, ${lockedItems.length} locked/protected records remain selected`, 'success');
       } else {
         showToast(`✅ Deleted ${deletedCount} records successfully`, 'success');
       }

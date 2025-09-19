@@ -159,6 +159,7 @@ export default function TransferBarangPage() {
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{show: boolean, id: number | null}>({show: false, id: null})
+  const [completingTransfer, setCompletingTransfer] = useState<number | null>(null)
 
   useEffect(() => {
     fetchBranches()
@@ -489,6 +490,9 @@ export default function TransferBarangPage() {
   }
 
   const handleComplete = async (transferId: number) => {
+    if (completingTransfer === transferId) return // Prevent double-click
+    
+    setCompletingTransfer(transferId)
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}')
       const transfer = transfers.find(t => t.id === transferId)
@@ -583,6 +587,8 @@ export default function TransferBarangPage() {
     } catch (error: any) {
       console.error('Error completing transfer:', error)
       showToast(`Gagal menyelesaikan transfer: ${error?.message}`, 'error')
+    } finally {
+      setCompletingTransfer(null)
     }
   }
 
@@ -853,10 +859,11 @@ export default function TransferBarangPage() {
                             {transfer.status === 'pending' && (
                               <button
                                 onClick={() => handleComplete(transfer.id)}
-                                className="text-green-600 hover:text-green-900"
-                                title="Selesai"
+                                disabled={completingTransfer === transfer.id}
+                                className={`${completingTransfer === transfer.id ? 'text-gray-400 cursor-not-allowed' : 'text-green-600 hover:text-green-900'}`}
+                                title={completingTransfer === transfer.id ? 'Processing...' : 'Selesai'}
                               >
-                                <RefreshCw className="h-4 w-4" />
+                                <RefreshCw className={`h-4 w-4 ${completingTransfer === transfer.id ? 'animate-spin' : ''}`} />
                               </button>
                             )}
                             <button
@@ -949,10 +956,11 @@ export default function TransferBarangPage() {
                       {transfer.status === 'pending' && (
                         <button
                           onClick={() => handleComplete(transfer.id)}
-                          className="p-2 text-green-600 hover:bg-green-50 rounded"
-                          title="Selesai"
+                          disabled={completingTransfer === transfer.id}
+                          className={`p-2 rounded ${completingTransfer === transfer.id ? 'text-gray-400 cursor-not-allowed' : 'text-green-600 hover:bg-green-50'}`}
+                          title={completingTransfer === transfer.id ? 'Processing...' : 'Selesai'}
                         >
-                          <RefreshCw className="h-4 w-4" />
+                          <RefreshCw className={`h-4 w-4 ${completingTransfer === transfer.id ? 'animate-spin' : ''}`} />
                         </button>
                       )}
                       <button

@@ -10,7 +10,7 @@ const toTitleCase = (str: any) => {
 
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { supabase } from "@/src/lib/supabaseClient"
-import { ArrowUpDown, Edit2, Trash2, Filter, X, Plus, RefreshCw, Menu, ChevronDown, ChevronUp, Search } from "lucide-react"
+import { ArrowUpDown, Edit2, Trash2, Filter, X, Plus, RefreshCw, Menu, ChevronDown, ChevronUp, Search, Package } from "lucide-react"
 import { useRouter } from "next/navigation"
 import * as XLSX from 'xlsx'
 import Layout from '../../components/Layout'
@@ -1054,120 +1054,163 @@ export default function ProductPage() {
 
           {/* Desktop Table */}
           {!isMobile && (
-            <div className="overflow-x-auto bg-white rounded-lg shadow">
-              <table className="w-full text-xs border border-gray-200">
-                <thead className="bg-gray-100 text-gray-700">
-                  <tr>
-                    {[
-                      { key: "id_product", label: "ID" },
-                      { key: "product_name", label: "Product Name" },
-                      { key: "sub_category", label: "Sub Category" },
-                      { key: "unit_kecil", label: "Small Unit" },
-                      { key: "satuan_kecil", label: "Small Unit Type" },
-                      { key: "unit_besar", label: "Large Unit" },
-                      { key: "satuan_besar", label: "Large Unit Type" },
-                      { key: "supplier", label: "Supplier" },
-                      { key: "harga", label: "Harga" },
-                      { key: "category", label: "Category" },
-                      { key: "branches", label: "Branches" }, 
-                      { key: "merk", label:"Merk"}
-                    ].map((col) => (
-                      <th
-                        key={col.key}
-                        className="border px-1 py-1 text-left font-medium cursor-pointer hover:bg-gray-200 min-w-0"
-                        onClick={() => toggleSort(col.key)}
-                      >
-                        <div className="flex items-center gap-1">
-                          {col.label}
-                          <ArrowUpDown size={8} />
-                        </div>
-                      </th>
-                    ))}
-                    <th className="border px-1 py-1 text-left font-medium min-w-0">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    Array.from({ length: pageSize }).map((_, idx) => (
-                      <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                        {Array.from({ length: 11 }).map((_, cellIdx) => (
-                          <td key={cellIdx} className="border px-1 py-1">
-                            <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                          </td>
-                        ))}
-                        <td className="border px-1 py-1 flex gap-1">
-                          <div className="h-6 w-6 bg-gray-200 rounded animate-pulse"></div>
-                          <div className="h-6 w-6 bg-gray-200 rounded animate-pulse"></div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : paginatedData.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
                     <tr>
-                      <td colSpan={12} className="text-center py-2 text-gray-500 text-xs">
-                        No products found. {search || Object.values(filters).some(f => f) ? 'Try changing your search or filters.' : ''}
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedData.map((row, idx) => (
-                      <tr key={row.id_product} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                        <td className="border px-1 py-1 truncate">{row.id_product}</td>
-                        <td className="border px-1 py-1 truncate">{toTitleCase(row.product_name)}</td>
-                        <td className="border px-1 py-1 truncate">{toTitleCase(row.sub_category)}</td>
-                        <td className="border px-1 py-1 truncate">{toTitleCase(row.unit_kecil)}</td>
-                        <td className="border px-1 py-1 truncate">{toTitleCase(row.satuan_kecil)}</td>
-                        <td className="border px-1 py-1 truncate">{toTitleCase(row.unit_besar)}</td>
-                        <td className="border px-1 py-1 truncate">{toTitleCase(row.satuan_besar)}</td>
-                        <td className="border px-1 py-1 truncate">
-                          {row.suppliers ? toTitleCase(row.suppliers.nama_supplier) : 'No Supplier'}
-                        </td>
-                        <td className="border px-1 py-1 truncate">{row.harga}</td>
-                        <td className="border px-1 py-1 text-center">
-                          <span className={`px-1 py-0.5 rounded text-xs font-semibold ${
-                            row.category === 'Menu' ? 'bg-blue-100 text-blue-800' :
-                            row.category === 'WIP' ? 'bg-yellow-100 text-yellow-800' :
-                            row.category === 'Bahan Baku' ? 'bg-green-100 text-green-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {row.category || 'Not Set'}
-                          </span>
-                        </td>
-                        <td className="border px-1 py-1">
-                          <div className="flex flex-wrap gap-1">
-                            {row.product_branches?.filter((pb: any) => pb.branches).map((pb: any) => (
-                              <span key={pb.branches.kode_branch} className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
-                                {pb.branches.nama_branch}
-                              </span>
-                            )) || <span className="text-gray-400 text-xs">No branches</span>}
+                      {[
+                        { key: "id_product", label: "ID", width: "w-16" },
+                        { key: "product_name", label: "Product Name", width: "min-w-48" },
+                        { key: "sub_category", label: "Sub Category", width: "min-w-32" },
+                        { key: "unit_kecil", label: "Small Unit", width: "min-w-24" },
+                        { key: "unit_besar", label: "Large Unit", width: "min-w-24" },
+                        { key: "supplier", label: "Supplier", width: "min-w-40" },
+                        { key: "harga", label: "Price", width: "min-w-24" },
+                        { key: "category", label: "Category", width: "min-w-28" },
+                        { key: "branches", label: "Branches", width: "min-w-40" },
+                        { key: "merk", label: "Brand", width: "min-w-24" }
+                      ].map((col) => (
+                        <th
+                          key={col.key}
+                          className={`px-4 py-3 text-left font-semibold text-gray-700 cursor-pointer hover:bg-gray-200 transition-colors ${col.width}`}
+                          onClick={() => toggleSort(col.key)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>{col.label}</span>
+                            <ArrowUpDown size={14} className="text-gray-400" />
                           </div>
-                        </td>
-                        <td className="border px-1 py-1 truncate">{toTitleCase(row.merk)}</td>
-                        <td className="border px-1 py-1">
-                          <div className="flex gap-1">
-                            {canPerformActionSync(userRole, 'product_name', 'edit') && (
-                              <button 
-                                onClick={() => handleEdit(row)} 
-                                className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                                title="Edit"
-                              >
-                                <Edit2 size={12} />
-                              </button>
-                            )}
-                            {canPerformActionSync(userRole, 'product_name', 'delete') && (
-                              <button 
-                                onClick={() => setDeleteConfirm({show: true, id: row.id_product})} 
-                                className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
-                                title="Delete"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            )}
+                        </th>
+                      ))}
+                      <th className="px-4 py-3 text-center font-semibold text-gray-700 w-24">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {loading ? (
+                      Array.from({ length: pageSize }).map((_, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50">
+                          {Array.from({ length: 11 }).map((_, cellIdx) => (
+                            <td key={cellIdx} className="px-4 py-3">
+                              <div className="h-5 bg-gray-200 rounded animate-pulse"></div>
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    ) : paginatedData.length === 0 ? (
+                      <tr>
+                        <td colSpan={11} className="text-center py-8 text-gray-500">
+                          <div className="flex flex-col items-center gap-2">
+                            <Package size={48} className="text-gray-300" />
+                            <p className="text-lg font-medium">No products found</p>
+                            <p className="text-sm">{search || Object.values(filters).some(f => f) ? 'Try changing your search or filters.' : 'Start by adding your first product.'}</p>
                           </div>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      paginatedData.map((row, idx) => (
+                        <tr key={row.id_product} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3 text-gray-600 font-mono text-sm">
+                            #{row.id_product}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-gray-900">
+                              {toTitleCase(row.product_name)}
+                            </div>
+                            {row.sub_category && (
+                              <div className="text-sm text-gray-500">
+                                {toTitleCase(row.sub_category)}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">
+                            {toTitleCase(row.sub_category)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="text-gray-900">{toTitleCase(row.unit_kecil)}</div>
+                            {row.satuan_kecil && (
+                              <div className="text-xs text-gray-500">{row.satuan_kecil}</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="text-gray-900">{toTitleCase(row.unit_besar)}</div>
+                            {row.satuan_besar && (
+                              <div className="text-xs text-gray-500">{row.satuan_besar}</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">
+                            {row.suppliers ? toTitleCase(row.suppliers.nama_supplier) : (
+                              <span className="text-gray-400 italic">No Supplier</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="font-medium text-green-600">
+                              {new Intl.NumberFormat('id-ID', {
+                                style: 'currency',
+                                currency: 'IDR',
+                                minimumFractionDigits: 0
+                              }).format(row.harga || 0)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
+                              row.category === 'Menu' ? 'bg-blue-100 text-blue-800' :
+                              row.category === 'WIP' ? 'bg-yellow-100 text-yellow-800' :
+                              row.category === 'Bahan Baku' ? 'bg-green-100 text-green-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {row.category || 'Not Set'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1">
+                              {row.product_branches?.filter((pb: any) => pb.branches).slice(0, 2).map((pb: any) => (
+                                <span key={pb.branches.kode_branch} className="inline-flex px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-medium">
+                                  {pb.branches.nama_branch}
+                                </span>
+                              ))}
+                              {row.product_branches?.filter((pb: any) => pb.branches).length > 2 && (
+                                <span className="inline-flex px-2 py-1 bg-gray-100 text-gray-600 rounded-md text-xs font-medium">
+                                  +{row.product_branches.filter((pb: any) => pb.branches).length - 2}
+                                </span>
+                              )}
+                              {(!row.product_branches || row.product_branches.length === 0) && (
+                                <span className="text-gray-400 italic text-sm">No branches</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">
+                            {row.merk ? toTitleCase(row.merk) : (
+                              <span className="text-gray-400 italic">No Brand</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-center gap-2">
+                              {canPerformActionSync(userRole, 'product_name', 'edit') && (
+                                <button 
+                                  onClick={() => handleEdit(row)} 
+                                  className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition-colors"
+                                  title="Edit Product"
+                                >
+                                  <Edit2 size={16} />
+                                </button>
+                              )}
+                              {canPerformActionSync(userRole, 'product_name', 'delete') && (
+                                <button 
+                                  onClick={() => setDeleteConfirm({show: true, id: row.id_product})} 
+                                  className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                                  title="Delete Product"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

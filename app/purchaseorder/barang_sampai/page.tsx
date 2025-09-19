@@ -223,6 +223,10 @@ export default function FinishPO() {
         throw new Error('Invoice number harus diisi')
       }
 
+      if (!formData.foto_barang && !previewUrl) {
+        throw new Error('Foto barang sampai harus diupload')
+      }
+
       let fileName = null
       
       // Upload photo if provided
@@ -437,7 +441,7 @@ export default function FinishPO() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Foto Barang Sampai (Opsional)
+                  Foto Barang Sampai *
                 </label>
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
                   <input
