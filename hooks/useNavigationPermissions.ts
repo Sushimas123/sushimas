@@ -77,7 +77,7 @@ export const useNavigationPermissions = () => {
             transfer_barang: true,
             users: true,
             finance: true,
-            'aging-report': true
+            'aging-report': true,
           }
         } else if (user.role === 'admin') {
           // Admin has access to most things including audit and crud permissions
@@ -107,7 +107,8 @@ export const useNavigationPermissions = () => {
             transfer_barang: true,
             users: true,
             finance: true,
-            'aging-report': true
+            'aging-report': true,
+
           }
         } else if (user.role === 'finance') {
           // Finance role permissions
@@ -137,7 +138,7 @@ export const useNavigationPermissions = () => {
             transfer_barang: false,
             users: true,
             finance: true,
-            'aging-report': true
+            'aging-report': true,
           }
         } else if (user.role === 'pic_branch') {
           // PIC Branch role permissions
@@ -165,7 +166,7 @@ export const useNavigationPermissions = () => {
             'stock-alert': false,
             supplier: false,
             transfer_barang: false,
-            users: false
+            users: false,
           }
         } else if (user.role === 'staff') {
           // Staff role permissions
@@ -193,7 +194,8 @@ export const useNavigationPermissions = () => {
             'stock-alert': false,
             supplier: false,
             transfer_barang: false,
-            users: false
+            users: false,
+
           }
         } else {
           // Default permissions for unknown roles
@@ -221,7 +223,7 @@ export const useNavigationPermissions = () => {
             'stock-alert': false,
             supplier: false,
             transfer_barang: false,
-            users: false
+            users: false,
           }
         }
 

@@ -132,7 +132,7 @@ export default function Layout({ children }: LayoutProps) {
       icon: CircleDollarSign,
       submenu: [
         { name: "Purchase Orders", href: AppRoutes.FINANCE_PURCHASE_ORDERS, icon: FileText, pageName: 'finance' },
-        { name: "Aging Report", href: AppRoutes.FINANCE_AGING_REPORT, icon: AlertTriangle, pageName: 'aging-report' }
+        { name: "Aging Report", href: AppRoutes.FINANCE_AGING_REPORT, icon: AlertTriangle, pageName: 'aging-report' },
       ]
     },
     {
@@ -837,8 +837,8 @@ export default function Layout({ children }: LayoutProps) {
                 <nav className="flex mt-2 items-center" aria-label="Breadcrumb">
                   <ol className="flex items-center space-x-1 overflow-x-auto">
                     {getBreadcrumbs().map((crumb, index) => (
-                      <li key={index} className="flex items-center whitespace-nowrap">
-                        {index > 0 && <ChevronRight size={16} className="text-gray-400 mx-1" />}
+                      <li key={`${crumb.href}-${index}`} className="flex items-center whitespace-nowrap">
+                        {index > 0 && <ChevronRight key={`chevron-${index}`} size={16} className="text-gray-400 mx-1" />}
                         {crumb.href !== '#' ? (
                           <Link 
                             href={crumb.href} 
