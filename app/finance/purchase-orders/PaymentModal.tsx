@@ -175,7 +175,12 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
           {po.sisa_bayar > 0 && (
             <div className="mb-6">
               <button
-                onClick={() => setShowAddForm(!showAddForm)}
+                onClick={() => {
+                  setShowAddForm(!showAddForm)
+                  if (!showAddForm) {
+                    setFormData(prev => ({...prev, payment_amount: po.sisa_bayar.toString()}))
+                  }
+                }}
                 className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2"
               >
                 <Plus size={16} />
@@ -199,12 +204,22 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Jumlah</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center justify-between">
+                    Jumlah
+                    <button
+                      type="button"
+                      onClick={() => setFormData({...formData, payment_amount: po.sisa_bayar.toString()})}
+                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Isi Sisa Bayar
+                    </button>
+                  </label>
                   <input
                     type="number"
                     value={formData.payment_amount}
                     onChange={(e) => setFormData({...formData, payment_amount: e.target.value})}
                     max={po.sisa_bayar}
+                    placeholder={`Max: ${formatCurrency(po.sisa_bayar)}`}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                     required
                   />
@@ -216,10 +231,10 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
                     onChange={(e) => setFormData({...formData, payment_method: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                   >
+                    <option value="cash">Cash</option>                    
                     <option value="transfer">Transfer</option>
-                    <option value="cash">Cash</option>
-                    <option value="check">Check</option>
-                    <option value="credit">Credit</option>
+                    <option value="credit_card">Credit Card</option>
+                    <option value="check">Check</option>                    
                   </select>
                 </div>
                 <div>

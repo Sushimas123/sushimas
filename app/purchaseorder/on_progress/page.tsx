@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { CheckCircle, XCircle, Package, Building2, Calendar, User, FileText, Download, ArrowLeft, Printer, Clock, AlertCircle } from 'lucide-react'
+import { CheckCircle, XCircle, Package, Building2, Calendar, User, FileText, Download, ArrowLeft, Printer, Clock, AlertCircle, Edit, Save, X } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 
@@ -30,6 +30,8 @@ interface POItem {
   keterangan: string
   merk: string
   stock_qty: number
+  harga?: number
+  total?: number
 }
 
 interface Branch {
@@ -64,6 +66,7 @@ function OnProgressPO() {
   const [branch, setBranch] = useState<Branch | null>(null)
   const [supplier, setSupplier] = useState<Supplier | null>(null)
   const [loading, setLoading] = useState(true)
+  const [editingItems, setEditingItems] = useState<{[key: number]: boolean}>({})
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -88,7 +91,7 @@ function OnProgressPO() {
         // Fetch PO items
         const { data: items } = await supabase
           .from('po_items')
-          .select('*')
+          .select('*, harga, total')
           .eq('po_id', poId)
 
         // Get product details and stock data for each item
@@ -113,7 +116,9 @@ function OnProgressPO() {
               ...item,
               product_name: product?.product_name || 'Unknown Product',
               merk: product?.merk || '',
-              stock_qty: stockData?.stock_qty || 0
+              stock_qty: stockData?.stock_qty || 0,
+              harga: item.harga || 0,
+              total: item.total || 0
             }
           })
         )
@@ -236,6 +241,59 @@ function OnProgressPO() {
     } catch (error) {
       console.error('Error rejecting PO:', error)
     }
+  }
+
+  const handleEditItem = (itemId: number) => {
+    setEditingItems(prev => ({ ...prev, [itemId]: true }))
+  }
+
+  const handleSaveItem = async (itemId: number) => {
+    const item = poItems.find(i => i.id === itemId)
+    if (!item) return
+
+    try {
+      const { error } = await supabase
+        .from('po_items')
+        .update({ 
+          qty: item.qty, 
+          harga: item.harga, 
+          total: item.total 
+        })
+        .eq('id', itemId)
+
+      if (error) {
+        alert(`Error: ${error.message}`)
+        return
+      }
+
+      setEditingItems(prev => ({ ...prev, [itemId]: false }))
+      alert('Item berhasil diupdate!')
+    } catch (error) {
+      console.error('Error updating item:', error)
+      alert('Terjadi kesalahan saat mengupdate item')
+    }
+  }
+
+  const handleCancelEdit = (itemId: number) => {
+    setEditingItems(prev => ({ ...prev, [itemId]: false }))
+    // Refresh data to revert changes
+    if (poData) {
+      fetchPOData(poData.id)
+    }
+  }
+
+  const handleItemChange = (itemId: number, field: string, value: number) => {
+    setPOItems(prev => prev.map(item => {
+      if (item.id === itemId) {
+        const updatedItem = { ...item, [field]: value }
+        // Auto calculate total when qty or harga changes
+        if (field === 'qty' || field === 'harga') {
+          updatedItem.total = (updatedItem.qty || 0) * (updatedItem.harga || 0)
+        }
+        return updatedItem
+      }
+      return item
+    }))
   }
 
   const exportToPDF = async () => {
@@ -463,7 +521,34 @@ function OnProgressPO() {
             <div className="md:hidden space-y-3">
               {poItems.map((item, index) => (
                 <div key={item.id} className="border border-gray-200 rounded-lg p-3">
-                  <div className="font-medium text-gray-900 mb-2">{item.product_name}</div>
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="font-medium text-gray-900">{item.product_name}</div>
+                    <div className="flex gap-1">
+                      {editingItems[item.id] ? (
+                        <>
+                          <button
+                            onClick={() => handleSaveItem(item.id)}
+                            className="text-green-600 hover:text-green-800 p-1"
+                          >
+                            <Save size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleCancelEdit(item.id)}
+                            className="text-red-600 hover:text-red-800 p-1"
+                          >
+                            <X size={14} />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => handleEditItem(item.id)}
+                          className="text-blue-600 hover:text-blue-800 p-1"
+                        >
+                          <Edit size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <span className="text-gray-500">Merk:</span>
@@ -471,13 +556,43 @@ function OnProgressPO() {
                     </div>
                     <div>
                       <span className="text-gray-500">Qty:</span>
-                      <span className="ml-1 font-semibold">{item.qty}</span>
+                      {editingItems[item.id] ? (
+                        <input
+                          type="number"
+                          value={item.qty}
+                          onChange={(e) => handleItemChange(item.id, 'qty', parseInt(e.target.value) || 0)}
+                          className="ml-1 w-16 px-1 py-0.5 border border-gray-300 rounded text-xs"
+                        />
+                      ) : (
+                        <span className="ml-1 font-semibold">{item.qty}</span>
+                      )}
                     </div>
                     <div>
                       <span className="text-gray-500">Unit:</span>
                       <span className="ml-1 text-gray-700">{item.unit_besar}</span>
                     </div>
                     <div>
+                      <span className="text-gray-500">Harga:</span>
+                      {editingItems[item.id] ? (
+                        <input
+                          type="number"
+                          value={item.harga || 0}
+                          onChange={(e) => handleItemChange(item.id, 'harga', parseFloat(e.target.value) || 0)}
+                          className="ml-1 w-20 px-1 py-0.5 border border-gray-300 rounded text-xs"
+                        />
+                      ) : (
+                        <span className="ml-1 text-gray-700">Rp {(item.harga || 0).toLocaleString('id-ID')}</span>
+                      )}
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-gray-500">Total:</span>
+                      {editingItems[item.id] ? (
+                        <span className="ml-1 font-semibold text-green-600">Rp {(item.total || 0).toLocaleString('id-ID')}</span>
+                      ) : (
+                        <span className="ml-1 font-semibold text-green-600">Rp {(item.total || 0).toLocaleString('id-ID')}</span>
+                      )}
+                    </div>
+                    <div className="col-span-2">
                       <span className="text-gray-500">Ket:</span>
                       <span className="ml-1 text-gray-700">{item.keterangan || '-'}</span>
                     </div>
@@ -495,7 +610,10 @@ function OnProgressPO() {
                     <th className="p-3 font-semibold text-gray-700">Merk</th>
                     <th className="p-3 font-semibold text-gray-700 text-center">Qty</th>
                     <th className="p-3 font-semibold text-gray-700 text-center">Unit</th>
+                    <th className="p-3 font-semibold text-gray-700 text-right">Harga</th>
+                    <th className="p-3 font-semibold text-gray-700 text-right">Total</th>
                     <th className="p-3 font-semibold text-gray-700">Keterangan</th>
+                    <th className="p-3 font-semibold text-gray-700 text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -507,19 +625,83 @@ function OnProgressPO() {
                       <td className="p-3 border-b border-gray-200">
                         <div className="text-gray-600">{item.merk || '-'}</div>
                       </td>
-                      <td className="p-3 border-b border-gray-200 text-center font-semibold">
-                        {item.qty}
+                      <td className="p-3 border-b border-gray-200 text-center">
+                        {editingItems[item.id] ? (
+                          <input
+                            type="number"
+                            value={item.qty}
+                            onChange={(e) => handleItemChange(item.id, 'qty', parseInt(e.target.value) || 0)}
+                            className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                          />
+                        ) : (
+                          <span className="font-semibold">{item.qty}</span>
+                        )}
                       </td>
                       <td className="p-3 border-b border-gray-200 text-center">
                         {item.unit_besar}
                       </td>
+                      <td className="p-3 border-b border-gray-200 text-right">
+                        {editingItems[item.id] ? (
+                          <input
+                            type="number"
+                            value={item.harga || 0}
+                            onChange={(e) => handleItemChange(item.id, 'harga', parseFloat(e.target.value) || 0)}
+                            className="w-24 px-2 py-1 border border-gray-300 rounded text-right"
+                          />
+                        ) : (
+                          <span className="text-gray-700">Rp {(item.harga || 0).toLocaleString('id-ID')}</span>
+                        )}
+                      </td>
+                      <td className="p-3 border-b border-gray-200 text-right">
+                        <span className="font-semibold text-green-600">Rp {(item.total || 0).toLocaleString('id-ID')}</span>
+                      </td>
                       <td className="p-3 border-b border-gray-200">
                         {item.keterangan || '-'}
+                      </td>
+                      <td className="p-3 border-b border-gray-200 text-center">
+                        {editingItems[item.id] ? (
+                          <div className="flex justify-center gap-1">
+                            <button
+                              onClick={() => handleSaveItem(item.id)}
+                              className="text-green-600 hover:text-green-800 p-1"
+                              title="Simpan"
+                            >
+                              <Save size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleCancelEdit(item.id)}
+                              className="text-red-600 hover:text-red-800 p-1"
+                              title="Batal"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleEditItem(item.id)}
+                            className="text-blue-600 hover:text-blue-800 p-1"
+                            title="Edit"
+                          >
+                            <Edit size={16} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              
+              {/* Total Summary */}
+              <div className="mt-4 flex justify-end">
+                <div className="bg-gray-50 p-4 rounded-lg border">
+                  <div className="text-right">
+                    <div className="text-sm text-gray-600 mb-1">Total Keseluruhan:</div>
+                    <div className="text-xl font-bold text-green-600">
+                      Rp {poItems.reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('id-ID')}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -698,11 +880,13 @@ function OnProgressPO() {
               <thead>
                 <tr>
                   <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '5%' }}>No</th>
-                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '40%' }}>Nama Produk</th>
-                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '20%' }}>Merk</th>
-                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '10%' }}>Qty</th>
-                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '10%' }}>Unit</th>
-                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '15%' }}>Keterangan</th>
+                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '25%' }}>Nama Produk</th>
+                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '15%' }}>Merk</th>
+                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '8%' }}>Qty</th>
+                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '8%' }}>Unit</th>
+                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'right', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '12%' }}>Harga</th>
+                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'right', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '15%' }}>Total</th>
+                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '12%' }}>Keterangan</th>
                 </tr>
               </thead>
               <tbody>
@@ -713,6 +897,8 @@ function OnProgressPO() {
                     <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px' }}>{item.merk || '-'}</td>
                     <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px', textAlign: 'center', fontWeight: '600' }}>{item.qty}</td>
                     <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px', textAlign: 'center' }}>{item.unit_besar}</td>
+                    <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px', textAlign: 'right' }}>Rp {(item.harga || 0).toLocaleString('id-ID')}</td>
+                    <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px', textAlign: 'right', fontWeight: '600', color: '#059669' }}>Rp {(item.total || 0).toLocaleString('id-ID')}</td>
                     <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px' }}>{item.keterangan || '-'}</td>
                   </tr>
                 ))}

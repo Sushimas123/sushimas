@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { Download } from 'lucide-react'
+import { Download, ChevronDown, ChevronRight } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 import * as XLSX from 'xlsx'
@@ -18,6 +18,7 @@ export default function AgingPivotReport() {
   const [data, setData] = useState<AgingPivotData[]>([])
   const [dueDates, setDueDates] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const [expandedBranches, setExpandedBranches] = useState<{[key: string]: boolean}>({})
 
   useEffect(() => {
     fetchAgingPivotData()
@@ -37,6 +38,7 @@ export default function AgingPivotReport() {
       const dueDateSet = new Set<string>()
 
       for (const item of financeData || []) {
+
         const { data: items } = await supabase
           .from('po_items')
           .select('qty, actual_price, received_qty, product_id')
@@ -60,9 +62,9 @@ export default function AgingPivotReport() {
         if (outstanding <= 0) continue
 
         const key = `${item.nama_branch}-${item.nama_supplier}`
-        const dueDate = new Date(item.tanggal_jatuh_tempo).toLocaleDateString('id-ID')
+        const dueDateStr = new Date(item.tanggal_jatuh_tempo).toLocaleDateString('id-ID')
         
-        dueDateSet.add(dueDate)
+        dueDateSet.add(dueDateStr)
 
         if (!pivotMap.has(key)) {
           pivotMap.set(key, {
@@ -74,36 +76,21 @@ export default function AgingPivotReport() {
         }
 
         const pivotItem = pivotMap.get(key)!
-        if (!pivotItem.due_dates[dueDate]) {
-          pivotItem.due_dates[dueDate] = 0
+        if (!pivotItem.due_dates[dueDateStr]) {
+          pivotItem.due_dates[dueDateStr] = 0
         }
-        pivotItem.due_dates[dueDate] += outstanding
+        pivotItem.due_dates[dueDateStr] += outstanding
         pivotItem.total += outstanding
       }
 
-      // Generate all dates from earliest to latest
+      // Sort due dates (only overdue dates)
       const sortedDueDates = Array.from(dueDateSet).sort((a, b) => {
         const dateA = new Date(a.split('/').reverse().join('-'))
         const dateB = new Date(b.split('/').reverse().join('-'))
         return dateA.getTime() - dateB.getTime()
       })
-
-      if (sortedDueDates.length > 0) {
-        const startDate = new Date(sortedDueDates[0].split('/').reverse().join('-'))
-        const endDate = new Date(sortedDueDates[sortedDueDates.length - 1].split('/').reverse().join('-'))
-        
-        const allDates: string[] = []
-        const currentDate = new Date(startDate)
-        
-        while (currentDate <= endDate) {
-          allDates.push(currentDate.toLocaleDateString('id-ID'))
-          currentDate.setDate(currentDate.getDate() + 1)
-        }
-        
-        setDueDates(allDates)
-      } else {
-        setDueDates([])
-      }
+      
+      setDueDates(sortedDueDates)
       setData(Array.from(pivotMap.values()))
     } catch (error) {
       console.error('Error fetching aging pivot data:', error)
@@ -183,6 +170,13 @@ export default function AgingPivotReport() {
 
   const grandTotal = data.reduce((sum, item) => sum + item.total, 0)
 
+  const toggleBranch = (branch: string) => {
+    setExpandedBranches(prev => ({
+      ...prev,
+      [branch]: !prev[branch]
+    }))
+  }
+
   if (loading) {
     return (
       <Layout>
@@ -213,11 +207,11 @@ export default function AgingPivotReport() {
 
           <div className="bg-white rounded-lg shadow border overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+              <table className="min-w-full divide-y divide-gray-200 relative">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cabang</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky left-0 bg-gray-50 z-10 border-r border-gray-200" style={{minWidth: '120px'}}>Cabang</th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky bg-gray-50 z-10 border-r border-gray-200" style={{left: '120px', minWidth: '140px'}}>Supplier</th>
                     {dueDates.map(date => (
                       <th key={date} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                         {date}
@@ -229,48 +223,58 @@ export default function AgingPivotReport() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {Object.entries(branchGroups).map(([branch, suppliers]) => (
                     <React.Fragment key={branch}>
-                      {suppliers.map((supplier, index) => (
-                        <tr key={`${branch}-${supplier.supplier}`} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-900">
-                            {index === 0 ? branch : ''}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 pl-8">
-                            {supplier.supplier}
-                          </td>
-                          {dueDates.map(date => (
-                            <td key={date} className="px-4 py-3 text-sm text-gray-900 text-right">
-                              {supplier.due_dates[date] ? formatCurrency(supplier.due_dates[date]) : '-'}
-                            </td>
-                          ))}
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">
-                            {formatCurrency(supplier.total)}
-                          </td>
-                        </tr>
-                      ))}
-                      <tr className="bg-gray-100 font-medium">
-                        <td className="px-4 py-3 text-sm text-gray-900">{branch} Total</td>
-                        <td className="px-4 py-3"></td>
+                      {/* Branch Total Row - Always Visible */}
+                      <tr className="bg-blue-50 font-medium cursor-pointer hover:bg-blue-100" onClick={() => toggleBranch(branch)}>
+                        <td className="px-2 py-3 text-sm text-gray-900 flex items-center gap-1 sticky left-0 bg-blue-50 z-10 border-r border-gray-200" style={{minWidth: '120px'}}>
+                          {expandedBranches[branch] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          <span className="truncate">{branch}</span>
+                        </td>
+                        <td className="px-2 py-3 text-sm text-gray-500 sticky bg-blue-50 z-10 border-r border-gray-200" style={{left: '120px', minWidth: '140px'}}>
+                          <span className="truncate">{suppliers.length} supplier{suppliers.length > 1 ? 's' : ''}</span>
+                        </td>
                         {dueDates.map(date => {
-                          const branchDateTotal = suppliers.reduce((sum, s) => sum + (s.due_dates[date] || 0), 0)
+                          const branchDateTotal = suppliers.reduce((sum: number, s) => sum + (s.due_dates[date] || 0), 0)
                           return (
-                            <td key={date} className="px-4 py-3 text-sm text-gray-900 text-right">
+                            <td key={date} className="px-4 py-3 text-sm text-gray-900 text-right font-semibold">
                               {branchDateTotal > 0 ? formatCurrency(branchDateTotal) : '-'}
                             </td>
                           )
                         })}
-                        <td className="px-4 py-3 text-sm font-bold text-gray-900 text-right">
-                          {formatCurrency(suppliers.reduce((sum, s) => sum + s.total, 0))}
+                        <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">
+                          {formatCurrency(suppliers.reduce((sum: number, s) => sum + s.total, 0))}
                         </td>
                       </tr>
+                      
+                      {/* Supplier Detail Rows - Collapsible */}
+                      {expandedBranches[branch] && suppliers.map((supplier) => (
+                        <tr key={`${branch}-${supplier.supplier}`} className="hover:bg-gray-50 bg-gray-25">
+                          <td className="px-2 py-3 text-sm text-gray-600 pl-4 sticky left-0 bg-white z-10 border-r border-gray-200" style={{minWidth: '120px'}}>
+                            {/* Empty - indented */}
+                          </td>
+                          <td className="px-2 py-3 text-sm text-gray-900 sticky bg-white z-10 border-r border-gray-200" style={{left: '120px', minWidth: '140px'}}>
+                            <span className="truncate">{supplier.supplier}</span>
+                          </td>
+                          {dueDates.map(date => (
+                            <td key={date} className="px-4 py-3 text-sm text-gray-700 text-right">
+                              {supplier.due_dates[date] ? formatCurrency(supplier.due_dates[date]) : '-'}
+                            </td>
+                          ))}
+                          <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                            {formatCurrency(supplier.total)}
+                          </td>
+                        </tr>
+                      ))}
                     </React.Fragment>
                   ))}
-                  <tr className="bg-blue-100 font-bold">
-                    <td className="px-4 py-3 text-sm text-gray-900">Grand Total</td>
-                    <td className="px-4 py-3"></td>
+                  
+                  {/* Grand Total Row */}
+                  <tr className="bg-gray-200 font-bold">
+                    <td className="px-2 py-3 text-sm text-gray-900 sticky left-0 bg-gray-200 z-10 border-r border-gray-200" style={{minWidth: '120px'}}>Grand Total</td>
+                    <td className="px-2 py-3 sticky bg-gray-200 z-10 border-r border-gray-200" style={{left: '120px', minWidth: '140px'}}></td>
                     {dueDates.map(date => {
-                      const grandDateTotal = data.reduce((sum, item) => sum + (item.due_dates[date] || 0), 0)
+                      const grandDateTotal = data.reduce((sum: number, item) => sum + (item.due_dates[date] || 0), 0)
                       return (
-                        <td key={date} className="px-4 py-3 text-sm text-gray-900 text-right">
+                        <td key={date} className="px-4 py-3 text-sm text-gray-900 text-right font-bold">
                           {grandDateTotal > 0 ? formatCurrency(grandDateTotal) : '-'}
                         </td>
                       )
