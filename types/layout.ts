@@ -49,5 +49,7 @@ export enum AppRoutes {
   AUDIT_LOG = '/audit-log',
   PRICE_HISTORY = '/price-history',
   TRANSFER_BARANG = '/transfer-barang',
-  STOCK_ALERT = '/purchaseorder/stock-alert'
+  STOCK_ALERT = '/purchaseorder/stock-alert',
+  FINANCE_PURCHASE_ORDERS = '/finance/purchase-orders',
+  FINANCE_AGING_REPORT = '/finance/aging-report'
 }

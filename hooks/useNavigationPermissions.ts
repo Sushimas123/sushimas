@@ -30,7 +30,7 @@ export const useNavigationPermissions = () => {
             'crud-permissions', 'esb', 'gudang', 'permissions-db', 'pivot',
             'price-history', 'product_name', 'product_settings', 'recipes',
             'purchaseorder', 'stock-alert', 'supplier', 'transfer_barang', 'users',
-            'price_history' // Add underscore version for compatibility
+            'price_history', 'finance', 'aging-report' // Add finance pages
           ]
           
           allPossiblePages.forEach(page => {
@@ -75,7 +75,9 @@ export const useNavigationPermissions = () => {
             'stock-alert': true,
             supplier: true,
             transfer_barang: true,
-            users: true
+            users: true,
+            finance: true,
+            'aging-report': true
           }
         } else if (user.role === 'admin') {
           // Admin has access to most things including audit and crud permissions
@@ -103,7 +105,9 @@ export const useNavigationPermissions = () => {
             'stock-alert': true,
             supplier: true,
             transfer_barang: true,
-            users: true
+            users: true,
+            finance: true,
+            'aging-report': true
           }
         } else if (user.role === 'finance') {
           // Finance role permissions
@@ -131,7 +135,9 @@ export const useNavigationPermissions = () => {
             'stock-alert': false,
             supplier: false,
             transfer_barang: false,
-            users: true
+            users: true,
+            finance: true,
+            'aging-report': true
           }
         } else if (user.role === 'pic_branch') {
           // PIC Branch role permissions

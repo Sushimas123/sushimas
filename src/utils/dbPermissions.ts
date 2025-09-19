@@ -54,7 +54,7 @@ const getDefaultPermissions = (userRole: string) => {
   
   if (userRole === 'super admin') {
     // Super admin gets access to all pages
-    const allPages = ['ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'product_settings', 'stock_opname_batch', 'esb', 'product_name', 'categories', 'recipes', 'supplier', 'branches', 'users', 'permissions-db', 'crud-permissions', 'audit-log']
+    const allPages = ['ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'product_settings', 'stock_opname_batch', 'esb', 'product_name', 'categories', 'recipes', 'supplier', 'branches', 'users', 'permissions-db', 'crud-permissions', 'audit-log', 'finance', 'aging-report']
     allPages.forEach(page => {
       permissions[page] = ['*'] // Full access
     })
@@ -62,7 +62,7 @@ const getDefaultPermissions = (userRole: string) => {
   }
   
   if (userRole === 'admin') {
-    const adminPages = ['ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'product_settings', 'stock_opname_batch', 'esb', 'product_name', 'categories', 'recipes', 'supplier', 'branches', 'users', 'permissions-db', 'crud-permissions', 'audit-log']
+    const adminPages = ['ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'product_settings', 'stock_opname_batch', 'esb', 'product_name', 'categories', 'recipes', 'supplier', 'branches', 'users', 'permissions-db', 'crud-permissions', 'audit-log', 'finance', 'aging-report']
     adminPages.forEach(page => {
       permissions[page] = ['*']
     })
@@ -70,7 +70,7 @@ const getDefaultPermissions = (userRole: string) => {
   }
   
   if (userRole === 'finance') {
-    const financePages = ['dashboard', 'ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'stock_opname_batch', 'esb', 'users', 'product_settings']
+    const financePages = ['dashboard', 'ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'stock_opname_batch', 'esb', 'users', 'product_settings', 'finance', 'aging-report']
     financePages.forEach(page => {
       permissions[page] = ['*']
     })

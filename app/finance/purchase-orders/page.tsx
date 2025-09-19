@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { DollarSign, FileText, AlertTriangle, TrendingUp, Search, Filter, Plus } from 'lucide-react'
+import { DollarSign, FileText, AlertTriangle, TrendingUp, Search, Plus } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 import PaymentModal from './PaymentModal'
@@ -209,38 +209,46 @@ export default function FinancePurchaseOrders() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {item.nama_branch}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {formatCurrency(item.total_po)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {formatCurrency(item.total_paid)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {formatCurrency(item.sisa_bayar)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}>
-                          {item.status_payment}
+                          {item.status_payment.toUpperCase()}
                         </span>
                         {item.is_overdue && (
                           <div className="text-xs text-red-600 mt-1">
-                            {item.days_overdue} hari terlambat
+                            Overdue {item.days_overdue} hari
                           </div>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {new Date(item.tanggal_jatuh_tempo).toLocaleDateString('id-ID')}
+                        <div>{new Date(item.tanggal_jatuh_tempo).toLocaleDateString('id-ID')}</div>
+                        {item.last_payment_date && (
+                          <div className="text-xs text-gray-500">
+                            Last: {new Date(item.last_payment_date).toLocaleDateString('id-ID')}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <button
-                          onClick={() => {
-                            setSelectedPO(item)
-                            setShowPaymentModal(true)
-                          }}
-                          className="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700"
-                        >
-                          Payment
-                        </button>
+                        {item.sisa_bayar > 0 && (
+                          <button
+                            onClick={() => {
+                              setSelectedPO(item)
+                              setShowPaymentModal(true)
+                            }}
+                            className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Bayar
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -249,18 +257,24 @@ export default function FinancePurchaseOrders() {
             </div>
           </div>
 
-          {/* Payment Modal */}
-          {showPaymentModal && selectedPO && (
-            <PaymentModal
-              po={selectedPO}
-              onClose={() => {
-                setShowPaymentModal(false)
-                setSelectedPO(null)
-              }}
-              onSuccess={handlePaymentSuccess}
-            />
+          {filteredData.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              Tidak ada data yang ditemukan
+            </div>
           )}
         </div>
+
+        {/* Payment Modal */}
+        {showPaymentModal && selectedPO && (
+          <PaymentModal
+            po={selectedPO}
+            onClose={() => {
+              setShowPaymentModal(false)
+              setSelectedPO(null)
+            }}
+            onSuccess={handlePaymentSuccess}
+          />
+        )}
       </PageAccessControl>
     </Layout>
   )
