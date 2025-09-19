@@ -442,7 +442,7 @@ export default function Layout({ children }: LayoutProps) {
               <Link href="/" className="flex items-center">
                 <div className="flex-shrink-0 flex items-center">
                   <div className="h-10 w-10 bg-gradient-to-br from-red-600 to-red-800 rounded-xl flex items-center justify-center text-white font-bold mr-3 shadow-lg">
-                    <span className="text-lg">S</span>
+                    <span className="text-lg">SIS</span>
                   </div>
                   <div className="hidden sm:block">
                     <div className="text-xl font-bold text-gray-800 dark:text-white">Sushimas</div>
