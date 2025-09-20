@@ -275,8 +275,8 @@ function PurchaseOrderPageContent() {
                 .eq('id_product', item.product_id)
                 .single()
 
-              // Use actual price if available, otherwise use master price
-              const priceToUse = item.actual_price || product?.harga || 0
+              // Use actual price if available (from barang_sampai), otherwise use PO price (item.harga), fallback to master price
+              const priceToUse = item.actual_price || item.harga || product?.harga || 0
               // Use received quantity if available, otherwise use original quantity
               const qtyToUse = item.received_qty || item.qty
               
@@ -545,8 +545,8 @@ function PurchaseOrderPageContent() {
               .eq('id_product', item.product_id)
               .single()
 
-            // Use actual price if available, otherwise use master price
-            const priceToUse = item.actual_price || product?.harga || 0
+            // Use actual price if available (from barang_sampai), otherwise use PO price (item.harga), fallback to master price
+            const priceToUse = item.actual_price || item.harga || product?.harga || 0
             // Use received quantity if available, otherwise use original quantity
             const qtyToUse = item.received_qty || item.qty
             

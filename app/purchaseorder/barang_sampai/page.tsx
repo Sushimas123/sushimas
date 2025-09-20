@@ -280,6 +280,8 @@ export default function FinishPO() {
               })
               .eq('id', parseInt(itemId))
             
+            console.log(`Updated PO item ${itemId} with actual_price: ${receivedData.harga}, received_qty: ${receivedData.qty}`)
+            
             if (poItemUpdateError) {
               console.error(`Error updating PO item ${itemId}:`, poItemUpdateError)
             }
