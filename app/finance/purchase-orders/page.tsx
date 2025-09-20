@@ -842,7 +842,15 @@ export default function FinancePurchaseOrders() {
                                                 {poItem.received_qty ? `${poItem.received_qty}/${poItem.qty}` : poItem.qty}
                                               </td>
                                               <td className="px-3 py-2 whitespace-nowrap text-sm">{formatCurrency(poItem.harga || poItem.actual_price || 0)}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium">{formatCurrency(poItem.total || (poItem.qty * (poItem.harga || 0)))}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium">
+                                                {formatCurrency(
+                                                  poItem.actual_price && poItem.received_qty 
+                                                    ? poItem.received_qty * poItem.actual_price
+                                                    : poItem.harga 
+                                                      ? poItem.qty * poItem.harga
+                                                      : 0
+                                                )}
+                                              </td>
                                             </tr>
                                           ))}
                                         </tbody>

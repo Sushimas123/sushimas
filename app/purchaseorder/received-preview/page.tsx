@@ -71,6 +71,9 @@ export default function ReceivedPreviewPage() {
         `)
         .eq('no_po', po.po_number)
 
+      // Get invoice number from barang_masuk (first record)
+      const invoiceNumber = receivedItems && receivedItems.length > 0 ? receivedItems[0].invoice_number : po.invoice_number
+
       // Get photo URL - try both bukti_foto field and search by PO number
       if (po.bukti_foto) {
         const { data } = supabase.storage
@@ -102,7 +105,7 @@ export default function ReceivedPreviewPage() {
         branch_name: branchResult.data?.nama_branch || 'Unknown',
         status: po.status,
         tanggal_barang_sampai: po.tanggal_barang_sampai,
-        invoice_number: po.invoice_number || '',
+        invoice_number: invoiceNumber || '',
         bukti_foto: po.bukti_foto || '',
         items: receivedItems?.map(item => ({
           product_name: item.nama_product?.product_name || 'Unknown Product',

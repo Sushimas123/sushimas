@@ -66,6 +66,9 @@ export default function AgingPivotReport() {
           }
         }
 
+        // Skip if payment status is paid
+        if (item.status_payment === 'paid') continue
+        
         const outstanding = correctedTotal - item.total_paid
         if (outstanding <= 0) continue
 
