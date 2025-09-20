@@ -152,9 +152,7 @@ export default function FinancePurchaseOrders() {
 
           let correctedTotal = 0
           for (const poItem of items || []) {
-            if (poItem.total) {
-              correctedTotal += poItem.total
-            } else if (poItem.actual_price && poItem.received_qty) {
+            if (poItem.actual_price && poItem.received_qty) {
               correctedTotal += poItem.received_qty * poItem.actual_price
             } else if (poItem.harga) {
               correctedTotal += poItem.qty * poItem.harga
@@ -168,14 +166,15 @@ export default function FinancePurchaseOrders() {
             }
           }
 
-          // Get latest payment info
-          const { data: latestPayment } = await supabase
+          // Get latest payment info and calculate total paid
+          const { data: payments } = await supabase
             .from('po_payments')
-            .select('payment_date, payment_via, payment_method')
+            .select('payment_amount, payment_date, payment_via, payment_method')
             .eq('po_id', item.id)
             .order('payment_date', { ascending: false })
-            .limit(1)
-            .single()
+
+          const totalPaid = payments?.reduce((sum, payment) => sum + payment.payment_amount, 0) || 0
+          const latestPayment = payments?.[0] || null
 
           // Get branch badan
           const { data: branchData } = await supabase
@@ -184,7 +183,7 @@ export default function FinancePurchaseOrders() {
             .eq('id_branch', item.cabang_id)
             .single()
 
-          const calculatedStatus = item.total_paid === 0 ? 'unpaid' : item.total_paid >= correctedTotal ? 'paid' : 'partial'
+          const calculatedStatus = totalPaid === 0 ? 'unpaid' : totalPaid >= correctedTotal ? 'paid' : 'partial'
           
           // Apply payment status filter
           if (filters.paymentStatus && calculatedStatus !== filters.paymentStatus) {
@@ -194,7 +193,8 @@ export default function FinancePurchaseOrders() {
           return {
             ...item,
             total_po: correctedTotal,
-            sisa_bayar: correctedTotal - item.total_paid,
+            total_paid: totalPaid,
+            sisa_bayar: correctedTotal - totalPaid,
             status_payment: calculatedStatus,
             dibayar_tanggal: latestPayment?.payment_date || null,
             payment_via: latestPayment?.payment_via || null,
@@ -783,40 +783,6 @@ export default function FinancePurchaseOrders() {
                           <tr className="bg-blue-50">
                             <td colSpan={19} className="px-4 py-4">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Payment History */}
-                                <div>
-                                  <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
-                                    <CreditCard className="h-4 w-4 mr-2" />
-                                    Riwayat Pembayaran
-                                  </h3>
-                                  {rowDetails[item.id]?.payments?.length > 0 ? (
-                                    <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
-                                      <table className="min-w-full divide-y divide-gray-200">
-                                        <thead className="bg-gray-50">
-                                          <tr>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Jumlah</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Metode</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
-                                          </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-200">
-                                          {rowDetails[item.id].payments.map((payment: any) => (
-                                            <tr key={payment.id}>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm">{formatDate(payment.payment_date)}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium">{formatCurrency(payment.payment_amount)}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm">{payment.payment_method}</td>
-                                              <td className="px-3 py-2 text-sm">{payment.notes || '-'}</td>
-                                            </tr>
-                                          ))}
-                                        </tbody>
-                                      </table>
-                                    </div>
-                                  ) : (
-                                    <p className="text-sm text-gray-500">Belum ada riwayat pembayaran</p>
-                                  )}
-                                </div>
-                                
                                 {/* Items List */}
                                 <div>
                                   <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
@@ -858,6 +824,40 @@ export default function FinancePurchaseOrders() {
                                     </div>
                                   ) : (
                                     <p className="text-sm text-gray-500">Tidak ada item</p>
+                                  )}
+                                </div>
+                                
+                                {/* Payment History */}
+                                <div>
+                                  <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
+                                    <CreditCard className="h-4 w-4 mr-2" />
+                                    Riwayat Pembayaran
+                                  </h3>
+                                  {rowDetails[item.id]?.payments?.length > 0 ? (
+                                    <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
+                                      <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                          <tr>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Jumlah</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Metode</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200">
+                                          {rowDetails[item.id].payments.map((payment: any) => (
+                                            <tr key={payment.id}>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm">{formatDate(payment.payment_date)}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium">{formatCurrency(payment.payment_amount)}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm">{payment.payment_method}</td>
+                                              <td className="px-3 py-2 text-sm">{payment.notes || '-'}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-gray-500">Belum ada riwayat pembayaran</p>
                                   )}
                                 </div>
                               </div>
