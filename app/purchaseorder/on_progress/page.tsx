@@ -244,24 +244,35 @@ function OnProgressPO() {
   }
 
   const handleEditItem = (itemId: number) => {
-    setEditingItems(prev => ({ ...prev, [itemId]: true }))
+    console.log('Editing item:', itemId)
+    setEditingItems(prev => {
+      const newState = { ...prev, [itemId]: true }
+      console.log('New editing state:', newState)
+      return newState
+    })
   }
 
   const handleSaveItem = async (itemId: number) => {
     const item = poItems.find(i => i.id === itemId)
-    if (!item) return
+    if (!item) {
+      console.log('Item not found:', itemId)
+      return
+    }
 
+    console.log('Saving item:', item)
     try {
       const { error } = await supabase
         .from('po_items')
         .update({ 
           qty: item.qty, 
           harga: item.harga, 
+          actual_price: item.harga,
           total: item.total 
         })
         .eq('id', itemId)
 
       if (error) {
+        console.error('Supabase error:', error)
         alert(`Error: ${error.message}`)
         return
       }
