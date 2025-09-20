@@ -12,6 +12,7 @@ interface AgingPivotData {
   supplier: string
   due_dates: { [key: string]: number }
   total: number
+  notes?: string
 }
 
 export default function AgingPivotReport() {
@@ -20,6 +21,12 @@ export default function AgingPivotReport() {
   const [loading, setLoading] = useState(true)
   const [expandedBranches, setExpandedBranches] = useState<{[key: string]: boolean}>({})
   const [dateFilter, setDateFilter] = useState({ from: '', to: '' })
+  const [showNotes, setShowNotes] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('aging-pivot-show-notes') === 'true'
+    }
+    return false
+  })
 
   useEffect(() => {
     fetchAgingPivotData()
@@ -62,20 +69,23 @@ export default function AgingPivotReport() {
         const outstanding = correctedTotal - item.total_paid
         if (outstanding <= 0) continue
 
-        const key = `${item.nama_branch}-${item.nama_supplier}`
+        const defaultNotes = item.nama_branch === 'Sushimas Harapan Indah' ? 'Rek CV' : 'REK PT'
+        const finalNotes = item.notes || defaultNotes
+        const key = `${item.nama_branch}-${item.nama_supplier}-${finalNotes}`
         const dueDateStr = new Date(item.tanggal_jatuh_tempo).toLocaleDateString('id-ID')
         
         dueDateSet.add(dueDateStr)
-
+        
         if (!pivotMap.has(key)) {
           pivotMap.set(key, {
             branch: item.nama_branch,
             supplier: item.nama_supplier,
             due_dates: {},
-            total: 0
+            total: 0,
+            notes: finalNotes
           })
         }
-
+        
         const pivotItem = pivotMap.get(key)!
         if (!pivotItem.due_dates[dueDateStr]) {
           pivotItem.due_dates[dueDateStr] = 0
@@ -177,8 +187,9 @@ export default function AgingPivotReport() {
   }
 
   const branchGroups = data.reduce((acc, item) => {
-    if (!acc[item.branch]) acc[item.branch] = []
-    acc[item.branch].push(item)
+    const groupKey = showNotes ? (item.notes || 'Unknown') : item.branch
+    if (!acc[groupKey]) acc[groupKey] = []
+    acc[groupKey].push(item)
     return acc
   }, {} as { [key: string]: AgingPivotData[] })
 
@@ -220,8 +231,35 @@ export default function AgingPivotReport() {
               </button>
             </div>
             
-            {/* Date Filter */}
+            {/* Controls */}
             <div className="bg-white p-4 rounded-lg shadow border mb-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-gray-700">Tampilkan:</span>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showNotes}
+                      onChange={(e) => {
+                        const checked = e.target.checked
+                        setShowNotes(checked)
+                        localStorage.setItem('aging-pivot-show-notes', checked.toString())
+                      }}
+                      className="sr-only"
+                    />
+                    <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      showNotes ? 'bg-blue-600' : 'bg-gray-200'
+                    }`}>
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        showNotes ? 'translate-x-6' : 'translate-x-1'
+                      }`} />
+                    </div>
+                    <span className="ml-2 text-sm text-gray-700">
+                      {showNotes ? 'Notes' : 'Cabang'}
+                    </span>
+                  </label>
+                </div>
+              </div>
               <div className="flex items-center gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
@@ -271,7 +309,7 @@ export default function AgingPivotReport() {
               <table className="min-w-full divide-y divide-gray-200 relative">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky left-0 bg-gray-50 z-10 border-r border-gray-200" style={{minWidth: '120px'}}>Cabang</th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky left-0 bg-gray-50 z-10 border-r border-gray-200" style={{minWidth: '120px'}}>{showNotes ? 'Notes' : 'Cabang'}</th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky bg-gray-50 z-10 border-r border-gray-200" style={{left: '120px', minWidth: '140px'}}>Supplier</th>
                     {dueDates.map(date => (
                       <th key={date} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
@@ -282,13 +320,13 @@ export default function AgingPivotReport() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {Object.entries(branchGroups).map(([branch, suppliers]) => (
-                    <React.Fragment key={branch}>
-                      {/* Branch Total Row - Always Visible */}
-                      <tr className="bg-blue-50 font-medium cursor-pointer hover:bg-blue-100" onClick={() => toggleBranch(branch)}>
+                  {Object.entries(branchGroups).map(([groupKey, suppliers]) => (
+                    <React.Fragment key={groupKey}>
+                      {/* Group Total Row - Always Visible */}
+                      <tr className="bg-blue-50 font-medium cursor-pointer hover:bg-blue-100" onClick={() => toggleBranch(groupKey)}>
                         <td className="px-2 py-3 text-sm text-gray-900 flex items-center gap-1 sticky left-0 bg-blue-50 z-10 border-r border-gray-200" style={{minWidth: '120px'}}>
-                          {expandedBranches[branch] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                          <span className="truncate">{branch}</span>
+                          {expandedBranches[groupKey] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          <span className="truncate">{groupKey}</span>
                         </td>
                         <td className="px-2 py-3 text-sm text-gray-500 sticky bg-blue-50 z-10 border-r border-gray-200" style={{left: '120px', minWidth: '140px'}}>
                           <span className="truncate">{suppliers.length} supplier{suppliers.length > 1 ? 's' : ''}</span>
@@ -307,10 +345,10 @@ export default function AgingPivotReport() {
                       </tr>
                       
                       {/* Supplier Detail Rows - Collapsible */}
-                      {expandedBranches[branch] && suppliers.map((supplier) => (
-                        <tr key={`${branch}-${supplier.supplier}`} className="hover:bg-gray-50 bg-gray-25">
+                      {expandedBranches[groupKey] && suppliers.map((supplier, index) => (
+                        <tr key={`${groupKey}-${supplier.supplier}-${supplier.branch}-${index}`} className="hover:bg-gray-50 bg-gray-25">
                           <td className="px-2 py-3 text-sm text-gray-600 pl-4 sticky left-0 bg-white z-10 border-r border-gray-200" style={{minWidth: '120px'}}>
-                            {/* Empty - indented */}
+                            <span className="text-xs text-gray-500">{showNotes ? supplier.branch : ''}</span>
                           </td>
                           <td className="px-2 py-3 text-sm text-gray-900 sticky bg-white z-10 border-r border-gray-200" style={{left: '120px', minWidth: '140px'}}>
                             <span className="truncate">{supplier.supplier}</span>

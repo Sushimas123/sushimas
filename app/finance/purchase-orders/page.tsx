@@ -35,6 +35,9 @@ export default function FinancePurchaseOrders() {
   const [rowDetails, setRowDetails] = useState<Record<number, any>>({})
   const [sortField, setSortField] = useState<string>('')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 20
+  const [notesState, setNotesState] = useState<Record<number, string>>({})
   
   // Filter states
   const [filters, setFilters] = useState({
@@ -185,7 +188,16 @@ export default function FinancePurchaseOrders() {
         })
       )
       
-      setData(correctedData.filter(item => item !== null))
+      const filteredCorrectedData = correctedData.filter(item => item !== null)
+      setData(filteredCorrectedData)
+
+      // Initialize notes state from the data
+      const newNotesState: Record<number, string> = {}
+      filteredCorrectedData.forEach(item => {
+        const defaultNotes = item.nama_branch === 'Sushimas Harapan Indah' ? 'Rek CV' : 'Rek PT'
+        newNotesState[item.id] = (item as any).notes || defaultNotes
+      })
+      setNotesState(newNotesState)
     } catch (error) {
       console.error('Error fetching finance data:', error)
     } finally {
@@ -202,7 +214,7 @@ export default function FinancePurchaseOrders() {
     }
   }
 
-  const filteredData = data.filter(item => {
+  const allFilteredData = data.filter(item => {
     const matchesSearch = item.po_number.toLowerCase().includes(search.toLowerCase()) ||
                          item.nama_supplier.toLowerCase().includes(search.toLowerCase()) ||
                          item.nama_branch.toLowerCase().includes(search.toLowerCase())
@@ -223,6 +235,10 @@ export default function FinancePurchaseOrders() {
     return 0
   })
 
+  const totalPages = Math.ceil(allFilteredData.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const filteredData = allFilteredData.slice(startIndex, startIndex + itemsPerPage)
+
   const clearFilters = () => {
     setFilters({
       dateFrom: '',
@@ -238,6 +254,7 @@ export default function FinancePurchaseOrders() {
 
   const applyFilters = () => {
     setLoading(true)
+    setCurrentPage(1)
     fetchFinanceData()
   }
 
@@ -290,6 +307,30 @@ export default function FinancePurchaseOrders() {
     setSelectedPO(null)
   }
 
+  const handleNotesChange = async (poId: number, newValue: string) => {
+    try {
+      const { error } = await supabase
+        .from('purchase_orders')
+        .update({ notes: newValue })
+        .eq('id', poId)
+      
+      if (error) throw error
+      
+      // Update local state
+      setNotesState(prev => ({
+        ...prev,
+        [poId]: newValue
+      }))
+
+      // Also update the data state to reflect the change
+      setData(prev => prev.map(item => 
+        item.id === poId ? { ...item, notes: newValue } : item
+      ))
+    } catch (error) {
+      console.error('Error updating notes:', error)
+    }
+  }
+
   if (loading) {
     return (
       <Layout>
@@ -304,18 +345,10 @@ export default function FinancePurchaseOrders() {
     <Layout>
       <PageAccessControl pageName="finance">
         <div className="p-6 bg-gray-50 min-h-screen">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">Finance Dashboard</h1>
-            <p className="text-gray-600">Kelola pembayaran Purchase Orders</p>
-          </div>
-
           {/* Summary Cards - Compact Version */}
           <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
             <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
               <div className="flex items-center">
-                <div className="p-2 bg-blue-100 rounded-md">
-                  <FileText className="h-4 w-4 text-blue-600" />
-                </div>
                 <div className="ml-3">
                   <p className="text-xs text-gray-600">Total PO</p>
                   <p className="text-sm font-semibold">{formatCurrency(summary.totalPO)}</p>
@@ -324,10 +357,7 @@ export default function FinancePurchaseOrders() {
               </div>
             </div>
             <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
-              <div className="flex items-center">
-                <div className="p-2 bg-green-100 rounded-md">
-                  <TrendingUp className="h-4 w-4 text-green-600" />
-                </div>
+              <div className="flex items-center">                
                 <div className="ml-3">
                   <p className="text-xs text-gray-600">Sudah Dibayar</p>
                   <p className="text-sm font-semibold">{formatCurrency(summary.totalPaid)}</p>
@@ -335,10 +365,7 @@ export default function FinancePurchaseOrders() {
               </div>
             </div>
             <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
-              <div className="flex items-center">
-                <div className="p-2 bg-yellow-100 rounded-md">
-                  <DollarSign className="h-4 w-4 text-yellow-600" />
-                </div>
+              <div className="flex items-center">                
                 <div className="ml-3">
                   <p className="text-xs text-gray-600">Outstanding</p>
                   <p className="text-sm font-semibold">{formatCurrency(summary.outstanding)}</p>
@@ -347,9 +374,6 @@ export default function FinancePurchaseOrders() {
             </div>
             <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
               <div className="flex items-center">
-                <div className="p-2 bg-red-100 rounded-md">
-                  <AlertTriangle className="h-4 w-4 text-red-600" />
-                </div>
                 <div className="ml-3">
                   <p className="text-xs text-gray-600">Overdue</p>
                   <p className="text-sm font-semibold">{formatCurrency(summary.overdue)}</p>
@@ -619,11 +643,8 @@ export default function FinancePurchaseOrders() {
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                             <select 
                               className="text-xs border border-gray-300 rounded px-2 py-1 bg-white"
-                              defaultValue={
-                                (item as any).badan === 'PT SURYA MAS PRATAMA' ? 'Rek PT' :
-                                (item as any).badan === 'CV SURYA MAS PANGAN' ? 'Rek CV' :
-                                'Rek Michael'
-                              }
+                              value={notesState[item.id] || 'Rek Michael'}
+                              onChange={(e) => handleNotesChange(item.id, e.target.value)}
                             >
                               <option value="Rek Michael">Rek Michael</option>
                               <option value="Rek PT">Rek PT</option>
@@ -827,7 +848,69 @@ export default function FinancePurchaseOrders() {
             </div>
           </div>
 
-          {filteredData.length === 0 && !loading && (
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-4 rounded-lg shadow">
+              <div className="flex-1 flex justify-between sm:hidden">
+                <button
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm text-gray-700">
+                    Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
+                    <span className="font-medium">{Math.min(startIndex + itemsPerPage, allFilteredData.length)}</span> of{' '}
+                    <span className="font-medium">{allFilteredData.length}</span> results
+                  </p>
+                </div>
+                <div>
+                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                    <button
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Previous
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                          page === currentPage
+                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage === totalPages}
+                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </nav>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {allFilteredData.length === 0 && !loading && (
             <div className="text-center py-12 text-gray-500 bg-white rounded-lg border border-gray-200 mt-4">
               <FileText className="h-12 w-12 mx-auto text-gray-400" />
               <p className="mt-2">Tidak ada data yang ditemukan</p>
