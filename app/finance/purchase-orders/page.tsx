@@ -77,15 +77,31 @@ export default function FinancePurchaseOrders() {
         .eq('po_id', id)
         .order('payment_date', { ascending: false })
       
-      // Fetch items
+      // Fetch items with product names
       const { data: items } = await supabase
         .from('po_items')
         .select('*')
         .eq('po_id', id)
       
+      // Get product names for each item
+      const itemsWithNames = await Promise.all(
+        (items || []).map(async (item) => {
+          const { data: product } = await supabase
+            .from('nama_product')
+            .select('product_name')
+            .eq('id_product', item.product_id)
+            .single()
+          
+          return {
+            ...item,
+            product_name: product?.product_name || `Product ${item.product_id}`
+          }
+        })
+      )
+      
       setRowDetails(prev => ({
         ...prev,
-        [id]: { payments, items }
+        [id]: { payments, items: itemsWithNames }
       }))
     } catch (error) {
       console.error('Error fetching row details:', error)
