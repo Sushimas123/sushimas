@@ -24,9 +24,22 @@ interface AgingData {
 export default function AgingReport() {
   const [data, setData] = useState<AgingData[]>([])
   const [loading, setLoading] = useState(true)
+  const [isMobileView, setIsMobileView] = useState(false)
 
   useEffect(() => {
     fetchAgingData()
+  }, [])
+
+  // Check screen size
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobileView(window.innerWidth < 768)
+    }
+    
+    checkScreenSize()
+    window.addEventListener('resize', checkScreenSize)
+    
+    return () => window.removeEventListener('resize', checkScreenSize)
   }, [])
 
   const fetchAgingData = async () => {
@@ -102,19 +115,13 @@ export default function AgingReport() {
 
   const getAgingBucket = (daysOverdue: number) => {
     if (daysOverdue <= 0) return 'current'
-    if (daysOverdue <= 30) return '1-30_days'
-    if (daysOverdue <= 60) return '31-60_days'
-    if (daysOverdue <= 90) return '61-90_days'
-    return 'over_90_days'
+    return '1-30_days'
   }
 
   const getBucketLabel = (bucket: string) => {
     switch (bucket) {
       case 'current': return 'Current'
       case '1-30_days': return '1-30 Hari'
-      case '31-60_days': return '31-60 Hari'
-      case '61-90_days': return '61-90 Hari'
-      case 'over_90_days': return '>90 Hari'
       default: return bucket
     }
   }
@@ -123,9 +130,6 @@ export default function AgingReport() {
     switch (bucket) {
       case 'current': return 'text-green-600 bg-green-50'
       case '1-30_days': return 'text-yellow-600 bg-yellow-50'
-      case '31-60_days': return 'text-orange-600 bg-orange-50'
-      case '61-90_days': return 'text-red-600 bg-red-50'
-      case 'over_90_days': return 'text-red-800 bg-red-100'
       default: return 'text-gray-600 bg-gray-50'
     }
   }
@@ -140,13 +144,67 @@ export default function AgingReport() {
 
   const summary = {
     current: data.filter(item => item.aging_bucket === 'current').reduce((sum, item) => sum + item.outstanding, 0),
-    days1_30: data.filter(item => item.aging_bucket === '1-30_days').reduce((sum, item) => sum + item.outstanding, 0),
-    days31_60: data.filter(item => item.aging_bucket === '31-60_days').reduce((sum, item) => sum + item.outstanding, 0),
-    days61_90: data.filter(item => item.aging_bucket === '61-90_days').reduce((sum, item) => sum + item.outstanding, 0),
-    over90: data.filter(item => item.aging_bucket === 'over_90_days').reduce((sum, item) => sum + item.outstanding, 0)
+    days1_30: data.filter(item => item.aging_bucket === '1-30_days').reduce((sum, item) => sum + item.outstanding, 0)
   }
 
   const totalOutstanding = Object.values(summary).reduce((sum, val) => sum + val, 0)
+
+  // Mobile Components
+  const MobileAgingCard = ({ item }: { item: AgingData }) => {
+    const formatDate = (dateString: string) => {
+      return new Date(dateString).toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      })
+    }
+
+    return (
+      <div className="bg-white rounded-lg shadow border border-gray-200 mb-3 p-4">
+        <div className="flex justify-between items-start mb-3">
+          <div>
+            <h3 className="text-sm font-medium text-gray-900">{item.po_number}</h3>
+            <p className="text-xs text-gray-500">{item.nama_supplier}</p>
+          </div>
+          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getBucketColor(item.aging_bucket)}`}>
+            {getBucketLabel(item.aging_bucket)}
+          </span>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <p className="text-xs text-gray-500">Cabang</p>
+            <p className="text-sm font-medium">{item.nama_branch}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Outstanding</p>
+            <p className="text-sm font-medium text-red-600">{formatCurrency(item.outstanding)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">PO Date</p>
+            <p className="text-sm">{formatDate(item.po_date)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Due Date</p>
+            <p className="text-sm">{formatDate(item.tanggal_jatuh_tempo)}</p>
+          </div>
+        </div>
+        
+        <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+          <div>
+            <p className="text-xs text-gray-500">Days Overdue</p>
+            <p className={`text-sm font-medium ${item.days_overdue > 0 ? 'text-red-600' : 'text-green-600'}`}>
+              {item.days_overdue > 0 ? `${item.days_overdue} hari` : 'Belum jatuh tempo'}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-gray-500">Total PO</p>
+            <p className="text-sm font-medium">{formatCurrency(item.total_po)}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -158,72 +216,111 @@ export default function AgingReport() {
     )
   }
 
+  // Mobile view
+  if (isMobileView) {
+    return (
+      <Layout>
+        <PageAccessControl pageName="aging-report">
+          <div className="p-4 bg-gray-50 min-h-screen">
+            <div className="mb-4">
+              <h1 className="text-s font-bold text-gray-900">Aging Report</h1>
+              <p className="text-s   text-gray-600">Laporan umur piutang</p>
+            </div>
+
+            {/* Mobile Summary Cards */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <div className="bg-white p-2 rounded shadow border">
+                <div className="text-center">
+                  <p className="text-xs text-green-600 font-medium">Current</p>
+                  <p className="text-xs font-semibold">{formatCurrency(summary.current)}</p>
+                  <p className="text-xs text-gray-500">
+                    {totalOutstanding > 0 ? ((summary.current / totalOutstanding) * 100).toFixed(1) : 0}%
+                  </p>
+                </div>
+              </div>
+              <div className="bg-white p-2 rounded shadow border">
+                <div className="text-center">
+                  <p className="text-xs text-yellow-600 font-medium">1-30 Hari</p>
+                  <p className="text-xs font-semibold">{formatCurrency(summary.days1_30)}</p>
+                  <p className="text-xs text-gray-500">
+                    {totalOutstanding > 0 ? ((summary.days1_30 / totalOutstanding) * 100).toFixed(1) : 0}%
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Total Outstanding */}
+            <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-3">
+              <div className="text-center">
+                <div className="flex items-center justify-center mb-1">
+                  <TrendingDown className="h-4 w-4 text-blue-600 mr-1" />
+                  <span className="text-xs font-semibold text-blue-900">Total Outstanding</span>
+                </div>
+                <span className="text-sm font-bold text-blue-900">{formatCurrency(totalOutstanding)}</span>
+              </div>
+            </div>
+
+            {/* Mobile Cards List */}
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-gray-900 mb-3">Detail Aging ({data.length} items)</h3>
+              {data.map((item) => (
+                <MobileAgingCard key={item.id} item={item} />
+              ))}
+            </div>
+
+            {data.length === 0 && (
+              <div className="text-center py-8 text-gray-500 bg-white rounded-lg border">
+                <FileText className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                <p className="text-sm">Tidak ada outstanding payment</p>
+              </div>
+            )}
+          </div>
+        </PageAccessControl>
+      </Layout>
+    )
+  }
+
+  // Desktop view
   return (
     <Layout>
       <PageAccessControl pageName="aging-report">
         <div className="p-6">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">Aging Report</h1>
+            <h1 className="text-s font-bold text-gray-900">Aging Report</h1>
             <p className="text-gray-600">Laporan umur piutang berdasarkan jatuh tempo</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-            <div className="bg-white p-4 rounded-lg shadow border">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+            <div className="bg-white p-3 rounded shadow border">
               <div className="text-center">
-                <p className="text-sm text-green-600 font-medium">Current</p>
-                <p className="text-lg font-semibold">{formatCurrency(summary.current)}</p>
+                <p className="text-xs text-green-600 font-medium">Current</p>
+                <p className="text-sm font-semibold">{formatCurrency(summary.current)}</p>
                 <p className="text-xs text-gray-500">
                   {totalOutstanding > 0 ? ((summary.current / totalOutstanding) * 100).toFixed(1) : 0}%
                 </p>
               </div>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow border">
+            <div className="bg-white p-3 rounded shadow border">
               <div className="text-center">
-                <p className="text-sm text-yellow-600 font-medium">1-30 Hari</p>
-                <p className="text-lg font-semibold">{formatCurrency(summary.days1_30)}</p>
+                <p className="text-xs text-yellow-600 font-medium">1-30 Hari</p>
+                <p className="text-sm font-semibold">{formatCurrency(summary.days1_30)}</p>
                 <p className="text-xs text-gray-500">
                   {totalOutstanding > 0 ? ((summary.days1_30 / totalOutstanding) * 100).toFixed(1) : 0}%
                 </p>
               </div>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow border">
+            <div className="bg-blue-50 border border-blue-200 rounded p-3">
               <div className="text-center">
-                <p className="text-sm text-orange-600 font-medium">31-60 Hari</p>
-                <p className="text-lg font-semibold">{formatCurrency(summary.days31_60)}</p>
-                <p className="text-xs text-gray-500">
-                  {totalOutstanding > 0 ? ((summary.days31_60 / totalOutstanding) * 100).toFixed(1) : 0}%
-                </p>
-              </div>
-            </div>
-            <div className="bg-white p-4 rounded-lg shadow border">
-              <div className="text-center">
-                <p className="text-sm text-red-600 font-medium">61-90 Hari</p>
-                <p className="text-lg font-semibold">{formatCurrency(summary.days61_90)}</p>
-                <p className="text-xs text-gray-500">
-                  {totalOutstanding > 0 ? ((summary.days61_90 / totalOutstanding) * 100).toFixed(1) : 0}%
-                </p>
-              </div>
-            </div>
-            <div className="bg-white p-4 rounded-lg shadow border">
-              <div className="text-center">
-                <p className="text-sm text-red-800 font-medium">&gt;90 Hari</p>
-                <p className="text-lg font-semibold">{formatCurrency(summary.over90)}</p>
-                <p className="text-xs text-gray-500">
-                  {totalOutstanding > 0 ? ((summary.over90 / totalOutstanding) * 100).toFixed(1) : 0}%
-                </p>
+                <div className="flex items-center justify-center mb-1">
+                  <TrendingDown className="h-4 w-4 text-blue-600 mr-1" />
+                  <span className="text-xs font-semibold text-blue-900">Total</span>
+                </div>
+                <span className="text-sm font-bold text-blue-900">{formatCurrency(totalOutstanding)}</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <TrendingDown className="h-6 w-6 text-blue-600 mr-2" />
-                <span className="text-lg font-semibold text-blue-900">Total Outstanding</span>
-              </div>
-              <span className="text-2xl font-bold text-blue-900">{formatCurrency(totalOutstanding)}</span>
-            </div>
-          </div>
+
 
           <div className="bg-white rounded-lg shadow border overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
