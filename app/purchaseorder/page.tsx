@@ -262,7 +262,7 @@ function PurchaseOrderPageContent() {
           // Get PO items with actual prices
           const { data: items } = await supabase
             .from('po_items')
-            .select('qty, product_id, actual_price, received_qty')
+            .select('qty, product_id, actual_price, received_qty, harga')
             .eq('po_id', po.id)
 
           // Get product names and calculate total price
@@ -530,7 +530,7 @@ function PurchaseOrderPageContent() {
           // Get PO items with actual prices
           const { data: items } = await supabase
             .from('po_items')
-            .select('qty, product_id, actual_price, received_qty')
+            .select('qty, product_id, actual_price, received_qty, harga')
             .eq('po_id', po.id)
 
           // Get product names and calculate total

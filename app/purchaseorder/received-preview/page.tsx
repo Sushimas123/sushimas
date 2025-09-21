@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { Package, ArrowLeft, Calendar, Building2, User, FileText, Image as ImageIcon } from 'lucide-react'
+import { Package, ArrowLeft, Calendar, Building2, User, FileText, Image as ImageIcon, Printer, Download } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 
@@ -138,6 +138,57 @@ export default function ReceivedPreviewPage() {
     return new Date(dateString).toLocaleDateString('id-ID')
   }
 
+  const exportToPDF = async () => {
+    try {
+      const jsPDF = (await import('jspdf')).default
+      const doc = new jsPDF()
+      
+      // Header
+      doc.setFontSize(18)
+      doc.text('LAPORAN PENERIMAAN BARANG', 20, 20)
+      
+      // PO Info
+      doc.setFontSize(12)
+      doc.text(`PO Number: ${receivedData?.po_number}`, 20, 40)
+      doc.text(`Tanggal PO: ${receivedData ? formatDate(receivedData.po_date) : ''}`, 20, 50)
+      doc.text(`Supplier: ${receivedData?.supplier_name}`, 20, 60)
+      doc.text(`Cabang: ${receivedData?.branch_name}`, 20, 70)
+      doc.text(`Invoice: ${receivedData?.invoice_number}`, 20, 80)
+      doc.text(`Tanggal Diterima: ${receivedData ? formatDate(receivedData.tanggal_barang_sampai) : ''}`, 20, 90)
+      
+      // Items table header
+      let yPos = 110
+      doc.setFontSize(10)
+      doc.text('Produk', 20, yPos)
+      doc.text('Qty PO', 80, yPos)
+      doc.text('Qty Terima', 110, yPos)
+      doc.text('Harga PO', 140, yPos)
+      doc.text('Harga Aktual', 170, yPos)
+      
+      // Items
+      yPos += 10
+      receivedData?.items.forEach((item) => {
+        doc.text(item.product_name.substring(0, 25), 20, yPos)
+        doc.text(item.qty_po.toString(), 80, yPos)
+        doc.text(item.qty_received.toString(), 110, yPos)
+        doc.text(formatCurrency(item.harga_po), 140, yPos)
+        doc.text(formatCurrency(item.harga_actual), 170, yPos)
+        yPos += 8
+      })
+      
+      // Total
+      yPos += 10
+      const total = receivedData?.items.reduce((sum, item) => sum + (item.qty_received * item.harga_actual), 0) || 0
+      doc.setFontSize(12)
+      doc.text(`Total: ${formatCurrency(total)}`, 140, yPos)
+      
+      doc.save(`received-preview-${receivedData?.po_number}.pdf`)
+    } catch (error) {
+      console.error('Error exporting PDF:', error)
+      alert('Gagal export PDF')
+    }
+  }
+
   if (loading) {
     return (
       <Layout>
@@ -162,68 +213,104 @@ export default function ReceivedPreviewPage() {
   }
 
   return (
-    <Layout>
-      <PageAccessControl pageName="purchaseorder">
-        <div className="p-6 space-y-6">
+    <>
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #printable-content, #printable-content * {
+            visibility: visible;
+          }
+          #printable-content {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+          }
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
+      <Layout>
+        <PageAccessControl pageName="purchaseorder">
+        <div className="p-6 space-y-6" id="printable-content">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                 <Package className="text-green-600" size={28} />
-                Preview Barang Diterima
+                LAPORAN PENERIMAAN BARANG
               </h1>
               <p className="text-gray-600 mt-1">
                 PO #{receivedData.po_number} - {receivedData.supplier_name}
               </p>
             </div>
-            <a 
-              href="/purchaseorder" 
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              <ArrowLeft size={16} />
-              Kembali
-            </a>
+            <div className="flex gap-2 no-print">
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <Printer size={16} />
+                Print
+              </button>
+              <button
+                onClick={exportToPDF}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                <Download size={16} />
+                Export PDF
+              </button>
+              <a 
+                href="/purchaseorder" 
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                <ArrowLeft size={16} />
+                Kembali
+              </a>
+            </div>
           </div>
 
           {/* PO Information */}
-          <div className="bg-green-50 rounded-lg p-6">
-            <h3 className="font-medium text-green-900 mb-4">Informasi Penerimaan Barang</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+          <div className="bg-green-50 rounded-lg p-4">
+            <h3 className="font-medium text-green-900 mb-3">Informasi Penerimaan Barang</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-x-6 gap-y-2 text-sm">
               <div>
-                <span className="text-gray-600">Nomor PO:</span>
+                <span className="text-gray-600 text-xs">Nomor PO:</span>
                 <p className="font-medium">{receivedData.po_number}</p>
               </div>
               <div>
-                <span className="text-gray-600">Tanggal PO:</span>
+                <span className="text-gray-600 text-xs">Tanggal PO:</span>
                 <p className="font-medium">{formatDate(receivedData.po_date)}</p>
               </div>
               <div>
-                <span className="text-gray-600">Tanggal Diterima:</span>
+                <span className="text-gray-600 text-xs">Tanggal Diterima:</span>
                 <p className="font-medium text-green-600">{formatDate(receivedData.tanggal_barang_sampai)}</p>
               </div>
               <div>
-                <span className="text-gray-600">Status:</span>
+                <span className="text-gray-600 text-xs">Status:</span>
                 <p className="font-medium text-green-600">{receivedData.status}</p>
               </div>
               <div>
-                <span className="text-gray-600">Supplier:</span>
+                <span className="text-gray-600 text-xs">Supplier:</span>
                 <p className="font-medium">{receivedData.supplier_name}</p>
               </div>
               <div>
-                <span className="text-gray-600">Cabang:</span>
+                <span className="text-gray-600 text-xs">Cabang:</span>
                 <p className="font-medium">{receivedData.branch_name}</p>
               </div>
               <div>
-                <span className="text-gray-600">Invoice Number:</span>
+                <span className="text-gray-600 text-xs">Invoice Number:</span>
                 <p className="font-medium">{receivedData.invoice_number}</p>
               </div>
               {photoUrl && (
                 <div>
-                  <span className="text-gray-600">Foto Barang:</span>
+                  <span className="text-gray-600 text-xs">Foto Barang:</span>
                   <button
                     onClick={() => setShowPhotoModal(true)}
-                    className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium"
+                    className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium text-sm"
                   >
-                    <ImageIcon size={16} />
+                    <ImageIcon size={14} />
                     Lihat Foto
                   </button>
                 </div>
@@ -319,7 +406,8 @@ export default function ReceivedPreviewPage() {
             </div>
           )}
         </div>
-      </PageAccessControl>
-    </Layout>
+        </PageAccessControl>
+      </Layout>
+    </>
   )
 }

@@ -83,7 +83,7 @@ export default function SubmitApprovalPage() {
 
       setPO(enrichedData)
       setFormData({
-        total_tagih: enrichedData.total_tagih || 0,
+        total_tagih: totalPO,
         keterangan: enrichedData.keterangan || '',
         photo: null
       })
