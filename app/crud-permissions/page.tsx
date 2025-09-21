@@ -149,7 +149,9 @@ export default function CrudPermissionsPage() {
         can_delete: p.can_delete
       }));
 
-      const { error: insertError } = await supabase.from('crud_permissions', permissionsToInsert);
+      const { error: insertError } = await supabase
+        .from('crud_permissions')
+        .insert(permissionsToInsert);
 
       if (insertError) throw insertError;
 
