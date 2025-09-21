@@ -192,6 +192,10 @@ export default function ProductPage() {
     setSubmitting(true);
 
     try {
+      // Get current user ID
+      const userData = localStorage.getItem('user')
+      const currentUserId = userData ? JSON.parse(userData).id_user : null
+      
       if (editing) {
         // Clean form data - only send valid table fields
         const updateData = {
@@ -204,12 +208,13 @@ export default function ProductPage() {
           supplier_id: form.supplier_id ? parseInt(form.supplier_id) : null,
           category: form.category,
           harga: form.harga ? parseFloat(form.harga) : 0,
-          merk: form.merk
+          merk: form.merk,
+          updated_by: currentUserId
         }
         
         const { error } = await supabase.from("nama_product").update(updateData).eq("id_product", form.id_product)
         if (error) {
-          console.error('Update error:', error)
+          console.error('Update error:', error.message)
           throw new Error(error.message || 'Failed to update product')
         }
         showToast("✅ Product updated successfully", "success")
@@ -225,13 +230,14 @@ export default function ProductPage() {
           supplier_id: form.supplier_id ? parseInt(form.supplier_id) : null,
           category: form.category,
           harga: form.harga ? parseFloat(form.harga) : 0,
-          merk: form.merk
+          merk: form.merk,
+          created_by: currentUserId
         }
         
         const { error } = await supabase.from("nama_product").insert([insertData])
         if (error) {
           console.error('Insert error:', error)
-          throw new Error(error.message || 'Failed to create product')
+          throw new Error(error.message || error.details || 'Failed to create product')
         }
         showToast("✅ Product added successfully", "success")
       }
