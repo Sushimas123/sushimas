@@ -91,16 +91,16 @@ function OnProgressPO() {
         // Fetch PO items
         const { data: items } = await supabase
           .from('po_items')
-          .select('*, harga, total')
+          .select('*, harga, total, actual_price')
           .eq('po_id', poId)
 
         // Get product details and stock data for each item
         const itemsWithStock = await Promise.all(
           (items || []).map(async (item) => {
-            // Get product details
+            // Get product details including price
             const { data: product } = await supabase
               .from('nama_product')
-              .select('product_name, merk')
+              .select('product_name, merk, harga')
               .eq('id_product', item.product_id)
               .single()
 
@@ -112,13 +112,17 @@ function OnProgressPO() {
               .eq('id_branch', po.cabang_id)
               .single()
 
+            // Use actual_price first, then harga from po_items, then fallback to product price
+            const finalPrice = item.actual_price || item.harga || product?.harga || 0
+            const finalTotal = item.total || (finalPrice * item.qty)
+
             return {
               ...item,
               product_name: product?.product_name || 'Unknown Product',
               merk: product?.merk || '',
               stock_qty: stockData?.stock_qty || 0,
-              harga: item.harga || 0,
-              total: item.total || 0
+              harga: finalPrice,
+              total: finalTotal
             }
           })
         )

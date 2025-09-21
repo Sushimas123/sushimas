@@ -129,43 +129,64 @@ export default function PriceHistoryPage() {
   const fetchPriceHistory = async () => {
     try {
       let query = supabase
-        .from('price_history')
+        .from('po_price_history')
         .select(`
-          *,
-          nama_product!inner(product_name)
+          id,
+          product_id,
+          po_price,
+          actual_price,
+          price_difference,
+          percentage_difference,
+          received_date,
+          po_number,
+          notes,
+          invoice_number
         `)
-        .order('change_date', { ascending: false })
+        .order('received_date', { ascending: false })
 
       if (filters.product_id) {
         query = query.eq('product_id', parseInt(filters.product_id))
       }
       if (filters.date_from) {
-        query = query.gte('change_date', filters.date_from)
+        query = query.gte('received_date', filters.date_from)
       }
       if (filters.date_to) {
-        query = query.lte('change_date', filters.date_to + 'T23:59:59')
-      }
-      if (filters.change_reason) {
-        query = query.eq('change_reason', filters.change_reason)
+        query = query.lte('received_date', filters.date_to)
       }
 
       const { data, error } = await query
 
       if (error) throw error
 
+      // Get product names separately
+      const productIds = [...new Set(data?.map(item => item.product_id) || [])]
+      const { data: products } = await supabase
+        .from('nama_product')
+        .select('id_product, product_name')
+        .in('id_product', productIds)
+
+      const productMap = (products || []).reduce((acc, product) => {
+        acc[product.id_product] = product.product_name
+        return acc
+      }, {} as Record<number, string>)
+
       const historyWithProductNames = data?.map(item => ({
-        ...item,
-        product_name: item.nama_product?.product_name || 'Unknown Product',
-        // Ensure numeric values are properly parsed
-        old_price: parseFloat(item.old_price) || 0,
-        new_price: parseFloat(item.new_price) || 0,
-        price_change: parseFloat(item.price_change) || 0,
-        change_percentage: parseFloat(item.change_percentage) || 0
+        id: item.id,
+        product_id: item.product_id,
+        product_name: productMap[item.product_id] || 'Unknown Product',
+        old_price: parseFloat(item.po_price) || 0,
+        new_price: parseFloat(item.actual_price) || 0,
+        price_change: parseFloat(item.price_difference) || 0,
+        change_percentage: parseFloat(item.percentage_difference) || 0,
+        change_date: item.received_date,
+        po_number: item.po_number,
+        notes: item.notes || item.invoice_number,
+        change_reason: 'po_completion'
       })) || []
 
       // Debug: Log first few records to check data format
       if (historyWithProductNames.length > 0) {
-        console.log('Sample price history data:', historyWithProductNames.slice(0, 3))
+        console.log('Sample price history from po_price_history:', historyWithProductNames.slice(0, 3))
       }
       
       setPriceHistory(historyWithProductNames)
