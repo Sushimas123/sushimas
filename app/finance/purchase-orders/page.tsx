@@ -828,129 +828,226 @@ export default function FinancePurchaseOrders() {
 
           {/* Mobile Card View */}
           <div className="block md:hidden">
-            {filteredData.map((item) => (
-              <div key={item.id} className="bg-white rounded-lg shadow border border-gray-200 mb-3 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={selectedPOs.includes(item.id)}
-                      disabled={item.status_payment === 'paid'}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedPOs([...selectedPOs, item.id])
-                        } else {
-                          setSelectedPOs(selectedPOs.filter(id => id !== item.id))
-                        }
-                      }}
-                      className="rounded border-gray-300 disabled:opacity-50"
-                    />
-                    <a 
-                      href={`/purchaseorder/received-preview?id=${item.id}`}
-                      className="text-sm font-bold text-blue-600 hover:text-blue-800"
-                      target="_blank"
-                    >
-                      {item.po_number}
-                    </a>
-                  </div>
-                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}>
-                    {item.status_payment.toUpperCase()}
-                  </span>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2 text-xs mb-2">
-                  <div>
-                    <span className="text-gray-500">Cabang:</span>
-                    <p className="font-medium">{item.nama_branch}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Supplier:</span>
-                    <p className="font-medium">{item.nama_supplier}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Total PO:</span>
-                    <p className="font-medium">{formatCurrency(item.total_po)}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Sisa:</span>
-                    <p className="font-medium text-red-600">{formatCurrency(item.sisa_bayar)}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Jatuh Tempo:</span>
-                    <p className={`font-medium ${item.is_overdue ? 'text-red-600' : ''}`}>
-                      {formatDate(item.tanggal_jatuh_tempo)}
-                      {item.is_overdue && <span className="ml-1 text-xs">(Overdue {item.days_overdue}d)</span>}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Status PO:</span>
-                    <span className={`inline-flex px-1 py-0.5 text-xs font-semibold rounded ${
-                      (item as any).po_status === 'Barang sampai' ? 'bg-green-100 text-green-800' :
-                      (item as any).po_status === 'Sedang diproses' ? 'bg-blue-100 text-blue-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {(item as any).po_status}
+            {filteredData.map((item) => {
+              const isExpanded = expandedRows.includes(item.id)
+              return (
+                <div key={item.id} className="bg-white rounded-lg shadow border border-gray-200 mb-3 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedPOs.includes(item.id)}
+                        disabled={item.status_payment === 'paid'}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedPOs([...selectedPOs, item.id])
+                          } else {
+                            setSelectedPOs(selectedPOs.filter(id => id !== item.id))
+                          }
+                        }}
+                        className="rounded border-gray-300 disabled:opacity-50"
+                      />
+                      <button 
+                        onClick={() => toggleRowExpansion(item.id)}
+                        className="text-gray-500 hover:text-blue-600"
+                      >
+                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </button>
+                      <a 
+                        href={`/purchaseorder/received-preview?id=${item.id}`}
+                        className="text-sm font-bold text-blue-600 hover:text-blue-800"
+                        target="_blank"
+                      >
+                        {item.po_number}
+                      </a>
+                    </div>
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}>
+                      {item.status_payment.toUpperCase()}
                     </span>
                   </div>
-                </div>
-                
-                {(item as any).tanggal_barang_sampai && (
-                  <div className="text-xs text-green-600 mb-2 flex items-center">
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Barang sampai: {formatDate((item as any).tanggal_barang_sampai)}
+                  
+                  <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                    <div>
+                      <span className="text-gray-500">Cabang:</span>
+                      <p className="font-medium">{item.nama_branch}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Supplier:</span>
+                      <p className="font-medium">{item.nama_supplier}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Total PO:</span>
+                      <p className="font-medium">{formatCurrency(item.total_po)}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Sisa:</span>
+                      <p className="font-medium text-red-600">{formatCurrency(item.sisa_bayar)}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Jatuh Tempo:</span>
+                      <p className={`font-medium ${item.is_overdue ? 'text-red-600' : ''}`}>
+                        {formatDate(item.tanggal_jatuh_tempo)}
+                        {item.is_overdue && <span className="ml-1 text-xs">(Overdue {item.days_overdue}d)</span>}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Status PO:</span>
+                      <span className={`inline-flex px-1 py-0.5 text-xs font-semibold rounded ${
+                        (item as any).po_status === 'Barang sampai' ? 'bg-green-100 text-green-800' :
+                        (item as any).po_status === 'Sedang diproses' ? 'bg-blue-100 text-blue-800' :
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {(item as any).po_status}
+                      </span>
+                    </div>
                   </div>
-                )}
-                
-                {(item as any).dibayar_tanggal && (
-                  <div className="text-xs text-blue-600 mb-2 flex items-center">
-                    <CreditCard className="h-3 w-3 mr-1" />
-                    Dibayar: {formatDate((item as any).dibayar_tanggal)} via {(item as any).payment_via}
+                  
+                  {(item as any).tanggal_barang_sampai && (
+                    <div className="text-xs text-green-600 mb-2 flex items-center">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Barang sampai: {formatDate((item as any).tanggal_barang_sampai)}
+                    </div>
+                  )}
+                  
+                  {(item as any).dibayar_tanggal && (
+                    <div className="text-xs text-blue-600 mb-2 flex items-center">
+                      <CreditCard className="h-3 w-3 mr-1" />
+                      Dibayar: {formatDate((item as any).dibayar_tanggal)} via {(item as any).payment_via}
+                    </div>
+                  )}
+                  
+                  {/* Expanded Details for Mobile */}
+                  {isExpanded && (
+                    <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
+                      {/* Items List */}
+                      <div>
+                        <h4 className="text-xs font-medium text-gray-900 mb-2 flex items-center">
+                          <FileText className="h-3 w-3 mr-1" />
+                          Daftar Item
+                        </h4>
+                        {rowDetails[item.id]?.items?.length > 0 ? (
+                          <div className="bg-gray-50 rounded p-2">
+                            {rowDetails[item.id].items.map((poItem: any) => (
+                              <div key={poItem.id} className="flex justify-between items-center py-1 text-xs border-b border-gray-200 last:border-b-0">
+                                <div className="flex-1">
+                                  <p className="font-medium">{poItem.product_name}</p>
+                                  <p className="text-gray-500">Qty: {poItem.received_qty ? `${poItem.received_qty}/${poItem.qty}` : poItem.qty}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-medium">{formatCurrency(poItem.harga || poItem.actual_price || 0)}</p>
+                                  <p className="text-gray-500">{formatCurrency(
+                                    poItem.actual_price && poItem.received_qty 
+                                      ? poItem.received_qty * poItem.actual_price
+                                      : poItem.harga 
+                                        ? poItem.qty * poItem.harga
+                                        : 0
+                                  )}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500">Tidak ada item</p>
+                        )}
+                      </div>
+                      
+                      {/* Payment History */}
+                      <div>
+                        <h4 className="text-xs font-medium text-gray-900 mb-2 flex items-center">
+                          <CreditCard className="h-3 w-3 mr-1" />
+                          Riwayat Pembayaran
+                        </h4>
+                        {rowDetails[item.id]?.payments?.length > 0 ? (
+                          <div className="bg-gray-50 rounded p-2">
+                            {rowDetails[item.id].payments.map((payment: any) => (
+                              <div key={payment.id} className="flex justify-between items-center py-1 text-xs border-b border-gray-200 last:border-b-0">
+                                <div>
+                                  <p className="font-medium">{formatDate(payment.payment_date)}</p>
+                                  <p className="text-gray-500">{payment.payment_method}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-medium">{formatCurrency(payment.payment_amount)}</p>
+                                  <p className="text-gray-500">{payment.notes || '-'}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500">Belum ada riwayat pembayaran</p>
+                        )}
+                      </div>
+                      
+                      {/* Approval Photo */}
+                      <div>
+                        <h4 className="text-xs font-medium text-gray-900 mb-2 flex items-center">
+                          <FileText className="h-3 w-3 mr-1" />
+                          Foto Approval
+                        </h4>
+                        {(item as any).approval_photo ? (
+                          <div className="bg-gray-50 rounded p-2">
+                            <img 
+                              src={`${supabase.storage.from('po-photos').getPublicUrl((item as any).approval_photo).data.publicUrl}`}
+                              alt="Approval Photo"
+                              className="w-full h-32 object-cover rounded cursor-pointer hover:opacity-80"
+                              onClick={() => window.open(`${supabase.storage.from('po-photos').getPublicUrl((item as any).approval_photo).data.publicUrl}`, '_blank')}
+                            />
+                            <div className="mt-2 text-xs text-gray-500">
+                              <p>Status: {(item as any).approval_status || 'pending'}</p>
+                              <p>Total Tagih: {formatCurrency((item as any).total_tagih || 0)}</p>
+                              {(item as any).keterangan && <p>Keterangan: {(item as any).keterangan}</p>}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500">Belum ada foto approval</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="flex gap-1 mt-2">
+                    <a
+                      href={`/finance/purchase-orders/submit-approval?id=${item.id}`}
+                      className="flex-1 text-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                    >
+                      Submit
+                    </a>
+                    {(item as any).approval_status === 'pending' && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const { error } = await supabase
+                              .from('purchase_orders')
+                              .update({ 
+                                approval_status: 'approved',
+                                approved_at: new Date().toISOString()
+                              })
+                              .eq('id', item.id)
+                            if (error) throw error
+                            fetchFinanceData()
+                          } catch (error) {
+                            console.error('Error approving:', error)
+                          }
+                        }}
+                        className="flex-1 text-center px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700"
+                      >
+                        Approve
+                      </button>
+                    )}
+                    {item.sisa_bayar > 0 && !(item as any).bulk_payment_ref && (
+                      <button
+                        onClick={() => {
+                          setSelectedPO(item)
+                          setShowPaymentModal(true)
+                        }}
+                        className="flex-1 text-center px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+                      >
+                        Bayar
+                      </button>
+                    )}
                   </div>
-                )}
-                
-                <div className="flex gap-1 mt-2">
-                  <a
-                    href={`/finance/purchase-orders/submit-approval?id=${item.id}`}
-                    className="flex-1 text-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
-                  >
-                    Submit
-                  </a>
-                  {(item as any).approval_status === 'pending' && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          const { error } = await supabase
-                            .from('purchase_orders')
-                            .update({ 
-                              approval_status: 'approved',
-                              approved_at: new Date().toISOString()
-                            })
-                            .eq('id', item.id)
-                          if (error) throw error
-                          fetchFinanceData()
-                        } catch (error) {
-                          console.error('Error approving:', error)
-                        }
-                      }}
-                      className="flex-1 text-center px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700"
-                    >
-                      Approve
-                    </button>
-                  )}
-                  {item.sisa_bayar > 0 && !(item as any).bulk_payment_ref && (
-                    <button
-                      onClick={() => {
-                        setSelectedPO(item)
-                        setShowPaymentModal(true)
-                      }}
-                      className="flex-1 text-center px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
-                    >
-                      Bayar
-                    </button>
-                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Desktop Table View */}
@@ -1297,7 +1394,7 @@ export default function FinancePurchaseOrders() {
                           </td>
                         </tr>
                         
-                        {/* Expanded Row with Details */}
+                        {/* Expanded Row with Details - Desktop Only */}
                         {isExpanded && (
                           <tr className="bg-blue-50">
                             <td colSpan={24} className="px-4 py-4">
