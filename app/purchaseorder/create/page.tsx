@@ -440,8 +440,13 @@ function CreatePurchaseOrder() {
           .single()
 
         if (poError) {
-          console.error('PO insert error details:', poError)
-          throw new Error(`Failed to insert PO: ${poError.message || 'Unknown database error'}`)
+          console.error('PO insert error details:', JSON.stringify(poError, null, 2))
+          console.error('Error keys:', Object.keys(poError))
+          console.error('Error message:', poError.message)
+          console.error('Error code:', poError.code)
+          console.error('Error details:', poError.details)
+          console.error('Error hint:', poError.hint)
+          throw new Error(`Failed to insert PO: ${poError.message || poError.details || JSON.stringify(poError) || 'Unknown database error'}`)
         }
         
         console.log('PO created:', poData)
@@ -457,8 +462,9 @@ function CreatePurchaseOrder() {
         const { error: itemsError } = await insertWithAudit('po_items', poItemsData)
 
         if (itemsError) {
-          console.error('Items insert error:', itemsError)
-          throw new Error(`Failed to insert PO items: ${itemsError.message}`)
+          console.error('Items insert error:', JSON.stringify(itemsError, null, 2))
+          console.error('Items data:', poItemsData)
+          throw new Error(`Failed to insert PO items: ${itemsError.message || itemsError.details || 'Unknown error'}`)
         }
       }
 

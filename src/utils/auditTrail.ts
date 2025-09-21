@@ -56,15 +56,37 @@ export const insertWithAudit = (
 ) => {
   const currentUser = getCurrentUser();
   
-  // Add audit fields to data
-  const dataWithAudit = {
-    ...data,
-    created_by: currentUser?.id_user || null,
-    updated_by: currentUser?.id_user || null
-  };
+  // Only add audit fields for tables that have them
+  const tablesWithAuditFields = ['nama_product', 'categories', 'suppliers', 'branches', 'users'];
+  
+  let finalData;
+  
+  if (Array.isArray(data)) {
+    // Handle array of data
+    if (tablesWithAuditFields.includes(tableName)) {
+      finalData = data.map(item => ({
+        ...item,
+        created_by: currentUser?.id_user || null,
+        updated_by: currentUser?.id_user || null
+      }));
+    } else {
+      finalData = data;
+    }
+  } else {
+    // Handle single object
+    if (tablesWithAuditFields.includes(tableName)) {
+      finalData = [{
+        ...data,
+        created_by: currentUser?.id_user || null,
+        updated_by: currentUser?.id_user || null
+      }];
+    } else {
+      finalData = [data];
+    }
+  }
 
   // Return the query builder so it can be chained
-  return supabase.from(tableName).insert([dataWithAudit]);
+  return supabase.from(tableName).insert(finalData);
 };
 
 // Enhanced update with audit trail
