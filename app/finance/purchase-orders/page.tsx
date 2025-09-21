@@ -831,7 +831,7 @@ export default function FinancePurchaseOrders() {
                       />
                     </th>
                     <th className="w-8 px-2 py-3 sticky left-8 bg-gray-50 z-20"></th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('po_number')}>PO Info {sortField === 'po_number' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 sticky left-16 bg-gray-50 z-20" onClick={() => handleSort('po_number')}>PO Info {sortField === 'po_number' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_branch')}>Branch {sortField === 'nama_branch' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_barang_sampai')}>Barang Sampai {sortField === 'tanggal_barang_sampai' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">PO Status</th>
@@ -849,10 +849,7 @@ export default function FinancePurchaseOrders() {
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Payment Via</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('status_payment')}>Payment Status {sortField === 'status_payment' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>                                        
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Ref. Pembayaran</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('approved_at')}>Approved Date {sortField === 'approved_at' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
-
-                    
-                                    
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('approved_at')}>Approved Date {sortField === 'approved_at' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>                                                  
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Notes</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Keterangan</th>
                     <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
@@ -889,7 +886,7 @@ export default function FinancePurchaseOrders() {
                               {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                             </button>
                           </td>
-                          <td className="px-3 py-4 whitespace-nowrap">
+                          <td className="px-3 py-4 whitespace-nowrap sticky left-16 bg-white z-10">
                             <div>
                               <a 
                                 href={`/purchaseorder/received-preview?id=${item.id}`}
