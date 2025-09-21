@@ -434,7 +434,8 @@ function CreatePurchaseOrder() {
 
         console.log('Inserting PO data:', poInsertData)
         
-        const { data: poData, error: poError } = await supabase.from('purchase_orders', poInsertData)
+        const { data: poData, error: poError } = await supabase.from('purchase_orders')
+          .insert(poInsertData)
           .select()
           .single()
 
@@ -458,7 +459,7 @@ function CreatePurchaseOrder() {
           keterangan: item.keterangan
         }))
 
-        const { error: itemsError } = await supabase.from('po_items', poItemsData)
+        const { error: itemsError } = await supabase.from('po_items').insert(poItemsData)
 
         if (itemsError) {
           console.error('Items insert error:', JSON.stringify(itemsError, null, 2))

@@ -381,7 +381,7 @@ export default function BarangMasukPage() {
       const newTotalStock = previousStock + item.jumlah
       
       // Insert to gudang table
-      const { error: gudangError } = await supabase.from('gudang', {
+      const { error: gudangError } = await supabase.from('gudang').insert({
           tanggal: item.tanggal,
           id_product: item.id_barang,
           jumlah_masuk: item.jumlah,

@@ -290,9 +290,9 @@ export default function ProductSettingsPage() {
         };
         
         if (existingSetting) {
-          await supabase.from('product_branch_settings', settingData, { id_setting: existingSetting.id_setting });
+          await supabase.from('product_branch_settings').update(settingData).eq('id_setting', existingSetting.id_setting);
         } else {
-          await supabase.from('product_branch_settings', settingData);
+          await supabase.from('product_branch_settings').insert(settingData);
         }
       }
 
@@ -345,7 +345,7 @@ export default function ProductSettingsPage() {
         .eq('id_product', id);
       
       for (const setting of branchSettings || []) {
-        await supabase.from('product_branch_settings', { id_setting: setting.id_setting });
+        await supabase.from('product_branch_settings').delete().eq('id_setting', setting.id_setting);
       }
 
       showToast('Settings deleted successfully', 'success');
@@ -438,9 +438,9 @@ export default function ProductSettingsPage() {
           };
           
           if (existingSetting) {
-            await supabase.from('product_branch_settings', settingData, { id_setting: existingSetting.id_setting });
+            await supabase.from('product_branch_settings').update(settingData).eq('id_setting', existingSetting.id_setting);
           } else {
-            await supabase.from('product_branch_settings', settingData);
+            await supabase.from('product_branch_settings').insert(settingData);
           }
         }
         
@@ -488,7 +488,7 @@ export default function ProductSettingsPage() {
           .eq('id_product', id);
         
         for (const setting of branchSettings || []) {
-          await supabase.from('product_branch_settings', { id_setting: setting.id_setting });
+          await supabase.from('product_branch_settings').delete().eq('id_setting', setting.id_setting);
         }
       }
       

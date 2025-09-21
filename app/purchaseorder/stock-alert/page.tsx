@@ -521,7 +521,7 @@ function StockAlertPOPage() {
 
             console.log('Creating PO items:', poItemsData);
 
-            const { error: itemsError } = await supabase.from('po_items', poItemsData);
+            const { error: itemsError } = await supabase.from('po_items').insert(poItemsData);
 
             if (itemsError) {
               console.error('PO items creation error:', itemsError);

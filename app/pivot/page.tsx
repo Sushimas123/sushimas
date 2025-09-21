@@ -616,7 +616,9 @@ export default function PivotPage() {
       const userData = localStorage.getItem('user');
       const user = userData ? JSON.parse(userData) : { name: 'Unknown' };
 
-      const { error } = await supabase.from('investigation_notes', {
+      const { error } = await supabase
+        .from('investigation_notes')
+        .insert({
           analysis_id: id,
           notes: notes[id],
           created_by: user.name || 'Unknown'

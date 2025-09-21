@@ -256,10 +256,12 @@ function EditPurchaseOrder() {
 
     try {
       // Update PO (only editable fields)
-      const { error: poError } = await supabase.from('purchase_orders', {
+      const { error: poError } = await supabase.from('purchase_orders')
+        .update({
           priority: formData.priority,
           notes: formData.notes
-        }, {'id': poId})
+        })
+        .eq('id', poId)
 
       if (poError) throw poError
 
@@ -278,7 +280,7 @@ function EditPurchaseOrder() {
         keterangan: item.keterangan
       }))
 
-      const { error: itemsError } = await supabase.from('po_items', poItemsData)
+      const { error: itemsError } = await supabase.from('po_items').insert(poItemsData)
 
       if (itemsError) throw itemsError
 

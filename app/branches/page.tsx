@@ -186,18 +186,16 @@ function BranchesPageContent() {
       };
 
       if (editingId) {
-        const { error } = await supabase.from(
-          'branches',
-          submitData,
-          { id_branch: editingId }
-        );
+        const { error } = await supabase
+          .from('branches')
+          .update(submitData)
+          .eq('id_branch', editingId);
 
         if (error) throw error;
       } else {
-        const { error } = await supabase.from(
-          'branches',
-          submitData
-        );
+        const { error } = await supabase
+          .from('branches')
+          .insert(submitData);
 
         if (error) throw error;
       }
@@ -392,10 +390,10 @@ function BranchesPageContent() {
     setDeleteLoading(id);
     
     try {
-      const { error } = await supabase.from(
-        'branches',
-        { id_branch: id }
-      );
+      const { error } = await supabase
+        .from('branches')
+        .update({ is_active: false })
+        .eq('id_branch', id);
 
       if (error) {
         throw error;

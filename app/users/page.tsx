@@ -214,11 +214,9 @@ function UsersPageContent() {
           delete (updateData as any).password_hash;
         }
         
-        const { error } = await supabase.from(
-          'users',
-          updateData,
-          { id_user: editingId }
-        );
+        const { error } = await supabase.from('users')
+          .update(updateData)
+          .eq('id_user', editingId);
 
         if (error) throw error;
         
@@ -236,11 +234,10 @@ function UsersPageContent() {
         const userData = { ...formData };
         delete (userData as any).selectedBranches;
         
-        const { data, error } = await supabase.from(
-          'users',
-          userData,
-          { select: 'id_user' }
-        );
+        const { data, error } = await supabase.from('users')
+          .insert(userData)
+          .select('id_user')
+          .single();
 
         if (error) throw error;
         userId = Array.isArray(data) ? data[0]?.id_user : (data as any)?.id_user;
@@ -410,10 +407,9 @@ function UsersPageContent() {
     setDeleteLoading(id);
     
     try {
-      const { error } = await supabase.from(
-        'users',
-        { id_user: id }
-      );
+      const { error } = await supabase.from('users')
+        .delete()
+        .eq('id_user', id);
 
       if (error) {
         throw error;

@@ -452,7 +452,7 @@ function ReadyPageContent() {
       }
       
       for (const data of submitData) {
-        const { error } = await supabase.from('ready', data);
+        const { error } = await supabase.from('ready').insert(data);
         if (error) throw error;
       }
       
@@ -489,13 +489,12 @@ function ReadyPageContent() {
     if (!editingItem) return;
 
     try {
-      const { error } = await supabase.from('ready', 
-        {
+      const { error } = await supabase.from('ready')
+        .update({
           ready: editingItem.ready,
           waste: editingItem.waste
-        },
-        { id_ready: editingItem.id_ready }
-      );
+        })
+        .eq('id_ready', editingItem.id_ready);
       
       if (error) throw error;
       
@@ -525,7 +524,7 @@ function ReadyPageContent() {
     
     try {
       for (const id of selectedItems) {
-        const { error } = await supabase.from('ready', { id_ready: id });
+        const { error } = await supabase.from('ready').delete().eq('id_ready', id);
         if (error) throw error;
       }
       
@@ -834,7 +833,7 @@ function ReadyPageContent() {
       setImportProgress({show: true, progress: 85, message: 'Menyimpan ke database...'});
       
       for (const data of processedData) {
-        const { error } = await supabase.from('ready', data);
+        const { error } = await supabase.from('ready').insert(data);
         if (error) {
           console.error('Supabase insert error:', error);
           throw new Error(`Database error: ${error.message || 'Failed to insert data'}`);
@@ -1450,7 +1449,7 @@ function ReadyPageContent() {
                               onClick={async () => {
                                 if (confirm('Hapus data ini?')) {
                                   try {
-                                    const { error } = await supabase.from('ready', { id_ready: item.id_ready });
+                                    const { error } = await supabase.from('ready').delete().eq('id_ready', item.id_ready);
                                     
                                     if (error) throw error;
                                     

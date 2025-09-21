@@ -537,11 +537,16 @@ function GudangPageContent() {
 
     try {
       if (editingId) {
-        const { error } = await supabase.from('gudang', submitData, { order_no: editingId });
+        const { error } = await supabase
+          .from('gudang')
+          .update(submitData)
+          .eq('order_no', editingId);
         if (error) throw error;
         console.log('Updated gudang record:', editingId);
       } else {
-        const { data, error } = await supabase.from('gudang', submitData);
+        const { data, error } = await supabase
+          .from('gudang')
+          .insert(submitData);
         if (error) throw error;
         console.log('Inserted new gudang record:', data);
       }
@@ -683,7 +688,10 @@ function GudangPageContent() {
         return;
       }
       
-      const { error } = await supabase.from('gudang', { order_no: id });
+      const { error } = await supabase
+        .from('gudang')
+        .delete()
+        .eq('order_no', id);
       if (error) throw error;
       
       await fetchGudang();
@@ -874,7 +882,11 @@ function GudangPageContent() {
       let deletedCount = 0;
       
       for (const id of deletableItems) {
-        await supabase.from('gudang', { order_no: id });
+        const { error } = await supabase
+          .from('gudang')
+          .delete()
+          .eq('order_no', id);
+        if (error) throw error;
         deletedCount++;
       }
       
@@ -1016,7 +1028,9 @@ function GudangPageContent() {
         
         if (importData.length > 0) {
           for (const data of importData) {
-            const { error } = await supabase.from('gudang', data);
+            const { error } = await supabase
+              .from('gudang')
+              .insert(data);
             if (error) throw error;
           }
           
