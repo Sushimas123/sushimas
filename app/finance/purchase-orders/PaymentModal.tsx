@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { X, Plus, Trash2, Calendar, DollarSign } from 'lucide-react'
+import { X, Plus, Trash2, Calendar, DollarSign, FileText, Clock, CheckCircle, Download } from 'lucide-react'
 
 interface Payment {
   id: number
@@ -22,6 +22,7 @@ interface PaymentModalProps {
     total_po: number
     total_paid: number
     sisa_bayar: number
+    total_tagih?: number
   }
   onClose: () => void
   onSuccess: () => void
@@ -32,6 +33,7 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
+  const [approvalStatus, setApprovalStatus] = useState('draft')
   
   const [formData, setFormData] = useState({
     payment_date: new Date().toISOString().split('T')[0],
@@ -44,7 +46,23 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
 
   useEffect(() => {
     fetchPayments()
+    fetchApprovalStatus()
   }, [po.id])
+
+  const fetchApprovalStatus = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('purchase_orders')
+        .select('approval_status, total_tagih, keterangan')
+        .eq('id', po.id)
+        .single()
+
+      if (error) throw error
+      setApprovalStatus(data?.approval_status || 'draft')
+    } catch (error) {
+      console.error('Error fetching approval status:', error)
+    }
+  }
 
   const fetchPayments = async () => {
     try {
@@ -139,6 +157,56 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
     }).format(amount)
   }
 
+  const exportToPDF = async () => {
+    try {
+      const jsPDF = (await import('jspdf')).default
+      const doc = new jsPDF()
+      
+      // Header
+      doc.setFontSize(18)
+      doc.text('Payment Receipt', 20, 20)
+      
+      doc.setFontSize(12)
+      doc.text(`PO Number: ${po.po_number}`, 20, 35)
+      doc.text(`Supplier: ${po.nama_supplier}`, 20, 45)
+      doc.text(`Date: ${new Date().toLocaleDateString('id-ID')}`, 20, 55)
+      
+      // PO Summary
+      doc.text('PO Summary:', 20, 70)
+      doc.text(`Total PO: ${formatCurrency(po.total_po)}`, 25, 80)
+      doc.text(`Total Tagih: ${formatCurrency(po.total_tagih || 0)}`, 25, 90)
+      doc.text(`Total Paid: ${formatCurrency(po.total_paid)}`, 25, 100)
+      doc.text(`Remaining: ${formatCurrency(po.sisa_bayar)}`, 25, 110)
+      
+      // Payment History
+      if (payments.length > 0) {
+        doc.text('Payment History:', 20, 130)
+        let yPos = 140
+        payments.forEach((payment, index) => {
+          doc.text(`${index + 1}. ${new Date(payment.payment_date).toLocaleDateString('id-ID')}`, 25, yPos)
+          doc.text(`   Amount: ${formatCurrency(payment.payment_amount)}`, 25, yPos + 10)
+          doc.text(`   Method: ${payment.payment_method} via ${payment.payment_via}`, 25, yPos + 20)
+          if (payment.reference_number) {
+            doc.text(`   Ref: ${payment.reference_number}`, 25, yPos + 30)
+            yPos += 40
+          } else {
+            yPos += 30
+          }
+          if (payment.notes) {
+            doc.text(`   Notes: ${payment.notes}`, 25, yPos)
+            yPos += 10
+          }
+          yPos += 10
+        })
+      }
+      
+      doc.save(`payment-receipt-${po.po_number}-${new Date().toISOString().split('T')[0]}.pdf`)
+    } catch (error) {
+      console.error('Error exporting PDF:', error)
+      alert('Gagal export PDF')
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
@@ -147,18 +215,31 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
             <h2 className="text-xl font-semibold text-gray-900">Payment Management</h2>
             <p className="text-sm text-gray-600">PO: {po.po_number} - {po.nama_supplier}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X size={24} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportToPDF}
+              className="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 flex items-center gap-2 text-sm"
+            >
+              <Download size={16} />
+              Export PDF
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <X size={24} />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
           {/* PO Summary */}
           <div className="bg-gray-50 p-4 rounded-lg mb-6">
-            <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="grid grid-cols-4 gap-4 text-center">
               <div>
                 <p className="text-sm text-gray-600">Total PO</p>
                 <p className="text-lg font-semibold">{formatCurrency(po.total_po)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total Tagih</p>
+                <p className="text-lg font-semibold text-blue-600">{formatCurrency(po.total_tagih || 0)}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Sudah Dibayar</p>
@@ -171,21 +252,75 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
             </div>
           </div>
 
-          {/* Add Payment Button */}
+          {/* Submit for Approval / Add Payment Buttons */}
           {po.sisa_bayar > 0 && (
-            <div className="mb-6">
-              <button
-                onClick={() => {
-                  setShowAddForm(!showAddForm)
-                  if (!showAddForm) {
-                    setFormData(prev => ({...prev, payment_amount: po.sisa_bayar.toString()}))
-                  }
-                }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2"
-              >
-                <Plus size={16} />
-                Tambah Pembayaran
-              </button>
+            <div className="mb-6 flex gap-3">
+              {approvalStatus === 'draft' ? (
+                <a
+                  href={`/finance/purchase-orders/submit-approval?id=${po.id}`}
+                  className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 flex items-center gap-2"
+                >
+                  <FileText size={16} />
+                  Submit for Approval
+                </a>
+              ) : approvalStatus === 'approved' ? (
+                <button
+                  onClick={() => {
+                    setShowAddForm(!showAddForm)
+                    if (!showAddForm) {
+                      setFormData(prev => ({...prev, payment_amount: po.sisa_bayar.toString()}))
+                    }
+                  }}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2"
+                >
+                  <Plus size={16} />
+                  Tambah Pembayaran
+                </button>
+              ) : approvalStatus === 'pending' ? (
+                <div className="flex gap-2">
+                  <div className="bg-yellow-100 text-yellow-800 px-4 py-2 rounded-md flex items-center gap-2">
+                    <Clock size={16} />
+                    Menunggu Approval
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const { error } = await supabase
+                          .from('purchase_orders')
+                          .update({
+                            approval_status: 'approved',
+                            approved_at: new Date().toISOString()
+                          })
+                          .eq('id', po.id)
+                        
+                        if (error) throw error
+                        setApprovalStatus('approved')
+                        onSuccess()
+                      } catch (error) {
+                        console.error('Error approving:', error)
+                        alert('Gagal approve')
+                      }
+                    }}
+                    className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center gap-2"
+                  >
+                    <CheckCircle size={16} />
+                    Approve
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setShowAddForm(!showAddForm)
+                    if (!showAddForm) {
+                      setFormData(prev => ({...prev, payment_amount: po.sisa_bayar.toString()}))
+                    }
+                  }}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2"
+                >
+                  <Plus size={16} />
+                  Tambah Pembayaran
+                </button>
+              )}
             </div>
           )}
 

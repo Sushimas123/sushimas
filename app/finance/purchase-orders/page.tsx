@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { DollarSign, FileText, AlertTriangle, TrendingUp, Search, Plus, Filter, X, ChevronDown, ChevronRight, Calendar, Building, User, CreditCard, Clock, CheckCircle, AlertCircle, Edit, ChevronUp } from 'lucide-react'
+import { DollarSign, FileText, AlertTriangle, TrendingUp, Search, Plus, Filter, X, ChevronDown, ChevronRight, Calendar, Building, User, CreditCard, Clock, CheckCircle, AlertCircle, Edit, ChevronUp, Download } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 import PaymentModal from './PaymentModal'
+import BulkPaymentModal from './BulkPaymentModal'
 
 interface FinanceData {
   id: number
@@ -38,6 +39,9 @@ export default function FinancePurchaseOrders() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 20
   const [notesState, setNotesState] = useState<Record<number, string>>({})
+  const [selectedPOs, setSelectedPOs] = useState<number[]>([])
+  const [showBulkPaymentModal, setShowBulkPaymentModal] = useState(false)
+
   
   // Filter states
   const [filters, setFilters] = useState({
@@ -48,7 +52,8 @@ export default function FinancePurchaseOrders() {
     poStatus: '',
     paymentStatus: '',
     dueDate: '',
-    goodsReceived: ''
+    goodsReceived: '',
+    approvalStatus: ''
   })
   const [showFilters, setShowFilters] = useState(false)
 
@@ -56,7 +61,7 @@ export default function FinancePurchaseOrders() {
     fetchFinanceData()
     fetchSuppliers()
     fetchBranches()
-  }, [])
+  }, [filters])
 
   const fetchSuppliers = async () => {
     const { data } = await supabase.from('suppliers').select('id_supplier, nama_supplier').order('nama_supplier')
@@ -176,6 +181,16 @@ export default function FinancePurchaseOrders() {
           const totalPaid = payments?.reduce((sum, payment) => sum + payment.payment_amount, 0) || 0
           const latestPayment = payments?.[0] || null
 
+          // Get invoice number from barang_masuk
+          const { data: barangMasuk } = await supabase
+            .from('barang_masuk')
+            .select('invoice_number')
+            .eq('no_po', item.po_number)
+            .limit(1)
+            .single()
+
+          const invoiceNumber = barangMasuk?.invoice_number || null
+
           // Get branch badan
           const { data: branchData } = await supabase
             .from('branches')
@@ -190,16 +205,40 @@ export default function FinancePurchaseOrders() {
             return null
           }
 
+          // Get total_tagih directly from purchase_orders table
+          const { data: poData } = await supabase
+            .from('purchase_orders')
+            .select('total_tagih, keterangan, approval_photo, approval_status, approved_at')
+            .eq('id', item.id)
+            .single()
+
+          // Apply approval status filter
+          if (filters.approvalStatus && poData?.approval_status !== filters.approvalStatus) {
+            return null
+          }
+          
+          const totalTagih = poData?.total_tagih || 0
+          
+          // Calculate sisa_bayar: use total_tagih if > 0, otherwise use correctedTotal
+          const basisAmount = totalTagih > 0 ? totalTagih : correctedTotal
+          const sisaBayar = basisAmount - totalPaid
+
           return {
             ...item,
             total_po: correctedTotal,
             total_paid: totalPaid,
-            sisa_bayar: correctedTotal - totalPaid,
+            sisa_bayar: sisaBayar,
             status_payment: calculatedStatus,
             dibayar_tanggal: latestPayment?.payment_date || null,
             payment_via: latestPayment?.payment_via || null,
             payment_method: latestPayment?.payment_method || null,
-            badan: branchData?.badan || null
+            badan: branchData?.badan || null,
+            invoice_number: invoiceNumber,
+            total_tagih: totalTagih,
+            keterangan: poData?.keterangan || '',
+            approval_photo: poData?.approval_photo || null,
+            approval_status: poData?.approval_status || null,
+            approved_at: poData?.approved_at || null
           }
         })
       )
@@ -347,6 +386,45 @@ export default function FinancePurchaseOrders() {
     }
   }
 
+  const exportToXLSX = async () => {
+    try {
+      const XLSX = await import('xlsx')
+      
+      const worksheetData = allFilteredData.map(item => ({
+        'PO Number': item.po_number,
+        'PO Date': formatDate(item.po_date),
+        'Supplier': item.nama_supplier,
+        'Branch': item.nama_branch,
+        'Invoice Number': (item as any).invoice_number || '',
+        'PO Status': (item as any).po_status || '',
+        'Total PO': item.total_po,
+        'Total Paid': item.total_paid,
+        'Sisa Bayar': item.sisa_bayar,
+        'Total Tagih': (item as any).total_tagih || 0,
+        'Payment Status': item.status_payment,
+        'Jatuh Tempo': formatDate(item.tanggal_jatuh_tempo),
+        'Dibayar Tanggal': (item as any).dibayar_tanggal ? formatDate((item as any).dibayar_tanggal) : '',
+        'Payment Via': (item as any).payment_via || '',
+        'Payment Method': (item as any).payment_method || '',
+        'Barang Sampai': (item as any).tanggal_barang_sampai ? formatDate((item as any).tanggal_barang_sampai) : '',
+        'Approved Date': (item as any).approved_at ? formatDate((item as any).approved_at) : '',
+        'Approval Status': (item as any).approval_status || '',
+        'Keterangan': (item as any).keterangan || ''
+      }))
+      
+      const worksheet = XLSX.utils.json_to_sheet(worksheetData)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Finance Purchase Orders')
+      
+      XLSX.writeFile(workbook, `finance-purchase-orders-${new Date().toISOString().split('T')[0]}.xlsx`)
+    } catch (error) {
+      console.error('Error exporting to XLSX:', error)
+      alert('Gagal export file. Pastikan browser mendukung fitur export.')
+    }
+  }
+
+
+
   if (loading) {
     return (
       <Layout>
@@ -420,6 +498,62 @@ export default function FinancePurchaseOrders() {
             </div>
           </div>
 
+          {/* Bulk Actions */}
+          {selectedPOs.length > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium text-blue-800">
+                    {selectedPOs.length} PO dipilih
+                  </span>
+                  <span className="text-sm text-blue-600">
+                    Total: {formatCurrency(data.filter(item => selectedPOs.includes(item.id)).reduce((sum, item) => sum + (item.total_tagih || item.sisa_bayar), 0))}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const updatePromises = selectedPOs.map(poId => 
+                          supabase
+                            .from('purchase_orders')
+                            .update({ 
+                              approval_status: 'approved',
+                              approved_at: new Date().toISOString()
+                            })
+                            .eq('id', poId)
+                        )
+                        await Promise.all(updatePromises)
+                        fetchFinanceData()
+                        alert(`${selectedPOs.length} PO berhasil di-approve`)
+                      } catch (error) {
+                        console.error('Error bulk approving:', error)
+                        alert('Gagal melakukan bulk approval')
+                      }
+                    }}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
+                    disabled={!data.filter(item => selectedPOs.includes(item.id)).some(item => (item as any).approval_status === 'pending')}
+                  >
+                    Bulk Approve
+                  </button>
+                  <button
+                    onClick={() => setShowBulkPaymentModal(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+                    disabled={!data.filter(item => selectedPOs.includes(item.id)).every(item => (item as any).approval_status === 'approved')}
+                  >
+                    Bulk Payment
+                  </button>
+                  <button
+                    onClick={() => setSelectedPOs([])}
+                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-sm"
+                  >
+                    Clear Selection
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Search and Filter Section */}
           <div className="bg-white p-4 rounded-lg shadow border border-gray-200 mb-4">
             <div className="flex flex-col md:flex-row gap-4">
@@ -442,6 +576,13 @@ export default function FinancePurchaseOrders() {
                 >
                   <Filter size={16} />
                   Filter
+                </button>
+                <button
+                  onClick={exportToXLSX}
+                  className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 text-sm"
+                >
+                  <Download size={16} />
+                  Export Excel
                 </button>
               </div>
             </div>
@@ -549,6 +690,18 @@ export default function FinancePurchaseOrders() {
                       <option value="not_received">Belum Sampai</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Approval Status</label>
+                    <select
+                      value={filters.approvalStatus}
+                      onChange={(e) => setFilters({...filters, approvalStatus: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+                    >
+                      <option value="">Semua</option>
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="flex gap-2 mt-4">
                   <button
@@ -558,7 +711,7 @@ export default function FinancePurchaseOrders() {
                     Terapkan Filter
                   </button>
                   <button
-                    onClick={() => { clearFilters(); applyFilters(); }}
+                    onClick={() => { clearFilters(); fetchFinanceData(); }}
                     className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-2 text-sm"
                   >
                     <X size={16} />
@@ -575,17 +728,33 @@ export default function FinancePurchaseOrders() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    <th className="w-8 px-2 py-3"></th>
+                    <th className="w-8 px-2 py-3 sticky left-0 bg-gray-50 z-20">
+                      <input
+                        type="checkbox"
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedPOs(filteredData.map(item => item.id))
+                          } else {
+                            setSelectedPOs([])
+                          }
+                        }}
+                        checked={selectedPOs.length === filteredData.length && filteredData.length > 0}
+                        className="rounded border-gray-300"
+                      />
+                    </th>
+                    <th className="w-8 px-2 py-3 sticky left-8 bg-gray-50 z-20"></th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('po_number')}>PO Info {sortField === 'po_number' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_supplier')}>Supplier {sortField === 'nama_supplier' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Rekening</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_branch')}>Branch {sortField === 'nama_branch' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Notes</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Priority</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Invoice</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">PO Status</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_po')}>Total PO {sortField === 'total_po' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_paid')}>Dibayar {sortField === 'total_paid' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('sisa_bayar')}>Sisa {sortField === 'sisa_bayar' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Total Tagih</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Keterangan</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('status_payment')}>Payment Status {sortField === 'status_payment' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Termin</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_jatuh_tempo')}>Jatuh Tempo {sortField === 'tanggal_jatuh_tempo' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
@@ -593,6 +762,7 @@ export default function FinancePurchaseOrders() {
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Payment Via</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Metode</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_barang_sampai')}>Barang Sampai {sortField === 'tanggal_barang_sampai' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('approved_at')}>Approved Date {sortField === 'approved_at' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
                     <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
@@ -604,7 +774,21 @@ export default function FinancePurchaseOrders() {
                     return (
                       <React.Fragment key={item.id}>
                         <tr className={rowClass}>
-                          <td className="px-2 py-4 whitespace-nowrap">
+                          <td className="px-2 py-4 whitespace-nowrap sticky left-0 bg-white z-10">
+                            <input
+                              type="checkbox"
+                              checked={selectedPOs.includes(item.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedPOs([...selectedPOs, item.id])
+                                } else {
+                                  setSelectedPOs(selectedPOs.filter(id => id !== item.id))
+                                }
+                              }}
+                              className="rounded border-gray-300"
+                            />
+                          </td>
+                          <td className="px-2 py-4 whitespace-nowrap sticky left-8 bg-white z-10">
                             <button 
                               onClick={() => toggleRowExpansion(item.id)}
                               className="text-gray-500 hover:text-blue-600"
@@ -667,14 +851,8 @@ export default function FinancePurchaseOrders() {
                               <option value="Rek CV">Rek CV</option>
                             </select>
                           </td>
-                          <td className="px-3 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              (item as any).priority === 'tinggi' ? 'bg-red-100 text-red-800' :
-                              (item as any).priority === 'sedang' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-green-100 text-green-800'
-                            }`}>
-                              {(item as any).priority || 'biasa'}
-                            </span>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(item as any).invoice_number || <span className="text-gray-400">-</span>}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -695,11 +873,25 @@ export default function FinancePurchaseOrders() {
                           <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {formatCurrency(item.sisa_bayar)}
                           </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {formatCurrency((item as any).total_tagih || 0)}
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <span className="text-xs text-gray-700">
+                              {(item as any).keterangan || '-'}
+                            </span>
+                          </td>
                           <td className="px-3 py-4 whitespace-nowrap">
                             <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}>
                               {getStatusIcon(item.status_payment)}
                               {item.status_payment.toUpperCase()}
                             </span>
+                            {(item as any).approval_status === 'pending' && (
+                              <div className="text-xs text-orange-600 mt-1 flex items-center">
+                                <Clock className="h-3 w-3 mr-1" />
+                                Wait for Approval
+                              </div>
+                            )}
                             {item.is_overdue && (
                               <div className="text-xs text-red-600 mt-1 flex items-center">
                                 <AlertTriangle className="h-3 w-3 mr-1" />
@@ -747,8 +939,65 @@ export default function FinancePurchaseOrders() {
                               <span className="text-gray-400">-</span>
                             )}
                           </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(item as any).approved_at ? (
+                              <div className="flex items-center">
+                                <CheckCircle className="h-4 w-4 text-purple-500 mr-1" />
+                                {formatDate((item as any).approved_at)}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
                           <td className="px-3 py-4 whitespace-nowrap text-center">
                             <div className="flex gap-1 justify-center">
+                              <a
+                                href={`/finance/purchase-orders/submit-approval?id=${item.id}`}
+                                className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                                title="Submit Total Tagih"
+                              >
+                                <FileText className="h-3 w-3" />
+                              </a>
+                              {(item as any).approval_status === 'pending' && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const { error } = await supabase
+                                        .from('purchase_orders')
+                                        .update({ approval_status: 'approved' })
+                                        .eq('id', item.id)
+                                      if (error) throw error
+                                      fetchFinanceData()
+                                    } catch (error) {
+                                      console.error('Error approving:', error)
+                                    }
+                                  }}
+                                  className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                                  title="Approve"
+                                >
+                                  <CheckCircle className="h-3 w-3" />
+                                </button>
+                              )}
+                              {(item as any).approval_status === 'approved' && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const { error } = await supabase
+                                        .from('purchase_orders')
+                                        .update({ approval_status: 'pending' })
+                                        .eq('id', item.id)
+                                      if (error) throw error
+                                      fetchFinanceData()
+                                    } catch (error) {
+                                      console.error('Error undoing approval:', error)
+                                    }
+                                  }}
+                                  className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                  title="Undo Approval"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              )}
                               {item.sisa_bayar > 0 && (
                                 <button
                                   onClick={() => {
@@ -756,9 +1005,9 @@ export default function FinancePurchaseOrders() {
                                     setShowPaymentModal(true)
                                   }}
                                   className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                  title="Bayar"
                                 >
-                                  <Plus className="h-3 w-3 mr-1" />
-                                  Bayar
+                                  <Plus className="h-3 w-3" />
                                 </button>
                               )}
                               {item.total_paid > 0 && (
@@ -770,8 +1019,7 @@ export default function FinancePurchaseOrders() {
                                   className="inline-flex items-center px-2 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                                   title="Edit Payment"
                                 >
-                                  <Edit className="h-3 w-3 mr-1" />
-                                  Edit
+                                  <Edit className="h-3 w-3" />
                                 </button>
                               )}
                             </div>
@@ -781,8 +1029,8 @@ export default function FinancePurchaseOrders() {
                         {/* Expanded Row with Details */}
                         {isExpanded && (
                           <tr className="bg-blue-50">
-                            <td colSpan={19} className="px-4 py-4">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <td colSpan={23} className="px-4 py-4">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 {/* Items List */}
                                 <div>
                                   <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
@@ -858,6 +1106,31 @@ export default function FinancePurchaseOrders() {
                                     </div>
                                   ) : (
                                     <p className="text-sm text-gray-500">Belum ada riwayat pembayaran</p>
+                                  )}
+                                </div>
+                                
+                                {/* Approval Photo */}
+                                <div>
+                                  <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
+                                    <FileText className="h-4 w-4 mr-2" />
+                                    Foto Approval
+                                  </h3>
+                                  {(item as any).approval_photo ? (
+                                    <div className="bg-white rounded-md border border-gray-200 p-3">
+                                      <img 
+                                        src={`${supabase.storage.from('po-photos').getPublicUrl((item as any).approval_photo).data.publicUrl}`}
+                                        alt="Approval Photo"
+                                        className="m-full h-40 object-cover rounded-md cursor-pointer hover:opacity-80"
+                                        onClick={() => window.open(`${supabase.storage.from('po-photos').getPublicUrl((item as any).approval_photo).data.publicUrl}`, '_blank')}
+                                      />
+                                      <div className="mt-2 text-xs text-gray-500">
+                                        <p>Status: {(item as any).approval_status || 'pending'}</p>
+                                        <p>Total Tagih: {formatCurrency((item as any).total_tagih || 0)}</p>
+                                        {(item as any).keterangan && <p>Keterangan: {(item as any).keterangan}</p>}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-gray-500">Belum ada foto approval</p>
                                   )}
                                 </div>
                               </div>
@@ -946,12 +1219,28 @@ export default function FinancePurchaseOrders() {
         {/* Payment Modal */}
         {showPaymentModal && selectedPO && (
           <PaymentModal
-            po={selectedPO}
+            po={{
+              ...selectedPO,
+              total_tagih: (selectedPO as any).total_tagih || 0
+            }}
             onClose={() => {
               setShowPaymentModal(false)
               setSelectedPO(null)
             }}
             onSuccess={handlePaymentSuccess}
+          />
+        )}
+
+        {/* Bulk Payment Modal */}
+        {showBulkPaymentModal && selectedPOs.length > 0 && (
+          <BulkPaymentModal
+            selectedPOs={data.filter(item => selectedPOs.includes(item.id))}
+            onClose={() => setShowBulkPaymentModal(false)}
+            onSuccess={() => {
+              setShowBulkPaymentModal(false)
+              setSelectedPOs([])
+              fetchFinanceData()
+            }}
           />
         )}
       </PageAccessControl>
