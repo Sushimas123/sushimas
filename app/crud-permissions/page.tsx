@@ -22,7 +22,8 @@ const PAGES = [
   'product_name', 'categories', 'recipes', 'supplier', 'branches', 
   'users', 'stock_opname_batch', 'product_settings', 'permissions-db', 
   'crud-permissions', 'audit-log', 'pivot', 'dashboard', 'login', 'register',
-  'price-history', 'purchaseorder', 'transfer-barang'
+  'price-history', 'purchaseorder', 'transfer-barang', 'finance', 'aging-report',
+  'aging-pivot', 'bulk-payments'
 ];
 
 export default function CrudPermissionsPage() {

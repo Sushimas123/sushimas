@@ -5,6 +5,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 import { TrendingUp, TrendingDown, Calendar, Filter, X, Search, Menu } from 'lucide-react'
 import Layout from '../../components/Layout'
 import PageAccessControl from '../../components/PageAccessControl'
+import PriceValidation from '../../components/PriceValidation'
 
 // Chart.js imports
 import {
@@ -113,10 +114,12 @@ export default function PriceHistoryPage() {
 
   const fetchProducts = async () => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('nama_product')
         .select('id_product, product_name')
         .order('product_name')
+      
+      if (error) throw error
       setProducts(data || [])
     } catch (error) {
       console.error('Error fetching products:', error)
@@ -132,10 +135,9 @@ export default function PriceHistoryPage() {
           nama_product!inner(product_name)
         `)
         .order('change_date', { ascending: false })
-        .limit(100)
 
       if (filters.product_id) {
-        query = query.eq('product_id', filters.product_id)
+        query = query.eq('product_id', parseInt(filters.product_id))
       }
       if (filters.date_from) {
         query = query.gte('change_date', filters.date_from)
@@ -153,9 +155,19 @@ export default function PriceHistoryPage() {
 
       const historyWithProductNames = data?.map(item => ({
         ...item,
-        product_name: item.nama_product?.product_name || 'Unknown Product'
+        product_name: item.nama_product?.product_name || 'Unknown Product',
+        // Ensure numeric values are properly parsed
+        old_price: parseFloat(item.old_price) || 0,
+        new_price: parseFloat(item.new_price) || 0,
+        price_change: parseFloat(item.price_change) || 0,
+        change_percentage: parseFloat(item.change_percentage) || 0
       })) || []
 
+      // Debug: Log first few records to check data format
+      if (historyWithProductNames.length > 0) {
+        console.log('Sample price history data:', historyWithProductNames.slice(0, 3))
+      }
+      
       setPriceHistory(historyWithProductNames)
       prepareChartData(historyWithProductNames)
       fetchPOIds(historyWithProductNames)
@@ -171,10 +183,12 @@ export default function PriceHistoryPage() {
     if (poNumbers.length === 0) return
 
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('purchase_orders')
         .select('id, po_number')
         .in('po_number', poNumbers)
+      
+      if (error) throw error
       
       const poIdMap = (data || []).reduce((acc, po) => {
         acc[po.po_number] = po.id
@@ -260,13 +274,34 @@ export default function PriceHistoryPage() {
     return null
   }
 
+  // Check for suspicious price changes
+  const isSuspiciousPrice = (oldPrice: number, newPrice: number, changePercentage: number) => {
+    // Flag as suspicious if:
+    // 1. Price is too low (< 1000 rupiah for real products)
+    // 2. Extreme percentage change (> 1000% or < -95%)
+    // 3. Price change from 0 to very low amount
+    return (
+      (oldPrice > 0 && oldPrice < 1000) || 
+      (newPrice > 0 && newPrice < 1000) ||
+      Math.abs(changePercentage) > 1000 ||
+      (oldPrice === 0 && newPrice < 2000)
+    )
+  }
+
+  const getSuspiciousRowClass = (history: PriceHistory) => {
+    if (isSuspiciousPrice(history.old_price, history.new_price, history.change_percentage)) {
+      return 'bg-yellow-50 border-l-4 border-yellow-400'
+    }
+    return 'hover:bg-gray-50'
+  }
+
   const getReasonBadge = (reason: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       'po_completion': 'bg-blue-100 text-blue-800',
       'manual_update': 'bg-yellow-100 text-yellow-800',
       'market_adjustment': 'bg-purple-100 text-purple-800'
     }
-    return colors[reason as keyof typeof colors] || 'bg-gray-100 text-gray-800'
+    return colors[reason] || 'bg-gray-100 text-gray-800'
   }
 
   // Mobile view handlers
@@ -486,7 +521,18 @@ export default function PriceHistoryPage() {
                   {selectedHistory.notes && (
                     <div>
                       <label className="font-semibold">Notes:</label>
-                      <p className="text-gray-600">{selectedHistory.notes}</p>
+                      {selectedHistory.po_number && selectedHistory.notes.includes('PO') ? (
+                        <a 
+                          href={`/purchaseorder/on_progress?id=${poIds[selectedHistory.po_number]}`}
+                          className="text-blue-600 hover:text-blue-800 hover:underline block"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {selectedHistory.notes}
+                        </a>
+                      ) : (
+                        <p className="text-gray-600">{selectedHistory.notes}</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -646,7 +692,15 @@ export default function PriceHistoryPage() {
                     </thead>
                     <tbody>
                       {paginatedHistory.map((history) => (
-                        <tr key={history.id} className="hover:bg-gray-50">
+                        <React.Fragment key={history.id}>
+                          {isSuspiciousPrice(history.old_price, history.new_price, history.change_percentage) && (
+                            <tr>
+                              <td colSpan={8} className="px-1 py-1 text-xs bg-yellow-100 text-yellow-800 border">
+                                ⚠️ Harga mencurigakan - Periksa kembali data ini
+                              </td>
+                            </tr>
+                          )}
+                          <tr className={getSuspiciousRowClass(history)}>
                           <td className="px-1 py-1 text-xs text-gray-900 border">
                             <div className="flex items-center">
                               <Calendar size={10} className="mr-1 text-gray-400" />
@@ -657,15 +711,15 @@ export default function PriceHistoryPage() {
                             <div className="font-medium text-gray-900 text-xs truncate max-w-32" title={history.product_name}>{history.product_name}</div>
                           </td>
                           <td className="px-1 py-1 text-right text-xs text-gray-600 border">
-                            {formatCurrency(history.old_price).replace('Rp', '').replace('.00', '')}
+                            {formatCurrency(history.old_price)}
                           </td>
                           <td className="px-1 py-1 text-right text-xs font-medium text-gray-900 border">
-                            {formatCurrency(history.new_price).replace('Rp', '').replace('.00', '')}
+                            {formatCurrency(history.new_price)}
                           </td>
                           <td className={`px-1 py-1 text-right text-xs font-medium border ${getChangeColor(history.price_change)}`}>
                             <div className="flex items-center justify-end gap-1">
                               {getChangeIcon(history.price_change)}
-                              <span className="truncate">{formatCurrency(Math.abs(history.price_change)).replace('Rp', '').replace('.00', '')}</span>
+                              <span className="truncate">{formatCurrency(Math.abs(history.price_change))}</span>
                             </div>
                           </td>
                           <td className={`px-1 py-1 text-center text-xs font-medium border ${getChangeColor(history.price_change)}`}>
@@ -695,10 +749,24 @@ export default function PriceHistoryPage() {
                               </div>
                             )}
                             {history.notes && (
-                              <div className="text-xs text-gray-500 mt-1 truncate max-w-20" title={history.notes}>{history.notes}</div>
+                              <div className="text-xs text-gray-500 mt-1 truncate max-w-20" title={history.notes}>
+                                {history.po_number && history.notes.includes('PO') ? (
+                                  <a 
+                                    href={`/purchaseorder/on_progress?id=${poIds[history.po_number]}`}
+                                    className="text-blue-600 hover:text-blue-800 hover:underline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    {history.notes}
+                                  </a>
+                                ) : (
+                                  history.notes
+                                )}
+                              </div>
                             )}
                           </td>
-                        </tr>
+                          </tr>
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -727,9 +795,18 @@ export default function PriceHistoryPage() {
                 paginatedHistory.map((history) => (
                   <div 
                     key={history.id} 
-                    className="p-3 border-b border-gray-200 cursor-pointer hover:bg-gray-50"
+                    className={`p-3 border-b border-gray-200 cursor-pointer ${
+                      isSuspiciousPrice(history.old_price, history.new_price, history.change_percentage)
+                        ? 'bg-yellow-50 border-l-4 border-yellow-400'
+                        : 'hover:bg-gray-50'
+                    }`}
                     onClick={() => viewHistoryDetails(history)}
                   >
+                    {isSuspiciousPrice(history.old_price, history.new_price, history.change_percentage) && (
+                      <div className="text-xs text-yellow-800 mb-2 flex items-center gap-1">
+                        ⚠️ Harga mencurigakan - Periksa kembali
+                      </div>
+                    )}
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <h3 className="font-semibold text-sm">{history.product_name}</h3>
@@ -814,6 +891,23 @@ export default function PriceHistoryPage() {
             </div>
           )}
 
+          {/* Suspicious Price Alert */}
+          {priceHistory.some(h => isSuspiciousPrice(h.old_price, h.new_price, h.change_percentage)) && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <div className="flex items-center gap-2">
+                <span className="text-yellow-600">⚠️</span>
+                <div>
+                  <h3 className="text-sm font-medium text-yellow-800">Peringatan Harga Mencurigakan</h3>
+                  <p className="text-xs text-yellow-700">
+                    Ditemukan {priceHistory.filter(h => isSuspiciousPrice(h.old_price, h.new_price, h.change_percentage)).length} 
+                    {' '}perubahan harga yang mencurigakan (harga terlalu rendah atau perubahan ekstrem). 
+                    Silakan periksa kembali data tersebut.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Price Movement Chart */}
           {chartData && (
             <div className="bg-white rounded-lg shadow p-2 md:p-3">
@@ -891,7 +985,8 @@ export default function PriceHistoryPage() {
                 />
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                * Menampilkan maksimal 6 produk dengan perubahan harga terbanyak
+                * Menampilkan maksimal 6 produk dengan perubahan harga terbanyak<br/>
+                * Baris dengan latar kuning menunjukkan harga yang mencurigakan
               </p>
             </div>
           )}

@@ -96,14 +96,15 @@ export default function PermissionsDBPage() {
         'dashboard', 'esb', 'gudang', 'permissions-db', 'pivot', 'price-history',
         'product_name', 'product_settings', 'produksi', 'produksi_detail',
         'purchaseorder', 'ready', 'recipes', 'stock_opname_batch', 'supplier',
-        'transfer-barang', 'users', 'stock-alert'
+        'transfer-barang', 'users', 'stock-alert', 'finance', 'aging-report',
+        'aging-pivot', 'bulk-payments'
       ]
       
       // Also try database tables that might exist
       const dbTables = [
         'nama_product', 'user_permissions', 'audit_log', 'branch_transfers',
         'branch_notifications', 'user_branches', 'suppliers', 'po_items',
-        'purchase_orders'
+        'purchase_orders', 'po_payments', 'bulk_payments', 'finance_dashboard_view'
       ]
       
       // Add all pages (even if no corresponding database table)

@@ -22,7 +22,12 @@ const FALLBACK_PERMISSIONS = {
     users: { create: true, edit: true, delete: true },
     stock_opname_batch: { create: true, edit: true, delete: true },
     product_settings: { create: true, edit: true, delete: true },
-    'permissions-db': { create: true, edit: true, delete: true }
+    'permissions-db': { create: true, edit: true, delete: true },
+    finance: { create: true, edit: true, delete: true },
+    'aging-report': { create: true, edit: true, delete: true },
+    'aging-pivot': { create: true, edit: true, delete: true },
+    'bulk-payments': { create: true, edit: true, delete: true },
+    'crud-permissions': { create: true, edit: true, delete: true }
   },
   'admin': {
     ready: { create: true, edit: true, delete: true },
@@ -39,7 +44,12 @@ const FALLBACK_PERMISSIONS = {
     users: { create: true, edit: true, delete: true },
     stock_opname_batch: { create: true, edit: true, delete: true },
     product_settings: { create: true, edit: true, delete: true },
-    'permissions-db': { create: true, edit: true, delete: true }
+    'permissions-db': { create: true, edit: true, delete: true },
+    finance: { create: true, edit: true, delete: true },
+    'aging-report': { create: true, edit: true, delete: true },
+    'aging-pivot': { create: true, edit: true, delete: true },
+    'bulk-payments': { create: true, edit: true, delete: true },
+    'crud-permissions': { create: true, edit: true, delete: true }
   },
   'finance': {
     ready: { create: false, edit: false, delete: false },
@@ -56,7 +66,12 @@ const FALLBACK_PERMISSIONS = {
     users: { create: false, edit: false, delete: false },
     stock_opname_batch: { create: false, edit: false, delete: false },
     product_settings: { create: false, edit: false, delete: false },
-    'permissions-db': { create: false, edit: false, delete: false }
+    'permissions-db': { create: false, edit: false, delete: false },
+    finance: { create: true, edit: true, delete: true },
+    'aging-report': { create: true, edit: true, delete: true },
+    'aging-pivot': { create: true, edit: true, delete: true },
+    'bulk-payments': { create: true, edit: true, delete: true },
+    'crud-permissions': { create: false, edit: false, delete: false }
   },
   'pic_branch': {
     ready: { create: true, edit: true, delete: false },
@@ -73,7 +88,12 @@ const FALLBACK_PERMISSIONS = {
     users: { create: true, edit: true, delete: false },
     stock_opname_batch: { create: true, edit: true, delete: false },
     product_settings: { create: true, edit: true, delete: false },
-    'permissions-db': { create: true, edit: true, delete: false }
+    'permissions-db': { create: true, edit: true, delete: false },
+    finance: { create: false, edit: false, delete: false },
+    'aging-report': { create: false, edit: false, delete: false },
+    'aging-pivot': { create: false, edit: false, delete: false },
+    'bulk-payments': { create: false, edit: false, delete: false },
+    'crud-permissions': { create: false, edit: false, delete: false }
   },
   'staff': {
     ready: { create: true, edit: false, delete: false },
@@ -90,7 +110,12 @@ const FALLBACK_PERMISSIONS = {
     users: { create: false, edit: false, delete: false },
     stock_opname_batch: { create: false, edit: false, delete: false },
     product_settings: { create: false, edit: false, delete: false },
-    'permissions-db': { create: false, edit: false, delete: false }
+    'permissions-db': { create: false, edit: false, delete: false },
+    finance: { create: false, edit: false, delete: false },
+    'aging-report': { create: false, edit: false, delete: false },
+    'aging-pivot': { create: false, edit: false, delete: false },
+    'bulk-payments': { create: false, edit: false, delete: false },
+    'crud-permissions': { create: false, edit: false, delete: false }
   }
 };
 
