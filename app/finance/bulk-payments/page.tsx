@@ -5,7 +5,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 import { Receipt, FileText, Search, Filter, X, Calendar, Building, User, CreditCard, Download, LinkIcon, Eye } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
-import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
+
 
 interface BulkPayment {
   id: number
@@ -151,7 +151,6 @@ export default function BulkPaymentsPage() {
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Bulk Payments')
       
       XLSX.writeFile(workbook, `bulk-payments-${new Date().toISOString().split('T')[0]}.xlsx`)
-      await logAuditTrail({ table_name: 'export', record_id: 0, action: 'EXPORT' })
     } catch (error) {
       console.error('Error exporting to XLSX:', error)
       alert('Gagal export file. Pastikan browser mendukung fitur export.')
@@ -370,11 +369,11 @@ export default function BulkPaymentsPage() {
                             onClick={async () => {
                               if (confirm(`Yakin ingin menghapus bulk payment ${bulkPayment.bulk_reference}? PO akan dikembalikan ke status unpaid.`)) {
                                 try {
-                                  // Reset PO bulk_payment_ref and status
-                                  const { error: updateError } = await updateWithAudit('purchase_orders', { 
-                                      bulk_payment_ref: null,
-                                      status_pembayaran: 'Unpaid'
-                                    }, {'bulk_payment_ref': bulkPayment.bulk_reference})
+                                  // Reset PO bulk_payment_ref
+                                  const { error: updateError } = await supabase
+                                    .from('purchase_orders')
+                                    .update({ bulk_payment_ref: null })
+                                    .eq('bulk_payment_ref', bulkPayment.bulk_reference)
                                   
                                   if (updateError) throw updateError
                                   
