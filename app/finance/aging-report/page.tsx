@@ -41,6 +41,18 @@ export default function AgingReport() {
       // Recalculate totals and filter only unpaid/partial
       const correctedData = await Promise.all(
         (financeData || []).map(async (item: any) => {
+          // Check for bulk payment reference
+          const { data: poData } = await supabase
+            .from('purchase_orders')
+            .select('bulk_payment_ref')
+            .eq('id', item.id)
+            .single()
+
+          // If has bulk payment reference, consider it paid
+          if (poData?.bulk_payment_ref) {
+            return null // Skip this item as it's paid via bulk payment
+          }
+
           const { data: items } = await supabase
             .from('po_items')
             .select('qty, actual_price, received_qty, product_id')
@@ -61,6 +73,12 @@ export default function AgingReport() {
           }
 
           const sisaBayar = correctedTotal - item.total_paid
+          
+          // Skip if fully paid
+          if (sisaBayar <= 0) {
+            return null
+          }
+
           return {
             ...item,
             total_po: correctedTotal,
@@ -71,8 +89,8 @@ export default function AgingReport() {
         })
       )
       
-      // Filter only items with outstanding balance
-      const filteredData = correctedData.filter(item => item.outstanding > 0)
+      // Filter out null items (paid POs) and items with no outstanding balance
+      const filteredData = correctedData.filter(item => item !== null && item.outstanding > 0)
       setData(filteredData)
     } catch (error) {
       console.error('Error fetching aging data:', error)

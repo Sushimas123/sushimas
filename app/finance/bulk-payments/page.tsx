@@ -368,10 +368,13 @@ export default function BulkPaymentsPage() {
                             onClick={async () => {
                               if (confirm(`Yakin ingin menghapus bulk payment ${bulkPayment.bulk_reference}? PO akan dikembalikan ke status unpaid.`)) {
                                 try {
-                                  // Reset PO bulk_payment_ref
+                                  // Reset PO bulk_payment_ref and status
                                   const { error: updateError } = await supabase
                                     .from('purchase_orders')
-                                    .update({ bulk_payment_ref: null })
+                                    .update({ 
+                                      bulk_payment_ref: null,
+                                      status_pembayaran: 'Unpaid'
+                                    })
                                     .eq('bulk_payment_ref', bulkPayment.bulk_reference)
                                   
                                   if (updateError) throw updateError

@@ -400,12 +400,12 @@ export default function FinancePurchaseOrders() {
   }
 
   const summary = {
-    totalPO: data.reduce((sum, item) => sum + item.total_po, 0),
-    totalPaid: data.reduce((sum, item) => sum + item.total_paid, 0),
-    outstanding: data.reduce((sum, item) => sum + item.sisa_bayar, 0),
-    overdue: data.filter(item => item.is_overdue).reduce((sum, item) => sum + item.sisa_bayar, 0),
-    totalOrders: data.length,
-    overdueOrders: data.filter(item => item.is_overdue).length
+    totalPO: data.filter(item => item.status_payment !== 'paid').reduce((sum, item) => sum + item.total_po, 0),
+    totalPaid: data.filter(item => item.status_payment !== 'paid').reduce((sum, item) => sum + item.total_paid, 0),
+    outstanding: data.filter(item => item.status_payment !== 'paid').reduce((sum, item) => sum + item.sisa_bayar, 0),
+    overdue: data.filter(item => item.is_overdue && item.status_payment !== 'paid').reduce((sum, item) => sum + item.sisa_bayar, 0),
+    totalOrders: data.filter(item => item.status_payment !== 'paid').length,
+    overdueOrders: data.filter(item => item.is_overdue && item.status_payment !== 'paid').length
   }
 
   const formatCurrency = (amount: number) => {
@@ -1116,7 +1116,7 @@ export default function FinancePurchaseOrders() {
                                   <X className="h-3 w-3" />
                                 </button>
                               )}
-                              {item.sisa_bayar > 0 && (
+                              {item.sisa_bayar > 0 && !(item as any).bulk_payment_ref && (
                                 <button
                                   onClick={() => {
                                     setSelectedPO(item)
@@ -1128,14 +1128,20 @@ export default function FinancePurchaseOrders() {
                                   <Plus className="h-3 w-3" />
                                 </button>
                               )}
-                              {item.total_paid > 0 && (
+                              {((item.total_paid > 0 && !(item as any).bulk_payment_ref) || (item as any).bulk_payment_ref) && (
                                 <button
                                   onClick={() => {
-                                    setSelectedPO(item)
-                                    setShowPaymentModal(true)
+                                    if ((item as any).bulk_payment_ref) {
+                                      // For bulk payments, redirect to bulk payments page
+                                      window.open('/finance/bulk-payments', '_blank')
+                                    } else {
+                                      // For single payments, open payment modal
+                                      setSelectedPO(item)
+                                      setShowPaymentModal(true)
+                                    }
                                   }}
                                   className="inline-flex items-center px-2 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                  title="Edit Payment"
+                                  title={`${(item as any).bulk_payment_ref ? 'View Bulk Payment' : 'Edit Payment'}`}
                                 >
                                   <Edit className="h-3 w-3" />
                                 </button>
