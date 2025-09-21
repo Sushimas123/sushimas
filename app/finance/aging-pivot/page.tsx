@@ -10,6 +10,11 @@ import * as XLSX from 'xlsx'
 interface AgingPivotData {
   branch: string
   supplier: string
+  supplier_bank_info?: {
+    nama_penerima: string
+    bank_penerima: string
+    nomor_rekening: string
+  }
   due_dates: { [key: string]: number }
   total: number
   notes?: string
@@ -46,6 +51,12 @@ export default function AgingPivotReport() {
       const dueDateSet = new Set<string>()
 
       for (const item of financeData || []) {
+        // Get supplier bank info
+        const { data: supplierInfo } = await supabase
+          .from('suppliers')
+          .select('nama_penerima, bank_penerima, nomor_rekening')
+          .eq('id_supplier', item.supplier_id)
+          .single()
 
         const { data: items } = await supabase
           .from('po_items')
@@ -83,6 +94,7 @@ export default function AgingPivotReport() {
           pivotMap.set(key, {
             branch: item.nama_branch,
             supplier: item.nama_supplier,
+            supplier_bank_info: supplierInfo || undefined,
             due_dates: {},
             total: 0,
             notes: finalNotes
@@ -354,7 +366,15 @@ export default function AgingPivotReport() {
                             <span className="text-xs text-gray-500">{showNotes ? supplier.branch : ''}</span>
                           </td>
                           <td className="px-2 py-3 text-sm text-gray-900 sticky bg-white z-10 border-r border-gray-200" style={{left: '120px', minWidth: '140px'}}>
-                            <span className="truncate">{supplier.supplier}</span>
+                            <div>
+                              <div className="font-medium truncate">{supplier.supplier}</div>
+                              {supplier.supplier_bank_info && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  <div className="truncate">{supplier.supplier_bank_info.nama_penerima}</div>
+                                  <div className="truncate">{supplier.supplier_bank_info.bank_penerima} - {supplier.supplier_bank_info.nomor_rekening}</div>
+                                </div>
+                              )}
+                            </div>
                           </td>
                           {dueDates.map(date => (
                             <td key={date} className="px-4 py-3 text-sm text-gray-700 text-right">

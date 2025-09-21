@@ -1,250 +1,283 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { X, CreditCard, Calendar, FileText, Download } from 'lucide-react'
+import { X, Plus, Trash2, Calculator } from 'lucide-react'
 
 interface BulkPaymentModalProps {
-  selectedPOs: any[]
+  isOpen: boolean
   onClose: () => void
   onSuccess: () => void
+  availablePOs: any[]
 }
 
-export default function BulkPaymentModal({ selectedPOs, onClose, onSuccess }: BulkPaymentModalProps) {
-  const [paymentData, setPaymentData] = useState({
-    payment_amount: selectedPOs.reduce((sum, po) => sum + (po.total_tagih || po.sisa_bayar), 0),
-    payment_date: new Date().toISOString().split('T')[0],
-    payment_method: 'Transfer Bank',
+export default function BulkPaymentModal({ isOpen, onClose, onSuccess, availablePOs }: BulkPaymentModalProps) {
+  const [formData, setFormData] = useState({
+    bulk_reference: '',
+    payment_date: '',
     payment_via: '',
+    payment_method: 'Transfer',
     notes: ''
   })
-  const [submitting, setSubmitting] = useState(false)
+  const [selectedPOs, setSelectedPOs] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0
-    }).format(amount)
-  }
+  useEffect(() => {
+    if (isOpen) {
+      // Generate unique bulk reference with timestamp
+      const now = new Date()
+      const today = now.toISOString().slice(0, 10).replace(/-/g, '')
+      const timestamp = now.getTime().toString().slice(-4)
+      setFormData(prev => ({
+        ...prev,
+        bulk_reference: `BULK-${today}-${timestamp}`,
+        payment_date: new Date().toISOString().slice(0, 10)
+      }))
+    }
+  }, [isOpen])
 
-  const exportToPDF = async () => {
-    try {
-      const jsPDF = (await import('jspdf')).default
-      const doc = new jsPDF()
-      
-      // Header
-      doc.setFontSize(18)
-      doc.text('Bulk Payment Receipt', 20, 20)
-      
-      doc.setFontSize(12)
-      doc.text(`Date: ${new Date().toLocaleDateString('id-ID')}`, 20, 35)
-      doc.text(`Payment Method: ${paymentData.payment_method}`, 20, 45)
-      doc.text(`Payment Via: ${paymentData.payment_via}`, 20, 55)
-      doc.text(`Total Amount: ${formatCurrency(totalAmount)}`, 20, 65)
-      
-      // PO List
-      doc.text('Purchase Orders:', 20, 80)
-      let yPos = 90
-      selectedPOs.forEach((po, index) => {
-        doc.text(`${index + 1}. ${po.po_number} - ${po.nama_supplier} ${po.invoice_number ? `(${po.invoice_number})` : ''}`, 25, yPos)
-        doc.text(`Amount: ${formatCurrency(po.total_tagih || po.sisa_bayar)}`, 30, yPos + 10)
-        yPos += 20
-      })
-      
-      if (paymentData.notes) {
-        doc.text(`Notes: ${paymentData.notes}`, 20, yPos + 10)
-      }
-      
-      doc.save(`bulk-payment-${new Date().toISOString().split('T')[0]}.pdf`)
-    } catch (error) {
-      console.error('Error exporting PDF:', error)
-      alert('Gagal export PDF')
+  const handleAddPO = (po: any) => {
+    if (!selectedPOs.find(p => p.id === po.id)) {
+      setSelectedPOs([...selectedPOs, { ...po, amount: po.total_tagih }])
     }
   }
+
+  const handleRemovePO = (poId: number) => {
+    setSelectedPOs(selectedPOs.filter(po => po.id !== poId))
+  }
+
+  const handleAmountChange = (poId: number, amount: number) => {
+    setSelectedPOs(selectedPOs.map(po => 
+      po.id === poId ? { ...po, amount } : po
+    ))
+  }
+
+  const totalAmount = selectedPOs.reduce((sum, po) => sum + (po.amount || 0), 0)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (submitting) return
+    if (selectedPOs.length === 0) {
+      alert('Pilih minimal 1 PO')
+      return
+    }
 
-    setSubmitting(true)
+    setLoading(true)
     try {
-      // Create payment records for each selected PO
-      const paymentPromises = selectedPOs.map(async (po) => {
-        const poPaymentAmount = (po.total_tagih || po.sisa_bayar)
-        const { error } = await supabase
-          .from('po_payments')
-          .insert({
-            po_id: po.id,
-            payment_amount: poPaymentAmount,
-            payment_date: paymentData.payment_date,
-            payment_method: paymentData.payment_method,
-            payment_via: paymentData.payment_via,
-            notes: `${paymentData.notes} (Bulk Payment - ${selectedPOs.length} POs)`
-          })
-        
-        if (error) throw error
-      })
+      // Check if bulk reference already exists
+      const { data: existingBulk } = await supabase
+        .from('bulk_payments')
+        .select('id')
+        .eq('bulk_reference', formData.bulk_reference)
+        .single()
 
-      await Promise.all(paymentPromises)
-      
-      alert(`Berhasil membayar ${selectedPOs.length} PO dengan total ${formatCurrency(paymentData.payment_amount)}`)
+      if (existingBulk) {
+        alert('Bulk reference sudah ada, silakan refresh halaman')
+        return
+      }
+
+      // Insert bulk payment
+      const { data: bulkPayment, error: bulkError } = await supabase
+        .from('bulk_payments')
+        .insert({
+          bulk_reference: formData.bulk_reference,
+          total_amount: totalAmount,
+          payment_date: formData.payment_date,
+          payment_via: formData.payment_via,
+          payment_method: formData.payment_method,
+          notes: formData.notes
+        })
+        .select()
+        .single()
+
+      if (bulkError) throw bulkError
+
+      // Update purchase_orders with bulk_payment_ref
+      for (const po of selectedPOs) {
+        const { error: updateError } = await supabase
+          .from('purchase_orders')
+          .update({ bulk_payment_ref: formData.bulk_reference })
+          .eq('id', po.id)
+        
+        if (updateError) {
+          console.error('Error updating PO:', po.id, updateError)
+          throw updateError
+        }
+      }
+
       onSuccess()
+      onClose()
+      
+      // Reset form
+      setSelectedPOs([])
+      setFormData({
+        bulk_reference: '',
+        payment_date: '',
+        payment_via: '',
+        payment_method: 'Transfer',
+        notes: ''
+      })
     } catch (error) {
-      console.error('Error processing bulk payment:', error)
-      alert('Gagal memproses pembayaran bulk')
+      console.error('Error creating bulk payment:', error)
+      alert('Error creating bulk payment')
     } finally {
-      setSubmitting(false)
+      setLoading(false)
     }
   }
 
-  const totalAmount = selectedPOs.reduce((sum, po) => sum + (po.total_tagih || po.sisa_bayar), 0)
-  const uniqueSuppliers = [...new Set(selectedPOs.map(po => po.nama_supplier))]
+  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-            <CreditCard className="text-blue-600" size={24} />
-            Bulk Payment - {selectedPOs.length} POs
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X size={24} />
+      <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold">Bulk Payment</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <X size={20} />
           </button>
         </div>
 
-        <div className="p-6">
-          {/* Validation Warning */}
-          {uniqueSuppliers.length > 1 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-6">
-              <div className="flex">
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-yellow-800">Peringatan</h3>
-                  <p className="text-sm text-yellow-700 mt-1">
-                    Anda memilih PO dari supplier yang berbeda: {uniqueSuppliers.join(', ')}
-                  </p>
-                </div>
-              </div>
+        <form onSubmit={handleSubmit}>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Bulk Reference</label>
+              <input
+                type="text"
+                value={formData.bulk_reference}
+                onChange={(e) => setFormData({...formData, bulk_reference: e.target.value})}
+                className="w-full border rounded-md px-3 py-2"
+                required
+              />
             </div>
-          )}
-
-          {/* Selected POs Summary */}
-          <div className="bg-gray-50 rounded-lg p-4 mb-6">
-            <h3 className="text-sm font-medium text-gray-800 mb-3">PO yang Dipilih:</h3>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {selectedPOs.map((po) => (
-                <div key={po.id} className="flex justify-between items-center text-sm">
-                  <span>{po.po_number} - {po.nama_supplier} {po.invoice_number ? `(${po.invoice_number})` : ''}</span>
-                  <span className="font-medium">{formatCurrency(po.total_tagih || po.sisa_bayar)}</span>
-                </div>
-              ))}
+            <div>
+              <label className="block text-sm font-medium mb-1">Payment Date</label>
+              <input
+                type="date"
+                value={formData.payment_date}
+                onChange={(e) => setFormData({...formData, payment_date: e.target.value})}
+                className="w-full border rounded-md px-3 py-2"
+                required
+              />
             </div>
-            <div className="border-t mt-3 pt-3 flex justify-between items-center font-semibold">
-              <span>Total:</span>
-              <span className="text-lg text-blue-600">{formatCurrency(totalAmount)}</span>
+            <div>
+              <label className="block text-sm font-medium mb-1">Payment Via</label>
+              <input
+                type="text"
+                value={formData.payment_via}
+                onChange={(e) => setFormData({...formData, payment_via: e.target.value})}
+                placeholder="e.g., BCA, Mandiri"
+                className="w-full border rounded-md px-3 py-2"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Payment Method</label>
+              <select
+                value={formData.payment_method}
+                onChange={(e) => setFormData({...formData, payment_method: e.target.value})}
+                className="w-full border rounded-md px-3 py-2"
+              >
+                <option value="Transfer">Transfer</option>
+                <option value="Cash">Cash</option>
+                <option value="Check">Check</option>
+              </select>
             </div>
           </div>
 
-          {/* Payment Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Jumlah Pembayaran
-                </label>
-                <input
-                  type="number"
-                  value={paymentData.payment_amount}
-                  onChange={(e) => setPaymentData({...paymentData, payment_amount: parseFloat(e.target.value) || 0})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Notes</label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({...formData, notes: e.target.value})}
+              className="w-full border rounded-md px-3 py-2"
+              rows={2}
+            />
+          </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tanggal Pembayaran
-                </label>
-                <input
-                  type="date"
-                  value={paymentData.payment_date}
-                  onChange={(e) => setPaymentData({...paymentData, payment_date: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Metode Pembayaran
-                </label>
-                <select
-                  value={paymentData.payment_method}
-                  onChange={(e) => setPaymentData({...paymentData, payment_method: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="Transfer Bank">Transfer Bank</option>
-                  <option value="Cash">Cash</option>
-                  <option value="Cek">Cek</option>
-                  <option value="Giro">Giro</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Payment Via
-                </label>
-                <input
-                  type="text"
-                  value={paymentData.payment_via}
-                  onChange={(e) => setPaymentData({...paymentData, payment_via: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                  placeholder="BCA, Mandiri, dll"
-                />
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="font-medium">Select Purchase Orders</h4>
+              <div className="flex items-center text-sm text-gray-600">
+                <Calculator size={16} className="mr-1" />
+                Total: Rp {totalAmount.toLocaleString()}
               </div>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Keterangan
-              </label>
-              <textarea
-                value={paymentData.notes}
-                onChange={(e) => setPaymentData({...paymentData, notes: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                rows={3}
-                placeholder="Keterangan pembayaran..."
-              />
+            
+            <div className="border rounded-lg p-3 max-h-40 overflow-y-auto mb-3">
+              {availablePOs.filter(po => po.status_pembayaran !== 'Paid' && !selectedPOs.find(p => p.id === po.id)).map(po => (
+                <div key={po.id} className="flex items-center justify-between py-1">
+                  <span className="text-sm">{po.po_number} - {po.nama_supplier}</span>
+                  <div className="flex items-center">
+                    <span className="text-sm mr-2">Rp {po.total_tagih?.toLocaleString()}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleAddPO(po)}
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
 
-            <div className="flex gap-4 pt-4">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
-              >
-                {submitting ? 'Processing...' : `Bayar ${formatCurrency(paymentData.payment_amount)}`}
-              </button>
-              <button
-                type="button"
-                onClick={exportToPDF}
-                className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
-              >
-                <Download size={16} />
-                Export PDF
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-6 py-3 border border-gray-300 rounded-md hover:bg-gray-50"
-              >
-                Batal
-              </button>
-            </div>
-          </form>
-        </div>
+            {selectedPOs.length > 0 && (
+              <div className="border rounded-lg overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">PO Number</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {selectedPOs.map(po => (
+                      <tr key={po.id}>
+                        <td className="px-3 py-2 text-sm">{po.po_number}</td>
+                        <td className="px-3 py-2 text-sm">{po.nama_supplier}</td>
+                        <td className="px-3 py-2 text-sm">
+                          <input
+                            type="number"
+                            value={po.amount}
+                            onChange={(e) => handleAmountChange(po.id, parseFloat(e.target.value) || 0)}
+                            className="w-24 border rounded px-2 py-1 text-sm"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-sm">
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePO(po.id)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || selectedPOs.length === 0}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? 'Creating...' : 'Create Bulk Payment'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )

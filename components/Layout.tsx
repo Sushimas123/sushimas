@@ -44,7 +44,8 @@ import {
   PencilRuler,
   SlidersHorizontal,
   GlobeLock,
-  ScrollText
+  ScrollText,
+  Receipt
 } from "lucide-react"
 import { canAccessPage } from '@/src/utils/dbPermissions'
 import { supabase } from '@/src/lib/supabaseClient'
@@ -132,6 +133,7 @@ export default function Layout({ children }: LayoutProps) {
       icon: CircleDollarSign,
       submenu: [
         { name: "Laporan Finance", href: AppRoutes.FINANCE_PURCHASE_ORDERS, icon: FileText, pageName: 'finance' },
+        { name: "Bulk Payments", href: "/finance/bulk-payments", icon: Receipt, pageName: 'finance' },
         { name: "Aging Report", href: AppRoutes.FINANCE_AGING_REPORT, icon: AlertTriangle, pageName: 'aging-report' },
         { name: "Jatuh Tempo", href: "/finance/aging-pivot", icon: SquareSigma, pageName: 'aging-report' },
       ]
