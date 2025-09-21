@@ -159,7 +159,6 @@ export default function Layout({ children }: LayoutProps) {
       submenu: [
         { name: "Permissions", href: AppRoutes.PERMISSIONS_DB, icon: SlidersHorizontal, pageName: 'permissions-db' },
         { name: "CRUD Permissions", href: AppRoutes.CRUD_PERMISSIONS, icon: GlobeLock, pageName: 'crud-permissions' },
-        { name: "Audit Log", href: AppRoutes.AUDIT_LOG, icon: ScrollText, pageName: 'audit-log' },
       ]
     },
   ], [])

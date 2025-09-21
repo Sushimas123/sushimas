@@ -358,21 +358,16 @@ function ProduksiPageContent() {
           throw new Error(error.message);
         }
         
-        // Manual audit log
-          table_name: 'produksi',
-          record_id: editingId,
-          action: 'UPDATE',
-          new_values: submitData
-        });
         
         showToast('✅ Produksi berhasil diupdate!', 'success');
       } else {
         console.log('Inserting new produksi:', submitData);
-        const result = await supabase.from('produksi', submitData);
-        console.log('Insert result:', result);
+        const { error } = await supabase
+          .from('produksi')
+          .insert(submitData);
         
-        if (result.error) {
-          throw new Error(result.error.message);
+        if (error) {
+          throw new Error(error.message);
         }
         
         showToast('✅ Produksi berhasil ditambahkan!', 'success');
@@ -436,7 +431,7 @@ function ProduksiPageContent() {
   const handleDelete = async (id: number) => {
     if (!confirm('Hapus produksi ini?')) return;
     try {
-      await supabase.from('produksi', { id });
+      await supabase.from('produksi').delete().eq('id', id);
       await fetchProduksi();
       showToast('✅ Produksi berhasil dihapus!', 'success');
     } catch (error) {
@@ -475,10 +470,14 @@ function ProduksiPageContent() {
       if (error) throw error;
       
       // Audit trail untuk bulk delete
-      await supabase.from('produksi_bulk_delete', {
-        deleted_ids: selectedItems,
-        deleted_count: selectedItems.length
-      });
+      const { error: auditError } = await supabase
+        .from('produksi_bulk_delete')
+        .insert({
+          deleted_ids: selectedItems,
+          deleted_count: selectedItems.length
+        });
+      
+      if (auditError) console.error('Audit error:', auditError);
       
       setSelectedItems([]);
       await fetchProduksi();
@@ -638,16 +637,23 @@ function ProduksiPageContent() {
         }
         
         // Insert new record
-        await supabase.from('produksi', {
-          production_no: generateProductionNo(),
-          tanggal_input: tanggalInput,
-          id_product: product.id_product,
-          divisi: divisi,
-          branch: branch,
-          jumlah_buat: jumlahBuat,
-          konversi: product.satuan_besar || 1,
-          total_konversi: jumlahBuat * (product.satuan_besar || 1)
-        });
+        const { error: insertError } = await supabase
+          .from('produksi')
+          .insert({
+            production_no: generateProductionNo(),
+            tanggal_input: tanggalInput,
+            id_product: product.id_product,
+            divisi: divisi,
+            branch: branch,
+            jumlah_buat: jumlahBuat,
+            konversi: product.satuan_besar || 1,
+            total_konversi: jumlahBuat * (product.satuan_besar || 1)
+          });
+        
+        if (insertError) {
+          console.error('Insert error:', insertError);
+          continue;
+        }
         
         importCount++;
       }
