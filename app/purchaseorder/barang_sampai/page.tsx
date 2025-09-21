@@ -434,9 +434,8 @@ export default function FinishPO() {
             </div>
           </div>
 
-          <div className="bg-blue-50 rounded-lg p-4">
-            <h3 className="font-medium text-blue-900 mb-2">Informasi PO</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+          <div className="bg-blue-50 rounded-lg p-1">
+            <div className="grid grid-cols-2 md:grid-cols-2 gap-2 text-sm">
               <div>
                 <span className="text-gray-600">Nomor PO:</span>
                 <p className="font-medium">{poData.po_number}</p>
@@ -457,7 +456,7 @@ export default function FinishPO() {
           </div>
 
           <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Tanggal Barang Sampai *
@@ -534,65 +533,67 @@ export default function FinishPO() {
             </div>
 
             <div>
-              <h3 className="font-medium text-gray-700 mb-4">Items Purchase Order</h3>
+              <h3 className="font-medium text-gray-700 mb-2 text-sm">Items Purchase Order</h3>
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+                <table className="min-w-full divide-y divide-gray-200 text-xs">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Barang</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty PO</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty Diterima</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Harga PO</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Harga Aktual</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Barang</th>
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Qty PO</th>
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Qty Terima</th>
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Harga PO</th>
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Harga Aktual</th>
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {poData.items?.map(item => (
                       <tr key={item.id}>
-                        <td className="px-4 py-4">
-                          <div className="font-medium text-gray-900">{item.product_name}</div>
+                        <td className="px-2 py-2">
+                          <div className="font-medium text-gray-900 text-xs leading-tight">{item.product_name}</div>
                         </td>
-                        <td className="px-4 py-4 text-sm text-gray-600">
+                        <td className="px-2 py-2 text-xs text-gray-600">
                           {item.qty}
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-2 py-2">
                           <input
                             type="number"
                             min="0"
                             step="0.01"
                             value={receivedItems[item.id]?.qty || 0}
                             onChange={(e) => handleReceivedItemChange(item.id, 'qty', e.target.value)}
-                            className="w-20 border border-gray-300 rounded px-2 py-1"
+                            className="w-16 border border-gray-300 rounded px-1 py-1 text-xs"
                             disabled={receivedItems[item.id]?.status === 'not_received'}
                           />
                         </td>
-                        <td className="px-4 py-4 text-sm text-gray-600">
+                        <td className="px-2 py-2 text-xs text-gray-600">
                           {new Intl.NumberFormat('id-ID', {
                             style: 'currency',
-                            currency: 'IDR'
+                            currency: 'IDR',
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
                           }).format(item.harga || 0)}
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-2 py-2">
                           <input
                             type="number"
                             min="0"
                             step="0.01"
                             value={receivedItems[item.id]?.harga || 0}
                             onChange={(e) => handleReceivedItemChange(item.id, 'harga', e.target.value)}
-                            className="w-24 border border-gray-300 rounded px-2 py-1"
+                            className="w-20 border border-gray-300 rounded px-1 py-1 text-xs"
                             disabled={receivedItems[item.id]?.status === 'not_received'}
                           />
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-2 py-2">
                           <select
                             value={receivedItems[item.id]?.status || 'received'}
                             onChange={(e) => handleReceivedItemChange(item.id, 'status', e.target.value)}
-                            className="border border-gray-300 rounded px-2 py-1 text-sm"
+                            className="border border-gray-300 rounded px-1 py-1 text-xs w-full"
                           >
-                            <option value="received">Diterima Penuh</option>
-                            <option value="partial">Diterima Sebagian</option>
-                            <option value="not_received">Tidak Diterima</option>
+                            <option value="received">Penuh</option>
+                            <option value="partial">Sebagian</option>
+                            <option value="not_received">Tidak</option>
                           </select>
                         </td>
                       </tr>

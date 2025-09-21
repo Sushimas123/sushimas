@@ -486,24 +486,27 @@ export default function FinancePurchaseOrders() {
       const XLSX = await import('xlsx')
       
       const worksheetData = allFilteredData.map(item => ({
-        'PO Number': item.po_number,
+        'No PO': item.po_number,
         'PO Date': formatDate(item.po_date),
-        'Supplier': item.nama_supplier,
-        'Branch': item.nama_branch,
-        'Invoice Number': (item as any).invoice_number || '',
-        'PO Status': (item as any).po_status || '',
-        'Total PO': item.total_po,
-        'Total Paid': item.total_paid,
-        'Sisa Bayar': item.sisa_bayar,
-        'Total Tagih': (item as any).total_tagih || 0,
-        'Payment Status': item.status_payment,
-        'Jatuh Tempo': formatDate(item.tanggal_jatuh_tempo),
-        'Dibayar Tanggal': (item as any).dibayar_tanggal ? formatDate((item as any).dibayar_tanggal) : '',
-        'Payment Via': (item as any).payment_via || '',
-        'Payment Method': (item as any).payment_method || '',
+        'CABANG': item.nama_branch,
         'Barang Sampai': (item as any).tanggal_barang_sampai ? formatDate((item as any).tanggal_barang_sampai) : '',
+        'PO Status': (item as any).po_status || '',
+        'Termin': `${(item as any).termin_days || 30} hari`,
+        'Jatuh Tempo': formatDate(item.tanggal_jatuh_tempo),
+        'Total PO': item.total_po,
+        'Total Tagihan': (item as any).total_tagih || 0,
+        'Invoice': (item as any).invoice_number || '',
+        'Supplier': item.nama_supplier,
+        'Rekening': (item as any).nomor_rekening ? `${(item as any).bank_penerima} - ${(item as any).nomor_rekening}` : '',
+        'Dibayar': item.total_paid,
+        'Sisa': item.sisa_bayar,
+        'Release Payment': (item as any).dibayar_tanggal ? formatDate((item as any).dibayar_tanggal) : '',
+        'Tipe Payment': (item as any).payment_method || '',
+        'Payment Via': (item as any).payment_via || '',
+        'Payment Status': item.status_payment,
+        'Ref. Pembayaran': (item as any).bulk_payment_ref || (item as any).payment_reference || '',
         'Approved Date': (item as any).approved_at ? formatDate((item as any).approved_at) : '',
-        'Approval Status': (item as any).approval_status || '',
+        'Notes Raymond': notesState[item.id] || 'Rek Michael',
         'Keterangan': (item as any).keterangan || ''
       }))
       
@@ -533,9 +536,9 @@ export default function FinancePurchaseOrders() {
   return (
     <Layout>
       <PageAccessControl pageName="finance">
-        <div className="p-6 bg-gray-50 min-h-screen">
-          {/* Summary Cards - Compact Version */}
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+        <div className="p-3 md:p-6 bg-gray-50 min-h-screen">
+          {/* Summary Cards - Mobile Optimized */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-2 md:gap-3 mb-4 md:mb-6">
             <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
               <div className="flex items-center">
                 <div className="ml-3">
@@ -595,13 +598,13 @@ export default function FinancePurchaseOrders() {
 
           {/* Bulk Actions */}
           {selectedPOs.length > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 md:p-4 mb-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                   <span className="text-sm font-medium text-blue-800">
                     {selectedPOs.length} PO dipilih
                   </span>
-                  <span className="text-sm text-blue-600">
+                  <span className="text-xs sm:text-sm text-blue-600">
                     Total: {formatCurrency(data.filter(item => selectedPOs.includes(item.id)).reduce((sum, item) => sum + (item.total_tagih || item.sisa_bayar), 0))}
                   </span>
                 </div>
@@ -626,23 +629,24 @@ export default function FinancePurchaseOrders() {
                         alert('Gagal melakukan bulk approval')
                       }
                     }}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
+                    className="flex-1 sm:flex-none px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-xs sm:text-sm"
                     disabled={!data.filter(item => selectedPOs.includes(item.id)).some(item => (item as any).approval_status === 'pending')}
                   >
-                    Bulk Approve
+                    <span className="hidden sm:inline">Bulk </span>Approve
                   </button>
                   <button
                     onClick={() => setShowBulkPaymentModal(true)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+                    className="flex-1 sm:flex-none px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-xs sm:text-sm"
                     disabled={!data.filter(item => selectedPOs.includes(item.id)).every(item => (item as any).approval_status === 'approved')}
                   >
-                    Bulk Payment
+                    <span className="hidden sm:inline">Bulk </span>Payment
                   </button>
                   <button
                     onClick={() => setSelectedPOs([])}
-                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-sm"
+                    className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-xs sm:text-sm"
                   >
-                    Clear Selection
+                    <X size={16} className="sm:hidden" />
+                    <span className="hidden sm:inline">Clear</span>
                   </button>
                 </div>
               </div>
@@ -650,42 +654,47 @@ export default function FinancePurchaseOrders() {
           )}
 
           {/* Search and Filter Section */}
-          <div className="bg-white p-4 rounded-lg shadow border border-gray-200 mb-4">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                  <input
-                    type="text"
-                    placeholder="Cari PO number, supplier, atau cabang..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  />
+          <div className="bg-white p-3 md:p-4 rounded-lg shadow border border-gray-200 mb-4">
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <input
+                      type="text"
+                      placeholder="Cari PO, supplier, cabang..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
                 </div>
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-1 text-sm whitespace-nowrap"
+                >
+                  <Filter size={16} />
+                  <span className="hidden sm:inline">Filter</span>
+                </button>
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-2 text-sm"
-                >
-                  <Filter size={16} />
-                  Filter
-                </button>
-                <button
                   onClick={exportToXLSX}
-                  className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 text-sm"
+                  className="flex-1 sm:flex-none px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center justify-center gap-2 text-sm"
                 >
                   <Download size={16} />
                   Export Excel
                 </button>
+                <div className="text-xs text-gray-500 flex items-center">
+                  {allFilteredData.length} items
+                </div>
               </div>
             </div>
 
             {/* Advanced Filters */}
             {showFilters && (
               <div className="mt-4 pt-4 border-t border-gray-200">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
                     <input
@@ -817,8 +826,135 @@ export default function FinancePurchaseOrders() {
             )}
           </div>
 
-          {/* Data Table */}
-          <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+          {/* Mobile Card View */}
+          <div className="block md:hidden">
+            {filteredData.map((item) => (
+              <div key={item.id} className="bg-white rounded-lg shadow border border-gray-200 mb-3 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedPOs.includes(item.id)}
+                      disabled={item.status_payment === 'paid'}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedPOs([...selectedPOs, item.id])
+                        } else {
+                          setSelectedPOs(selectedPOs.filter(id => id !== item.id))
+                        }
+                      }}
+                      className="rounded border-gray-300 disabled:opacity-50"
+                    />
+                    <a 
+                      href={`/purchaseorder/received-preview?id=${item.id}`}
+                      className="text-sm font-bold text-blue-600 hover:text-blue-800"
+                      target="_blank"
+                    >
+                      {item.po_number}
+                    </a>
+                  </div>
+                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}>
+                    {item.status_payment.toUpperCase()}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                  <div>
+                    <span className="text-gray-500">Cabang:</span>
+                    <p className="font-medium">{item.nama_branch}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Supplier:</span>
+                    <p className="font-medium">{item.nama_supplier}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Total PO:</span>
+                    <p className="font-medium">{formatCurrency(item.total_po)}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Sisa:</span>
+                    <p className="font-medium text-red-600">{formatCurrency(item.sisa_bayar)}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Jatuh Tempo:</span>
+                    <p className={`font-medium ${item.is_overdue ? 'text-red-600' : ''}`}>
+                      {formatDate(item.tanggal_jatuh_tempo)}
+                      {item.is_overdue && <span className="ml-1 text-xs">(Overdue {item.days_overdue}d)</span>}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Status PO:</span>
+                    <span className={`inline-flex px-1 py-0.5 text-xs font-semibold rounded ${
+                      (item as any).po_status === 'Barang sampai' ? 'bg-green-100 text-green-800' :
+                      (item as any).po_status === 'Sedang diproses' ? 'bg-blue-100 text-blue-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {(item as any).po_status}
+                    </span>
+                  </div>
+                </div>
+                
+                {(item as any).tanggal_barang_sampai && (
+                  <div className="text-xs text-green-600 mb-2 flex items-center">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Barang sampai: {formatDate((item as any).tanggal_barang_sampai)}
+                  </div>
+                )}
+                
+                {(item as any).dibayar_tanggal && (
+                  <div className="text-xs text-blue-600 mb-2 flex items-center">
+                    <CreditCard className="h-3 w-3 mr-1" />
+                    Dibayar: {formatDate((item as any).dibayar_tanggal)} via {(item as any).payment_via}
+                  </div>
+                )}
+                
+                <div className="flex gap-1 mt-2">
+                  <a
+                    href={`/finance/purchase-orders/submit-approval?id=${item.id}`}
+                    className="flex-1 text-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                  >
+                    Submit
+                  </a>
+                  {(item as any).approval_status === 'pending' && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          const { error } = await supabase
+                            .from('purchase_orders')
+                            .update({ 
+                              approval_status: 'approved',
+                              approved_at: new Date().toISOString()
+                            })
+                            .eq('id', item.id)
+                          if (error) throw error
+                          fetchFinanceData()
+                        } catch (error) {
+                          console.error('Error approving:', error)
+                        }
+                      }}
+                      className="flex-1 text-center px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700"
+                    >
+                      Approve
+                    </button>
+                  )}
+                  {item.sisa_bayar > 0 && !(item as any).bulk_payment_ref && (
+                    <button
+                      onClick={() => {
+                        setSelectedPO(item)
+                        setShowPaymentModal(true)
+                      }}
+                      className="flex-1 text-center px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+                    >
+                      Bayar
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
@@ -1280,26 +1416,32 @@ export default function FinancePurchaseOrders() {
             </div>
           </div>
 
-          {/* Pagination */}
+          {/* Mobile Pagination */}
           {totalPages > 1 && (
-            <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-4 rounded-lg shadow">
-              <div className="flex-1 flex justify-between sm:hidden">
+            <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 mt-4 rounded-lg shadow">
+              {/* Mobile pagination */}
+              <div className="flex-1 flex justify-between md:hidden">
                 <button
                   onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
-                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                  className="relative inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
                 >
                   Previous
                 </button>
+                <span className="text-sm text-gray-700 flex items-center">
+                  {currentPage} / {totalPages}
+                </span>
                 <button
                   onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
-                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                  className="relative inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
                 >
                   Next
                 </button>
               </div>
-              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+              
+              {/* Desktop pagination */}
+              <div className="hidden md:flex-1 md:flex md:items-center md:justify-between">
                 <div>
                   <p className="text-sm text-gray-700">
                     Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
@@ -1316,19 +1458,31 @@ export default function FinancePurchaseOrders() {
                     >
                       Previous
                     </button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                          page === currentPage
-                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ))}
+                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                      let page
+                      if (totalPages <= 5) {
+                        page = i + 1
+                      } else if (currentPage <= 3) {
+                        page = i + 1
+                      } else if (currentPage >= totalPages - 2) {
+                        page = totalPages - 4 + i
+                      } else {
+                        page = currentPage - 2 + i
+                      }
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                            page === currentPage
+                              ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                              : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      )
+                    })}
                     <button
                       onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                       disabled={currentPage === totalPages}
@@ -1342,11 +1496,12 @@ export default function FinancePurchaseOrders() {
             </div>
           )}
 
+          {/* Empty State */}
           {allFilteredData.length === 0 && !loading && (
-            <div className="text-center py-12 text-gray-500 bg-white rounded-lg border border-gray-200 mt-4">
-              <FileText className="h-12 w-12 mx-auto text-gray-400" />
-              <p className="mt-2">Tidak ada data yang ditemukan</p>
-              <p className="text-sm">Coba ubah filter pencarian Anda</p>
+            <div className="text-center py-8 md:py-12 text-gray-500 bg-white rounded-lg border border-gray-200 mt-4">
+              <FileText className="h-8 w-8 md:h-12 md:w-12 mx-auto text-gray-400" />
+              <p className="mt-2 text-sm md:text-base">Tidak ada data yang ditemukan</p>
+              <p className="text-xs md:text-sm">Coba ubah filter pencarian Anda</p>
             </div>
           )}
         </div>
