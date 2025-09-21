@@ -9,6 +9,7 @@ import Layout from '../../components/Layout';
 import { getBranchFilter, applyBranchFilter } from '@/src/utils/branchAccess';
 import PageAccessControl from '../../components/PageAccessControl';
 import { safeLog } from '@/src/utils/logSanitizer';
+import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
 
 
 interface AnalysisData {
@@ -181,10 +182,7 @@ export default function AnalysisPage() {
       if (branchSettings && branchSettings.length > 0) {
         // Update existing settings
         for (const setting of branchSettings) {
-          const { error: updateError } = await supabase
-            .from('product_branch_settings')
-            .update({ tolerance_percentage: tolerance })
-            .eq('id_setting', setting.id_setting);
+          const { error: updateError } = await updateWithAudit('product_branch_settings', { tolerance_percentage: tolerance }, {'id_setting': setting.id_setting});
           
           if (updateError) {
             console.error('Update error:', updateError);
@@ -565,7 +563,7 @@ export default function AnalysisPage() {
     return hasilEsb - keluarForm + totalProduction;
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (data.length === 0) {
       showToast('No data to export', 'error');
       return;
@@ -597,6 +595,7 @@ export default function AnalysisPage() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Analysis Report');
     XLSX.writeFile(wb, `analysis_report_${new Date().toISOString().split('T')[0]}.xlsx`);
+    await logAuditTrail({ table_name: 'export', record_id: 0, action: 'EXPORT' });
     showToast('Analysis report exported successfully', 'success');
   };
 

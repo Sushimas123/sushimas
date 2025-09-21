@@ -5,6 +5,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 import { Plus, ShoppingCart, Search, Calendar, Building2, User, Package, Minus, Save, ArrowLeft } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
+import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
 
 interface Supplier {
   id_supplier: number
@@ -434,9 +435,7 @@ function CreatePurchaseOrder() {
 
         console.log('Inserting PO data:', poInsertData)
         
-        const { data: poData, error: poError } = await supabase
-          .from('purchase_orders')
-          .insert(poInsertData)
+        const { data: poData, error: poError } = await insertWithAudit('purchase_orders', poInsertData)
           .select()
           .single()
 
@@ -455,9 +454,7 @@ function CreatePurchaseOrder() {
           keterangan: item.keterangan
         }))
 
-        const { error: itemsError } = await supabase
-          .from('po_items')
-          .insert(poItemsData)
+        const { error: itemsError } = await insertWithAudit('po_items', poItemsData)
 
         if (itemsError) {
           console.error('Items insert error:', itemsError)

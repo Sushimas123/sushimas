@@ -7,6 +7,7 @@ import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 import PaymentModal from './PaymentModal'
 import BulkPaymentModal from './BulkPaymentModal'
+import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
 
 interface FinanceData {
   id: number
@@ -450,10 +451,7 @@ export default function FinancePurchaseOrders() {
 
   const handleNotesChange = async (poId: number, newValue: string) => {
     try {
-      const { error } = await supabase
-        .from('purchase_orders')
-        .update({ notes: newValue })
-        .eq('id', poId)
+      const { error } = await updateWithAudit('purchase_orders', { notes: newValue }, {'id': poId})
       
       if (error) throw error
       
@@ -503,6 +501,7 @@ export default function FinancePurchaseOrders() {
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Finance Purchase Orders')
       
       XLSX.writeFile(workbook, `finance-purchase-orders-${new Date().toISOString().split('T')[0]}.xlsx`)
+      await logAuditTrail({ table_name: 'export', record_id: 0, action: 'EXPORT' })
     } catch (error) {
       console.error('Error exporting to XLSX:', error)
       alert('Gagal export file. Pastikan browser mendukung fitur export.')
@@ -1077,10 +1076,7 @@ export default function FinancePurchaseOrders() {
                                 <button
                                   onClick={async () => {
                                     try {
-                                      const { error } = await supabase
-                                        .from('purchase_orders')
-                                        .update({ approval_status: 'approved' })
-                                        .eq('id', item.id)
+                                      const { error } = await updateWithAudit('purchase_orders', { approval_status: 'approved' }, {'id': item.id})
                                       if (error) throw error
                                       fetchFinanceData()
                                     } catch (error) {
@@ -1097,13 +1093,10 @@ export default function FinancePurchaseOrders() {
                                 <button
                                   onClick={async () => {
                                     try {
-                                      const { error } = await supabase
-                                        .from('purchase_orders')
-                                        .update({ 
+                                      const { error } = await updateWithAudit('purchase_orders', { 
                                           approval_status: 'pending',
                                           approved_at: null
-                                        })
-                                        .eq('id', item.id)
+                                        }, {'id': item.id})
                                       if (error) throw error
                                       fetchFinanceData()
                                     } catch (error) {

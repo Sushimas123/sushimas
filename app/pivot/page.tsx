@@ -9,6 +9,7 @@ import Layout from '../../components/Layout';
 import { getBranchFilter, applyBranchFilter } from '@/src/utils/branchAccess';
 import PageAccessControl from '../../components/PageAccessControl';
 import { safeLog } from '@/src/utils/logSanitizer';
+import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
 
 interface AnalysisData {
   id_product: number;
@@ -553,6 +554,7 @@ export default function PivotPage() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Pivot Analysis');
     XLSX.writeFile(wb, `pivot_analysis_${dateRange.startDate}_${dateRange.endDate}.xlsx`);
+      await logAuditTrail({ table_name: 'export', record_id: 0, action: 'EXPORT' });
     showToast('Data exported successfully', 'success');
   };
 
@@ -616,9 +618,7 @@ export default function PivotPage() {
       const userData = localStorage.getItem('user');
       const user = userData ? JSON.parse(userData) : { name: 'Unknown' };
 
-      const { error } = await supabase
-        .from('investigation_notes')
-        .insert({
+      const { error } = await insertWithAudit('investigation_notes', {
           analysis_id: id,
           notes: notes[id],
           created_by: user.name || 'Unknown'

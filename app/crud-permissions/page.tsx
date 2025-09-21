@@ -6,6 +6,7 @@ import { Save, RefreshCw, Filter, X, ChevronDown, ChevronRight } from 'lucide-re
 import Layout from '../../components/Layout';
 import { reloadPermissions } from '@/src/utils/rolePermissions';
 import PageAccessControl from '../../components/PageAccessControl';
+import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
 
 interface CrudPermission {
   id?: number;
@@ -149,9 +150,7 @@ export default function CrudPermissionsPage() {
         can_delete: p.can_delete
       }));
 
-      const { error: insertError } = await supabase
-        .from('crud_permissions')
-        .insert(permissionsToInsert);
+      const { error: insertError } = await insertWithAudit('crud_permissions', permissionsToInsert);
 
       if (insertError) throw insertError;
 

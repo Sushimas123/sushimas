@@ -5,6 +5,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 import { TrendingDown, FileText } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
+import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
 
 interface AgingData {
   id: number

@@ -51,7 +51,7 @@ export default function AuditLogPage() {
       endDate.setHours(23, 59, 59, 999);
 
       let query = supabase
-        .from('audit_log')
+        .from('audit_log_view')
         .select('*')
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString())
@@ -266,20 +266,20 @@ export default function AuditLogPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="font-medium text-gray-900">{log.table_name}</span>
+                        <span className="font-medium text-gray-900">{log.table_display || log.table_name}</span>
                       </td>
                       <td className="px-4 py-3">
                         <span className="text-gray-900">{log.record_id}</span>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-1 rounded text-xs font-semibold ${getActionColor(log.action)}`}>
-                          {log.action}
+                          {log.action_display || log.action}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="text-gray-900">{log.user_name || 'N/A'}</div>
-                        {log.user_id && (
-                          <div className="text-gray-500 text-xs">ID: {log.user_id}</div>
+                        <div className="text-gray-900">{log.user_full_name || log.user_name || 'N/A'}</div>
+                        {log.user_email && (
+                          <div className="text-gray-500 text-xs">{log.user_email}</div>
                         )}
                       </td>
                       <td className="px-4 py-3">
