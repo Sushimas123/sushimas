@@ -182,7 +182,10 @@ export default function AnalysisPage() {
       if (branchSettings && branchSettings.length > 0) {
         // Update existing settings
         for (const setting of branchSettings) {
-          const { error: updateError } = await supabase.from('product_branch_settings', { tolerance_percentage: tolerance }, {'id_setting': setting.id_setting});
+          const { error: updateError } = await supabase
+            .from('product_branch_settings')
+            .update({ tolerance_percentage: tolerance })
+            .eq('id_setting', setting.id_setting);
           
           if (updateError) {
             console.error('Update error:', updateError);
