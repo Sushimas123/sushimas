@@ -50,10 +50,9 @@ export const logAuditTrail = async (entry: AuditLogEntry) => {
 };
 
 // Enhanced insert with audit trail
-export const insertWithAudit = async (
+export const insertWithAudit = (
   tableName: string, 
-  data: any, 
-  options: { select?: string } = {}
+  data: any
 ) => {
   const currentUser = getCurrentUser();
   
@@ -64,26 +63,8 @@ export const insertWithAudit = async (
     updated_by: currentUser?.id_user || null
   };
 
-  // Always select the primary key to get the record ID for audit
-  const query = supabase.from(tableName).insert([dataWithAudit]).select();
-
-  const result = await query;
-
-  // Log audit trail
-  if (!result.error && result.data) {
-    const record = Array.isArray(result.data) ? result.data[0] : result.data;
-    const recordId = record?.id || record?.id_user || record?.id_branch || record?.id_product || record?.id_ready || record?.order_no || record?.ready_no;
-    if (recordId) {
-      await logAuditTrail({
-        table_name: tableName,
-        record_id: recordId,
-        action: 'INSERT',
-        new_values: dataWithAudit
-      });
-    }
-  }
-
-  return result;
+  // Return the query builder so it can be chained
+  return supabase.from(tableName).insert([dataWithAudit]);
 };
 
 // Enhanced update with audit trail

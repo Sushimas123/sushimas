@@ -28,7 +28,7 @@ BEGIN
         WHEN 'branches' THEN COALESCE(NEW.id_branch, OLD.id_branch)
         WHEN 'users' THEN COALESCE(NEW.id_user, OLD.id_user)
         WHEN 'gudang' THEN COALESCE(NEW.id, OLD.id)
-        WHEN 'purchase_orders' THEN COALESCE(NEW.order_no, OLD.order_no)
+        WHEN 'purchase_orders' THEN COALESCE(NEW.id, OLD.id)
         WHEN 'po_items' THEN COALESCE(NEW.id, OLD.id)
         WHEN 'bulk_payments' THEN COALESCE(NEW.id, OLD.id)
         ELSE COALESCE(NEW.id, OLD.id) -- fallback for tables with 'id' column
