@@ -477,170 +477,171 @@ function CreatePurchaseOrder() {
   }
 
   return (
-    <div className="p-4 space-y-4 bg-gray-50 min-h-screen">
+    <div className="p-2 space-y-3 bg-gray-50 min-h-screen">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <a href="/purchaseorder" className="text-gray-600 hover:text-gray-800">
-          <ArrowLeft size={20} />
+          <ArrowLeft size={18} />
         </a>
         <div>
-          <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <ShoppingCart className="text-blue-600" size={22} />
+          <h1 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+            <ShoppingCart className="text-blue-600" size={18} />
             Buat PO Baru
             {formData.priority === 'tinggi' && (
-              <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full">
-                🚨 URGENT
+              <span className="bg-red-100 text-red-800 text-xs px-1 py-0.5 rounded">
+                🚨
               </span>
             )}
           </h1>
-          <p className="text-gray-600 text-sm">
+          <p className="text-gray-600 text-xs">
             {formData.keterangan.includes('Stock Alert') 
-              ? '⚡ Auto-filled from Stock Alert - Review and submit'
-              : 'Buat pesanan pembelian ke supplier'
+              ? '⚡ Auto-filled from Stock Alert'
+              : 'Buat pesanan pembelian'
             }
           </p>
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {/* PO Info */}
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="text-md font-semibold mb-3">Informasi PO</h3>
-          <div className="space-y-3">
+        <div className="bg-white rounded shadow p-3">
+          <h3 className="text-sm font-semibold mb-2">Informasi PO</h3>
+          <div className="grid grid-cols-2 gap-2 mb-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal PO *</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Tanggal PO *</label>
               <input
                 type="date"
                 value={formData.po_date}
                 onChange={(e) => setFormData({...formData, po_date: e.target.value})}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs"
                 required
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Cabang *</label>
-              {userRole !== 'super admin' && userRole !== 'admin' && !userBranch && (
-                <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
-                  ⚠️ Data cabang Anda belum diset. Silakan hubungi admin untuk mengupdate data user.
-                </div>
-              )}
-              <select
-                value={formData.cabang_id}
-                onChange={(e) => setFormData({...formData, cabang_id: e.target.value})}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                required
-                disabled={branches.length === 1}
-              >
-                <option value="">Pilih Cabang</option>
-                {branches.map(branch => (
-                  <option key={branch.id_branch} value={branch.id_branch}>
-                    {branch.nama_branch}
-                  </option>
-                ))}
-              </select>
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Prioritas</label>
+            <div className="mb-2">
+            <label className="block text-xs font-medium text-gray-700 mb-1">Cabang *</label>
+            {userRole !== 'super admin' && userRole !== 'admin' && !userBranch && (
+              <div className="mb-1 p-1.5 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
+                ⚠️ Data cabang belum diset
+              </div>
+            )}
+            <select
+              value={formData.cabang_id}
+              onChange={(e) => setFormData({...formData, cabang_id: e.target.value})}
+              className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs"
+              required
+              disabled={branches.length === 1}
+            >
+              <option value="">Pilih Cabang</option>
+              {branches.map(branch => (
+                <option key={branch.id_branch} value={branch.id_branch}>
+                  {branch.nama_branch}
+                </option>
+              ))}
+            </select>
+            {formData.priority === 'tinggi' && (
+              <p className="text-xs text-red-600 mt-0.5">
+                ⚠️ High priority PO
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Cari Produk</label>
+            <div className="relative">
+              <Search className="absolute left-2 top-2 h-3 w-3 text-gray-400" />
+              <input
+                type="text"
+                value={searchProduct}
+                onChange={(e) => setSearchProduct(e.target.value)}
+                className="w-full pl-6 border border-gray-300 rounded px-2 py-1.5 text-xs"
+                placeholder="Cari nama produk..."
+              />
+            </div>
+            
+            {productSuppliers.length > 0 && (
+              <div className="mt-1 max-h-40 overflow-y-auto border border-gray-200 rounded text-xs">
+                {productSuppliers.map((item, index) => (
+                  <div key={index} className="p-2 border-b border-gray-100 last:border-b-0">
+                    <div className="font-medium text-gray-900 mb-0.5">
+                      {item.product.product_name}
+                    </div>
+                    <div className="text-xs text-gray-500 mb-0.5">
+                      {item.product.merk || 'No Brand'}
+                    </div>
+                    <div className="text-xs text-gray-600 mb-1">
+                      {item.suppliers.length} supplier
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {item.suppliers.map((supplier) => (
+                        <button
+                          key={supplier.id_supplier}
+                          onClick={() => addProductToPO(item.product, supplier)}
+                          className="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs hover:bg-blue-200"
+                        >
+                          {supplier.nama_supplier}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Prioritas</label>
               <select
                 value={formData.priority}
                 onChange={(e) => setFormData({...formData, priority: e.target.value})}
-                className={`w-full border border-gray-300 rounded-md px-3 py-2 text-sm ${
+                className={`w-full border border-gray-300 rounded px-2 py-1.5 text-xs ${
                   formData.priority === 'tinggi' ? 'bg-red-50 border-red-300' : ''
                 }`}
               >
                 <option value="biasa">Biasa</option>
                 <option value="sedang">Sedang</option>
-                <option value="tinggi">Tinggi (Urgent)</option>
+                <option value="tinggi">Tinggi</option>
               </select>
-              {formData.priority === 'tinggi' && (
-                <p className="text-xs text-red-600 mt-1">
-                  ⚠️ High priority PO - will be processed immediately
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Cari Produk</label>
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchProduct}
-                  onChange={(e) => setSearchProduct(e.target.value)}
-                  className="w-full pl-8 border border-gray-300 rounded-md px-3 py-2 text-sm"
-                  placeholder="Cari nama produk..."
-                />
-              </div>
-              
-              {productSuppliers.length > 0 && (
-                <div className="mt-2 max-h-48 overflow-y-auto border border-gray-200 rounded-md text-sm">
-                  {productSuppliers.map((item, index) => (
-                    <div key={index} className="p-2 border-b border-gray-100 last:border-b-0">
-                      <div className="font-medium text-gray-900 mb-1">
-                        {item.product.product_name}
-                      </div>
-                      <div className="text-xs text-gray-500 mb-1">
-                        {item.product.merk || 'No Brand'}
-                      </div>
-                      <div className="text-xs text-gray-600 mb-1">
-                        Tersedia di {item.suppliers.length} supplier
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {item.suppliers.map((supplier) => (
-                          <button
-                            key={supplier.id_supplier}
-                            onClick={() => addProductToPO(item.product, supplier)}
-                            className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs hover:bg-blue-200"
-                          >
-                            {supplier.nama_supplier}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Keterangan</label>
-              <textarea
-                value={formData.keterangan}
-                onChange={(e) => setFormData({...formData, keterangan: e.target.value})}
-                className={`w-full border border-gray-300 rounded-md px-3 py-2 text-sm ${
-                  formData.keterangan.includes('Stock Alert') ? 'bg-yellow-50 border-yellow-300' : ''
-                }`}
-                rows={3}
-                placeholder="Keterangan tambahan..."
-              />
-              {formData.keterangan.includes('Stock Alert') && (
-                <p className="text-xs text-yellow-700 mt-1">
-                  📋 This PO was created from a stock alert. Review the details above.
-                </p>
-              )}
-            </div>
+            </div>          
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Keterangan</label>
+            <textarea
+              value={formData.keterangan}
+              onChange={(e) => setFormData({...formData, keterangan: e.target.value})}
+              className={`w-full border border-gray-300 rounded px-2 py-1.5 text-xs ${
+                formData.keterangan.includes('Stock Alert') ? 'bg-yellow-50 border-yellow-300' : ''
+              }`}
+              rows={2}
+              placeholder="Keterangan tambahan..."
+            />
+            {formData.keterangan.includes('Stock Alert') && (
+              <p className="text-xs text-yellow-700 mt-0.5">
+                📋 From stock alert
+              </p>
+            )}
           </div>
         </div>
+          </div>
+          
+          
 
         {/* Items PO */}
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="text-md font-semibold mb-3">Items PO</h3>
+        <div className="bg-white rounded shadow p-3">
+          <h3 className="text-sm font-semibold mb-2">Items PO</h3>
           {poItems.length === 0 ? (
-            <div className="text-center py-6 text-gray-500">
-              <Package size={32} className="mx-auto mb-2 text-gray-300" />
-              <p className="text-sm">Belum ada item yang dipilih</p>
-              <p className="text-xs">Pilih supplier dan tambahkan produk</p>
+            <div className="text-center py-4 text-gray-500">
+              <Package size={24} className="mx-auto mb-1 text-gray-300" />
+              <p className="text-xs">Belum ada item</p>
+              <p className="text-xs">Cari dan tambahkan produk</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {Object.entries(groupedItems).map(([supplierName, items]) => {
                 const supplier = suppliers.find(s => s.nama_supplier === supplierName)
                 return (
-                <div key={supplierName} className="border rounded-lg overflow-hidden">
-                  <div className="bg-blue-50 px-3 py-2 border-b">
+                <div key={supplierName} className="border rounded overflow-hidden">
+                  <div className="bg-blue-50 px-2 py-1.5 border-b">
                     <div className="flex flex-col">
-                      <h4 className="font-semibold text-blue-800 text-sm">Supplier: {supplierName}</h4>
+                      <h4 className="font-semibold text-blue-800 text-xs">{supplierName}</h4>
                       <span className="text-xs text-blue-600">
                         Tempo: {supplier?.termin_tempo} hari
                       </span>
@@ -648,21 +649,21 @@ function CreatePurchaseOrder() {
                   </div>
                   <div className="divide-y">
                     {items.map((item) => (
-                      <div key={item.product_id} className="p-3">
-                        <div className="flex justify-between items-start mb-2">
+                      <div key={item.product_id} className="p-2">
+                        <div className="flex justify-between items-start mb-1">
                           <div className="flex-1">
-                            <div className="font-medium text-sm">{item.product_name}</div>
+                            <div className="font-medium text-xs">{item.product_name}</div>
                             <div className="text-xs text-gray-500">{item.merk || 'No Brand'}</div>
                           </div>
                           <button
                             onClick={() => removePOItem(item.product_id, item.supplier_name)}
-                            className="text-red-600 hover:text-red-800 ml-2"
+                            className="text-red-600 hover:text-red-800 ml-1"
                           >
-                            <Minus size={16} />
+                            <Minus size={14} />
                           </button>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="grid grid-cols-2 gap-1 text-xs">
                           <div>
                             <label className="text-xs text-gray-500">Qty</label>
                             <input
@@ -670,25 +671,25 @@ function CreatePurchaseOrder() {
                               step="0.01"
                               value={item.qty}
                               onChange={(e) => updatePOItem(item.product_id, item.supplier_name, 'qty', parseFloat(e.target.value) || 0)}
-                              className="w-full border rounded px-2 py-1 text-sm"
+                              className="w-full border rounded px-1.5 py-1 text-xs"
                               min="0.01"
                             />
                           </div>
                           <div>
                             <label className="text-xs text-gray-500">Unit</label>
-                            <div className="border rounded px-2 py-1 bg-gray-50 text-sm">
+                            <div className="border rounded px-1.5 py-1 bg-gray-50 text-xs">
                               {item.unit_besar}
                             </div>
                           </div>
                         </div>
                         
-                        <div className="mt-2">
+                        <div className="mt-1">
                           <label className="text-xs text-gray-500">Keterangan</label>
                           <input
                             type="text"
                             value={item.keterangan}
                             onChange={(e) => updatePOItem(item.product_id, item.supplier_name, 'keterangan', e.target.value)}
-                            className="w-full border rounded px-2 py-1 text-sm"
+                            className="w-full border rounded px-1.5 py-1 text-xs"
                             placeholder="Keterangan..."
                           />
                         </div>
@@ -704,15 +705,15 @@ function CreatePurchaseOrder() {
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-2 sticky bottom-0 bg-gray-50 p-2 border-t">
-          <a href="/purchaseorder" className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
+          <a href="/purchaseorder" className="px-3 py-1.5 border border-gray-300 rounded text-xs hover:bg-gray-50">
             Batal
           </a>
           <button 
             onClick={handleSavePO}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 flex items-center gap-1"
+            className="bg-blue-600 text-white px-3 py-1.5 rounded text-xs hover:bg-blue-700 flex items-center gap-1"
             disabled={poItems.length === 0 || !formData.cabang_id}
           >
-            <Save size={14} />
+            <Save size={12} />
             Simpan PO
           </button>
         </div>
