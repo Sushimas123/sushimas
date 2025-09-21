@@ -6,7 +6,7 @@ import { Download, ChevronDown, ChevronRight } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 import * as XLSX from 'xlsx'
-import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
+
 
 interface AgingPivotData {
   branch: string
@@ -200,7 +200,6 @@ export default function AgingPivotReport() {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Aging Pivot Report')
     XLSX.writeFile(wb, `aging-pivot-report-${new Date().toISOString().split('T')[0]}.xlsx`)
-    await logAuditTrail({ table_name: 'export', record_id: 0, action: 'EXPORT' })
   }
 
   const branchGroups = data.reduce((acc, item) => {

@@ -5,7 +5,6 @@ import { supabase } from '@/src/lib/supabaseClient'
 import { Package, ArrowRightLeft, Edit, Trash2, Plus, RefreshCw, Filter, X, Share2, Search, ChevronDown } from 'lucide-react'
 import Layout from '../../components/Layout'
 import PageAccessControl from '../../components/PageAccessControl'
-import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
 
 interface TransferBarang {
   id: number
@@ -332,12 +331,12 @@ export default function TransferBarangPage() {
           
           if (peminjamBranch && tujuanBranch) {
             // Update gudang entries
-            const { error: updateKeluarError } = await updateWithAudit('gudang', { jumlah_keluar: newJumlah }, {'source_reference': originalTransfer.transfer_no})
+            const { error: updateKeluarError } = await supabase.from('gudang', { jumlah_keluar: newJumlah }, {'source_reference': originalTransfer.transfer_no})
               .eq('cabang', peminjamBranch.kode_branch)
             
             if (updateKeluarError) throw updateKeluarError
             
-            const { error: updateMasukError } = await updateWithAudit('gudang', { jumlah_masuk: newJumlah }, {'source_reference': originalTransfer.transfer_no})
+            const { error: updateMasukError } = await supabase.from('gudang', { jumlah_masuk: newJumlah }, {'source_reference': originalTransfer.transfer_no})
               .eq('cabang', tujuanBranch.kode_branch)
             
             if (updateMasukError) throw updateMasukError
@@ -367,7 +366,7 @@ export default function TransferBarangPage() {
           }
         })
 
-        const { error } = await insertWithAudit('transfer_barang', transfersData)
+        const { error } = await supabase.from('transfer_barang', transfersData)
         
         if (error) throw error
         showToast(`${validItems.length} transfer berhasil dibuat`, 'success')
@@ -428,7 +427,7 @@ export default function TransferBarangPage() {
         runningTotal = runningTotal + record.jumlah_masuk - record.jumlah_keluar
         
         if (runningTotal !== record.total_gudang) {
-          await updateWithAudit('gudang', { total_gudang: runningTotal }, {'order_no': record.order_no})
+          await supabase.from('gudang', { total_gudang: runningTotal }, {'order_no': record.order_no})
         }
       }
     } catch (error) {
@@ -497,7 +496,7 @@ export default function TransferBarangPage() {
       
       if (!peminjamBranch || !tujuanBranch) throw new Error('Branch not found')
 
-      const { error: transferError } = await updateWithAudit('transfer_barang', {
+      const { error: transferError } = await supabase.from('transfer_barang', {
           tgl_barang_sampai: todayStr,
           status: 'completed'
         }, {'id': transferId})
@@ -517,7 +516,7 @@ export default function TransferBarangPage() {
       const currentPeminjamStock = currentStock?.[0]?.total_gudang || 0
       const newPeminjamTotal = currentPeminjamStock - transfer.jumlah
 
-      const { error: keluarError } = await insertWithAudit('gudang', {
+      const { error: keluarError } = await supabase.from('gudang', {
           id_product: transfer.id_product,
           cabang: peminjamBranch.kode_branch,
           tanggal: timestamp,
@@ -546,7 +545,7 @@ export default function TransferBarangPage() {
       const currentTujuanStockValue = currentTujuanStock?.[0]?.total_gudang || 0
       const newTujuanTotal = currentTujuanStockValue + transfer.jumlah
 
-      const { error: masukError } = await insertWithAudit('gudang', {
+      const { error: masukError } = await supabase.from('gudang', {
           id_product: transfer.id_product,
           cabang: tujuanBranch.kode_branch,
           tanggal: timestamp,

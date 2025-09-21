@@ -8,7 +8,6 @@ import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { canPerformActionSync } from '@/src/utils/rolePermissions';
-import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
 import PageAccessControl from '../../components/PageAccessControl';
 
 interface Branch {
@@ -187,7 +186,7 @@ function BranchesPageContent() {
       };
 
       if (editingId) {
-        const { error } = await updateWithAudit(
+        const { error } = await supabase.from(
           'branches',
           submitData,
           { id_branch: editingId }
@@ -195,7 +194,7 @@ function BranchesPageContent() {
 
         if (error) throw error;
       } else {
-        const { error } = await insertWithAudit(
+        const { error } = await supabase.from(
           'branches',
           submitData
         );
@@ -393,7 +392,7 @@ function BranchesPageContent() {
     setDeleteLoading(id);
     
     try {
-      const { error } = await deleteWithAudit(
+      const { error } = await supabase.from(
         'branches',
         { id_branch: id }
       );

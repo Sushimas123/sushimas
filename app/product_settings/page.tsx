@@ -6,7 +6,6 @@ import { Plus, Edit, Trash2, Download, Upload, RefreshCw, Filter, X, Search } fr
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
-import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
 import PageAccessControl from '../../components/PageAccessControl';
 
 // Helper function to convert text to Title Case
@@ -291,9 +290,9 @@ export default function ProductSettingsPage() {
         };
         
         if (existingSetting) {
-          await updateWithAudit('product_branch_settings', settingData, { id_setting: existingSetting.id_setting });
+          await supabase.from('product_branch_settings', settingData, { id_setting: existingSetting.id_setting });
         } else {
-          await insertWithAudit('product_branch_settings', settingData);
+          await supabase.from('product_branch_settings', settingData);
         }
       }
 
@@ -346,7 +345,7 @@ export default function ProductSettingsPage() {
         .eq('id_product', id);
       
       for (const setting of branchSettings || []) {
-        await deleteWithAudit('product_branch_settings', { id_setting: setting.id_setting });
+        await supabase.from('product_branch_settings', { id_setting: setting.id_setting });
       }
 
       showToast('Settings deleted successfully', 'success');
@@ -439,9 +438,9 @@ export default function ProductSettingsPage() {
           };
           
           if (existingSetting) {
-            await updateWithAudit('product_branch_settings', settingData, { id_setting: existingSetting.id_setting });
+            await supabase.from('product_branch_settings', settingData, { id_setting: existingSetting.id_setting });
           } else {
-            await insertWithAudit('product_branch_settings', settingData);
+            await supabase.from('product_branch_settings', settingData);
           }
         }
         
@@ -489,7 +488,7 @@ export default function ProductSettingsPage() {
           .eq('id_product', id);
         
         for (const setting of branchSettings || []) {
-          await deleteWithAudit('product_branch_settings', { id_setting: setting.id_setting });
+          await supabase.from('product_branch_settings', { id_setting: setting.id_setting });
         }
       }
       

@@ -11,7 +11,6 @@ import { canViewColumn } from '@/src/utils/dbPermissions';
 import { getBranchFilter, getUserDefaultBranch } from '@/src/utils/branchAccess';
 import { canPerformActionSync, getUserRole, arePermissionsLoaded, reloadPermissions } from '@/src/utils/rolePermissions';
 import { hasPageAccess } from '@/src/utils/permissionChecker';
-import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail, hardDeleteWithAudit } from '@/src/utils/auditTrail';
 
 interface Ready {
   id_ready: number;
@@ -453,7 +452,7 @@ function ReadyPageContent() {
       }
       
       for (const data of submitData) {
-        const { error } = await insertWithAudit('ready', data);
+        const { error } = await supabase.from('ready', data);
         if (error) throw error;
       }
       
@@ -490,7 +489,7 @@ function ReadyPageContent() {
     if (!editingItem) return;
 
     try {
-      const { error } = await updateWithAudit('ready', 
+      const { error } = await supabase.from('ready', 
         {
           ready: editingItem.ready,
           waste: editingItem.waste
@@ -526,7 +525,7 @@ function ReadyPageContent() {
     
     try {
       for (const id of selectedItems) {
-        const { error } = await hardDeleteWithAudit('ready', { id_ready: id });
+        const { error } = await supabase.from('ready', { id_ready: id });
         if (error) throw error;
       }
       
@@ -835,24 +834,14 @@ function ReadyPageContent() {
       setImportProgress({show: true, progress: 85, message: 'Menyimpan ke database...'});
       
       for (const data of processedData) {
-        const { error } = await insertWithAudit('ready', data);
+        const { error } = await supabase.from('ready', data);
         if (error) {
           console.error('Supabase insert error:', error);
           throw new Error(`Database error: ${error.message || 'Failed to insert data'}`);
         }
       }
       
-      // Log import action to audit trail
-      await logAuditTrail({
-        table_name: 'ready',
-        record_id: 0,
-        action: 'IMPORT',
-        new_values: {
-          action: 'Import Excel',
-          record_count: processedData.length,
-          filename: file.name
-        }
-      });
+
       
       setImportProgress({show: true, progress: 95, message: 'Memperbarui tampilan...'});
       await fetchReady();
@@ -941,17 +930,7 @@ function ReadyPageContent() {
       XLSX.utils.book_append_sheet(wb, ws, 'Ready Stock');
       XLSX.writeFile(wb, `ready_stock_${new Date().toISOString().split('T')[0]}.xlsx`);
       
-      // Log export action to audit trail
-      await logAuditTrail({
-        table_name: 'ready',
-        record_id: 0,
-        action: 'EXPORT',
-        new_values: {
-          action: 'Export Excel',
-          record_count: exportData.length,
-          filename: `ready_stock_${new Date().toISOString().split('T')[0]}.xlsx`
-        }
-      });
+
     } catch (error) {
       console.error('Error exporting Excel:', error);
       alert('Gagal export Excel!');
@@ -1471,7 +1450,7 @@ function ReadyPageContent() {
                               onClick={async () => {
                                 if (confirm('Hapus data ini?')) {
                                   try {
-                                    const { error } = await hardDeleteWithAudit('ready', { id_ready: item.id_ready });
+                                    const { error } = await supabase.from('ready', { id_ready: item.id_ready });
                                     
                                     if (error) throw error;
                                     

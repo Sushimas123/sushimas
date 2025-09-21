@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx'
 import { useSearchParams } from 'next/navigation'
 import Layout from '../../components/Layout'
 import PageAccessControl from '../../components/PageAccessControl'
-import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
+
 
 interface PurchaseOrder {
   id: number
@@ -578,7 +578,6 @@ function PurchaseOrderPageContent() {
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Purchase Orders')
       XLSX.writeFile(wb, `purchase_orders_${new Date().toISOString().split('T')[0]}.xlsx`)
-      await logAuditTrail({ table_name: 'export', record_id: 0, action: 'EXPORT' })
     } catch (error) {
       console.error('Export error:', error)
       alert('Failed to export data')

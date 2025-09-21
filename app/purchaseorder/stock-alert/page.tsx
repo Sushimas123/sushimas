@@ -6,7 +6,6 @@ import { ArrowLeft, ShoppingCart, AlertTriangle, AlertCircle, Save, Building2, C
 import { useRouter } from 'next/navigation';
 import Layout from '../../../components/Layout';
 import PageAccessControl from '../../../components/PageAccessControl';
-import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
 
 interface StockAlert {
   id_product: number;
@@ -522,7 +521,7 @@ function StockAlertPOPage() {
 
             console.log('Creating PO items:', poItemsData);
 
-            const { error: itemsError } = await insertWithAudit('po_items', poItemsData);
+            const { error: itemsError } = await supabase.from('po_items', poItemsData);
 
             if (itemsError) {
               console.error('PO items creation error:', itemsError);

@@ -7,7 +7,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { canPerformActionSync, getUserRole } from '@/src/utils/rolePermissions';
-import { insertWithAudit, updateWithAudit, deleteWithAudit, hardDeleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
 import PageAccessControl from '../../components/PageAccessControl';
 import { canViewColumn } from '@/src/utils/dbPermissions';
 import { getBranchFilter } from '@/src/utils/branchAccess';
@@ -360,7 +359,6 @@ function ProduksiPageContent() {
         }
         
         // Manual audit log
-        await logAuditTrail({
           table_name: 'produksi',
           record_id: editingId,
           action: 'UPDATE',
@@ -370,7 +368,7 @@ function ProduksiPageContent() {
         showToast('✅ Produksi berhasil diupdate!', 'success');
       } else {
         console.log('Inserting new produksi:', submitData);
-        const result = await insertWithAudit('produksi', submitData);
+        const result = await supabase.from('produksi', submitData);
         console.log('Insert result:', result);
         
         if (result.error) {
@@ -438,7 +436,7 @@ function ProduksiPageContent() {
   const handleDelete = async (id: number) => {
     if (!confirm('Hapus produksi ini?')) return;
     try {
-      await hardDeleteWithAudit('produksi', { id });
+      await supabase.from('produksi', { id });
       await fetchProduksi();
       showToast('✅ Produksi berhasil dihapus!', 'success');
     } catch (error) {
@@ -477,7 +475,7 @@ function ProduksiPageContent() {
       if (error) throw error;
       
       // Audit trail untuk bulk delete
-      await insertWithAudit('produksi_bulk_delete', {
+      await supabase.from('produksi_bulk_delete', {
         deleted_ids: selectedItems,
         deleted_count: selectedItems.length
       });
@@ -640,7 +638,7 @@ function ProduksiPageContent() {
         }
         
         // Insert new record
-        await insertWithAudit('produksi', {
+        await supabase.from('produksi', {
           production_no: generateProductionNo(),
           tanggal_input: tanggalInput,
           id_product: product.id_product,

@@ -8,7 +8,6 @@ import Layout from '../../components/Layout'
 import { canViewColumn } from '@/src/utils/dbPermissions'
 import { getBranchFilter } from '@/src/utils/branchAccess'
 import PageAccessControl from '../../components/PageAccessControl'
-import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
 
 // Helper function to convert text to Title Case with XSS protection
 const toTitleCase = (str: any) => {

@@ -4,7 +4,6 @@ import Layout from '../../components/Layout'
 import { supabase } from '@/src/lib/supabaseClient'
 import PageAccessControl from '../../components/PageAccessControl'
 import { Filter, X } from 'lucide-react'
-import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
 
 // Define types for better type safety
 interface PermissionRecord {

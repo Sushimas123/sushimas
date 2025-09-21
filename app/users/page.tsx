@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import Layout from '../../components/Layout';
 import { canViewColumn } from '@/src/utils/dbPermissions';
-import { insertWithAudit, updateWithAudit, deleteWithAudit } from '@/src/utils/auditTrail';
 import PageAccessControl from '../../components/PageAccessControl';
 
 interface User {
@@ -215,7 +214,7 @@ function UsersPageContent() {
           delete (updateData as any).password_hash;
         }
         
-        const { error } = await updateWithAudit(
+        const { error } = await supabase.from(
           'users',
           updateData,
           { id_user: editingId }
@@ -237,7 +236,7 @@ function UsersPageContent() {
         const userData = { ...formData };
         delete (userData as any).selectedBranches;
         
-        const { data, error } = await insertWithAudit(
+        const { data, error } = await supabase.from(
           'users',
           userData,
           { select: 'id_user' }
@@ -411,7 +410,7 @@ function UsersPageContent() {
     setDeleteLoading(id);
     
     try {
-      const { error } = await deleteWithAudit(
+      const { error } = await supabase.from(
         'users',
         { id_user: id }
       );

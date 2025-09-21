@@ -10,7 +10,6 @@ import PageAccessControl from '../../components/PageAccessControl';
 import { getBranchFilter } from '@/src/utils/branchAccess';
 import { canPerformActionSync, arePermissionsLoaded, reloadPermissions } from '@/src/utils/rolePermissions';
 import { hasPageAccess } from '@/src/utils/permissionChecker';
-import { insertWithAudit, updateWithAudit, hardDeleteWithAudit } from '@/src/utils/auditTrail';
 import { canViewColumn } from '@/src/utils/dbPermissions';
 
 // XSS protection utility
@@ -538,11 +537,11 @@ function GudangPageContent() {
 
     try {
       if (editingId) {
-        const { error } = await updateWithAudit('gudang', submitData, { order_no: editingId });
+        const { error } = await supabase.from('gudang', submitData, { order_no: editingId });
         if (error) throw error;
         console.log('Updated gudang record:', editingId);
       } else {
-        const { data, error } = await insertWithAudit('gudang', submitData);
+        const { data, error } = await supabase.from('gudang', submitData);
         if (error) throw error;
         console.log('Inserted new gudang record:', data);
       }
@@ -684,7 +683,7 @@ function GudangPageContent() {
         return;
       }
       
-      const { error } = await hardDeleteWithAudit('gudang', { order_no: id });
+      const { error } = await supabase.from('gudang', { order_no: id });
       if (error) throw error;
       
       await fetchGudang();
@@ -875,7 +874,7 @@ function GudangPageContent() {
       let deletedCount = 0;
       
       for (const id of deletableItems) {
-        await hardDeleteWithAudit('gudang', { order_no: id });
+        await supabase.from('gudang', { order_no: id });
         deletedCount++;
       }
       
@@ -1017,7 +1016,7 @@ function GudangPageContent() {
         
         if (importData.length > 0) {
           for (const data of importData) {
-            const { error } = await insertWithAudit('gudang', data);
+            const { error } = await supabase.from('gudang', data);
             if (error) throw error;
           }
           

@@ -5,7 +5,6 @@ import { supabase } from '@/src/lib/supabaseClient'
 import { Package, Edit, ChevronDown, ChevronUp, Filter, RefreshCw } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
-import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
 
 interface BarangMasuk {
   id: number
@@ -382,7 +381,7 @@ export default function BarangMasukPage() {
       const newTotalStock = previousStock + item.jumlah
       
       // Insert to gudang table
-      const { error: gudangError } = await insertWithAudit('gudang', {
+      const { error: gudangError } = await supabase.from('gudang', {
           tanggal: item.tanggal,
           id_product: item.id_barang,
           jumlah_masuk: item.jumlah,

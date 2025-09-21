@@ -5,7 +5,6 @@ import { supabase } from '@/src/lib/supabaseClient'
 import { Plus, ShoppingCart, Search, Calendar, Building2, User, Package, Minus, Save, ArrowLeft } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
-import { insertWithAudit, updateWithAudit, deleteWithAudit, logAuditTrail } from '@/src/utils/auditTrail';
 
 interface Supplier {
   id_supplier: number
@@ -257,7 +256,7 @@ function EditPurchaseOrder() {
 
     try {
       // Update PO (only editable fields)
-      const { error: poError } = await updateWithAudit('purchase_orders', {
+      const { error: poError } = await supabase.from('purchase_orders', {
           priority: formData.priority,
           notes: formData.notes
         }, {'id': poId})
@@ -279,7 +278,7 @@ function EditPurchaseOrder() {
         keterangan: item.keterangan
       }))
 
-      const { error: itemsError } = await insertWithAudit('po_items', poItemsData)
+      const { error: itemsError } = await supabase.from('po_items', poItemsData)
 
       if (itemsError) throw itemsError
 
