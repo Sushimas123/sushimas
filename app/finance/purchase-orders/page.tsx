@@ -302,6 +302,8 @@ export default function FinancePurchaseOrders() {
 
           // Get bulk payment info if exists
           let bulkPaymentInfo = null
+          let displayTotalPaid = totalPaid
+          
           if (poData?.bulk_payment_ref) {
             const { data: bulkPayment } = await supabase
               .from('bulk_payments')
@@ -309,12 +311,14 @@ export default function FinancePurchaseOrders() {
               .eq('bulk_reference', poData.bulk_payment_ref)
               .single()
             bulkPaymentInfo = bulkPayment
+            // For display purposes, show the basis amount as paid for bulk payments
+            displayTotalPaid = basisAmount
           }
 
           return {
             ...item,
             total_po: correctedTotal,
-            total_paid: totalPaid,
+            total_paid: displayTotalPaid,
             sisa_bayar: sisaBayar,
             status_payment: calculatedStatus,
             dibayar_tanggal: bulkPaymentInfo?.payment_date || latestPayment?.payment_date || null,
