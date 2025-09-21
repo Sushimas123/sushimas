@@ -22,6 +22,7 @@ interface FinanceData {
   days_overdue: number
   tanggal_jatuh_tempo: string
   last_payment_date: string
+  total_tagih: number
 }
 
 export default function FinancePurchaseOrders() {
@@ -303,7 +304,8 @@ export default function FinancePurchaseOrders() {
       poStatus: '',
       paymentStatus: '',
       dueDate: '',
-      goodsReceived: ''
+      goodsReceived: '',
+      approvalStatus: ''
     })
   }
 
