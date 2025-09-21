@@ -57,8 +57,12 @@ export default function FinancePurchaseOrders() {
   const [showBulkPaymentModal, setShowBulkPaymentModal] = useState(false)
   const [bulkPayments, setBulkPayments] = useState<BulkPayment[]>([])
   const [showBulkPaymentDetails, setShowBulkPaymentDetails] = useState<BulkPayment | null>(null)
-
   
+  // Mobile states
+  const [isMobileView, setIsMobileView] = useState(false)
+  const [selectedMobileItem, setSelectedMobileItem] = useState<FinanceData | null>(null)
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+
   // Filter states
   const [filters, setFilters] = useState({
     dateFrom: '',
@@ -79,6 +83,18 @@ export default function FinancePurchaseOrders() {
     fetchBranches()
     fetchBulkPayments()
   }, [filters])
+
+  // Check screen size
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobileView(window.innerWidth < 768)
+    }
+    
+    checkScreenSize()
+    window.addEventListener('resize', checkScreenSize)
+    
+    return () => window.removeEventListener('resize', checkScreenSize)
+  }, [])
 
   const fetchSuppliers = async () => {
     const { data } = await supabase.from('suppliers').select('id_supplier, nama_supplier').order('nama_supplier')
@@ -523,6 +539,584 @@ export default function FinancePurchaseOrders() {
 
 
 
+  // Mobile Components
+  const MobileFinanceCard = ({ item }: { item: FinanceData }) => {
+    const isExpanded = expandedRows.includes(item.id)
+    const hasDetails = !!rowDetails[item.id]
+    
+    return (
+      <div className={`bg-white rounded-lg shadow border mb-4 overflow-hidden ${
+        item.is_overdue ? 'border-red-200' : 'border-gray-200'
+      } ${isExpanded ? 'border-blue-200' : ''}`}>
+        <div className="p-4">
+          {/* Header */}
+          <div className="flex justify-between items-start mb-3">
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                checked={selectedPOs.includes(item.id)}
+                disabled={item.status_payment === 'paid'}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setSelectedPOs([...selectedPOs, item.id])
+                  } else {
+                    setSelectedPOs(selectedPOs.filter(id => id !== item.id))
+                  }
+                }}
+                className="rounded border-gray-300 mr-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <div>
+                <a 
+                  href={`/purchaseorder/received-preview?id=${item.id}`}
+                  className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {item.po_number}
+                </a>
+                <div className="text-xs text-gray-500 flex items-center mt-1">
+                  <Calendar className="h-3 w-3 mr-1" />
+                  {formatDate(item.po_date)}
+                </div>
+              </div>
+            </div>
+            <button 
+              onClick={() => toggleRowExpansion(item.id)}
+              className="text-gray-500 hover:text-blue-600 ml-2"
+            >
+              {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+            </button>
+          </div>
+
+          {/* Status and Supplier */}
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <p className="text-xs text-gray-500">Supplier</p>
+              <p className="text-sm font-medium truncate">{item.nama_supplier}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Cabang</p>
+              <p className="text-sm font-medium">{item.nama_branch}</p>
+            </div>
+          </div>
+
+          {/* Payment Status */}
+          <div className="mb-3">
+            <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}>
+              {getStatusIcon(item.status_payment)}
+              {item.status_payment.toUpperCase()}
+            </span>
+            {(item as any).approval_status === 'approved' && (
+              <div className="text-xs text-purple-600 mt-1 flex items-center">
+                <CheckCircle className="h-3 w-3 mr-1" />
+                Approved {(item as any).approved_at ? `- ${formatDate((item as any).approved_at)}` : ''}
+              </div>
+            )}
+            {(item as any).approval_status === 'pending' && (
+              <div className="text-xs text-orange-600 mt-1 flex items-center">
+                <Clock className="h-3 w-3 mr-1" />
+                Wait for Approval
+              </div>
+            )}
+            {item.is_overdue && (
+              <div className="text-xs text-red-600 mt-1 flex items-center">
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                Overdue {item.days_overdue} hari
+              </div>
+            )}
+          </div>
+
+          {/* Amounts */}
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="bg-gray-50 p-2 rounded">
+              <p className="text-xs text-gray-500">Total PO</p>
+              <p className="text-sm font-medium">{formatCurrency(item.total_po)}</p>
+            </div>
+            <div className="bg-gray-50 p-2 rounded">
+              <p className="text-xs text-gray-500">Dibayar</p>
+              <p className="text-sm font-medium">{formatCurrency(item.total_paid)}</p>
+            </div>
+            <div className="bg-gray-50 p-2 rounded">
+              <p className="text-xs text-gray-500">Sisa</p>
+              <p className="text-sm font-medium">{formatCurrency(item.sisa_bayar)}</p>
+            </div>
+          </div>
+
+          {/* Due Date and Actions */}
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-xs text-gray-500">Jatuh Tempo</p>
+              <p className="text-sm">{formatDate(item.tanggal_jatuh_tempo)}</p>
+            </div>
+            <div className="flex gap-1">
+              <a
+                href={`/finance/purchase-orders/submit-approval?id=${item.id}`}
+                className="inline-flex items-center p-1 border border-transparent rounded-md text-white bg-green-600 hover:bg-green-700"
+                title="Submit Total Tagih"
+              >
+                <FileText className="h-3 w-3" />
+              </a>
+              {(item as any).approval_status === 'pending' && (
+                <button
+                  onClick={async () => {
+                    try {
+                      const { error } = await supabase
+                        .from('purchase_orders')
+                        .update({ 
+                          approval_status: 'approved',
+                          approved_at: new Date().toISOString()
+                        })
+                        .eq('id', item.id)
+                      if (error) throw error
+                      fetchFinanceData()
+                    } catch (error) {
+                      console.error('Error approving:', error)
+                    }
+                  }}
+                  className="inline-flex items-center p-1 border border-transparent rounded-md text-white bg-purple-600 hover:bg-purple-700"
+                  title="Approve"
+                >
+                  <CheckCircle className="h-3 w-3" />
+                </button>
+              )}
+              {(item as any).approval_status === 'approved' && (
+                <button
+                  onClick={async () => {
+                    try {
+                      const { error } = await supabase
+                        .from('purchase_orders')
+                        .update({ 
+                          approval_status: 'pending',
+                          approved_at: null
+                        })
+                        .eq('id', item.id)
+                      if (error) throw error
+                      fetchFinanceData()
+                    } catch (error) {
+                      console.error('Error undoing approval:', error)
+                    }
+                  }}
+                  className="inline-flex items-center p-1 border border-transparent rounded-md text-white bg-red-600 hover:bg-red-700"
+                  title="Undo Approval"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+              {item.sisa_bayar > 0 && !(item as any).bulk_payment_ref && (
+                <button
+                  onClick={() => {
+                    setSelectedPO(item)
+                    setShowPaymentModal(true)
+                  }}
+                  className="inline-flex items-center p-1 border border-transparent rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                  title="Bayar"
+                >
+                  <Plus className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Expanded Details */}
+        {isExpanded && hasDetails && (
+          <div className="border-t border-gray-200 p-4 bg-gray-50">
+            <div className="space-y-4">
+              {/* Items List */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Daftar Item
+                </h3>
+                {rowDetails[item.id]?.items?.length > 0 ? (
+                  <div className="space-y-2">
+                    {rowDetails[item.id].items.slice(0, 3).map((poItem: any) => (
+                      <div key={poItem.id} className="bg-white p-2 rounded border border-gray-200">
+                        <p className="text-sm font-medium">{poItem.product_name || `Product ${poItem.product_id}`}</p>
+                        <div className="grid grid-cols-2 gap-2 mt-1">
+                          <div>
+                            <p className="text-xs text-gray-500">Qty</p>
+                            <p className="text-xs">{poItem.received_qty ? `${poItem.received_qty}/${poItem.qty}` : poItem.qty}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Harga</p>
+                            <p className="text-xs">{formatCurrency(poItem.harga || poItem.actual_price || 0)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {rowDetails[item.id].items.length > 3 && (
+                      <p className="text-xs text-gray-500 text-center mt-2">
+                        +{rowDetails[item.id].items.length - 3} item lainnya
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">Tidak ada item</p>
+                )}
+              </div>
+
+              {/* Payment History */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Riwayat Pembayaran
+                </h3>
+                {rowDetails[item.id]?.payments?.length > 0 ? (
+                  <div className="space-y-2">
+                    {rowDetails[item.id].payments.slice(0, 2).map((payment: any) => (
+                      <div key={payment.id} className="bg-white p-2 rounded border border-gray-200">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="text-xs font-medium">{formatDate(payment.payment_date)}</p>
+                            <p className="text-xs text-gray-500">{payment.payment_method}</p>
+                          </div>
+                          <p className="text-sm font-medium">{formatCurrency(payment.payment_amount)}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {rowDetails[item.id].payments.length > 2 && (
+                      <p className="text-xs text-gray-500 text-center mt-2">
+                        +{rowDetails[item.id].payments.length - 2} pembayaran lainnya
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">Belum ada riwayat pembayaran</p>
+                )}
+              </div>
+
+              {/* View More Button */}
+              <button
+                onClick={() => setSelectedMobileItem(item)}
+                className="w-full py-2 bg-blue-50 text-blue-600 text-sm font-medium rounded-md border border-blue-200 hover:bg-blue-100"
+              >
+                Lihat Detail Lengkap
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const MobileDetailView = ({ item }: { item: FinanceData }) => {
+    return (
+      <div className="fixed inset-0 bg-white z-50 overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+          <button onClick={() => setSelectedMobileItem(null)} className="p-1">
+            <X className="h-5 w-5" />
+          </button>
+          <h2 className="text-lg font-semibold">Detail PO</h2>
+          <div className="w-6"></div>
+        </div>
+
+        <div className="p-4">
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <h3 className="text-sm font-medium text-gray-900 mb-3">Informasi Utama</h3>
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-gray-500">No PO</p>
+                <p className="text-sm font-medium">{item.po_number}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Tanggal PO</p>
+                <p className="text-sm">{formatDate(item.po_date)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Supplier</p>
+                <p className="text-sm font-medium">{item.nama_supplier}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Cabang</p>
+                <p className="text-sm">{item.nama_branch}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Jatuh Tempo</p>
+                <p className="text-sm">{formatDate(item.tanggal_jatuh_tempo)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Status Pembayaran</p>
+                <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}>
+                  {getStatusIcon(item.status_payment)}
+                  {item.status_payment.toUpperCase()}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <h3 className="text-sm font-medium text-gray-900 mb-3">Informasi Keuangan</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <p className="text-sm">Total PO</p>
+                <p className="text-sm font-medium">{formatCurrency(item.total_po)}</p>
+              </div>
+              <div className="flex justify-between">
+                <p className="text-sm">Total Dibayar</p>
+                <p className="text-sm font-medium">{formatCurrency(item.total_paid)}</p>
+              </div>
+              <div className="flex justify-between">
+                <p className="text-sm">Sisa Bayar</p>
+                <p className="text-sm font-medium">{formatCurrency(item.sisa_bayar)}</p>
+              </div>
+              <div className="flex justify-between">
+                <p className="text-sm">Total Tagihan</p>
+                <p className="text-sm font-medium">{formatCurrency((item as any).total_tagih || 0)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Items List */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
+              <FileText className="h-4 w-4 mr-2" />
+              Daftar Item
+            </h3>
+            {rowDetails[item.id]?.items?.length > 0 ? (
+              <div className="space-y-3">
+                {rowDetails[item.id].items.map((poItem: any) => (
+                  <div key={poItem.id} className="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
+                    <p className="text-sm font-medium">{poItem.product_name || `Product ${poItem.product_id}`}</p>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div>
+                        <p className="text-xs text-gray-500">Quantity</p>
+                        <p className="text-xs">{poItem.received_qty ? `${poItem.received_qty}/${poItem.qty}` : poItem.qty}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Harga</p>
+                        <p className="text-xs">{formatCurrency(poItem.harga || poItem.actual_price || 0)}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-xs text-gray-500">Total</p>
+                        <p className="text-xs font-medium">
+                          {formatCurrency(
+                            poItem.actual_price && poItem.received_qty 
+                              ? poItem.received_qty * poItem.actual_price
+                              : poItem.harga 
+                                ? poItem.qty * poItem.harga
+                                : 0
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">Tidak ada item</p>
+            )}
+          </div>
+
+          {/* Payment History */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
+              <CreditCard className="h-4 w-4 mr-2" />
+              Riwayat Pembayaran
+            </h3>
+            {rowDetails[item.id]?.payments?.length > 0 ? (
+              <div className="space-y-3">
+                {rowDetails[item.id].payments.map((payment: any) => (
+                  <div key={payment.id} className="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-medium">{formatDate(payment.payment_date)}</p>
+                        <p className="text-xs text-gray-500">{payment.payment_method} • {payment.payment_via}</p>
+                        {payment.notes && <p className="text-xs text-gray-500 mt-1">{payment.notes}</p>}
+                      </div>
+                      <p className="text-sm font-medium">{formatCurrency(payment.payment_amount)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">Belum ada riwayat pembayaran</p>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-2 sticky bottom-0 bg-white pt-4 pb-6 border-t border-gray-200">
+            <a
+              href={`/finance/purchase-orders/submit-approval?id=${item.id}`}
+              className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+            >
+              <FileText className="h-4 w-4 mr-1" />
+              Submit
+            </a>
+            {(item as any).approval_status === 'pending' && (
+              <button
+                onClick={async () => {
+                  try {
+                    const { error } = await supabase
+                      .from('purchase_orders')
+                      .update({ 
+                        approval_status: 'approved',
+                        approved_at: new Date().toISOString()
+                      })
+                      .eq('id', item.id)
+                    if (error) throw error
+                    fetchFinanceData()
+                    setSelectedMobileItem(null)
+                  } catch (error) {
+                    console.error('Error approving:', error)
+                  }
+                }}
+                className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
+              >
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Approve
+              </button>
+            )}
+            {(item as any).approval_status === 'approved' && (
+              <button
+                onClick={async () => {
+                  try {
+                    const { error } = await supabase
+                      .from('purchase_orders')
+                      .update({ 
+                        approval_status: 'pending',
+                        approved_at: null
+                      })
+                      .eq('id', item.id)
+                    if (error) throw error
+                    fetchFinanceData()
+                    setSelectedMobileItem(null)
+                  } catch (error) {
+                    console.error('Error undoing approval:', error)
+                  }
+                }}
+                className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+              >
+                <X className="h-4 w-4 mr-1" />
+                Undo Approval
+              </button>
+            )}
+            {item.sisa_bayar > 0 && !(item as any).bulk_payment_ref && (
+              <button
+                onClick={() => {
+                  setSelectedPO(item)
+                  setShowPaymentModal(true)
+                  setSelectedMobileItem(null)
+                }}
+                className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Bayar
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const MobileFiltersPanel = () => {
+    return (
+      <div className="fixed inset-0 bg-white z-50 overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+          <button onClick={() => setShowMobileFilters(false)} className="p-1">
+            <X className="h-5 w-5" />
+          </button>
+          <h2 className="text-lg font-semibold">Filter Data</h2>
+          <button 
+            onClick={clearFilters}
+            className="text-blue-600 text-sm font-medium"
+          >
+            Reset
+          </button>
+        </div>
+
+        <div className="p-4">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
+              <input
+                type="date"
+                value={filters.dateFrom}
+                onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
+              <input
+                type="date"
+                value={filters.dateTo}
+                onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+              <select
+                value={filters.supplier}
+                onChange={(e) => setFilters({...filters, supplier: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="">Semua Supplier</option>
+                {suppliers.map(supplier => (
+                  <option key={supplier.id_supplier} value={supplier.id_supplier}>
+                    {supplier.nama_supplier}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
+              <select
+                value={filters.branch}
+                onChange={(e) => setFilters({...filters, branch: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="">Semua Cabang</option>
+                {branches.map(branch => (
+                  <option key={branch.id_branch} value={branch.id_branch}>
+                    {branch.nama_branch}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Payment Status</label>
+              <select
+                value={filters.paymentStatus}
+                onChange={(e) => setFilters({...filters, paymentStatus: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="">Semua Payment Status</option>
+                <option value="unpaid">Unpaid</option>
+                <option value="partial">Partial</option>
+                <option value="paid">Paid</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Jatuh Tempo</label>
+              <select
+                value={filters.dueDate}
+                onChange={(e) => setFilters({...filters, dueDate: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="">Semua</option>
+                <option value="overdue">Overdue</option>
+                <option value="due_soon">Jatuh Tempo 7 Hari</option>
+              </select>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              applyFilters()
+              setShowMobileFilters(false)
+            }}
+            className="w-full mt-6 py-3 bg-blue-600 text-white font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            Terapkan Filter
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <Layout>
@@ -533,6 +1127,187 @@ export default function FinancePurchaseOrders() {
     )
   }
 
+  // Render mobile view
+  if (isMobileView) {
+    return (
+      <Layout>
+        <PageAccessControl pageName="finance">
+          <div className="p-4 bg-gray-50 min-h-screen">
+            {/* Summary Cards - Mobile */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
+                <p className="text-xs text-gray-600">Total PO</p>
+                <p className="text-sm font-semibold">{formatCurrency(summary.totalPO)}</p>
+                <p className="text-xs text-gray-500">{summary.totalOrders} orders</p>
+              </div>
+              <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
+                <p className="text-xs text-gray-600">Outstanding</p>
+                <p className="text-sm font-semibold">{formatCurrency(summary.outstanding)}</p>
+              </div>
+              <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
+                <p className="text-xs text-gray-600">Overdue</p>
+                <p className="text-sm font-semibold">{formatCurrency(summary.overdue)}</p>
+                <p className="text-xs text-gray-500">{summary.overdueOrders} orders</p>
+              </div>
+              <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
+                <div className="flex justify-between items-center h-full">
+                  <div>
+                    <p className="text-xs text-gray-600">Last Updated</p>
+                    <p className="text-xs font-semibold">{new Date().toLocaleDateString('id-ID')}</p>
+                  </div>
+                  <button 
+                    onClick={fetchFinanceData}
+                    className="px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700"
+                  >
+                    Refresh
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Bulk Actions */}
+            {selectedPOs.length > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium text-blue-800">
+                      {selectedPOs.length} PO dipilih
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowBulkPaymentModal(true)}
+                      className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-xs"
+                    >
+                      Bulk Payment
+                    </button>
+                    <button
+                      onClick={() => setSelectedPOs([])}
+                      className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50 text-xs"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Search and Actions */}
+            <div className="bg-white p-3 rounded-lg shadow border border-gray-200 mb-4">
+              <div className="flex gap-2 mb-3">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <input
+                    type="text"
+                    placeholder="Cari PO..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+                <button
+                  onClick={exportToXLSX}
+                  className="p-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                  title="Export Excel"
+                >
+                  <Download size={16} />
+                </button>
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowMobileFilters(true)}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-sm"
+                >
+                  <Filter size={16} />
+                  Filter
+                </button>
+                <div className="text-xs text-gray-500 flex items-center px-3">
+                  {allFilteredData.length} items
+                </div>
+              </div>
+            </div>
+
+            {/* PO List */}
+            <div>
+              {filteredData.map((item) => (
+                <MobileFinanceCard key={item.id} item={item} />
+              ))}
+            </div>
+
+            {/* Pagination - Mobile */}
+            {totalPages > 1 && (
+              <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 mt-4 rounded-lg shadow">
+                <button
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span className="text-sm text-gray-700">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="relative inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+
+            {allFilteredData.length === 0 && !loading && (
+              <div className="text-center py-8 text-gray-500 bg-white rounded-lg border border-gray-200 mt-4">
+                <FileText className="h-8 w-8 mx-auto text-gray-400" />
+                <p className="mt-2">Tidak ada data yang ditemukan</p>
+                <p className="text-xs">Coba ubah filter pencarian Anda</p>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile Detail View */}
+          {selectedMobileItem && <MobileDetailView item={selectedMobileItem} />}
+
+          {/* Mobile Filters Panel */}
+          {showMobileFilters && <MobileFiltersPanel />}
+
+          {/* Payment Modal */}
+          {showPaymentModal && selectedPO && (
+            <PaymentModal
+              po={{
+                ...selectedPO,
+                total_tagih: (selectedPO as any).total_tagih || 0
+              }}
+              onClose={() => {
+                setShowPaymentModal(false)
+                setSelectedPO(null)
+              }}
+              onSuccess={handlePaymentSuccess}
+            />
+          )}
+
+          {/* Bulk Payment Modal */}
+          {showBulkPaymentModal && (
+            <BulkPaymentModal
+              isOpen={showBulkPaymentModal}
+              availablePOs={data.filter(item => selectedPOs.includes(item.id))}
+              onClose={() => setShowBulkPaymentModal(false)}
+              onSuccess={() => {
+                setShowBulkPaymentModal(false)
+                setSelectedPOs([])
+                fetchFinanceData()
+                fetchBulkPayments()
+              }}
+            />
+          )}
+        </PageAccessControl>
+      </Layout>
+    )
+  }
+
+  // Desktop view
   return (
     <Layout>
       <PageAccessControl pageName="finance">
@@ -1031,6 +1806,28 @@ export default function FinancePurchaseOrders() {
                         className="flex-1 text-center px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700"
                       >
                         Approve
+                      </button>
+                    )}
+                    {(item as any).approval_status === 'approved' && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const { error } = await supabase
+                              .from('purchase_orders')
+                              .update({ 
+                                approval_status: 'pending',
+                                approved_at: null
+                              })
+                              .eq('id', item.id)
+                            if (error) throw error
+                            fetchFinanceData()
+                          } catch (error) {
+                            console.error('Error undoing approval:', error)
+                          }
+                        }}
+                        className="flex-1 text-center px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                      >
+                        Undo
                       </button>
                     )}
                     {item.sisa_bayar > 0 && !(item as any).bulk_payment_ref && (

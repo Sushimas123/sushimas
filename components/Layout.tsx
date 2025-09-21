@@ -457,7 +457,7 @@ export default function Layout({ children }: LayoutProps) {
                   </div>
                   <div className="hidden sm:block">
                     <div className="text-xl font-bold text-gray-800 dark:text-white">Sushimas</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 -mt-1">Inventory System</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 -mt-1">Internal System</div>
                   </div>
                 </div>
               </Link>
@@ -889,7 +889,7 @@ export default function Layout({ children }: LayoutProps) {
       <footer className="py-4 px-6 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 hidden lg:block">
         <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
           <div>
-            © 2025 Sushimas Inventory System • v1.0.1 (P.S)
+            © 2025 Sushimas Internal System • v1.0.1 (P.S)
           </div>
           <div className="flex items-center">
 
