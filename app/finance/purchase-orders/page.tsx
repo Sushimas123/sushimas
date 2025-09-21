@@ -270,12 +270,17 @@ export default function FinancePurchaseOrders() {
             .eq('id_branch', item.cabang_id)
             .single()
 
-          // Calculate status considering bulk payments
+          const totalTagih = poData?.total_tagih || 0
+          
+          // Calculate sisa_bayar: use total_tagih if > 0, otherwise use correctedTotal
+          const basisAmount = totalTagih > 0 ? totalTagih : correctedTotal
+          
+          // Calculate status considering bulk payments and total_tagih
           let calculatedStatus
           if (poData?.bulk_payment_ref) {
             calculatedStatus = 'paid' // POs with bulk payment reference are considered paid
           } else {
-            calculatedStatus = totalPaid === 0 ? 'unpaid' : totalPaid >= correctedTotal ? 'paid' : 'partial'
+            calculatedStatus = totalPaid === 0 ? 'unpaid' : totalPaid >= basisAmount ? 'paid' : 'partial'
           }
           
           // Apply payment status filter
@@ -283,18 +288,17 @@ export default function FinancePurchaseOrders() {
             return null
           }
 
-
-
           // Apply approval status filter
           if (filters.approvalStatus && poData?.approval_status !== filters.approvalStatus) {
             return null
           }
           
-          const totalTagih = poData?.total_tagih || 0
+          let sisaBayar = basisAmount - totalPaid
           
-          // Calculate sisa_bayar: use total_tagih if > 0, otherwise use correctedTotal
-          const basisAmount = totalTagih > 0 ? totalTagih : correctedTotal
-          const sisaBayar = basisAmount - totalPaid
+          // For bulk payments, sisa_bayar should be 0
+          if (poData?.bulk_payment_ref) {
+            sisaBayar = 0
+          }
 
           // Get bulk payment info if exists
           let bulkPaymentInfo = null
