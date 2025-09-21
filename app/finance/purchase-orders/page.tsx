@@ -832,26 +832,29 @@ export default function FinancePurchaseOrders() {
                     </th>
                     <th className="w-8 px-2 py-3 sticky left-8 bg-gray-50 z-20"></th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('po_number')}>PO Info {sortField === 'po_number' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_supplier')}>Supplier {sortField === 'nama_supplier' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Rekening</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_branch')}>Branch {sortField === 'nama_branch' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Notes</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Invoice</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_barang_sampai')}>Barang Sampai {sortField === 'tanggal_barang_sampai' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">PO Status</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_po')}>Total PO {sortField === 'total_po' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_paid')}>Dibayar {sortField === 'total_paid' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('sisa_bayar')}>Sisa {sortField === 'sisa_bayar' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Total Tagih</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Keterangan</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('status_payment')}>Payment Status {sortField === 'status_payment' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Termin</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_jatuh_tempo')}>Jatuh Tempo {sortField === 'tanggal_jatuh_tempo' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_po')}>Total PO {sortField === 'total_po' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Total Tagih</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Invoice</th>                                      
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_supplier')}>Supplier {sortField === 'nama_supplier' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Rekening</th>  
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_paid')}>Dibayar {sortField === 'total_paid' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('sisa_bayar')}>Sisa {sortField === 'sisa_bayar' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>                    
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('dibayar_tanggal')}>Dibayar Tanggal {sortField === 'dibayar_tanggal' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Metode</th>                    
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Payment Via</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Metode</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_barang_sampai')}>Barang Sampai {sortField === 'tanggal_barang_sampai' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('approved_at')}>Approved Date {sortField === 'approved_at' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('status_payment')}>Payment Status {sortField === 'status_payment' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>                                        
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Ref. Pembayaran</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('approved_at')}>Approved Date {sortField === 'approved_at' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
+
+                    
+                                    
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Notes</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Keterangan</th>
                     <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
@@ -903,6 +906,54 @@ export default function FinancePurchaseOrders() {
                             </div>
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div className="flex items-center">                              
+                              {item.nama_branch}
+                            </div>
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(item as any).tanggal_barang_sampai ? (
+                              <div className="flex items-center">
+                                <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
+                                {formatDate((item as any).tanggal_barang_sampai)}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              (item as any).po_status === 'Barang sampai' ? 'bg-green-100 text-green-800' :
+                              (item as any).po_status === 'Sedang diproses' ? 'bg-blue-100 text-blue-800' :
+                              (item as any).po_status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {(item as any).po_status}
+                            </span>
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(item as any).termin_days || 30} hari
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div className="flex items-center">
+                              <Calendar className="h-4 w-4 text-gray-400 mr-1" />
+                              {formatDate(item.tanggal_jatuh_tempo)}
+                            </div>
+                            {item.last_payment_date && (
+                              <div className="text-xs text-gray-500">
+                                Last: {formatDate(item.last_payment_date)}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {formatCurrency(item.total_po)}
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {formatCurrency((item as any).total_tagih || 0)}
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(item as any).invoice_number || <span className="text-gray-400">-</span>}
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                             <div className="flex items-center">
                               <User className="h-4 w-4 text-gray-400 mr-1" />
                               {item.nama_supplier}
@@ -923,53 +974,28 @@ export default function FinancePurchaseOrders() {
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <div className="flex items-center">
-                              <Building className="h-4 w-4 text-gray-400 mr-1" />
-                              {item.nama_branch}
-                            </div>
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <select 
-                              className="text-xs border border-gray-300 rounded px-2 py-1 bg-white"
-                              value={notesState[item.id] || 'Rek Michael'}
-                              onChange={(e) => handleNotesChange(item.id, e.target.value)}
-                            >
-                              <option value="Rek Michael">Rek Michael</option>
-                              <option value="Rek PT">Rek PT</option>
-                              <option value="Rek CV">Rek CV</option>
-                            </select>
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).invoice_number || <span className="text-gray-400">-</span>}
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              (item as any).po_status === 'Barang sampai' ? 'bg-green-100 text-green-800' :
-                              (item as any).po_status === 'Sedang diproses' ? 'bg-blue-100 text-blue-800' :
-                              (item as any).po_status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {(item as any).po_status}
-                            </span>
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {formatCurrency(item.total_po)}
-                          </td>
+                          </td>                          
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                             {formatCurrency(item.total_paid)}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {formatCurrency(item.sisa_bayar)}
                           </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {formatCurrency((item as any).total_tagih || 0)}
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(item as any).dibayar_tanggal ? (
+                              <div className="text-green-600 font-medium flex items-center">
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                {formatDate((item as any).dibayar_tanggal)}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">Belum dibayar</span>
+                            )}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <span className="text-xs text-gray-700">
-                              {(item as any).keterangan || '-'}
-                            </span>
+                            {(item as any).payment_method || <span className="text-gray-400">-</span>}
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(item as any).payment_via || <span className="text-gray-400">-</span>}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap">
                             <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}>
@@ -987,56 +1013,6 @@ export default function FinancePurchaseOrders() {
                                 <AlertTriangle className="h-3 w-3 mr-1" />
                                 Overdue {item.days_overdue} hari
                               </div>
-                            )}
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).termin_days || 30} hari
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <div className="flex items-center">
-                              <Calendar className="h-4 w-4 text-gray-400 mr-1" />
-                              {formatDate(item.tanggal_jatuh_tempo)}
-                            </div>
-                            {item.last_payment_date && (
-                              <div className="text-xs text-gray-500">
-                                Last: {formatDate(item.last_payment_date)}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).dibayar_tanggal ? (
-                              <div className="text-green-600 font-medium flex items-center">
-                                <CheckCircle className="h-4 w-4 mr-1" />
-                                {formatDate((item as any).dibayar_tanggal)}
-                              </div>
-                            ) : (
-                              <span className="text-gray-400">Belum dibayar</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).payment_via || <span className="text-gray-400">-</span>}
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).payment_method || <span className="text-gray-400">-</span>}
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).tanggal_barang_sampai ? (
-                              <div className="flex items-center">
-                                <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
-                                {formatDate((item as any).tanggal_barang_sampai)}
-                              </div>
-                            ) : (
-                              <span className="text-gray-400">-</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).approved_at ? (
-                              <div className="flex items-center">
-                                <CheckCircle className="h-4 w-4 text-purple-500 mr-1" />
-                                {formatDate((item as any).approved_at)}
-                              </div>
-                            ) : (
-                              <span className="text-gray-400">-</span>
                             )}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -1064,6 +1040,32 @@ export default function FinancePurchaseOrders() {
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(item as any).approved_at ? (
+                              <div className="flex items-center">
+                                <CheckCircle className="h-4 w-4 text-purple-500 mr-1" />
+                                {formatDate((item as any).approved_at)}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>                                                  
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <select 
+                              className="text-xs border border-gray-300 rounded px-2 py-1 bg-white"
+                              value={notesState[item.id] || 'Rek Michael'}
+                              onChange={(e) => handleNotesChange(item.id, e.target.value)}
+                            >
+                              <option value="Rek Michael">Rek Michael</option>
+                              <option value="Rek PT">Rek PT</option>
+                              <option value="Rek CV">Rek CV</option>
+                            </select>
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <span className="text-xs text-gray-700">
+                              {(item as any).keterangan || '-'}
+                            </span>
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-center">
                             <div className="flex gap-1 justify-center">
