@@ -49,6 +49,7 @@ interface POItem {
   keterangan: string
   supplier_name: string
   merk: string
+  harga: number
 }
 
 function CreatePurchaseOrder() {
@@ -212,6 +213,9 @@ function CreatePurchaseOrder() {
       
       if (matchingSuppliers.length > 0) {
         const supplier = matchingSuppliers[0] // Use first available supplier
+        // Get latest price for the product
+        const latestPrice = await getLatestPrice(product.id_product)
+        
         const newItem: POItem = {
           product_id: product.id_product,
           product_name: product.product_name,
@@ -221,7 +225,8 @@ function CreatePurchaseOrder() {
           satuan_besar: product.satuan_besar,
           keterangan: `Stock Alert - ${alertData.alert_level}`,
           supplier_name: supplier.nama_supplier,
-          merk: product.merk || ''
+          merk: product.merk || '',
+          harga: latestPrice
         }
         setPOItems([newItem])
       }
@@ -332,7 +337,51 @@ function CreatePurchaseOrder() {
     setProductSuppliers(productsWithSuppliers)
   }
 
-  const addProductToPO = (product: Product, supplier: Supplier) => {
+  const getLatestPrice = async (productId: number): Promise<number> => {
+    try {
+      // 1. Try to get latest actual price from po_price_history (most accurate)
+      const { data: priceHistory } = await supabase
+        .from('po_price_history')
+        .select('actual_price')
+        .eq('product_id', productId)
+        .not('actual_price', 'is', null)
+        .order('received_date', { ascending: false })
+        .limit(1)
+        .single()
+      
+      if (priceHistory?.actual_price) {
+        return priceHistory.actual_price
+      }
+      
+      // 2. Fallback to latest actual price from barang_masuk
+      const { data: latestPrice } = await supabase
+        .from('barang_masuk')
+        .select('actual_price')
+        .eq('product_id', productId)
+        .not('actual_price', 'is', null)
+        .order('tanggal_masuk', { ascending: false })
+        .limit(1)
+        .single()
+      
+      if (latestPrice?.actual_price) {
+        return latestPrice.actual_price
+      }
+      
+      // 3. Final fallback to master price from nama_product
+      const { data: product } = await supabase
+        .from('nama_product')
+        .select('harga')
+        .eq('id_product', productId)
+        .single()
+      
+      return product?.harga || 0
+    } catch (error) {
+      console.error('Error getting price:', error)
+      return 0
+    }
+  }
+
+  const addProductToPO = async (product: Product, supplier: Supplier) => {
     const existingItem = poItems.find(item => 
       item.product_id === product.id_product && 
       item.supplier_name === supplier.nama_supplier
@@ -348,6 +397,9 @@ function CreatePurchaseOrder() {
           : item
       ))
     } else {
+      // Get latest price
+      const latestPrice = await getLatestPrice(product.id_product)
+      
       const newItem: POItem = {
         product_id: product.id_product,
         product_name: product.product_name,
@@ -357,7 +409,8 @@ function CreatePurchaseOrder() {
         satuan_besar: product.satuan_besar,
         keterangan: '',
         supplier_name: supplier.nama_supplier,
-        merk: product.merk || ''
+        merk: product.merk || '',
+        harga: latestPrice
       }
       setPOItems([...poItems, newItem])
     }
@@ -456,6 +509,7 @@ function CreatePurchaseOrder() {
           po_id: poData.id,
           product_id: item.product_id,
           qty: item.qty,
+          harga: item.harga,
           keterangan: item.keterangan
         }))
 
@@ -663,7 +717,7 @@ function CreatePurchaseOrder() {
                           </button>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-1 text-xs">
+                        <div className="grid grid-cols-3 gap-1 text-xs">
                           <div>
                             <label className="text-xs text-gray-500">Qty</label>
                             <input
@@ -681,6 +735,21 @@ function CreatePurchaseOrder() {
                               {item.unit_besar}
                             </div>
                           </div>
+                          <div>
+                            <label className="text-xs text-gray-500">Harga</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={item.harga}
+                              onChange={(e) => updatePOItem(item.product_id, item.supplier_name, 'harga', parseFloat(e.target.value) || 0)}
+                              className="w-full border rounded px-1.5 py-1 text-xs"
+                              min="0"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="mt-1 text-xs text-gray-600">
+                          Total: Rp {(item.qty * item.harga).toLocaleString('id-ID')}
                         </div>
                         
                         <div className="mt-1">

@@ -239,7 +239,7 @@ export default function AnalysisPage() {
 
       // Add buffer 1 day before start date for accurate calculation
       const bufferDate = new Date(dateRange.startDate);
-      bufferDate.setDate(bufferDate.getDate() - 1);
+      bufferDate.setDate(bufferDate.getDate() - 7);
       const bufferDateStr = bufferDate.toISOString().split('T')[0];
 
       // Fetch ready data with simple date filter
