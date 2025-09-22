@@ -227,9 +227,45 @@ export default function ReceivedPreviewPage() {
             left: 0;
             top: 0;
             width: 100%;
+            font-size: 10px;
           }
           .no-print {
             display: none !important;
+          }
+          .print-table {
+            width: 100% !important;
+            font-size: 30px !important;
+          }
+          .print-table th,
+          .print-table td {
+            padding: 2px 4px !important;
+            font-size: 8px !important;
+            white-space: nowrap !important;
+          }
+          .print-table .product-col {
+            width: 15% !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+          }
+          .print-table .qty-col {
+            width: 8% !important;
+          }
+          .print-table .price-col {
+            width: 12% !important;
+          }
+          .print-table .total-col {
+            width: 12% !important;
+          }
+          .print-table .note-col {
+            width: 15% !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+          }
+          .print-info {
+            font-size: 9px !important;
+          }
+          .print-info .grid {
+            grid-template-columns: repeat(4, 1fr) !important;
           }
         }
       `}</style>
@@ -249,21 +285,21 @@ export default function ReceivedPreviewPage() {
             <div className="flex gap-2 no-print">
               <button
                 onClick={() => window.print()}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="flex items-center gap-2 px-2 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 <Printer size={16} />
                 Print
               </button>
               <button
                 onClick={exportToPDF}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                className="flex items-center gap-2 px-2 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
               >
                 <Download size={16} />
                 Export PDF
               </button>
               <a 
                 href="/purchaseorder" 
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="flex items-center gap-2 px-2 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 <ArrowLeft size={16} />
                 Kembali
@@ -272,7 +308,7 @@ export default function ReceivedPreviewPage() {
           </div>
 
           {/* PO Information */}
-          <div className="bg-green-50 rounded-lg p-4">
+          <div className="bg-green-50 rounded-lg p-4 print-info">
             <h3 className="font-medium text-green-900 mb-3">Informasi Penerimaan Barang</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-x-6 gap-y-2 text-sm">
               <div>
@@ -324,44 +360,44 @@ export default function ReceivedPreviewPage() {
               <h3 className="font-medium text-gray-900">Items yang Diterima</h3>
             </div>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+              <table className="min-w-full divide-y divide-gray-200 print-table">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produk</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Qty PO</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Qty Diterima</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga PO</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga Aktual</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase product-col">Produk</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase qty-col">Qty PO</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase qty-col">Qty Diterima</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase price-col">Harga PO</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase price-col">Harga Aktual</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase total-col">Total</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase note-col">Keterangan</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {receivedData.items.map((item, index) => (
                     <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4 whitespace-nowrap product-col">
                         <div className="font-medium text-gray-900">{item.product_name}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-600 qty-col">
                         {item.qty_po}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
+                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm qty-col">
                         <span className={`font-medium ${item.qty_received === item.qty_po ? 'text-green-600' : 'text-yellow-600'}`}>
                           {item.qty_received}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-600 price-col">
                         {formatCurrency(item.harga_po)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm price-col">
                         <span className={`font-medium ${item.harga_actual !== item.harga_po ? 'text-orange-600' : 'text-gray-900'}`}>
                           {formatCurrency(item.harga_actual)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900 total-col">
                         {formatCurrency(item.qty_received * item.harga_actual)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
+                      <td className="px-6 py-4 text-sm text-gray-600 note-col">
                         {item.keterangan}
                       </td>
                     </tr>
