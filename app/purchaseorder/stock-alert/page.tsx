@@ -600,8 +600,7 @@ function StockAlertPOPage() {
         <div className="flex-1">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-              <AlertTriangle className="text-red-600" size={22} />
-              Stock Alert Purchase Orders
+              Stock Alert
               <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
                 {filteredStockAlerts.length} alerts
                 {selectedBranch && ` (${selectedBranch})`}
@@ -661,13 +660,10 @@ function StockAlertPOPage() {
                 </select>
               </div>
             )}
+            
           </div>
-          <p className="text-gray-600 text-sm mt-1">
-            Create purchase orders for products with low stock levels
-          </p>
         </div>
       </div>
-
 
       <div className="bg-white rounded-lg shadow p-4">
         <h3 className="font-semibold mb-3">PO Settings</h3>
