@@ -999,7 +999,7 @@ function ReadyPageContent() {
             
             <form onSubmit={handleSubmit}>
               {/* Selection Form */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 p-3 bg-gray-50 rounded">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 p-3 bg-gray-50 rounded">
                 <div>
                   <label className="block text-xs font-medium mb-1 text-gray-700">Cabang *</label>
                   <select
@@ -1341,7 +1341,7 @@ function ReadyPageContent() {
 
         {/* Filters */}
         <div className="bg-white p-4 rounded-lg shadow mb-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <input
               type="date"
               value={dateFilter}

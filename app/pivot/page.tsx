@@ -570,6 +570,8 @@ export default function PivotPage() {
     const [filterCategory, setFilterCategory] = useState('');
     const [filterBranch, setFilterBranch] = useState(branchFilter);
     const [savingNotes, setSavingNotes] = useState<Set<number>>(new Set());
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     let negativeData = data.filter(item => item.selisih < 0);
     
@@ -649,12 +651,24 @@ export default function PivotPage() {
       return matchesCategory && matchesBranch;
     });
 
+    // Pagination calculations
+    const totalItems = filteredData.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedData = filteredData.slice(startIndex, endIndex);
+
     const categories = [...new Set(negativeData.map(item => item.sub_category))];
     const allBranches = [...new Set(negativeData.map(item => item.cabang))];
     // Filter branches based on user's allowed branches
     const branches = userRole === 'super admin' || userRole === 'admin' 
       ? allBranches 
       : allBranches.filter(branch => allowedBranches.includes(branch));
+
+    // Reset to page 1 when filters change
+    useEffect(() => {
+      setCurrentPage(1);
+    }, [filterCategory, filterBranch]);
 
     if (negativeData.length === 0) {
       return (
@@ -679,7 +693,7 @@ export default function PivotPage() {
               Investigasi Selisih Minus
             </h2>
             <p className="text-gray-600 text-sm mt-1">
-              Total {filteredData.length} item dengan selisih negatif perlu investigasi
+              Total {totalItems} item dengan selisih negatif perlu investigasi
             </p>
           </div>
         </div>
@@ -727,7 +741,7 @@ export default function PivotPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredData.map(item => (
+              {paginatedData.map(item => (
                 <React.Fragment key={`${item.id_product}-${item.tanggal}`}>
                   <tr className={`border-b hover:bg-gray-50 ${
                     getSeverityLevel(item.selisih) === 'high' ? 'bg-red-50' : 
@@ -801,6 +815,61 @@ export default function PivotPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4 px-4 py-3 bg-gray-50 rounded">
+            <div className="text-sm text-gray-700">
+              Menampilkan {startIndex + 1} - {Math.min(endIndex, totalItems)} dari {totalItems} item
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              
+              <div className="flex gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`px-3 py-1 text-sm border rounded ${
+                        currentPage === pageNum
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'hover:bg-gray-100'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   };

@@ -705,7 +705,7 @@ function ProduksiPageContent() {
         </div>
 
         <div className="bg-white p-1 rounded-lg shadow mb-1">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-1 mb-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-1 mb-2">
             <input
               type="text"
               placeholder="Search..."
@@ -780,7 +780,6 @@ function ProduksiPageContent() {
                 <Plus size={12} />Add
               </button>
             )}
-
           </div>
         </div>
 

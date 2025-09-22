@@ -1108,7 +1108,7 @@ function GudangPageContent() {
       </div>
 
       <div className="bg-white p-1 rounded-lg shadow mb-1">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-1 mb-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-1 mb-2">
           <input
             type="text"
             placeholder="Search..."
@@ -1206,7 +1206,7 @@ function GudangPageContent() {
         <div className="bg-white p-1 rounded-lg shadow mb-1">
           <h3 className="font-medium text-gray-800 mb-2 text-xs">{editingId ? 'Edit' : 'Add'} Warehouse Entry</h3>
           <form onSubmit={handleSubmit} className="space-y-1">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1 mb-2">
+            <div className="grid grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-1 mb-2">
             <input
                 type="date"
                 value={formData.tanggal}
