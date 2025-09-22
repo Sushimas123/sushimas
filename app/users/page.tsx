@@ -713,6 +713,15 @@ function UsersPageContent() {
               </div>
               
               <div>
+                <label className="font-semibold">Status:</label>
+                <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                  selectedUser.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                }`}>
+                  {selectedUser.is_active ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+              
+              <div>
                 <label className="font-semibold">Created:</label>
                 <p className="text-gray-500">{new Date(selectedUser.created_at).toLocaleDateString()}</p>
               </div>
@@ -731,12 +740,21 @@ function UsersPageContent() {
                 </button>
               )}
               {(userRole === 'super admin' || userRole === 'admin') && (
-                <button 
-                  onClick={() => handleDelete(selectedUser.id_user)} 
-                  className="flex-1 bg-red-600 text-white py-2 rounded-md"
-                >
-                  Delete
-                </button>
+                selectedUser.is_active ? (
+                  <button 
+                    onClick={() => handleDelete(selectedUser.id_user)} 
+                    className="flex-1 bg-red-600 text-white py-2 rounded-md"
+                  >
+                    Deactivate
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => handleReactivate(selectedUser.id_user)} 
+                    className="flex-1 bg-green-600 text-white py-2 rounded-md"
+                  >
+                    Reactivate
+                  </button>
+                )
               )}
             </div>
           </div>
@@ -876,7 +894,7 @@ function UsersPageContent() {
         <div className="bg-white p-4 rounded-lg shadow mb-4">
           <h3 className="font-medium text-gray-800 mb-2 text-sm">{editingId ? 'Edit User' : 'Add New User'}</h3>
           <form onSubmit={handleAddUser} className="space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               <input
                 type="email"
                 name="email"

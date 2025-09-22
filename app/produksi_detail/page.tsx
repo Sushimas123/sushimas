@@ -495,7 +495,7 @@ function ProduksiDetailPageContent() {
         </div>
 
         <div className="bg-white p-3 rounded-lg shadow mb-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3">
             <input
               type="text"
               placeholder="Search..."

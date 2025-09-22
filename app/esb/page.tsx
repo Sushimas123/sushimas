@@ -291,7 +291,7 @@ function ESBPageContent() {
 
       {/* Filter Section */}
       <div className="bg-white p-1 rounded-lg shadow mb-1">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-1 mb-1">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-5 gap-1 mb-1">
           <div>
             <label className="block text-xs font-medium mb-0.5 text-gray-700">Tanggal</label>
             <input
