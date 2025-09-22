@@ -71,6 +71,7 @@ export default function PivotPage() {
   const [displayMode, setDisplayMode] = useState<'selisih' | 'pemakaian'>('selisih');
   const [userRole, setUserRole] = useState('');
   const [allowedBranches, setAllowedBranches] = useState<string[]>([]);
+  const [productSearch, setProductSearch] = useState('');
 
   // Fungsi untuk menghasilkan cache key berdasarkan parameter
   const getCacheKey = useCallback((startDate: string, endDate: string, branchFilter: string) => {
@@ -209,7 +210,7 @@ export default function PivotPage() {
       }
 
       const bufferDate = new Date(dateRange.startDate);
-      bufferDate.setDate(bufferDate.getDate() - 1);
+      bufferDate.setDate(bufferDate.getDate() - 7);
       const bufferDateStr = bufferDate.toISOString().split('T')[0];
 
       let readyQuery = supabase
@@ -292,13 +293,18 @@ export default function PivotPage() {
         return item.tanggal >= dateRange.startDate && item.tanggal <= dateRange.endDate;
       });
 
-      // Build pivot data
+      // Build pivot data with product search filter
       const pivotDataTemp: PivotData = {};
       
       filteredAnalysisData.forEach(item => {
         const subCategory = item.sub_category;
         const productName = item.product;
         const date = item.tanggal;
+        
+        // Apply product search filter
+        if (productSearch && !productName.toLowerCase().includes(productSearch.toLowerCase())) {
+          return;
+        }
         
         if (!pivotDataTemp[subCategory]) {
           pivotDataTemp[subCategory] = {};
@@ -562,8 +568,9 @@ export default function PivotPage() {
   const NegativeDiscrepancyDashboard: React.FC<{ 
     data: AnalysisData[], 
     dateRange: { startDate: string, endDate: string },
-    branchFilter: string 
-  }> = ({ data, dateRange, branchFilter }) => {
+    branchFilter: string,
+    productSearch: string 
+  }> = ({ data, dateRange, branchFilter, productSearch }) => {
     const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
     const [notes, setNotes] = useState<{ [key: number]: string }>({});
     const [savedNotes, setSavedNotes] = useState<InvestigationNotes[]>([]);
@@ -578,6 +585,13 @@ export default function PivotPage() {
     // Filter by user's allowed branches for non-admin users
     if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranches.length > 0) {
       negativeData = negativeData.filter(item => allowedBranches.includes(item.cabang));
+    }
+    
+    // Apply product search filter from parent component
+    if (productSearch) {
+      negativeData = negativeData.filter(item => 
+        item.product.toLowerCase().includes(productSearch.toLowerCase())
+      );
     }
 
     useEffect(() => {
@@ -938,7 +952,7 @@ export default function PivotPage() {
                 <select
                   value={branchFilter}
                   onChange={(e) => setBranchFilter(e.target.value)}
-                  className="px-3 py-2 border rounded text-sm"
+                  className="px-1 py-2 border rounded text-sm"
                 >
                   <option value="">{userRole === 'super admin' || userRole === 'admin' ? 'All Branches' : 'All My Branches'}</option>
                   {branches.map(branch => (
@@ -947,6 +961,16 @@ export default function PivotPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">Product:</label>
+                <input
+                  type="text"
+                  placeholder="🔍 Search product..."
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  className="px-3 py-2 border rounded text-sm w-30"
+                />
               </div>
             </div>
           </div>
@@ -1060,7 +1084,8 @@ export default function PivotPage() {
           <NegativeDiscrepancyDashboard 
             data={data} 
             dateRange={dateRange} 
-            branchFilter={branchFilter} 
+            branchFilter={branchFilter}
+            productSearch={productSearch} 
           />
 
           {/* Toast */}

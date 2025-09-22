@@ -46,6 +46,7 @@ function StockAlertPOPage() {
   const [stockAlerts, setStockAlerts] = useState<StockAlert[]>([]);
   const [filteredStockAlerts, setFilteredStockAlerts] = useState<StockAlert[]>([]);
   const [selectedBranch, setSelectedBranch] = useState('');
+  const [selectedSubCategory, setSelectedSubCategory] = useState('');
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [poItems, setPOItems] = useState<POItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,9 +121,25 @@ function StockAlertPOPage() {
       return;
     }
     setSelectedBranch(branch);
-    const filtered = branch === '' 
-      ? stockAlerts 
-      : stockAlerts.filter(alert => alert.branch_name === branch);
+    applyFilters(branch, selectedSubCategory);
+  };
+
+  const handleSubCategoryFilter = (subCategory: string) => {
+    setSelectedSubCategory(subCategory);
+    applyFilters(selectedBranch, subCategory);
+  };
+
+  const applyFilters = (branch: string, subCategory: string) => {
+    let filtered = stockAlerts;
+    
+    if (branch !== '') {
+      filtered = filtered.filter(alert => alert.branch_name === branch);
+    }
+    
+    if (subCategory !== '') {
+      filtered = filtered.filter(alert => alert.sub_category === subCategory);
+    }
+    
     setFilteredStockAlerts(filtered);
     setCurrentPage(1);
   };
@@ -588,20 +605,33 @@ function StockAlertPOPage() {
               <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
                 {filteredStockAlerts.length} alerts
                 {selectedBranch && ` (${selectedBranch})`}
+                {selectedSubCategory && ` - ${selectedSubCategory}`}
               </span>
             </h1>
-            {(userRole === 'super admin' || userRole === 'admin') && (
+            <div className="flex items-center gap-2">
+              {(userRole === 'super admin' || userRole === 'admin') && (
+                <select
+                  value={selectedBranch}
+                  onChange={(e) => handleBranchFilter(e.target.value)}
+                  className="border border-gray-300 rounded px-3 py-2 text-sm"
+                >
+                  <option value="">All Branches</option>
+                  {[...new Set(stockAlerts.map(alert => alert.branch_name))].map(branchName => (
+                    <option key={branchName} value={branchName}>{branchName}</option>
+                  ))}
+                </select>
+              )}
               <select
-                value={selectedBranch}
-                onChange={(e) => handleBranchFilter(e.target.value)}
+                value={selectedSubCategory}
+                onChange={(e) => handleSubCategoryFilter(e.target.value)}
                 className="border border-gray-300 rounded px-3 py-2 text-sm"
               >
-                <option value="">All Branches</option>
-                {[...new Set(stockAlerts.map(alert => alert.branch_name))].map(branchName => (
-                  <option key={branchName} value={branchName}>{branchName}</option>
+                <option value="">All Sub Categories</option>
+                {[...new Set(stockAlerts.map(alert => alert.sub_category).filter(Boolean))].map(subCategory => (
+                  <option key={subCategory} value={subCategory}>{subCategory}</option>
                 ))}
               </select>
-            )}
+            </div>
             {userRole !== 'super admin' && userRole !== 'admin' && (
               <div className="flex items-center gap-2">
                 {allowedBranches.length > 1 ? (
@@ -619,6 +649,16 @@ function StockAlertPOPage() {
                     {allowedBranches[0] || userBranch}
                   </span>
                 )}
+                <select
+                  value={selectedSubCategory}
+                  onChange={(e) => handleSubCategoryFilter(e.target.value)}
+                  className="border border-gray-300 rounded px-3 py-2 text-sm"
+                >
+                  <option value="">All Sub Categories</option>
+                  {[...new Set(stockAlerts.map(alert => alert.sub_category).filter(Boolean))].map(subCategory => (
+                    <option key={subCategory} value={subCategory}>{subCategory}</option>
+                  ))}
+                </select>
               </div>
             )}
           </div>
@@ -716,11 +756,12 @@ function StockAlertPOPage() {
                     )}
                   </div>
                   
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-gray-600 mb-3">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-sm text-gray-600 mb-3">
                     <div className="flex items-center gap-1">
                       <Building2 size={14} />
                       {item.alert.branch_name}
                     </div>
+                    <div>Category: <span className="text-gray-600">{item.alert.sub_category}</span></div>
                     <div>Current: <span className="text-red-600 font-medium">{item.alert.current_stock}</span></div>
                     <div>Safety: <span className="text-gray-600">{item.alert.safety_stock}</span></div>
                     <div>Shortage: <span className="text-orange-600 font-medium">{item.alert.shortage_qty}</span></div>
