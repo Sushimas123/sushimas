@@ -58,6 +58,7 @@ function UsersPageContent() {
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
   const [permittedColumns, setPermittedColumns] = useState<string[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
   
   // Mobile specific states
   const [isMobile, setIsMobile] = useState(false);
@@ -96,7 +97,7 @@ function UsersPageContent() {
   useEffect(() => {
     fetchUsers();
     fetchBranches();
-  }, []);
+  }, [statusFilter]);
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
@@ -107,7 +108,7 @@ function UsersPageContent() {
   useEffect(() => {
     const loadPermittedColumns = async () => {
       if (users.length > 0) {
-        const allColumns = ['email', 'nama_lengkap', 'no_telp', 'role', 'branches', 'created_at']
+        const allColumns = ['email', 'nama_lengkap', 'no_telp', 'role', 'branches', 'created_at', 'is_active']
         const permitted = []
         
         for (const col of allColumns) {
@@ -140,11 +141,15 @@ function UsersPageContent() {
 
   const fetchUsers = async () => {
     try {
-      const { data: usersData, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('is_active', true)
-        .order('nama_lengkap');
+      let query = supabase.from('users').select('*');
+      
+      if (statusFilter === 'active') {
+        query = query.eq('is_active', true);
+      } else if (statusFilter === 'inactive') {
+        query = query.eq('is_active', false);
+      }
+      
+      const { data: usersData, error } = await query.order('nama_lengkap');
 
       if (error) throw error;
 
@@ -209,7 +214,14 @@ function UsersPageContent() {
       let userId = editingId;
       
       if (editingId) {
-        const updateData = {
+        const updateData: {
+          email: string;
+          nama_lengkap: string;
+          no_telp: string | null;
+          role: string;
+          cabang: string | null;
+          password_hash?: string;
+        } = {
           email: formData.email,
           nama_lengkap: formData.nama_lengkap,
           no_telp: formData.no_telp || null,
@@ -474,15 +486,50 @@ function UsersPageContent() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus user ini?')) {
+    if (!confirm('Apakah Anda yakin ingin menonaktifkan user ini? User akan di-mark sebagai tidak aktif tapi data tetap tersimpan.')) {
       return;
     }
 
     setDeleteLoading(id);
     
     try {
-      const { error } = await supabase.from('users')
-        .delete()
+      // Soft delete: set is_active to false
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: false })
+        .eq('id_user', id);
+
+      if (error) {
+        throw error;
+      }
+
+      // Also deactivate user branches
+      await supabase
+        .from('user_branches')
+        .update({ is_active: false })
+        .eq('id_user', id);
+
+      await fetchUsers();
+      showToast('✅ User deactivated successfully', 'success');
+    } catch (error) {
+      console.error('Error deactivating user:', error);
+      showToast('❌ Failed to deactivate user', 'error');
+    } finally {
+      setDeleteLoading(null);
+    }
+  };
+
+  const handleReactivate = async (id: number) => {
+    if (!confirm('Apakah Anda yakin ingin mengaktifkan kembali user ini?')) {
+      return;
+    }
+
+    setDeleteLoading(id);
+    
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: true })
         .eq('id_user', id);
 
       if (error) {
@@ -490,10 +537,10 @@ function UsersPageContent() {
       }
 
       await fetchUsers();
-      showToast('✅ User deleted successfully', 'success');
+      showToast('✅ User reactivated successfully', 'success');
     } catch (error) {
-      console.error('Error deleting user:', error);
-      showToast('❌ Failed to delete user', 'error');
+      console.error('Error reactivating user:', error);
+      showToast('❌ Failed to reactivate user', 'error');
     } finally {
       setDeleteLoading(null);
     }
@@ -531,6 +578,19 @@ function UsersPageContent() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="border px-3 py-2 rounded-md w-full"
             />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-1">Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+              className="border px-3 py-2 rounded-md w-full"
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="all">All</option>
+            </select>
           </div>
           
           <div className="flex gap-2">
@@ -711,23 +771,45 @@ function UsersPageContent() {
       {/* Search & Controls */}
       <div className="space-y-3 mb-4">
         {!isMobile ? (
-          <input
-            type="text"
-            placeholder="🔍 Search users..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="border px-2 py-1 rounded-md text-xs w-full sm:w-64"
-          />
-        ) : (
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+          <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Search users..."
+              placeholder="🔍 Search users..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="border pl-8 pr-2 py-2 rounded-md w-full"
+              className="border px-2 py-1 rounded-md text-xs w-full sm:w-64"
             />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+              className="border px-2 py-1 rounded-md text-xs"
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="all">All</option>
+            </select>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+              <input
+                type="text"
+                placeholder="Search users..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="border pl-8 pr-2 py-2 rounded-md w-full"
+              />
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+              className="border px-3 py-2 rounded-md w-full"
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="all">All</option>
+            </select>
           </div>
         )}
         
@@ -902,7 +984,7 @@ function UsersPageContent() {
         <div className="bg-white p-2 rounded-lg shadow mb-4">
           <h3 className="font-medium text-gray-800 mb-2 text-xs">Column Visibility Settings</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 mb-2">
-            {['email', 'nama_lengkap', 'no_telp', 'role', 'branches', 'created_at'].map(col => {
+            {['email', 'nama_lengkap', 'no_telp', 'role', 'branches', 'created_at', 'is_active'].map(col => {
               const hasPermission = permittedColumns.includes(col)
               return (
                 <label key={col} className="flex items-center gap-1 text-xs">
@@ -953,6 +1035,7 @@ function UsersPageContent() {
                   {visibleColumns.includes('role') && <th className="px-1 py-1 text-left font-medium text-gray-700">Role</th>}
                   {visibleColumns.includes('branches') && <th className="px-1 py-1 text-left font-medium text-gray-700">Branch</th>}
                   {visibleColumns.includes('created_at') && <th className="px-1 py-1 text-left font-medium text-gray-700">Created</th>}
+                  {visibleColumns.includes('is_active') && <th className="px-1 py-1 text-left font-medium text-gray-700">Status</th>}
                   {(userRole === 'super admin' || userRole === 'admin') && <th className="px-1 py-1 text-left font-medium text-gray-700">Actions</th>}
                 </tr>
               </thead>
@@ -1005,6 +1088,13 @@ function UsersPageContent() {
                           {new Date(user.created_at).toLocaleDateString()}
                         </div>
                       </td>}
+                      {visibleColumns.includes('is_active') && <td className="px-1 py-1">
+                        <span className={`px-1 py-0.5 rounded text-xs font-semibold ${
+                          user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {user.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>}
                       {(userRole === 'super admin' || userRole === 'admin') && (
                         <td className="px-1 py-1 whitespace-nowrap">
                           <div className="flex items-center gap-1">
@@ -1015,17 +1105,33 @@ function UsersPageContent() {
                             >
                               <Edit size={12} />
                             </button>
-                            <button
-                              onClick={() => handleDelete(user.id_user)}
-                              disabled={deleteLoading === user.id_user}
-                              className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 disabled:opacity-50"
-                            >
-                              {deleteLoading === user.id_user ? (
-                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
-                              ) : (
-                                <Trash2 size={12} />
-                              )}
-                            </button>
+                            {user.is_active ? (
+                              <button
+                                onClick={() => handleDelete(user.id_user)}
+                                disabled={deleteLoading === user.id_user}
+                                className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 disabled:opacity-50"
+                                title="Deactivate"
+                              >
+                                {deleteLoading === user.id_user ? (
+                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
+                                ) : (
+                                  <Trash2 size={12} />
+                                )}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleReactivate(user.id_user)}
+                                disabled={deleteLoading === user.id_user}
+                                className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-50 disabled:opacity-50"
+                                title="Reactivate"
+                              >
+                                {deleteLoading === user.id_user ? (
+                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-600"></div>
+                                ) : (
+                                  <Plus size={12} />
+                                )}
+                              </button>
+                            )}
                           </div>
                         </td>
                       )}

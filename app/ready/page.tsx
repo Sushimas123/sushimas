@@ -23,6 +23,10 @@ interface Ready {
   id_branch: number;
   product_name?: string;
   branch_name?: string;
+  created_by?: number;
+  updated_by?: number;
+  created_by_name?: string;
+  updated_by_name?: string;
 }
 
 interface Product {
@@ -120,7 +124,7 @@ function ReadyPageContent() {
   useEffect(() => {
     const loadPermittedColumns = async () => {
       if (ready.length > 0) {
-        const allColumns = ['ready_no', 'tanggal_input', 'branch_name', 'sub_category', 'product_name', 'id_product', 'ready', 'waste']
+        const allColumns = ['ready_no', 'tanggal_input', 'branch_name', 'sub_category', 'product_name', 'id_product', 'ready', 'waste', 'created_by_name', 'updated_by_name']
         const permitted = []
         
         for (const col of allColumns) {
@@ -186,6 +190,7 @@ function ReadyPageContent() {
     if (selectedSubCategory && menuProducts.length > 0) {
       // Filter by sub category
       const products = menuProducts.filter(p => {
+        if (!p.sub_category) return false;
         const normalizedProductCategory = p.sub_category.toLowerCase().replace(/^wip\s+/, '');
         const normalizedSelectedCategory = selectedSubCategory.toLowerCase();
         return normalizedProductCategory === normalizedSelectedCategory;
@@ -262,10 +267,11 @@ function ReadyPageContent() {
       
       readyQuery = readyQuery.order('tanggal_input', { ascending: false })
       
-      const [readyData, productsData, branchesData] = await Promise.all([
+      const [readyData, productsData, branchesData, usersData] = await Promise.all([
         readyQuery,
         supabase.from('nama_product').select('id_product, product_name'),
-        supabase.from('branches').select('id_branch, nama_branch')
+        supabase.from('branches').select('id_branch, nama_branch'),
+        supabase.from('users').select('id_user, nama_lengkap')
       ]);
 
       if (readyData.error) throw readyData.error;
@@ -273,12 +279,15 @@ function ReadyPageContent() {
       // Create lookup maps for O(1) access
       const productMap = new Map(productsData.data?.map(p => [p.id_product, p.product_name]) || []);
       const branchMap = new Map(branchesData.data?.map(b => [b.id_branch, b.nama_branch]) || []);
+      const userMap = new Map(usersData.data?.map(u => [u.id_user, u.nama_lengkap]) || []);
       
       // Transform data using lookup maps
       const readyWithNames = (readyData.data || []).map((item: any) => ({
         ...item,
         product_name: productMap.get(item.id_product) || '',
-        branch_name: branchMap.get(item.id_branch) || ''
+        branch_name: branchMap.get(item.id_branch) || '',
+        created_by_name: userMap.get(item.created_by) || '',
+        updated_by_name: userMap.get(item.updated_by) || ''
       }));
       
       setReady(readyWithNames);
@@ -424,7 +433,8 @@ function ReadyPageContent() {
         ready: parseFloat(product.ready),
         waste: parseFloat(product.waste) || 0,
         sub_category: selectedSubCategory,
-        id_branch: parseInt(selectedBranch)
+        id_branch: parseInt(selectedBranch),
+        created_by: userId
       }));
     
     if (submitData.length === 0) {
@@ -492,7 +502,8 @@ function ReadyPageContent() {
       const { error } = await supabase.from('ready')
         .update({
           ready: editingItem.ready,
-          waste: editingItem.waste
+          waste: editingItem.waste,
+          updated_by: userId
         })
         .eq('id_ready', editingItem.id_ready);
       
@@ -825,7 +836,8 @@ function ReadyPageContent() {
           ready: parseFloat(row['Ready']) || 0,
           waste: parseFloat(row['Waste']) || 0,
           sub_category: row['Sub Category'],
-          id_branch: branch.id_branch
+          id_branch: branch.id_branch,
+          created_by: userId
         });
       }
 
@@ -921,7 +933,9 @@ function ReadyPageContent() {
         'Product ID': item.id_product,
         'Product': item.product_name,
         'Ready': item.ready,
-        'Waste': item.waste
+        'Waste': item.waste,
+        'Created By': item.created_by_name,
+        'Updated By': item.updated_by_name
       }));
 
       const ws = XLSX.utils.json_to_sheet(exportData);
@@ -1393,6 +1407,8 @@ function ReadyPageContent() {
                 {permittedColumns.includes('id_product') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id_product')}>Product ID</th>}
                 {permittedColumns.includes('ready') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>}
                 {permittedColumns.includes('waste') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('waste')}>Waste</th>}
+                {permittedColumns.includes('created_by_name') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('created_by_name')}>Created By</th>}
+                {permittedColumns.includes('updated_by_name') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('updated_by_name')}>Updated By</th>}
                 {(canPerformActionSync(userRole, 'ready', 'edit') || canPerformActionSync(userRole, 'ready', 'delete')) && <th className="border px-2 py-1 text-left font-medium">Actions</th>}
               </tr>
             </thead>
@@ -1432,6 +1448,8 @@ function ReadyPageContent() {
                     {permittedColumns.includes('id_product') && <td className="border px-2 py-1 text-center">{item.id_product}</td>}
                     {permittedColumns.includes('ready') && <td className="border px-2 py-1 text-right">{item.ready}</td>}
                     {permittedColumns.includes('waste') && <td className="border px-2 py-1 text-right">{item.waste}</td>}
+                    {permittedColumns.includes('created_by_name') && <td className="border px-2 py-1">{item.created_by_name}</td>}
+                    {permittedColumns.includes('updated_by_name') && <td className="border px-2 py-1">{item.updated_by_name}</td>}
                     {(canPerformActionSync(userRole, 'ready', 'edit') || canPerformActionSync(userRole, 'ready', 'delete')) && (
                       <td className="border px-2 py-1">
                         <div className="flex gap-1">
