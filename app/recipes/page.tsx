@@ -38,6 +38,90 @@ interface Recipe {
   }
 }
 
+interface SearchableSelectProps {
+  products: any[]
+  value?: number
+  onChange: (value: number) => void
+  placeholder: string
+}
+
+function SearchableSelect({ products, value, onChange, placeholder }: SearchableSelectProps) {
+  const [search, setSearch] = useState('')
+  const [isOpen, setIsOpen] = useState(false)
+  const [displayValue, setDisplayValue] = useState('')
+  
+  useEffect(() => {
+    if (value) {
+      const product = products.find(p => p.id_product === value)
+      setDisplayValue(product ? toTitleCase(product.product_name) : '')
+      setSearch('')
+    } else {
+      setDisplayValue('')
+    }
+  }, [value, products])
+  
+  const filteredProducts = products.filter(p => 
+    p.product_name.toLowerCase().includes(search.toLowerCase())
+  )
+  
+  const handleSelect = (product: any) => {
+    onChange(product.id_product)
+    setIsOpen(false)
+    setSearch('')
+  }
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputValue = e.target.value
+    setSearch(inputValue)
+    setDisplayValue(inputValue)
+    setIsOpen(true)
+    
+    if (!inputValue) {
+      onChange(0)
+    }
+  }
+  
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={isOpen ? search : displayValue}
+        onChange={handleInputChange}
+        onFocus={() => setIsOpen(true)}
+        placeholder={placeholder}
+        className="border px-3 py-2 rounded-md text-sm w-full"
+      />
+      
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+          {filteredProducts.length === 0 ? (
+            <div className="p-3 text-gray-500 text-sm">No products found</div>
+          ) : (
+            filteredProducts.map(product => (
+              <button
+                key={product.id_product}
+                type="button"
+                onClick={() => handleSelect(product)}
+                className="w-full text-left p-3 hover:bg-gray-50 border-b last:border-b-0 text-sm"
+              >
+                <div className="font-medium">{toTitleCase(product.product_name)}</div>
+                <div className="text-xs text-gray-500">{product.category}</div>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+      
+      {isOpen && (
+        <div 
+          className="fixed inset-0 z-40" 
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+    </div>
+  )
+}
+
 export default function RecipesPage() {
   const router = useRouter()
   const [data, setData] = useState<Recipe[]>([])
@@ -49,8 +133,6 @@ export default function RecipesPage() {
   const [form, setForm] = useState<Partial<Recipe>>({})
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
-  const [parentSearch, setParentSearch] = useState("")
-  const [childSearch, setChildSearch] = useState("")
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize] = useState(10)
@@ -74,18 +156,7 @@ export default function RecipesPage() {
     products.filter(p => p.category === 'Bahan Baku'), [products]
   )
 
-  // Filtered products for search
-  const filteredParentProducts = useMemo(() => 
-    parentProducts.filter(p => 
-      p.product_name?.toLowerCase().includes(parentSearch.toLowerCase())
-    ), [parentProducts, parentSearch]
-  )
-  
-  const filteredChildProducts = useMemo(() => 
-    childProducts.filter(p => 
-      p.product_name?.toLowerCase().includes(childSearch.toLowerCase())
-    ), [childProducts, childSearch]
-  )
+
 
   // Get unique WIP subcategories
   const wipSubcategories = useMemo(() => {
@@ -163,8 +234,6 @@ export default function RecipesPage() {
   const handleCancelEdit = () => {
     setEditingId(null)
     setForm({})
-    setParentSearch("")
-    setChildSearch("")
   }
 
   const handleSave = async () => {
@@ -472,82 +541,57 @@ export default function RecipesPage() {
       </div>
 
       {(editingId !== null) && (
-        <div className="bg-white p-4 rounded-lg shadow mb-4">
-          <h3 className="font-medium text-gray-800 mb-2 text-xs">
+        <div className="bg-white p-3 sm:p-4 rounded-lg shadow mb-4">
+          <h3 className="font-medium text-gray-800 mb-3 text-sm sm:text-xs">
             {editingId === -1 ? "Create New Recipe" : "Edit Recipe"}
           </h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
-              <input
-                type="text"
-                placeholder="Search parent products..."
-                value={parentSearch}
-                onChange={(e) => setParentSearch(e.target.value)}
-                className="border px-3 py-1 rounded-md text-xs w-full mb-1"
+              <label className="block text-sm font-medium text-gray-700 mb-2">Parent Product (Menu/WIP)</label>
+              <SearchableSelect
+                products={parentProducts}
+                value={form.id_product}
+                onChange={(value) => setForm(prev => ({ ...prev, id_product: value }))}
+                placeholder="Type to search parent product..."
               />
-              <select
-                name="id_product"
-                value={form.id_product || ""}
-                onChange={handleInputChange}
-                className="border px-2 py-1 rounded-md text-xs w-full"
-                size={Math.min(filteredParentProducts.length + 1, 3)}
-              >
-                <option value="">Select Parent Product (Menu/WIP)</option>
-                {filteredParentProducts.map(product => (
-                  <option key={product.id_product} value={product.id_product}>
-                    {toTitleCase(product.product_name)} ({product.category})
-                  </option>
-                ))}
-              </select>
             </div>
             
             <div>
-              <input
-                type="text"
-                placeholder="Search child products..."
-                value={childSearch}
-                onChange={(e) => setChildSearch(e.target.value)}
-                className="border px-3 py-1 rounded-md text-xs w-full mb-1"
+              <label className="block text-sm font-medium text-gray-700 mb-2">Child Product (Bahan Baku)</label>
+              <SearchableSelect
+                products={childProducts}
+                value={form.item_id}
+                onChange={(value) => setForm(prev => ({ ...prev, item_id: value }))}
+                placeholder="Type to search child product..."
               />
-              <select
-                name="item_id"
-                value={form.item_id || ""}
-                onChange={handleInputChange}
-                className="border px-2 py-1 rounded-md text-xs w-full"
-                size={Math.min(filteredChildProducts.length + 1, 3)}
-              >
-                <option value="">Select Child Product (Bahan Baku)</option>
-                {filteredChildProducts.map(product => (
-                  <option key={product.id_product} value={product.id_product}>
-                    {toTitleCase(product.product_name)} ({product.category})
-                  </option>
-                ))}
-              </select>
             </div>
-            
+          </div>
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Gramasi</label>
             <input
               type="number"
               name="gramasi"
               value={form.gramasi || ""}
               onChange={handleInputChange}
-              placeholder="Enter gramasi"
+              placeholder="Enter gramasi amount"
               step="0.01"
               min="0"
-              className="border px-2 py-1 rounded-md text-xs w-full"
+              className="border px-3 py-2 rounded-md text-sm w-full max-w-xs"
             />
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <button
               onClick={handleSave}
-              className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 text-xs"
+              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm font-medium"
             >
-              Save
+              Save Recipe
             </button>
             <button
               onClick={handleCancelEdit}
-              className="bg-gray-600 text-white px-3 py-1 rounded-md hover:bg-gray-700 text-xs"
+              className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 text-sm font-medium"
             >
               Cancel
             </button>

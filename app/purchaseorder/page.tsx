@@ -371,13 +371,15 @@ function PurchaseOrderPageContent() {
 
       // Then delete related price history records
       const { error: priceHistoryError } = await supabase
-        .from('price_history')
+        .from('po_price_history')
         .delete()
         .eq('po_number', poNumber)
 
       if (priceHistoryError) {
         console.error('Error deleting price history:', priceHistoryError)
-        throw priceHistoryError
+        console.error('Price history error details:', JSON.stringify(priceHistoryError, null, 2))
+        const errorMessage = priceHistoryError?.message || priceHistoryError?.details || priceHistoryError?.hint || 'Unknown price history deletion error'
+        throw new Error(errorMessage)
       }
 
       // Then delete related gudang records

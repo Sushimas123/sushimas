@@ -331,12 +331,18 @@ export default function TransferBarangPage() {
           
           if (peminjamBranch && tujuanBranch) {
             // Update gudang entries
-            const { error: updateKeluarError } = await supabase.from('gudang', { jumlah_keluar: newJumlah }, {'source_reference': originalTransfer.transfer_no})
+            const { error: updateKeluarError } = await supabase
+              .from('gudang')
+              .update({ jumlah_keluar: newJumlah })
+              .eq('source_reference', originalTransfer.transfer_no)
               .eq('cabang', peminjamBranch.kode_branch)
             
             if (updateKeluarError) throw updateKeluarError
             
-            const { error: updateMasukError } = await supabase.from('gudang', { jumlah_masuk: newJumlah }, {'source_reference': originalTransfer.transfer_no})
+            const { error: updateMasukError } = await supabase
+              .from('gudang')
+              .update({ jumlah_masuk: newJumlah })
+              .eq('source_reference', originalTransfer.transfer_no)
               .eq('cabang', tujuanBranch.kode_branch)
             
             if (updateMasukError) throw updateMasukError
@@ -366,7 +372,9 @@ export default function TransferBarangPage() {
           }
         })
 
-        const { error } = await supabase.from('transfer_barang', transfersData)
+        const { error } = await supabase
+          .from('transfer_barang')
+          .insert(transfersData)
         
         if (error) throw error
         showToast(`${validItems.length} transfer berhasil dibuat`, 'success')
@@ -427,7 +435,10 @@ export default function TransferBarangPage() {
         runningTotal = runningTotal + record.jumlah_masuk - record.jumlah_keluar
         
         if (runningTotal !== record.total_gudang) {
-          await supabase.from('gudang', { total_gudang: runningTotal }, {'order_no': record.order_no})
+          await supabase
+            .from('gudang')
+            .update({ total_gudang: runningTotal })
+            .eq('order_no', record.order_no)
         }
       }
     } catch (error) {
@@ -496,10 +507,13 @@ export default function TransferBarangPage() {
       
       if (!peminjamBranch || !tujuanBranch) throw new Error('Branch not found')
 
-      const { error: transferError } = await supabase.from('transfer_barang', {
+      const { error: transferError } = await supabase
+        .from('transfer_barang')
+        .update({
           tgl_barang_sampai: todayStr,
           status: 'completed'
-        }, {'id': transferId})
+        })
+        .eq('id', transferId)
       
       if (transferError) throw new Error(`Failed to update transfer: ${transferError.message}`)
 
@@ -516,7 +530,9 @@ export default function TransferBarangPage() {
       const currentPeminjamStock = currentStock?.[0]?.total_gudang || 0
       const newPeminjamTotal = currentPeminjamStock - transfer.jumlah
 
-      const { error: keluarError } = await supabase.from('gudang', {
+      const { error: keluarError } = await supabase
+        .from('gudang')
+        .insert({
           id_product: transfer.id_product,
           cabang: peminjamBranch.kode_branch,
           tanggal: timestamp,
@@ -545,7 +561,9 @@ export default function TransferBarangPage() {
       const currentTujuanStockValue = currentTujuanStock?.[0]?.total_gudang || 0
       const newTujuanTotal = currentTujuanStockValue + transfer.jumlah
 
-      const { error: masukError } = await supabase.from('gudang', {
+      const { error: masukError } = await supabase
+        .from('gudang')
+        .insert({
           id_product: transfer.id_product,
           cabang: tujuanBranch.kode_branch,
           tanggal: timestamp,
