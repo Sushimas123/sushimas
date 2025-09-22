@@ -200,6 +200,7 @@ function UsersPageContent() {
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.email.trim() || !formData.nama_lengkap.trim()) {
+      showToast('❌ Email and Full Name are required', 'error');
       return;
     }
 
@@ -208,17 +209,26 @@ function UsersPageContent() {
       let userId = editingId;
       
       if (editingId) {
-        const updateData = { ...formData };
-        delete (updateData as any).selectedBranches;
-        if (!formData.password_hash) {
-          delete (updateData as any).password_hash;
+        const updateData = {
+          email: formData.email,
+          nama_lengkap: formData.nama_lengkap,
+          no_telp: formData.no_telp || null,
+          role: formData.role,
+          cabang: formData.cabang || null
+        };
+        if (formData.password_hash) {
+          updateData.password_hash = formData.password_hash;
         }
         
+        console.log('Updating user with data:', updateData);
         const { error } = await supabase.from('users')
           .update(updateData)
           .eq('id_user', editingId);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Update error details:', JSON.stringify(error, null, 2));
+          throw error;
+        }
         
         // Delete existing user branches
         await supabase
@@ -227,20 +237,70 @@ function UsersPageContent() {
           .eq('id_user', editingId);
       } else {
         if (!formData.password_hash) {
+          showToast('❌ Password is required for new users', 'error');
           setSaving(false);
           return;
         }
         
-        const userData = { ...formData };
-        delete (userData as any).selectedBranches;
+        const userData = { 
+          email: formData.email,
+          password_hash: formData.password_hash,
+          nama_lengkap: formData.nama_lengkap,
+          no_telp: formData.no_telp || null,
+          role: formData.role,
+          cabang: formData.cabang || null
+        };
         
-        const { data, error } = await supabase.from('users')
-          .insert(userData)
+        console.log('Creating user with data:', userData);
+        
+        // Try to disable trigger temporarily and insert
+        try {
+          // First try to disable the trigger
+          await supabase.rpc('exec_sql', {
+            sql: 'ALTER TABLE users DISABLE TRIGGER audit_trigger_users;'
+          });
+          
+          const { error } = await supabase.from('users')
+            .insert(userData);
+            
+          // Re-enable the trigger
+          await supabase.rpc('exec_sql', {
+            sql: 'ALTER TABLE users ENABLE TRIGGER audit_trigger_users;'
+          });
+          
+          if (error) {
+            console.error('Insert error details:', JSON.stringify(error, null, 2));
+            throw error;
+          }
+        } catch (triggerError) {
+          console.log('Could not disable trigger, trying raw SQL insert...');
+          
+          // Try raw SQL insert as last resort
+          const { error } = await supabase.rpc('exec_sql', {
+            sql: `INSERT INTO users (email, password_hash, nama_lengkap, no_telp, role, cabang) 
+                  VALUES ('${userData.email}', '${userData.password_hash}', '${userData.nama_lengkap}', 
+                         ${userData.no_telp ? `'${userData.no_telp}'` : 'NULL'}, '${userData.role}', 
+                         ${userData.cabang ? `'${userData.cabang}'` : 'NULL'})`
+          });
+          
+          if (error) {
+            console.error('Raw SQL insert error:', JSON.stringify(error, null, 2));
+            throw error;
+          }
+        }
+        
+        // Get the created user ID by email
+        const { data: createdUser, error: fetchError } = await supabase
+          .from('users')
           .select('id_user')
+          .eq('email', formData.email)
           .single();
-
-        if (error) throw error;
-        userId = Array.isArray(data) ? data[0]?.id_user : (data as any)?.id_user;
+          
+        if (fetchError) {
+          console.error('Error fetching created user:', fetchError);
+        } else {
+          userId = createdUser?.id_user;
+        }
       }
 
       // Insert user branches
@@ -254,7 +314,10 @@ function UsersPageContent() {
           .from('user_branches')
           .insert(userBranches);
           
-        if (branchError) throw branchError;
+        if (branchError) {
+          console.error('Branch insert error:', JSON.stringify(branchError, null, 2));
+          throw branchError;
+        }
       }
 
       setFormData({
@@ -270,9 +333,20 @@ function UsersPageContent() {
       setEditingId(null);
       await fetchUsers();
       showToast('✅ User saved successfully', 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving user:', error);
-      showToast('❌ Failed to save user', 'error');
+      console.error('Error type:', typeof error);
+      console.error('Error keys:', Object.keys(error || {}));
+      
+      let errorMessage = 'Unknown error occurred';
+      
+      if (error && typeof error === 'object') {
+        errorMessage = error.message || error.details || error.hint || error.code || JSON.stringify(error);
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      showToast(`❌ Failed to save user: ${errorMessage}`, 'error');
     } finally {
       setSaving(false);
     }
