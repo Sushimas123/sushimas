@@ -630,8 +630,7 @@ function StockAlertPOPage() {
 
 
       <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="font-semibold mb-3">PO Settings</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">PO Date</label>
             <input
@@ -736,7 +735,7 @@ function StockAlertPOPage() {
                       >
                         {suppliers.map(supplier => (
                           <option key={supplier.id_supplier} value={supplier.id_supplier}>
-                            {supplier.nama_supplier}
+                            {supplier.nama_supplier} - {item.alert.product_name}
                           </option>
                         ))}
                       </select>
