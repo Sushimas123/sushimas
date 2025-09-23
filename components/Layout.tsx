@@ -100,7 +100,7 @@ export default function Layout({ children }: LayoutProps) {
       submenu: [
         { name: "Ready Stock", href: AppRoutes.READY_STOCK, icon: NotepadText, pageName: 'ready' },
         { name: "Production", href: AppRoutes.PRODUCTION, icon: Factory, pageName: 'produksi' },
-        { name: "Gudang", href: AppRoutes.GUDANG, icon: Warehouse, pageName: 'gudang' },
+        { name: "Gudang", href: AppRoutes.GUDANG, icon: Warehouse, pageName: 'gudang-final' },
         { name: "SO Batch", href: AppRoutes.SO_BATCH, icon: SquareActivity, pageName: 'stock_opname_batch' },
       ]
     },

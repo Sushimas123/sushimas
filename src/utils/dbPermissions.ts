@@ -54,7 +54,7 @@ const getDefaultPermissions = (userRole: string) => {
   
   if (userRole === 'super admin') {
     // Super admin gets access to all pages
-    const allPages = ['ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'product_settings', 'stock_opname_batch', 'esb', 'product_name', 'categories', 'recipes', 'supplier', 'branches', 'users', 'permissions-db', 'crud-permissions', 'audit-log', 'finance', 'aging-report']
+    const allPages = ['ready', 'produksi', 'produksi_detail', 'gudang-final', 'analysis', 'product_settings', 'stock_opname_batch', 'esb', 'product_name', 'categories', 'recipes', 'supplier', 'branches', 'users', 'permissions-db', 'crud-permissions', 'audit-log', 'finance', 'aging-report']
     allPages.forEach(page => {
       permissions[page] = ['*'] // Full access
     })
@@ -62,7 +62,7 @@ const getDefaultPermissions = (userRole: string) => {
   }
   
   if (userRole === 'admin') {
-    const adminPages = ['ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'product_settings', 'stock_opname_batch', 'esb', 'product_name', 'categories', 'recipes', 'supplier', 'branches', 'users', 'permissions-db', 'crud-permissions', 'audit-log', 'finance', 'aging-report']
+    const adminPages = ['ready', 'produksi', 'produksi_detail', 'gudang-final', 'analysis', 'product_settings', 'stock_opname_batch', 'esb', 'product_name', 'categories', 'recipes', 'supplier', 'branches', 'users', 'permissions-db', 'crud-permissions', 'audit-log', 'finance', 'aging-report']
     adminPages.forEach(page => {
       permissions[page] = ['*']
     })
@@ -70,7 +70,7 @@ const getDefaultPermissions = (userRole: string) => {
   }
   
   if (userRole === 'finance') {
-    const financePages = ['dashboard', 'ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'stock_opname_batch', 'esb', 'users', 'product_settings', 'finance', 'aging-report']
+    const financePages = ['dashboard', 'ready', 'produksi', 'produksi_detail', 'gudang-final', 'analysis', 'stock_opname_batch', 'esb', 'users', 'product_settings', 'finance', 'aging-report']
     financePages.forEach(page => {
       permissions[page] = ['*']
     })
@@ -78,7 +78,7 @@ const getDefaultPermissions = (userRole: string) => {
   }
   
   if (userRole === 'pic_branch' || userRole === 'pic') {
-    const picPages = ['dashboard', 'ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'stock_opname_batch', 'esb']
+    const picPages = ['dashboard', 'ready', 'produksi', 'produksi_detail', 'gudang-final', 'analysis', 'stock_opname_batch', 'esb']
     picPages.forEach(page => {
       permissions[page] = ['*']
     })
@@ -86,7 +86,7 @@ const getDefaultPermissions = (userRole: string) => {
   }
   
   if (userRole === 'staff') {
-    const staffPages = ['dashboard', 'ready', 'produksi', 'gudang', 'stock_opname_batch', 'esb']
+    const staffPages = ['dashboard', 'ready', 'produksi', 'gudang-final', 'stock_opname_batch', 'esb']
     staffPages.forEach(page => {
       permissions[page] = ['*']
     })
@@ -113,7 +113,7 @@ export const canAccessPage = async (userRole: string, pagePath: string): Promise
   } catch (error) {
     console.error('Error checking page access:', error)
     // Fallback: allow access for basic pages
-    const basicPages = ['ready', 'produksi', 'produksi_detail', 'gudang', 'analysis', 'esb']
+    const basicPages = ['ready', 'produksi', 'produksi_detail', 'gudang-final', 'analysis', 'esb']
     return basicPages.includes(pageName)
   }
 }
