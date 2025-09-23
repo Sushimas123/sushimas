@@ -67,7 +67,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Check if route requires authentication
-  const protectedRoutes = ['/dashboard', '/esb', '/ready', '/users', '/produksi', '/analysis', '/branches', '/categories', '/gudang', '/product_name', '/product_settings', '/produksi_detail', '/recipes', '/stock_opname_batch', '/supplier', '/permissions-db', '/audit-log', '/crud-permissions', '/pivot', '/price-history', '/purchaseorder', '/transfer-barang']
+  const protectedRoutes = ['/dashboard', '/esb', '/ready', '/users', '/produksi', '/analysis', '/branches', '/categories', '/gudang-final', '/product_name', '/product_settings', '/produksi_detail', '/recipes', '/stock_opname_batch', '/supplier', '/permissions-db', '/audit-log', '/crud-permissions', '/pivot', '/price-history', '/purchaseorder', '/transfer-barang']
   
   // Check for nested routes (like /purchaseorder/barang_masuk, /purchaseorder/stock-alert)
   const isProtectedRoute = protectedRoutes.includes(pathname) || 

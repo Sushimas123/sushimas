@@ -233,10 +233,10 @@ export default function StockOpnameBatchPage() {
     if (!form.opname_date) newErrors.opname_date = "Tanggal harus diisi"
     if (!form.pic_name?.trim()) newErrors.pic_name = "Nama PIC harus diisi"
     
-    const productsWithPhysicalStock = branchProducts.filter(p => p.physical_stock > 0 || p.physical_stock === 0)
+    const productsWithPhysicalStock = branchProducts.filter(p => p.physical_stock >= 0)
     
     if (productsWithPhysicalStock.length === 0) {
-      newErrors.physical_stock = "Minimal satu produk harus memiliki stok fisik"
+      newErrors.physical_stock = "Minimal satu produk harus memiliki stok fisik (termasuk 0)"
     }
     
     // Validasi stok fisik tidak boleh negatif
@@ -254,7 +254,7 @@ export default function StockOpnameBatchPage() {
     
     setLoading(true)
     try {
-      const productsWithPhysicalStock = branchProducts.filter(p => p.physical_stock > 0 || p.physical_stock === 0)
+      const productsWithPhysicalStock = branchProducts.filter(p => p.physical_stock >= 0)
       
       if (editingBatchId) {
         const { error: updateError } = await supabase
@@ -438,7 +438,7 @@ export default function StockOpnameBatchPage() {
         .from('stock_opname_detail')
         .select('*')
         .eq('batch_id', batchId)
-        .gt('physical_stock', 0)
+        .gte('physical_stock', 0)
       
       if (detailError) throw detailError
       if (!detailData || detailData.length === 0) throw new Error('Tidak ada data detail yang ditemukan')
@@ -476,6 +476,7 @@ export default function StockOpnameBatchPage() {
           if (lockError) console.warn(`Error kunci untuk ${detail.product_name}:`, lockError)
           
           const difference = detail.physical_stock - (detail.system_stock || 0)
+          // Create gudang entry only if there's a difference
           if (difference === 0) continue
           
           const gudangEntry = {

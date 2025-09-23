@@ -134,7 +134,7 @@ export default function AnalysisPage() {
       branch: cabang,
       product: productName
     });
-    router.push(`/gudang?${params.toString()}`);
+    router.push(`/gudang-final?${params.toString()}`);
   };
 
   const handleEsbClick = (tanggal: string, cabang: string, productName: string) => {

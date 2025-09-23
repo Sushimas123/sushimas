@@ -34,7 +34,7 @@ export enum AppRoutes {
   PRODUCTION = '/produksi',
   PRODUCTION_DETAIL = '/produksi_detail',
   SO_BATCH = '/stock_opname_batch',
-  GUDANG = '/gudang',
+  GUDANG = '/gudang-final',
   ESB = '/esb',
   PRODUCT_NAME = '/product_name',
   ANALYSIS = '/analysis',
