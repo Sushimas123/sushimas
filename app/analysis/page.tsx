@@ -249,7 +249,7 @@ export default function AnalysisPage() {
         .gte('tanggal_input', bufferDateStr)
         .lte('tanggal_input', dateRange.endDate)
         .order('tanggal_input', { ascending: false })
-        .limit(1000);
+        ;
 
         if (readyError || !readyData) {
           throw new Error(`Failed to fetch ready data: ${readyError?.message || 'No data returned'}`);
@@ -272,13 +272,36 @@ export default function AnalysisPage() {
         .gte('tanggal', bufferDateStr)
         .in('id_product', uniqueProductIds);
       
-      // Fetch ESB data with buffer
-      const { data: esbData } = await supabase
-        .from('esb_harian')
-        .select('sales_date, product_id, branch, qty_total')
-        .gte('sales_date', bufferDateStr)
-        .lte('sales_date', dateRange.endDate)
-        .in('product_id', uniqueProductIds);
+      // Fetch all ESB data using pagination to avoid 1000 record limit
+      let allEsbData: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      
+      while (true) {
+        const { data: esbBatch, error: esbError } = await supabase
+          .from('esb_harian')
+          .select('sales_date, product_id, branch, qty_total')
+          .gte('sales_date', dateRange.startDate)
+          .lte('sales_date', dateRange.endDate)
+          .in('product_id', uniqueProductIds)
+          .range(from, from + batchSize - 1)
+          .order('sales_date', { ascending: false });
+        
+        if (esbError) {
+          console.error('ESB query error:', esbError);
+          break;
+        }
+        
+        if (!esbBatch || esbBatch.length === 0) break;
+        
+        allEsbData = [...allEsbData, ...esbBatch];
+        
+        if (esbBatch.length < batchSize) break;
+        from += batchSize;
+      }
+      
+      const esbData = allEsbData;
+
       
       // Fetch production data with buffer
       const { data: productionData } = await supabase
@@ -367,6 +390,8 @@ export default function AnalysisPage() {
       esbMap.set(key, e);
     });
     
+
+    
     // Group production data for faster lookup
     const productionMap = new Map();
     production.forEach(p => {
@@ -414,6 +439,12 @@ export default function AnalysisPage() {
       const esbKey = `${readyDate}-${ready.id_product}-${readyBranch}`;
       const esbItem = esbMap.get(esbKey);
       const hasilESB = esbItem ? Number(esbItem.qty_total) : 0;
+      
+
+      
+
+      
+
       
 
       
