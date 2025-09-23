@@ -156,6 +156,7 @@ export const useNavigationPermissions = () => {
             'crud-permissions': false,
             esb: true,
             'gudang-final': true,
+            gudang: true,
             'permissions-db': false,
             pivot: false,
             'price-history': false,

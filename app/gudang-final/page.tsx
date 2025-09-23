@@ -178,7 +178,7 @@ function GudangFinalContent() {
         setUserName(userData.nama_lengkap || 'Current User');
         
         await reloadPermissions();
-        const pageAccess = await hasPageAccess(userData.role, 'gudang');
+        const pageAccess = await hasPageAccess(userData.role, 'gudang-final');
         setHasAccess(pageAccess);
         return;
       }
@@ -1089,7 +1089,7 @@ function GudangFinalContent() {
 
 export default function GudangFinalPage() {
   return (
-    <PageAccessControl pageName="gudang">
+    <PageAccessControl pageName="gudang-final">
       <Layout>
         <Suspense fallback={<div className="p-4">Loading...</div>}>
           <GudangFinalContent />

@@ -80,23 +80,21 @@ export const getCrudPermissions = async (userRole: string): Promise<{ [key: stri
 const getDefaultPagePermissions = (userRole: string): string[] => {
   switch (userRole) {
     case 'super admin':
-      return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname_batch', 'supplier', 'permissions-db', 'audit-log', 'crud-permissions', 'pivot', 'price-history', 'purchaseorder', 'barang_masuk', 'stock-alert', 'transfer-barang']
+      return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang-final', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname_batch', 'supplier', 'permissions-db', 'audit-log', 'crud-permissions', 'pivot', 'price-history', 'purchaseorder', 'barang_masuk', 'stock-alert', 'transfer-barang']
     case 'admin':
-      return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname_batch', 'supplier', 'audit-log', 'crud-permissions', 'pivot', 'price-history', 'purchaseorder', 'barang_masuk', 'stock-alert', 'transfer-barang']
+      return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang-final', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname_batch', 'supplier', 'audit-log', 'crud-permissions', 'pivot', 'price-history', 'purchaseorder', 'barang_masuk', 'stock-alert', 'transfer-barang']
     case 'finance':
-      return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'gudang', 'product_settings', 'produksi_detail', 'stock_opname_batch']
+      return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'gudang-final', 'product_settings', 'produksi_detail', 'stock_opname_batch']
     case 'pic_branch':
-      return ['dashboard', 'esb', 'ready', 'produksi', 'analysis', 'gudang', 'stock_opname_batch', 'produksi_detail']
+      return ['dashboard', 'esb', 'ready', 'produksi', 'analysis', 'gudang-final', 'stock_opname_batch', 'produksi_detail']
     case 'staff':
-      return ['dashboard', 'esb', 'ready', 'produksi', 'gudang', 'stock_opname_batch']
+      return ['dashboard', 'esb', 'ready', 'produksi', 'gudang-final', 'stock_opname_batch']
     default:
       return ['dashboard']
   }
 }
 
-const getDefaultCrudPermissions = (userRole: string) => {
-  const defaultPerms = { create: false, edit: false, delete: false }
-  
+const getDefaultCrudPermissions = (userRole: string): { [key: string]: { create: boolean, edit: boolean, delete: boolean } } => {
   switch (userRole) {
     case 'super admin':
     case 'admin':
@@ -108,7 +106,7 @@ const getDefaultCrudPermissions = (userRole: string) => {
     case 'staff':
       return { '*': { create: true, edit: false, delete: false } }
     default:
-      return {}
+      return { '*': { create: false, edit: false, delete: false } }
   }
 }
 
