@@ -625,7 +625,7 @@ function GudangFinalContent() {
         </div>
 
         <div className="flex flex-wrap gap-1">
-          {canPerformActionSync(userRole, 'gudang', 'create') && (
+          {canPerformActionSync(userRole, 'gudang-final', 'create') && (
             <button
               onClick={() => {
                 setShowAddForm(!showAddForm);
@@ -671,7 +671,7 @@ function GudangFinalContent() {
             </label>
           )}
 
-          {selectedItems.length > 0 && canPerformActionSync(userRole, 'gudang', 'delete') && (
+          {selectedItems.length > 0 && canPerformActionSync(userRole, 'gudang-final', 'delete') && (
             <button
               onClick={async () => {
                 // Filter out locked/protected items before deletion
@@ -1025,7 +1025,7 @@ function GudangFinalContent() {
                           </span>
                         ) : (
                           <>
-                            {canPerformActionSync(userRole, 'gudang', 'edit') && (
+                            {canPerformActionSync(userRole, 'gudang-final', 'edit') && (
                               <button
                                 onClick={() => handleEdit(item)}
                                 className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
@@ -1034,7 +1034,7 @@ function GudangFinalContent() {
                                 <Edit size={12} />
                               </button>
                             )}
-                            {canPerformActionSync(userRole, 'gudang', 'delete') && (
+                            {canPerformActionSync(userRole, 'gudang-final', 'delete') && (
                               <button
                                 onClick={() => handleDelete(item.order_no)}
                                 className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
