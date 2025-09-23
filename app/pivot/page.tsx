@@ -90,7 +90,7 @@ export default function PivotPage() {
       try {
         setDateRange(JSON.parse(saved));
       } catch (e) {
-        safeLog('Error loading saved date range:', e);
+        // Error loading saved date range
       }
     }
   }, []);
@@ -136,15 +136,14 @@ export default function PivotPage() {
             .eq('is_active', true);
           
           if (error) {
-            safeLog('Error fetching user branches:', error);
+            // Error fetching user branches
           }
           
           if (userBranches && userBranches.length > 0) {
             const branchNames = userBranches.map(ub => (ub.branches as any).nama_branch);
-            safeLog('🔍 User branches found:', branchNames);
             setAllowedBranches(branchNames);
           } else {
-            safeLog('⚠️ No user branches found, using fallback');
+            // No user branches found, using fallback
             const fallbackBranch = user.cabang || '';
             setAllowedBranches([fallbackBranch].filter(Boolean));
           }
@@ -159,17 +158,13 @@ export default function PivotPage() {
       
       // Filter branches for non-admin users
       if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranches.length > 0) {
-        safeLog('🔍 Filtering branches by allowedBranches:', allowedBranches);
         branchQuery = branchQuery.in('nama_branch', allowedBranches);
-      } else {
-        safeLog('🔍 User role:', userRole, 'allowedBranches:', allowedBranches);
       }
       
       const { data: branchData } = await branchQuery;
-      safeLog('🔍 Final branches loaded:', branchData?.map(b => b.nama_branch));
       setBranches(branchData || []);
     } catch (error) {
-      safeLog('Error fetching branches:', error);
+      // Error fetching branches
     }
   };
 
@@ -323,7 +318,6 @@ export default function PivotPage() {
       setData(filteredAnalysisData);
       setPivotData(pivotDataTemp);
     } catch (error: any) {
-      safeLog('Error fetching analysis data:', error);
       showToast(`Error: ${error.message}`, 'error');
     } finally {
       setLoading(false);

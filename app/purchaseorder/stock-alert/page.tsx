@@ -149,7 +149,6 @@ function StockAlertPOPage() {
       let { data, error } = await supabase.rpc('get_stock_alerts_with_po_status');
       
       if (error) {
-        console.log('New function not available, using original:', error.message);
         const result = await supabase.rpc('get_products_needing_po');
         data = result.data;
         error = result.error;
@@ -172,14 +171,13 @@ function StockAlertPOPage() {
           filteredData = data.filter((alert: StockAlert) => 
             allowedBranches.includes(alert.branch_name)
           );
-          console.log('Filtered stock alerts by branches:', allowedBranches, 'Result count:', filteredData.length);
         }
         
         setStockAlerts(filteredData);
         setFilteredStockAlerts(filteredData);
       }
     } catch (error) {
-      console.error('Error fetching stock alerts:', error);
+      // Error fetching stock alerts
     }
   };
 
@@ -215,7 +213,6 @@ function StockAlertPOPage() {
         setSuppliers([{ id_supplier: 1, nama_supplier: 'Default Supplier', termin_tempo: 30 }]);
       }
     } catch (error) {
-      console.error('Error fetching suppliers:', error);
       setSuppliers([{ id_supplier: 1, nama_supplier: 'Default Supplier', termin_tempo: 30 }]);
     } finally {
       setLoading(false);
@@ -236,7 +233,7 @@ function StockAlertPOPage() {
       `);
     
     if (error) {
-      console.error('Error fetching product suppliers:', error);
+      // Error fetching product suppliers
     }
     
     const items: POItem[] = filteredStockAlerts.map(alert => {
@@ -336,54 +333,30 @@ function StockAlertPOPage() {
         });
         
         if (createError) {
-          console.log('Table might already exist or RPC not available:', createError);
+          // Table might already exist or RPC not available
         }
       } catch (e) {
-        console.log('Could not create table, proceeding with existing table');
+        // Could not create table, proceeding with existing table
       }
       
-      // Debug selected items structure
-      console.log('Selected items structure:', selectedItems.map(item => ({
-        alert: {
-          id_branch: item.alert.id_branch,
-          branch_code: item.alert.branch_code,
-          product_name: item.alert.product_name
-        },
-        supplier_id: item.supplier_id,
-        supplier_name: item.supplier_name,
-        selected: item.selected
-      })));
+
 
       // Filter valid items with more lenient validation
       const validItems = selectedItems.filter(item => {
         const hasBranch = item.alert.id_branch || item.alert.branch_code;
         const hasSupplier = item.supplier_id && item.supplier_id > 0;
         
-        console.log('Validating item:', {
-          product: item.alert.product_name,
-          id_branch: item.alert.id_branch,
-          branch_code: item.alert.branch_code,
-          supplier_id: item.supplier_id,
-          hasBranch,
-          hasSupplier,
-          valid: hasBranch && hasSupplier
-        });
+
         
         return hasBranch && hasSupplier;
       });
 
       if (validItems.length === 0) {
-        console.error('No valid items found. Check data structure above.');
-        alert('❌ Tidak ada item dengan data branch dan supplier yang valid. Periksa console untuk detail.');
+        alert('❌ Tidak ada item dengan data branch dan supplier yang valid.');
         return;
       }
 
-      console.log('Valid items for grouping:', validItems.map(item => ({
-        product: item.alert.product_name,
-        branch_id: item.alert.id_branch,
-        supplier_id: item.supplier_id,
-        supplier_name: item.supplier_name
-      })));
+
       
       // Group by supplier and branch - FIXED VERSION
       const groupedItems = validItems.reduce((groups, item) => {
@@ -391,11 +364,7 @@ function StockAlertPOPage() {
         const branchId = item.alert.id_branch || item.alert.branch_code;
         const key = `${item.supplier_id}-${branchId}`;
         
-        console.log('Processing item:', {
-          key,
-          branch_id: branchId,
-          supplier_id: item.supplier_id
-        });
+
         
         if (!groups[key]) {
           groups[key] = {
@@ -405,13 +374,13 @@ function StockAlertPOPage() {
             branch_name: item.alert.branch_name || item.alert.branch_code,
             items: []
           };
-          console.log('Created new group:', groups[key]);
+
         }
         groups[key].items.push(item);
         return groups;
       }, {} as Record<string, any>);
 
-      console.log('Final grouped items:', groupedItems);
+
 
       let createdPOs = 0;
       
@@ -422,11 +391,6 @@ function StockAlertPOPage() {
           
           // Add validation before PO creation
           if (!group.branch_id || !group.supplier_id) {
-            console.error('Missing required fields for PO creation:', {
-              group_key: key,
-              branch_id: group.branch_id,
-              supplier_id: group.supplier_id
-            });
             continue;
           }
 
@@ -436,8 +400,6 @@ function StockAlertPOPage() {
 
           // If branch_id is not a number, look it up from branches table
           if (isNaN(parseInt(branchId.toString()))) {
-            console.log('Branch ID is not numeric, looking up branch_code:', branchId);
-            
             const { data: branchData, error: branchError } = await supabase
               .from('branches')
               .select('id_branch')
@@ -446,9 +408,7 @@ function StockAlertPOPage() {
             
             if (!branchError && branchData) {
               branchId = branchData.id_branch;
-              console.log('Found branch ID:', branchId);
             } else {
-              console.error('Could not find branch for code:', branchId);
               branchId = 1; // Default fallback
             }
           } else {
@@ -456,24 +416,10 @@ function StockAlertPOPage() {
           }
 
           if (isNaN(supplierId)) {
-            console.error('Invalid supplier ID:', {
-              supplier_id: group.supplier_id,
-              parsed_supplier: supplierId
-            });
             continue;
           }
           
-          console.log('Creating PO with validated data:', {
-            po_number: poNumber,
-            po_date: formData.po_date,
-            cabang_id: branchId,
-            supplier_id: supplierId,
-            status: 'Pending',
-            priority: formData.priority,
-            branch_name: group.branch_name,
-            supplier_name: group.supplier_name,
-            items_count: group.items.length
-          });
+
           
           // Create PO data with proper field names
           const poData = {
@@ -487,7 +433,7 @@ function StockAlertPOPage() {
             notes: `${formData.notes} - ${group.items.length} items`
           };
 
-          console.log('Attempting PO insertion with data:', poData);
+
           
           const { data: createdPO, error: poError } = await supabase
             .from(workingTable)
@@ -496,18 +442,11 @@ function StockAlertPOPage() {
             .single();
           
           if (poError) {
-            console.error('PO creation failed:', {
-              message: poError.message,
-              details: poError.details,
-              hint: poError.hint,
-              code: poError.code,
-              data: poData
-            });
             alert(`❌ Failed to create PO for ${group.supplier_name}: ${poError.message}`);
             continue;
           }
           
-          console.log('PO created successfully:', createdPO);
+
           
           // Create PO items table if needed and insert items
           if (createdPO?.id) {
@@ -536,19 +475,17 @@ function StockAlertPOPage() {
               keterangan: item.notes
             }));
 
-            console.log('Creating PO items:', poItemsData);
+
 
             const { error: itemsError } = await supabase.from('po_items').insert(poItemsData);
 
             if (itemsError) {
-              console.error('PO items creation error:', itemsError);
               alert(`⚠️ PO created but failed to add items: ${itemsError.message}`);
             }
           }
           
           createdPOs++;
         } catch (groupError) {
-          console.error(`Error creating PO for group ${group.supplier_name}:`, groupError);
           alert(`❌ Error creating PO for ${group.supplier_name}: ${groupError instanceof Error ? groupError.message : 'Unknown error'}`);
         }
       }
@@ -557,11 +494,10 @@ function StockAlertPOPage() {
         alert(`✅ Berhasil membuat ${createdPOs} PO dari Stock Alert!`);
         router.push('/purchaseorder');
       } else {
-        alert('❌ Tidak ada PO yang berhasil dibuat. Periksa console untuk detail error.');
+        alert('❌ Tidak ada PO yang berhasil dibuat.');
       }
       
     } catch (error) {
-      console.error('Error creating POs:', error);
       alert(`❌ Gagal membuat PO: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setSaving(false);

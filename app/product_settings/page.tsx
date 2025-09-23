@@ -150,10 +150,8 @@ export default function ProductSettingsPage() {
         };
       }) || [];
       
-      console.log('Final formatted data:', formattedData);
       setData(formattedData);
     } catch (error) {
-      console.error('Error fetching data:', error);
       showToast('Failed to fetch data', 'error');
     } finally {
       setLoading(false);
@@ -200,7 +198,7 @@ export default function ProductSettingsPage() {
       
       setProducts(filteredProducts);
     } catch (error) {
-      console.error('Error fetching products:', error);
+      // Error fetching products
     }
   };
 
@@ -215,7 +213,7 @@ export default function ProductSettingsPage() {
       if (error) throw error;
       setBranches(data || []);
     } catch (error) {
-      console.error('Error fetching branches:', error);
+      // Error fetching branches
     }
   };
 
@@ -266,10 +264,6 @@ export default function ProductSettingsPage() {
 
     setSaving(true);
     try {
-      console.log('Saving tolerance:', {
-        id_product: formData.id_product,
-        tolerance_percentage: formData.tolerance_percentage
-      });
       
       // Save branch settings with tolerance
       for (const branchSetting of formData.branch_settings) {
@@ -309,7 +303,6 @@ export default function ProductSettingsPage() {
         branch_settings: []
       });
     } catch (error: any) {
-      console.error('Error saving settings:', error);
       const errorMessage = error?.message || error?.details || 'Unknown error occurred';
       showToast(`Failed to save settings: ${errorMessage}`, 'error');
     } finally {
@@ -351,7 +344,6 @@ export default function ProductSettingsPage() {
       showToast('Settings deleted successfully', 'success');
       await fetchData();
     } catch (error) {
-      console.error('Error deleting settings:', error);
       showToast('Failed to delete settings', 'error');
     } finally {
       setDeleteConfirm({show: false, id: null});
@@ -451,7 +443,6 @@ export default function ProductSettingsPage() {
       await fetchData();
       showToast(`Imported ${jsonData.length} records successfully`, 'success');
     } catch (error) {
-      console.error('Import error:', error);
       showToast('Failed to import data', 'error');
     } finally {
       setImporting(false);
@@ -496,7 +487,6 @@ export default function ProductSettingsPage() {
       setSelectedItems([]);
       await fetchData();
     } catch (error) {
-      console.error('Bulk delete error:', error);
       showToast('Failed to delete selected items', 'error');
     }
   };

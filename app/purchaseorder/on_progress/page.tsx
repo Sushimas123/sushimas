@@ -184,7 +184,6 @@ function OnProgressPO() {
         }
 
         // Fetch supplier data
-        console.log('Fetching supplier with ID:', po.supplier_id)
         const { data: supplierData, error: supplierError } = await supabase
           .from('suppliers')
           .select('id_supplier, nama_supplier, nomor_rekening, bank_penerima, nama_penerima, termin_tempo, estimasi_pengiriman, divisi')
@@ -194,7 +193,6 @@ function OnProgressPO() {
         if (supplierError) {
           console.error('Supplier fetch error:', supplierError)
         }
-        console.log('Supplier data:', supplierData)
         setSupplier(supplierData)
 
         // Set PIC cabang sebagai user yang membuat PO
@@ -252,22 +250,13 @@ function OnProgressPO() {
   }
 
   const handleEditItem = (itemId: number) => {
-    console.log('Editing item:', itemId)
-    setEditingItems(prev => {
-      const newState = { ...prev, [itemId]: true }
-      console.log('New editing state:', newState)
-      return newState
-    })
+    setEditingItems(prev => ({ ...prev, [itemId]: true }))
   }
 
   const handleSaveItem = async (itemId: number) => {
     const item = poItems.find(i => i.id === itemId)
-    if (!item) {
-      console.log('Item not found:', itemId)
-      return
-    }
+    if (!item) return
 
-    console.log('Saving item:', item)
     try {
       const { error } = await supabase
         .from('po_items')

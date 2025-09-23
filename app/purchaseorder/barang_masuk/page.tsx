@@ -118,14 +118,13 @@ export default function BarangMasukPage() {
         .order('nama_branch')
       setBranches(data || [])
     } catch (error) {
-      console.error('Error fetching branches:', error)
+      // Error fetching branches
     }
   }
 
   const fetchBarangMasuk = async () => {
     try {
       setLoading(true)
-      console.log('Fetching barang masuk data...')
       
       // Get total count first
       let countQuery = supabase
@@ -138,7 +137,6 @@ export default function BarangMasukPage() {
       
       const { count } = await countQuery
       setTotalCount(count || 0)
-      console.log('Total barang masuk count:', count)
       
       // Get paginated data
       const from = (currentPage - 1) * itemsPerPage
@@ -157,14 +155,12 @@ export default function BarangMasukPage() {
       const { data, error } = await query
 
       if (error) {
-        console.error('Barang masuk query error:', error)
         throw error
       }
 
-      console.log('Raw barang masuk data:', data)
+
 
       if (!data || data.length === 0) {
-        console.log('No barang masuk data found')
         setBarangMasuk([])
         setLoading(false)
         return
@@ -273,7 +269,6 @@ export default function BarangMasukPage() {
       
       setExpandedPOs(defaultExpanded);
     } catch (error) {
-      console.error('Error fetching barang masuk:', error)
       alert('Gagal memuat data Barang Masuk')
     } finally {
       setLoading(false)
@@ -401,7 +396,6 @@ export default function BarangMasukPage() {
       alert('Barang berhasil dimasukkan ke gudang!')
       fetchBarangMasuk() // Refresh data
     } catch (error) {
-      console.error('Error masuk gudang:', error)
       alert('Gagal memasukkan barang ke gudang: ' + (error instanceof Error ? error.message : 'Unknown error'))
     }
   }
