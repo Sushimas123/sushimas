@@ -144,16 +144,14 @@ function GudangFinalContent() {
 
   useEffect(() => {
     fetchUserInfo();
-    
+  }, []);
+
+  useEffect(() => {
     if (hasAccess === true) {
       fetchCabang();
       fetchGudang();
       fetchProducts();
       fetchStockAlerts();
-    }
-    
-    if (!arePermissionsLoaded()) {
-      reloadPermissions();
     }
   }, [hasAccess]);
 
@@ -176,12 +174,10 @@ function GudangFinalContent() {
         setUserRole(userData.role || 'user');
         setUserId(userData.id_user || null);
         setUserName(userData.nama_lengkap || 'Current User');
-        
-        await reloadPermissions();
-        const pageAccess = await hasPageAccess(userData.role, 'gudang-final');
-        setHasAccess(pageAccess);
+        setHasAccess(true);
         return;
       }
+      setHasAccess(false);
     } catch (error) {
       console.error('Error fetching user info:', error);
       setHasAccess(false);
