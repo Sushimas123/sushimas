@@ -65,6 +65,7 @@ function OnProgressPO() {
   const [poItems, setPOItems] = useState<POItem[]>([])
   const [branch, setBranch] = useState<Branch | null>(null)
   const [supplier, setSupplier] = useState<Supplier | null>(null)
+  const [createdByUser, setCreatedByUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [editingItems, setEditingItems] = useState<{[key: number]: boolean}>({})
 
@@ -195,6 +196,9 @@ function OnProgressPO() {
         }
         console.log('Supplier data:', supplierData)
         setSupplier(supplierData)
+
+        // Set PIC cabang sebagai user yang membuat PO
+        setCreatedByUser({ nama_lengkap: picName })
       }
     } catch (error) {
       console.error('Error fetching PO data:', error)
@@ -932,7 +936,7 @@ function OnProgressPO() {
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontWeight: 'bold', marginBottom: '60px', fontSize: '14px', color: '#374151' }}>Dibuat Oleh</div>
               <div style={{ borderBottom: '1px solid #374151', marginBottom: '8px', height: '1px' }}></div>
-              <div style={{ fontSize: '13px', fontWeight: '500', color: '#1f2937' }}>({branch?.pic || 'PIC Cabang'})</div>
+              <div style={{ fontSize: '13px', fontWeight: '500', color: '#1f2937' }}>({createdByUser?.nama_lengkap || createdByUser?.username || 'User'})</div>
               <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '5px' }}>Tanggal: {new Date(poData?.created_at || '').toLocaleDateString('id-ID')}</div>
             </div>
             <div style={{ textAlign: 'center' }}>
