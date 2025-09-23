@@ -144,6 +144,22 @@ function GudangFinalContent() {
 
   useEffect(() => {
     fetchUserInfo();
+    
+    // Handle URL parameters from analysis page
+    const urlParams = new URLSearchParams(window.location.search);
+    const dateParam = urlParams.get('date');
+    const branchParam = urlParams.get('branch');
+    const productParam = urlParams.get('product');
+    
+    if (dateParam) {
+      setDateFilter(dateParam);
+    }
+    if (branchParam) {
+      setBranchFilter(branchParam);
+    }
+    if (productParam) {
+      setSearchTerm(productParam);
+    }
   }, []);
 
   useEffect(() => {
