@@ -408,7 +408,7 @@ export default function ProductSettingsPage() {
         if (product && branch) {
           // Save tolerance
           const { data: existingTolerance } = await supabase
-            .from('product_tolerances')
+          .from('product_branch_settings')
             .select('id_product')
             .eq('id_product', product.id_product)
             .single();

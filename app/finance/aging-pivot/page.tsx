@@ -7,7 +7,6 @@ import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 import * as XLSX from 'xlsx'
 
-
 interface AgingPivotData {
   branch: string
   supplier: string
@@ -40,25 +39,48 @@ export default function AgingPivotReport() {
 
   const fetchAgingPivotData = async () => {
     try {
-      const { data: financeData, error } = await supabase
+      setLoading(true)
+      
+      // Build query dengan filter tanggal jika ada
+      let query = supabase
         .from('finance_dashboard_view')
         .select('*')
         .neq('status_payment', 'paid')
         .order('nama_branch', { ascending: true })
 
+      // Apply date filter jika ada
+      if (dateFilter.from) {
+        query = query.gte('tanggal_jatuh_tempo', dateFilter.from)
+      }
+      if (dateFilter.to) {
+        query = query.lte('tanggal_jatuh_tempo', dateFilter.to)
+      }
+
+      const { data: financeData, error } = await query
+
       if (error) throw error
+
+      // Get semua supplier IDs untuk fetch yang lebih efisien
+      const supplierIds = [...new Set(financeData?.map(item => item.supplier_id).filter(Boolean))]
+      
+      // Fetch supplier info sekaligus
+      const { data: suppliersInfo } = await supabase
+        .from('suppliers')
+        .select('id_supplier, nama_penerima, bank_penerima, nomor_rekening')
+        .in('id_supplier', supplierIds)
+
+      const suppliersMap = new Map()
+      suppliersInfo?.forEach(supplier => {
+        suppliersMap.set(supplier.id_supplier, supplier)
+      })
 
       const pivotMap = new Map<string, AgingPivotData>()
       const dueDateSet = new Set<string>()
 
       for (const item of financeData || []) {
-        // Get supplier bank info
-        const { data: supplierInfo } = await supabase
-          .from('suppliers')
-          .select('nama_penerima, bank_penerima, nomor_rekening')
-          .eq('id_supplier', item.supplier_id)
-          .single()
+        const supplierInfo = suppliersMap.get(item.supplier_id)
 
+        // Fetch PO items
         const { data: items } = await supabase
           .from('po_items')
           .select('qty, actual_price, received_qty, product_id')
@@ -78,9 +100,8 @@ export default function AgingPivotReport() {
           }
         }
 
-        // Skip if payment status is paid
+        // Skip jika sudah paid atau outstanding <= 0
         if (item.status_payment === 'paid') continue
-        
         const outstanding = correctedTotal - item.total_paid
         if (outstanding <= 0) continue
 
@@ -110,25 +131,12 @@ export default function AgingPivotReport() {
         pivotItem.total += outstanding
       }
 
-      // Sort and filter due dates
-      let sortedDueDates = Array.from(dueDateSet).sort((a, b) => {
+      // Sort due dates
+      const sortedDueDates = Array.from(dueDateSet).sort((a, b) => {
         const dateA = new Date(a.split('/').reverse().join('-'))
         const dateB = new Date(b.split('/').reverse().join('-'))
         return dateA.getTime() - dateB.getTime()
       })
-      
-      // Apply date filter if set
-      if (dateFilter.from || dateFilter.to) {
-        sortedDueDates = sortedDueDates.filter(dateStr => {
-          const date = new Date(dateStr.split('/').reverse().join('-'))
-          const fromDate = dateFilter.from ? new Date(dateFilter.from) : null
-          const toDate = dateFilter.to ? new Date(dateFilter.to) : null
-          
-          if (fromDate && date < fromDate) return false
-          if (toDate && date > toDate) return false
-          return true
-        })
-      }
       
       setDueDates(sortedDueDates)
       setData(Array.from(pivotMap.values()))
@@ -151,16 +159,18 @@ export default function AgingPivotReport() {
     const exportData: any[] = []
     
     const branchGroups = data.reduce((acc, item) => {
-      if (!acc[item.branch]) acc[item.branch] = []
-      acc[item.branch].push(item)
+      const groupKey = showNotes ? (item.notes || 'Unknown') : item.branch
+      if (!acc[groupKey]) acc[groupKey] = []
+      acc[groupKey].push(item)
       return acc
     }, {} as { [key: string]: AgingPivotData[] })
 
     Object.entries(branchGroups).forEach(([branch, suppliers]) => {
       suppliers.forEach(supplier => {
         const row: any = {
-          'CABANG': branch,
-          'SUPPLIER': supplier.supplier
+          'CABANG': supplier.branch,
+          'SUPPLIER': supplier.supplier,
+          'NOTES': supplier.notes || ''
         }
         
         dueDates.forEach(date => {
@@ -173,7 +183,8 @@ export default function AgingPivotReport() {
       
       const branchTotal: any = {
         'CABANG': `${branch} Total`,
-        'SUPPLIER': ''
+        'SUPPLIER': '',
+        'NOTES': ''
       }
       
       dueDates.forEach(date => {
@@ -186,7 +197,8 @@ export default function AgingPivotReport() {
 
     const grandTotal: any = {
       'CABANG': 'Grand Total',
-      'SUPPLIER': ''
+      'SUPPLIER': '',
+      'NOTES': ''
     }
     
     dueDates.forEach(date => {
@@ -297,10 +309,7 @@ export default function AgingPivotReport() {
                 </div>
                 <div className="flex items-end gap-2">
                   <button
-                    onClick={() => {
-                      setLoading(true)
-                      fetchAgingPivotData()
-                    }}
+                    onClick={fetchAgingPivotData}
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                   >
                     Filter
@@ -308,7 +317,6 @@ export default function AgingPivotReport() {
                   <button
                     onClick={() => {
                       setDateFilter({ from: '', to: '' })
-                      setLoading(true)
                       fetchAgingPivotData()
                     }}
                     className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
@@ -325,8 +333,12 @@ export default function AgingPivotReport() {
               <table className="min-w-full divide-y divide-gray-200 relative">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky left-0 bg-gray-50 z-10 border-r border-gray-200" style={{minWidth: '120px'}}>{showNotes ? 'Notes' : 'Cabang'}</th>
-                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky bg-gray-50 z-10 border-r border-gray-200" style={{left: '120px', minWidth: '140px'}}>Supplier</th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky left-0 bg-gray-50 z-10 border-r border-gray-200" style={{minWidth: '120px'}}>
+                      {showNotes ? 'Notes' : 'Cabang'}
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky bg-gray-50 z-10 border-r border-gray-200" style={{left: '120px', minWidth: '140px'}}>
+                      Supplier
+                    </th>
                     {dueDates.map(date => (
                       <th key={date} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                         {date}
@@ -362,7 +374,7 @@ export default function AgingPivotReport() {
                       
                       {/* Supplier Detail Rows - Collapsible */}
                       {expandedBranches[groupKey] && suppliers.map((supplier, index) => (
-                        <tr key={`${groupKey}-${supplier.supplier}-${supplier.branch}-${index}`} className="hover:bg-gray-50 bg-gray-25">
+                        <tr key={`${groupKey}-${supplier.supplier}-${index}`} className="hover:bg-gray-50 bg-gray-50">
                           <td className="px-2 py-3 text-sm text-gray-600 pl-4 sticky left-0 bg-white z-10 border-r border-gray-200" style={{minWidth: '120px'}}>
                             <span className="text-xs text-gray-500">{showNotes ? supplier.branch : ''}</span>
                           </td>
@@ -392,7 +404,9 @@ export default function AgingPivotReport() {
                   
                   {/* Grand Total Row */}
                   <tr className="bg-gray-200 font-bold">
-                    <td className="px-2 py-3 text-sm text-gray-900 sticky left-0 bg-gray-200 z-10 border-r border-gray-200" style={{minWidth: '120px'}}>Grand Total</td>
+                    <td className="px-2 py-3 text-sm text-gray-900 sticky left-0 bg-gray-200 z-10 border-r border-gray-200" style={{minWidth: '120px'}}>
+                      Grand Total
+                    </td>
                     <td className="px-2 py-3 sticky bg-gray-200 z-10 border-r border-gray-200" style={{left: '120px', minWidth: '140px'}}></td>
                     {dueDates.map(date => {
                       const grandDateTotal = data.reduce((sum: number, item) => sum + (item.due_dates[date] || 0), 0)

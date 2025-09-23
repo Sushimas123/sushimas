@@ -111,14 +111,18 @@ function GudangFinalContent() {
         supabase.from('gudang_final_view').select('*').order('tanggal', { ascending: false }).order('order_no', { ascending: false }),
         supabase.from('nama_product').select('id_product, product_name'),
         supabase.from('branches').select('kode_branch, nama_branch'),
-        supabase.from('stock_settings').select('id_product, cabang, minimum_stock')
+supabase.from('product_branch_settings').select(`
+          id_product,
+          safety_stock,
+          branches!inner(kode_branch)
+        `)
       ]);
 
       if (gudangData.error) throw gudangData.error;
       
       const productMap = new Map(productsData.data?.map(p => [p.id_product, p.product_name]) || []);
       const branchMap = new Map(branchesData.data?.map(b => [b.kode_branch, b.nama_branch]) || []);
-      const stockSettingsMap = new Map(stockSettingsData.data?.map(s => [`${s.id_product}-${s.cabang}`, s.minimum_stock]) || []);
+      const stockSettingsMap = new Map(stockSettingsData.data?.map(s => [`${s.id_product}-${(s.branches as any).kode_branch}`, s.safety_stock]) || []);
       
       let gudangWithNames = (gudangData.data || []).map((item: any) => ({
         ...item,
