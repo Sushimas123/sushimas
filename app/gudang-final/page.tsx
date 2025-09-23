@@ -580,7 +580,7 @@ supabase.from('product_branch_settings').select(`
           <h1 className="text-sm font-bold text-gray-800">🚀 Gudang</h1>
         </div>
         <div className="text-xs text-gray-500">
-          Total: {filteredAndSortedGudang.length} records
+          Total: {filteredAndSortedGudang.length} records | Role: {userRole}
         </div>
       </div>
 
@@ -629,23 +629,22 @@ supabase.from('product_branch_settings').select(`
         </div>
 
         <div className="flex flex-wrap gap-1">
-          {canPerformActionSync(userRole, 'gudang-final', 'create') && (
-            <button
-              onClick={() => {
-                setShowAddForm(!showAddForm);
-                if (!showAddForm) {
-                  setFormData(prev => ({ 
-                    ...prev, 
-                    nama_pengambil_barang: userName,
-                    cabang: userCabang || '' 
-                  }));
-                }
-              }}
-              className="bg-blue-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
-            >
-              <Plus size={12} />Add
-            </button>
-          )}
+          <button
+            onClick={() => {
+              setShowAddForm(!showAddForm);
+              if (!showAddForm) {
+                setFormData(prev => ({ 
+                  ...prev, 
+                  nama_pengambil_barang: userName,
+                  cabang: userCabang || '' 
+                }));
+              }
+            }}
+            className="bg-blue-600 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1"
+            title={`Role: ${userRole} - Create permission: ${canPerformActionSync(userRole, 'gudang-final', 'create')}`}
+          >
+            <Plus size={12} />Add
+          </button>
           
           <button 
             onClick={fetchGudang}
