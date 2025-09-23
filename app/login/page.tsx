@@ -18,7 +18,7 @@ export default function LoginPage() {
     setError('')
 
     try {
-      // Try direct database login first (bypass auth for development)
+      // Single authentication method - direct database check
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('id_user, email, nama_lengkap, role, cabang, password_hash')
@@ -26,59 +26,30 @@ export default function LoginPage() {
         .eq('is_active', true)
         .single()
 
-      if (userData && userData.password_hash === password) {
-        // Direct login success
-        const userInfo = {
-          id_user: userData.id_user,
-          email: userData.email,
-          nama_lengkap: userData.nama_lengkap,
-          role: userData.role,
-          cabang: userData.cabang
-        }
-        
-        localStorage.setItem('user', JSON.stringify(userInfo))
-        document.cookie = `user=${JSON.stringify(userInfo)}; path=/; max-age=86400`
-        router.push('/dashboard')
-        return
-      }
-
-      // Fallback to Supabase Auth
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password,
-      })
-
-      if (error) {
+      if (userError || !userData) {
         throw new Error('Invalid email or password')
       }
 
-      if (data.user) {
-        const { data: authUserData, error: authUserError } = await supabase
-          .from('users')
-          .select('id_user, email, nama_lengkap, role, cabang')
-          .eq('email', data.user.email)
-          .eq('is_active', true)
-          .single()
-
-        if (authUserError || !authUserData) {
-          throw new Error('User data not found')
-        }
-
-        const userInfo = {
-          id_user: authUserData.id_user,
-          email: authUserData.email,
-          nama_lengkap: authUserData.nama_lengkap,
-          role: authUserData.role,
-          cabang: authUserData.cabang
-        }
-        
-        localStorage.setItem('user', JSON.stringify(userInfo))
-        document.cookie = `user=${JSON.stringify(userInfo)}; path=/; max-age=86400`
-        router.push('/dashboard')
+      if (userData.password_hash !== password) {
+        throw new Error('Invalid email or password')
       }
+
+      // Login success
+      const userInfo = {
+        id_user: userData.id_user,
+        email: userData.email,
+        nama_lengkap: userData.nama_lengkap,
+        role: userData.role,
+        cabang: userData.cabang
+      }
+      
+      localStorage.setItem('user', JSON.stringify(userInfo))
+      document.cookie = `user=${JSON.stringify(userInfo)}; path=/; max-age=86400`
+      router.push('/dashboard')
+      
     } catch (err: any) {
       console.error('Login error:', err)
-      setError(err.message || 'Invalid email or password')
+      setError('Invalid email or password')
     } finally {
       setLoading(false)
     }
