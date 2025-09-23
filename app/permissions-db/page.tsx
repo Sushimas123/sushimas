@@ -102,8 +102,8 @@ export default function PermissionsDBPage() {
       
       // Also try database tables that might exist
       const dbTables = [
-        'nama_product', 'user_permissions', 'audit_log', 'branch_transfers',
-        'branch_notifications', 'user_branches', 'suppliers', 'po_items',
+        'nama_product', 'user_permissions', 'audit_log', 'transfer_barang',
+         'user_branches', 'suppliers', 'po_items',
         'purchase_orders', 'po_payments', 'bulk_payments', 'finance_dashboard_view'
       ]
       

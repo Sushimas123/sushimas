@@ -144,7 +144,7 @@ export const createBranchTransfer = async (transferData: {
   const transferNo = `TRF-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
   
   const { data, error } = await supabase
-    .from('branch_transfers')
+    .from('transfer_barang')
     .insert({
       transfer_no: transferNo,
       from_branch_id: transferData.fromBranchId,
@@ -164,7 +164,7 @@ export const createBranchTransfer = async (transferData: {
 
 export const getBranchTransfers = async (branchId: number, direction: 'incoming' | 'outgoing' | 'all' = 'all') => {
   let query = supabase
-    .from('branch_transfers')
+    .from('transfer_barang')
     .select(`
       *,
       from_branch:branches!from_branch_id(nama_branch),
