@@ -508,7 +508,7 @@ export default function FinancePurchaseOrders() {
         'Barang Sampai': (item as any).tanggal_barang_sampai ? formatDate((item as any).tanggal_barang_sampai) : '',
         'PO Status': (item as any).po_status || '',
         'Termin': `${(item as any).termin_days || 30} hari`,
-        'Jatuh Tempo': formatDate(item.tanggal_jatuh_tempo),
+        'Jatuh Tempo': item.tanggal_jatuh_tempo ? formatDate(item.tanggal_jatuh_tempo) : 'Menunggu barang sampai',
         'Total PO': item.total_po,
         'Total Tagihan': (item as any).total_tagih || 0,
         'Invoice': (item as any).invoice_number || '',
@@ -646,7 +646,7 @@ export default function FinancePurchaseOrders() {
           <div className="flex justify-between items-center">
             <div>
               <p className="text-xs text-gray-500">Jatuh Tempo</p>
-              <p className="text-sm">{formatDate(item.tanggal_jatuh_tempo)}</p>
+              <p className="text-sm">{item.tanggal_jatuh_tempo ? formatDate(item.tanggal_jatuh_tempo) : 'Menunggu barang sampai'}</p>
             </div>
             <div className="flex gap-1">
               <a
@@ -833,7 +833,7 @@ export default function FinancePurchaseOrders() {
               </div>
               <div>
                 <p className="text-xs text-gray-500">Jatuh Tempo</p>
-                <p className="text-sm">{formatDate(item.tanggal_jatuh_tempo)}</p>
+                <p className="text-sm">{item.tanggal_jatuh_tempo ? formatDate(item.tanggal_jatuh_tempo) : 'Menunggu barang sampai'}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500">Status Pembayaran</p>
@@ -1661,7 +1661,7 @@ export default function FinancePurchaseOrders() {
                     <div>
                       <span className="text-gray-500">Jatuh Tempo:</span>
                       <p className={`font-medium ${item.is_overdue ? 'text-red-600' : ''}`}>
-                        {formatDate(item.tanggal_jatuh_tempo)}
+                        {item.tanggal_jatuh_tempo ? formatDate(item.tanggal_jatuh_tempo) : 'Menunggu barang sampai'}
                         {item.is_overdue && <span className="ml-1 text-xs">(Overdue {item.days_overdue}d)</span>}
                       </p>
                     </div>
@@ -1969,10 +1969,14 @@ export default function FinancePurchaseOrders() {
                             {(item as any).termin_days || 30} hari
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <div className="flex items-center">
-                              <Calendar className="h-4 w-4 text-gray-400 mr-1" />
-                              {formatDate(item.tanggal_jatuh_tempo)}
-                            </div>
+                            {item.tanggal_jatuh_tempo ? (
+                              <div className="flex items-center">
+                                <Calendar className="h-4 w-4 text-gray-400 mr-1" />
+                                {formatDate(item.tanggal_jatuh_tempo)}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">Menunggu barang sampai</span>
+                            )}
                             {item.last_payment_date && (
                               <div className="text-xs text-gray-500">
                                 Last: {formatDate(item.last_payment_date)}
