@@ -48,6 +48,7 @@ export default function AgingReport() {
         .from('finance_dashboard_view')
         .select('*')
         .neq('status_payment', 'paid')
+        .not('tanggal_barang_sampai', 'is', null)  // Only show items where goods have arrived
         .order('days_overdue', { ascending: false })
 
       if (error) throw error

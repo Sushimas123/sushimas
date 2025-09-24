@@ -46,6 +46,7 @@ export default function AgingPivotReport() {
         .from('finance_dashboard_view')
         .select('*')
         .neq('status_payment', 'paid')
+        .not('tanggal_barang_sampai', 'is', null)  // Only show items where goods have arrived
         .order('nama_branch', { ascending: true })
 
       // Apply date filter jika ada
