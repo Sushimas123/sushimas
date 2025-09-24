@@ -141,8 +141,17 @@ function UsersPageContent() {
 
   const fetchUsers = async () => {
     try {
-      let query = supabase.from('users').select('*');
+      setLoading(true);
       
+      // ✅ QUERY OPTIMAL: Ambil user + branches sekaligus
+      let query = supabase
+        .from('users')
+        .select(`
+          *,
+          user_branches(kode_branch)
+        `);
+      
+      // Filter status
       if (statusFilter === 'active') {
         query = query.eq('is_active', true);
       } else if (statusFilter === 'inactive') {
@@ -153,32 +162,17 @@ function UsersPageContent() {
 
       if (error) throw error;
 
-      // Fetch all user branches in one query
-      const userIds = usersData.map(user => user.id_user);
-      const { data: allUserBranches } = await supabase
-        .from('user_branches')
-        .select('id_user, kode_branch')
-        .in('id_user', userIds)
-        .eq('is_active', true);
-      
-      // Create branches map for O(1) lookup
-      const branchesMap = new Map<number, string[]>();
-      allUserBranches?.forEach(ub => {
-        if (!branchesMap.has(ub.id_user)) {
-          branchesMap.set(ub.id_user, []);
-        }
-        branchesMap.get(ub.id_user)!.push(ub.kode_branch);
-      });
-      
-      // Transform users with branches
+      // ✅ TRANSFORMASI SEDERHANA: Tidak perlu mapping complex
       const usersWithBranches = usersData.map(user => ({
         ...user,
-        branches: branchesMap.get(user.id_user) || []
+        branches: user.user_branches ? user.user_branches.map((ub: any) => ub.kode_branch) : []
       }));
 
       setUsers(usersWithBranches);
+      
     } catch (error) {
       console.error('Error fetching users:', error);
+      showToast('❌ Gagal memuat data users', 'error');
     } finally {
       setLoading(false);
     }
