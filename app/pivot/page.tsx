@@ -213,8 +213,7 @@ export default function PivotPage() {
         .select('*')
         .gte('tanggal_input', bufferDateStr)
         .lte('tanggal_input', dateRange.endDate)
-        .order('tanggal_input', { ascending: false })
-        .limit(1000);
+        .order('tanggal_input', { ascending: false });
 
       // Apply branch filter
       if (branchFilter) {
@@ -250,12 +249,28 @@ export default function PivotPage() {
         .gte('tanggal', bufferDateStr)
         .in('id_product', uniqueProductIds);
       
-      const { data: esbData } = await supabase
-        .from('esb_harian')
-        .select('sales_date, product_id, branch, qty_total')
-        .gte('sales_date', bufferDateStr)
-        .lte('sales_date', dateRange.endDate)
-        .in('product_id', uniqueProductIds);
+      // Fetch ESB data dengan pagination untuk menghindari limit 1000
+      let allEsbData: any[] = [];
+      let esbPage = 0;
+      const esbPageSize = 1000;
+      
+      while (true) {
+        const { data: esbBatch } = await supabase
+          .from('esb_harian')
+          .select('sales_date, product_id, branch, qty_total')
+          .gte('sales_date', dateRange.startDate) // Gunakan actual date range, bukan buffer
+          .lte('sales_date', dateRange.endDate)
+          .in('product_id', uniqueProductIds)
+          .range(esbPage * esbPageSize, (esbPage + 1) * esbPageSize - 1);
+        
+        if (!esbBatch || esbBatch.length === 0) break;
+        allEsbData = [...allEsbData, ...esbBatch];
+        
+        if (esbBatch.length < esbPageSize) break;
+        esbPage++;
+      }
+      
+      const esbData = allEsbData;
       
       const { data: productionData } = await supabase
         .from('produksi')
