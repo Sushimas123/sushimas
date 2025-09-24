@@ -202,6 +202,23 @@ export default function Layout({ children }: LayoutProps) {
     window.location.href = '/login'
   }
 
+  // Keep session alive - prevent auto logout
+  useEffect(() => {
+    const keepSessionAlive = setInterval(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          // Refresh session to prevent timeout
+          await supabase.auth.refreshSession()
+        }
+      } catch (error) {
+        console.log('Session refresh failed:', error)
+      }
+    }, 30 * 60 * 1000) // Every 30 minutes
+
+    return () => clearInterval(keepSessionAlive)
+  }, [])
+
   useEffect(() => {
     const initializeLayout = async () => {
       const user = localStorage.getItem('user')
