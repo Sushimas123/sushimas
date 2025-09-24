@@ -8,7 +8,24 @@ const toTitleCase = (str: any) => {
     .replace(/\b\w/g, (l) => l.toUpperCase())
 }
 
-import { useEffect, useState, useMemo, useCallback } from "react"
+// Optimized hook untuk debounce
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value)
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value)
+    }, delay)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [value, delay])
+
+  return debouncedValue
+}
+
+import { useEffect, useState, useMemo, useCallback, useRef } from "react"
 import { supabase } from "@/src/lib/supabaseClient"
 import { ArrowUpDown, Edit2, Trash2, Filter, X, Plus, RefreshCw, Menu, ChevronDown, ChevronUp, Search, Package } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -25,7 +42,8 @@ export default function ProductPage() {
   const [branches, setBranches] = useState<any[]>([])
   const [selectedBranches, setSelectedBranches] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState("")
+  const [searchTerm, setSearchTerm] = useState("")
+  const search = useDebounce(searchTerm, 300) // Debounce search
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize] = useState(10)
@@ -42,27 +60,24 @@ export default function ProductPage() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [userRole, setUserRole] = useState<string>('guest')
   const [submitting, setSubmitting] = useState(false)
-  const [searchTerm, setSearchTerm] = useState("")
   const [isMobile, setIsMobile] = useState(false)
   const [mobileView, setMobileView] = useState('list') // 'list' or 'details'
   const [selectedProduct, setSelectedProduct] = useState<any>(null)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  
+  const tableContainerRef = useRef<HTMLDivElement>(null)
 
-  // Check if mobile on mount and on resize
+  // Optimized mobile detection
   useEffect(() => {
-    const checkIsMobile = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
+    const checkIsMobile = () => setIsMobile(window.innerWidth < 768)
     
     checkIsMobile()
     window.addEventListener('resize', checkIsMobile)
     
-    return () => {
-      window.removeEventListener('resize', checkIsMobile)
-    }
+    return () => window.removeEventListener('resize', checkIsMobile)
   }, [])
 
-  // Get user role
+  // Get user role sekali saja
   useEffect(() => {
     const userData = localStorage.getItem('user')
     if (userData) {
@@ -71,99 +86,125 @@ export default function ProductPage() {
     }
   }, [])
 
-  // Load data
+  // Load semua data sekaligus dengan Promise.all
   useEffect(() => {
-    fetchData()
-    fetchSuppliers()
-    fetchCategories()
-    fetchBranches()
+    const loadAllData = async () => {
+      setLoading(true)
+      try {
+        await Promise.all([
+          fetchData(),
+          fetchSuppliers(),
+          fetchCategories(),
+          fetchBranches()
+        ])
+      } catch (error) {
+        console.error('Error loading data:', error)
+        showToast('Error loading data', 'error')
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    loadAllData()
   }, [])
 
-  // Reset pagination when filters change
+  // Reset pagination ketika filter berubah
   useEffect(() => {
     setPage(1)
   }, [search, filters])
 
-  // Debounce search
+  // Scroll to top ketika page berubah
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setSearch(searchTerm)
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [searchTerm])
-
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from("nama_product")
-      .select(`
-        *,
-        suppliers(nama_supplier),
-        product_branches(branches(kode_branch, nama_branch))
-      `)
-    if (error) {
-      console.error('Error fetching products:', error)
-      showToast(`Database error: ${error.message}`, "error")
-    } else {
-      setData(data || [])
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' })
     }
-    setLoading(false)
+  }, [page])
+
+  // Optimized fetch functions
+  const fetchData = useCallback(async () => {
+    try {
+      const { data: productData, error } = await supabase
+        .from("nama_product")
+        .select(`
+          *,
+          suppliers(nama_supplier),
+          product_branches!inner(branches(kode_branch, nama_branch))
+        `)
+        .order('id_product', { ascending: false })
+
+      if (error) throw error
+      setData(productData || [])
+    } catch (error) {
+      console.error('Error fetching products:', error)
+      throw error
+    }
   }, [])
 
   const fetchSuppliers = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("suppliers")
-      .select("id_supplier, nama_supplier, nama_barang")
-      .order("nama_supplier")
-    
-    if (error) {
+    try {
+      const { data: supplierData, error } = await supabase
+        .from("suppliers")
+        .select("id_supplier, nama_supplier, nama_barang")
+        .order("nama_supplier")
+      
+      if (error) throw error
+      setSuppliers(supplierData || [])
+    } catch (error) {
       console.error('Error fetching suppliers:', error)
-    } else {
-      setSuppliers(data || [])
+      throw error
     }
   }, [])
 
   const fetchCategories = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("categories")
-      .select("id_category, category_name")
-      .eq("is_active", true)
-      .order("category_name")
-    
-    if (!error) {
-      setCategories(data || [])
+    try {
+      const { data: categoryData, error } = await supabase
+        .from("categories")
+        .select("id_category, category_name")
+        .eq("is_active", true)
+        .order("category_name")
+      
+      if (error) throw error
+      setCategories(categoryData || [])
+    } catch (error) {
+      console.error('Error fetching categories:', error)
+      throw error
     }
   }, [])
 
   const fetchBranches = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("branches")
-      .select("kode_branch, nama_branch")
-      .eq("is_active", true)
-      .order("nama_branch")
-    
-    if (!error) {
-      setBranches(data || [])
+    try {
+      const { data: branchData, error } = await supabase
+        .from("branches")
+        .select("kode_branch, nama_branch")
+        .eq("is_active", true)
+        .order("nama_branch")
+      
+      if (error) throw error
+      setBranches(branchData || [])
+    } catch (error) {
+      console.error('Error fetching branches:', error)
+      throw error
     }
   }, [])
 
-  const handleInput = (e: any) => {
+  // Optimized handler functions
+  const handleInput = useCallback((e: any) => {
     const { name, value, type, checked } = e.target
-    setForm({ ...form, [name]: type === "checkbox" ? checked : value })
-    // Clear error when user starts typing
+    setForm((prev: Record<string, any>) => ({ ...prev, [name]: type === "checkbox" ? checked : value }))
+    
     if (errors[name]) {
       setErrors(prev => {
-        const newErrors = {...prev}
+        const newErrors = { ...prev }
         delete newErrors[name]
         return newErrors
       })
     }
-  }
+  }, [errors])
 
-  const showToast = (message: string, type: 'success' | 'error') => {
+  const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
-  }
+  }, [])
 
   const handleSubmit = async () => {
     if (submitting) return;
@@ -274,7 +315,7 @@ export default function ProductPage() {
       }
       
       resetForm()
-      fetchData()
+      await fetchData() // Refresh data
     } catch (error) {
       console.error('Save error:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -284,7 +325,7 @@ export default function ProductPage() {
     }
   }
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setForm({})
     setEditing(false)
     setErrors({})
@@ -293,28 +334,25 @@ export default function ProductPage() {
     setSelectedBranches([])
     setShowSupplierDropdown(false)
     setShowAddForm(false)
-  }
+  }, [])
 
-  const handleEdit = (row: any) => {
+  const handleEdit = useCallback((row: any) => {
     setForm(row)
     setEditing(true)
     setShowAddForm(true)
     setSupplierSearch("")
     setShowSupplierDropdown(false)
     
-    // Set selected supplier text
     const supplier = suppliers.find(s => s.id_supplier === row.supplier_id)
     setSelectedSupplierText(supplier ? `${supplier.nama_supplier} - ${supplier.nama_barang}` : "")
     
-    // Set selected branches
     const productBranches = row.product_branches?.map((pb: any) => pb.branches.kode_branch) || []
     setSelectedBranches(productBranches)
     
-    // Scroll to form
     setTimeout(() => {
       document.getElementById('product-form')?.scrollIntoView({ behavior: 'smooth' })
     }, 100)
-  }
+  }, [suppliers])
 
   const handleDelete = async (id: number) => {
     try {
@@ -333,41 +371,64 @@ export default function ProductPage() {
     }
   }
 
-  const toggleSort = (key: string) => {
-    let direction: "asc" | "desc" = "asc"
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") {
-      direction = "desc"
-    }
-    setSortConfig({ key, direction })
-  }
-
-  // Filter + Sort dengan useMemo untuk optimasi
-  const filteredData = useMemo(() => {
-    let result = data.filter((row) =>
-      Object.values(row).some((val) => String(val).toLowerCase().includes(search.toLowerCase()))
-    )
-    
-    // Apply advanced filters
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value) {
-        result = result.filter(row => row[key] === value);
+  const toggleSort = useCallback((key: string) => {
+    setSortConfig((prev: { key: string; direction: "asc" | "desc" } | null) => {
+      if (prev?.key === key && prev.direction === "asc") {
+        return { key, direction: "desc" }
       }
+      return { key, direction: "asc" }
     })
-    
+  }, [])
+
+  // Optimized filter and sort dengan useMemo
+  const filteredData = useMemo(() => {
+    if (!data.length) return []
+
+    let result = data
+
+    // Apply search filter
+    if (search) {
+      const searchLower = search.toLowerCase()
+      result = result.filter(row =>
+        Object.values(row).some(val => 
+          String(val).toLowerCase().includes(searchLower)
+        )
+      )
+    }
+
+    // Apply advanced filters
+    if (Object.values(filters).some(f => f)) {
+      result = result.filter(row => {
+        return Object.entries(filters).every(([key, value]) => {
+          if (!value) return true
+          return row[key] === value
+        })
+      })
+    }
+
+    // Apply sorting
     if (sortConfig) {
       result = [...result].sort((a, b) => {
-        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === "asc" ? -1 : 1
-        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === "asc" ? 1 : -1
+        const aVal = a[sortConfig.key]
+        const bVal = b[sortConfig.key]
+        
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1
         return 0
       })
     }
-    
+
     return result
   }, [data, search, filters, sortConfig])
 
-  // Pagination
-  const totalPages = Math.ceil(filteredData.length / pageSize)
-  const paginatedData = filteredData.slice((page - 1) * pageSize, page * pageSize)
+  // Optimized pagination
+  const { paginatedData, totalPages } = useMemo(() => {
+    const totalPages = Math.ceil(filteredData.length / pageSize)
+    const startIndex = (page - 1) * pageSize
+    const paginatedData = filteredData.slice(startIndex, startIndex + pageSize)
+    
+    return { paginatedData, totalPages }
+  }, [filteredData, page, pageSize])
 
   // Export XLSX
   const exportXLSX = () => {
@@ -546,22 +607,21 @@ export default function ProductPage() {
     e.target.value = ''
   }
 
-  // Reset filters
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     setFilters({})
-    setSearch("")
-  }
+    setSearchTerm("")
+  }, [])
 
   // Mobile view handlers
-  const viewProductDetails = (product: any) => {
+  const viewProductDetails = useCallback((product: any) => {
     setSelectedProduct(product)
     setMobileView('details')
-  }
+  }, [])
 
-  const closeProductDetails = () => {
+  const closeProductDetails = useCallback(() => {
     setMobileView('list')
     setSelectedProduct(null)
-  }
+  }, [])
 
   // Mobile filter component
   const MobileFilters = () => (
@@ -1058,9 +1118,12 @@ export default function ProductPage() {
             </div>
           )}
 
-          {/* Desktop Table */}
+          {/* Desktop Table dengan ref untuk scroll */}
           {!isMobile && (
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div 
+              ref={tableContainerRef}
+              className="bg-white rounded-lg shadow-lg overflow-hidden max-h-[calc(100vh-200px)] overflow-y-auto"
+            >
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
