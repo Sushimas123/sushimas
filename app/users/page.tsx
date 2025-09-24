@@ -158,9 +158,40 @@ function UsersPageContent() {
         query = query.eq('is_active', false);
       }
       
-      const { data: usersData, error } = await query.order('nama_lengkap');
+      let { data: usersData, error } = await query.order('nama_lengkap');
+      
+      // Fallback: Jika JOIN query gagal, coba query users saja
+      if (error && error.message?.includes('user_branches')) {
+        console.warn('JOIN query failed, trying simple users query:', error.message);
+        
+        let simpleQuery = supabase.from('users').select('*');
+        
+        if (statusFilter === 'active') {
+          simpleQuery = simpleQuery.eq('is_active', true);
+        } else if (statusFilter === 'inactive') {
+          simpleQuery = simpleQuery.eq('is_active', false);
+        }
+        
+        const simpleResult = await simpleQuery.order('nama_lengkap');
+        usersData = simpleResult.data;
+        error = simpleResult.error;
+      }
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        throw error;
+      }
+
+      if (!usersData) {
+        console.warn('No users data returned from query');
+        setUsers([]);
+        return;
+      }
 
       // ✅ TRANSFORMASI SEDERHANA: Tidak perlu mapping complex
       const usersWithBranches = usersData.map(user => ({
@@ -172,7 +203,14 @@ function UsersPageContent() {
       
     } catch (error) {
       console.error('Error fetching users:', error);
-      showToast('❌ Gagal memuat data users', 'error');
+      console.error('Error type:', typeof error);
+      console.error('Error keys:', error ? Object.keys(error) : 'null');
+      
+      const errorMessage = error && typeof error === 'object' && 'message' in error 
+        ? (error as any).message 
+        : 'Unknown error occurred';
+      
+      showToast(`❌ Gagal memuat data users: ${errorMessage}`, 'error');
     } finally {
       setLoading(false);
     }
