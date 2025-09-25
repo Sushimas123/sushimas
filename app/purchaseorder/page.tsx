@@ -56,6 +56,7 @@ function PurchaseOrderPageContent() {
   const [totalCount, setTotalCount] = useState(0)
   const [userRole, setUserRole] = useState('')
   const [allowedBranches, setAllowedBranches] = useState<string[]>([])
+  const [search, setSearch] = useState('')
 
   const itemsPerPage = 10
 
@@ -87,7 +88,7 @@ function PurchaseOrderPageContent() {
   useEffect(() => {
     setCurrentPage(1)
     fetchPurchaseOrders()
-  }, [filters])
+  }, [filters, search])
 
   useEffect(() => {
     fetchPurchaseOrders()
@@ -307,7 +308,15 @@ function PurchaseOrderPageContent() {
         })
       )
       
-      setPurchaseOrders(transformedData)
+      // Apply search filter
+      const filteredData = transformedData.filter(po => {
+        const searchLower = search.toLowerCase()
+        return po.po_number.toLowerCase().includes(searchLower) ||
+               po.supplier_name.toLowerCase().includes(searchLower) ||
+               po.branch_name.toLowerCase().includes(searchLower)
+      })
+      
+      setPurchaseOrders(filteredData)
     } catch (error) {
       console.error('Error fetching purchase orders:', error)
       console.error('Error details:', JSON.stringify(error, null, 2))
@@ -752,6 +761,19 @@ function PurchaseOrderPageContent() {
               </div>
               <div className="space-y-4">
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <input
+                      type="text"
+                      placeholder="Cari PO, supplier, cabang..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
                   <select
                     value={filters.cabang_id}
@@ -821,74 +843,99 @@ function PurchaseOrderPageContent() {
             </div>
           )}
 
-          {/* Filters - Desktop */}
-          <div className="hidden md:block bg-white rounded-lg shadow p-3">
-            <div className="flex items-center gap-2 mb-3">
-              <Filter size={16} className="text-gray-500" />
-              <h3 className="font-medium text-gray-800">Filter</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Cabang</label>
-                <select
-                  value={filters.cabang_id}
-                  onChange={(e) => setFilters({...filters, cabang_id: e.target.value})}
-                  className="w-full border border-gray-300 rounded-md px-2 py-1 text-xs"
-                >
-                  <option value="">Semua Cabang</option>
-                  {filterOptions.branches.map(branch => (
-                    <option key={branch.id_branch} value={branch.id_branch}>{branch.nama_branch}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Supplier</label>
-                <select
-                  value={filters.supplier_id}
-                  onChange={(e) => setFilters({...filters, supplier_id: e.target.value})}
-                  className="w-full border border-gray-300 rounded-md px-2 py-1 text-xs"
-                >
-                  <option value="">Semua Supplier</option>
-                  {filterOptions.suppliers.map(supplier => (
-                    <option key={supplier.id_supplier} value={supplier.id_supplier}>{supplier.nama_supplier}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Priority</label>
-                <select
-                  value={filters.priority}
-                  onChange={(e) => setFilters({...filters, priority: e.target.value})}
-                  className="w-full border border-gray-300 rounded-md px-2 py-1 text-xs"
-                >
-                  <option value="">Semua Priority</option>
-                  {filterOptions.priorities.map(priority => (
-                    <option key={priority} value={priority}>{priority.charAt(0).toUpperCase() + priority.slice(1)}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
-                <select
-                  value={filters.status}
-                  onChange={(e) => setFilters({...filters, status: e.target.value})}
-                  className="w-full border border-gray-300 rounded-md px-2 py-1 text-xs"
-                >
-                  <option value="">Semua Status</option>
-                  {filterOptions.statuses.map(status => (
-                    <option key={status} value={status}>{status}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-end">
+          {/* Search and Filter Section */}
+          <div className="bg-white rounded-lg shadow p-3">
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <input
+                      type="text"
+                      placeholder="Cari PO, supplier, cabang..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                </div>
                 <button
-                  onClick={() => setFilters({cabang_id: '', supplier_id: '', status: '', priority: ''})}
-                  className="bg-gray-500 text-white px-3 py-1 rounded-md hover:bg-gray-600 text-xs"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-1 text-sm whitespace-nowrap"
                 >
-                  Reset Filter
+                  <Filter size={16} />
+                  <span className="hidden sm:inline">Filter</span>
                 </button>
               </div>
             </div>
+
+            {/* Advanced Filters */}
+            {showFilters && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Cabang</label>
+                    <select
+                      value={filters.cabang_id}
+                      onChange={(e) => setFilters({...filters, cabang_id: e.target.value})}
+                      className="w-full border border-gray-300 rounded-md px-2 py-1 text-xs"
+                    >
+                      <option value="">Semua Cabang</option>
+                      {filterOptions.branches.map(branch => (
+                        <option key={branch.id_branch} value={branch.id_branch}>{branch.nama_branch}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Supplier</label>
+                    <select
+                      value={filters.supplier_id}
+                      onChange={(e) => setFilters({...filters, supplier_id: e.target.value})}
+                      className="w-full border border-gray-300 rounded-md px-2 py-1 text-xs"
+                    >
+                      <option value="">Semua Supplier</option>
+                      {filterOptions.suppliers.map(supplier => (
+                        <option key={supplier.id_supplier} value={supplier.id_supplier}>{supplier.nama_supplier}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Priority</label>
+                    <select
+                      value={filters.priority}
+                      onChange={(e) => setFilters({...filters, priority: e.target.value})}
+                      className="w-full border border-gray-300 rounded-md px-2 py-1 text-xs"
+                    >
+                      <option value="">Semua Priority</option>
+                      {filterOptions.priorities.map(priority => (
+                        <option key={priority} value={priority}>{priority.charAt(0).toUpperCase() + priority.slice(1)}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                    <select
+                      value={filters.status}
+                      onChange={(e) => setFilters({...filters, status: e.target.value})}
+                      className="w-full border border-gray-300 rounded-md px-2 py-1 text-xs"
+                    >
+                      <option value="">Semua Status</option>
+                      {filterOptions.statuses.map(status => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => setFilters({cabang_id: '', supplier_id: '', status: '', priority: ''})}
+                    className="bg-gray-500 text-white px-3 py-1 rounded-md hover:bg-gray-600 text-xs"
+                  >
+                    Reset Filter
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Purchase Orders List */}
