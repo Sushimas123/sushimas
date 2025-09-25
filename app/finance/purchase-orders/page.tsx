@@ -1046,21 +1046,7 @@ export default function FinancePurchaseOrders() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
-              <select
-                value={filters.supplier}
-                onChange={(e) => setFilters({...filters, supplier: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
-              >
-                <option value="">Semua Supplier</option>
-                {suppliers.map(supplier => (
-                  <option key={supplier.id_supplier} value={supplier.id_supplier}>
-                    {supplier.nama_supplier}
-                  </option>
-                ))}
-              </select>
-            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
               <select
@@ -1488,21 +1474,7 @@ export default function FinancePurchaseOrders() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
-                    <select
-                      value={filters.supplier}
-                      onChange={(e) => setFilters({...filters, supplier: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
-                    >
-                      <option value="">Semua Supplier</option>
-                      {suppliers.map(supplier => (
-                        <option key={supplier.id_supplier} value={supplier.id_supplier}>
-                          {supplier.nama_supplier}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
                     <select

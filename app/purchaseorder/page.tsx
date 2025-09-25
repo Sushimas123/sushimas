@@ -69,8 +69,8 @@ function PurchaseOrderPageContent() {
     init()
     
     // Check if coming from stock alert
-    const fromAlert = searchParams.get('from')
-    const showAlerts = searchParams.get('showAlerts')
+    const fromAlert = searchParams?.get('from')
+    const showAlerts = searchParams?.get('showAlerts')
     if (fromAlert === 'stock_alert' || showAlerts === 'true') {
       setShowStockAlerts(true)
     }

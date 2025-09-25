@@ -203,7 +203,7 @@ export default function SubmitApprovalPage() {
                 onChange={(e) => setFormData({...formData, total_tagih: parseFloat(e.target.value) || 0})}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500"
                 min="0"
-                step="1000"
+                step="0.01"
                 required
               />
             </div>
