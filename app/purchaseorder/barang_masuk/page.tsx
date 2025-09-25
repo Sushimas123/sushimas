@@ -565,15 +565,15 @@ export default function BarangMasukPage() {
                               )}
                             </td>
                             <td className="px-2 py-2 text-center">
-                              <div className="flex items-center justify-center gap-1">
-                                <a 
-                                  href={`/purchaseorder/barang_masuk/receive?edit=${item.id}`}
-                                  className="text-green-600 hover:text-green-800 p-1 rounded"
-                                  title="Update Data"
-                                >
-                                  <Edit size={12} />
-                                </a>
-                                {!item.is_in_gudang && (
+                              {!item.is_in_gudang ? (
+                                <div className="flex items-center justify-center gap-1">
+                                  <a 
+                                    href={`/purchaseorder/barang_masuk/receive?edit=${item.id}`}
+                                    className="text-green-600 hover:text-green-800 p-1 rounded"
+                                    title="Update Data"
+                                  >
+                                    <Edit size={12} />
+                                  </a>
                                   <button
                                     onClick={() => handleMasukGudang(item)}
                                     disabled={!item.updated_at}
@@ -586,8 +586,10 @@ export default function BarangMasukPage() {
                                   >
                                     <Package size={12} />
                                   </button>
-                                )}
-                              </div>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-gray-500">-</span>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -680,16 +682,16 @@ export default function BarangMasukPage() {
                                   </div>
                                 )}
                                 
-                                <div className="flex flex-wrap gap-1 mt-2">
-                                  <a 
-                                    href={`/purchaseorder/barang_masuk/receive?edit=${item.id}`}
-                                    className="inline-flex items-center gap-1 px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs"
-                                    title="Update Data"
-                                  >
-                                    <Edit size={12} />
-                                    Update
-                                  </a>
-                                  {!item.is_in_gudang ? (
+                                {!item.is_in_gudang ? (
+                                  <div className="flex flex-wrap gap-1 mt-2">
+                                    <a 
+                                      href={`/purchaseorder/barang_masuk/receive?edit=${item.id}`}
+                                      className="inline-flex items-center gap-1 px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs"
+                                      title="Update Data"
+                                    >
+                                      <Edit size={12} />
+                                      Update
+                                    </a>
                                     <button
                                       onClick={() => handleMasukGudang(item)}
                                       disabled={!item.updated_at}
@@ -703,13 +705,15 @@ export default function BarangMasukPage() {
                                       <Package size={12} />
                                       Masuk Gudang
                                     </button>
-                                  ) : (
+                                  </div>
+                                ) : (
+                                  <div className="mt-2">
                                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 rounded text-xs">
                                       <Package size={12} />
                                       Sudah di Gudang
                                     </span>
-                                  )}
-                                </div>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
