@@ -513,7 +513,7 @@ export default function BarangMasukPage() {
                               <div className="text-xs font-medium">
                                 {item.po_id ? (
                                   <a 
-                                    href={`/purchaseorder/barang_sampai?id=${item.po_id}`}
+                                    href={`/purchaseorder/received-preview?id=${item.po_id}`}
                                     className="text-blue-600 hover:text-blue-800"
                                   >
                                     {item.no_po}
@@ -613,7 +613,7 @@ export default function BarangMasukPage() {
                                 <h3 className="font-semibold text-gray-800 text-sm">
                                   PO: {poGroup.po_id ? (
                                     <a 
-                                      href={`/purchaseorder/barang_sampai?id=${poGroup.po_id}`}
+                                      href={`/purchaseorder/received-preview?id=${poGroup.po_id}`}
                                       className="text-blue-600 hover:text-blue-800"
                                       onClick={(e) => e.stopPropagation()}
                                     >
