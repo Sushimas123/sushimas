@@ -402,7 +402,7 @@ export default function BarangMasukPage() {
 
   return (
     <Layout>
-      <PageAccessControl pageName="purchaseorder">
+      <PageAccessControl pageName="barang_masuk">
         <div className="p-4">
           <div className="mb-4">
             <div className="flex flex-col gap-4">

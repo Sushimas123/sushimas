@@ -97,7 +97,7 @@ export default function PermissionsDBPage() {
         'product_name', 'product_settings', 'produksi', 'produksi_detail',
         'purchaseorder', 'ready', 'recipes', 'stock_opname_batch', 'supplier',
         'transfer-barang', 'users', 'stock-alert', 'finance', 'aging-report',
-        'aging-pivot', 'bulk-payments'
+        'aging-pivot', 'bulk-payments', 'barang_masuk', 'pettycash'
       ]
       
       // Also try database tables that might exist
@@ -157,7 +157,7 @@ export default function PermissionsDBPage() {
         'dashboard', 'esb', 'gudang', 'permissions-db', 'pivot', 'price-history',
         'product_name', 'product_settings', 'produksi', 'produksi_detail',
         'purchaseorder', 'ready', 'recipes', 'stock_opname_batch', 'supplier',
-        'transfer-barang', 'users', 'stock-alert'
+        'transfer-barang', 'users', 'stock-alert', 'barang_masuk', 'pettycash'
       ]
       
       allPages.forEach(page => {
