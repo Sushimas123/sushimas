@@ -807,10 +807,11 @@ supabase.from('product_branch_settings').select(`
               <input
                 type="number"
                 step="0.01"
-                value={formData.jumlah_masuk}
-                onChange={(e) => setFormData(prev => ({ ...prev, jumlah_masuk: e.target.value }))}
-                className="border px-2 py-1 rounded-md text-xs"
-                placeholder="Jumlah Masuk"
+                value="0"
+                readOnly
+                className="border px-2 py-1 rounded-md text-xs bg-gray-100 cursor-not-allowed"
+                placeholder="Jumlah Masuk (Disabled)"
+                title="Input disabled - use PO/Transfer for incoming stock"
               />
               <input
                 type="number"
