@@ -33,6 +33,7 @@ import {
   AlertTriangle,
   AlertTriangleIcon,
   CircleDollarSign,
+  CheckCircle,
   SquareSigma,
   ShoppingBasket,
   BaggageClaim,
@@ -139,6 +140,20 @@ export default function Layout({ children }: LayoutProps) {
       ]
     },
     {
+      id: 'petty-cash',
+      name: 'Petty Cash',
+      icon: Receipt,
+      pageName: 'petty-cash',
+      submenu: [
+        { name: "Dashboard", href: "/pettycash", icon: LayoutDashboard, pageName: 'pettycash' },
+        { name: "Requests", href: "/pettycash/request", icon: FileText, pageName: 'pettycash' },
+        //{ name: "Create Request", href: "/pettycash/request/create", icon: Plus, pageName: 'pettycash' },
+        { name: "Expenses", href: "/pettycash/expenses", icon: Receipt, pageName: 'pettycash' },
+        { name: "Settlements", href: "/pettycash/settlements", icon: CheckCircle, pageName: 'pettycash' },
+        //{ name: "Categories", href: "/pettycash/categories", icon: Settings2Icon, pageName: 'pettycash' },
+      ]
+    },
+    {
       id: 'master-data',
       name: 'Master Data',
       icon: Database,
@@ -167,7 +182,16 @@ export default function Layout({ children }: LayoutProps) {
   const menuItems = useMemo(() => {
     if (permissionsLoading) return []
     
+    // Super admin gets access to everything
+    if (userRole === 'super admin') {
+      return allMenuItems
+    }
+    
     return allMenuItems.filter(item => {
+      // Check permission for main menu item first
+      const hasMainPermission = item.pageName ? permissions[item.pageName] === true : true
+      if (!hasMainPermission) return false
+      
       if (item.submenu) {
         // Filter submenu items based on permissions
         const accessibleSubmenu = item.submenu.filter(subItem => {
@@ -182,9 +206,8 @@ export default function Layout({ children }: LayoutProps) {
         return false
       }
       
-      // For menu without submenu, check direct permission
-      const hasPermission = item.pageName ? permissions[item.pageName] === true : true
-      return hasPermission
+      // For menu without submenu, already checked main permission above
+      return true
     }).map(item => {
       if (item.submenu) {
         // Update submenu with filtered items
@@ -884,7 +907,7 @@ export default function Layout({ children }: LayoutProps) {
                     ))}
                   </ol>
                   {/* Quick action buttons */}
-                  {pathname.includes('/purchaseorder') && (
+                  {pathname?.includes('/purchaseorder') && (
                     <Link href="/purchaseorder/create" className="ml-4 flex items-center text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg">
                       <Plus size={14} className="mr-1" />
                       PO Baru
