@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import PageAccessControl from '@/components/PageAccessControl';
 import { supabase } from '@/src/lib/supabaseClient';
+import * as XLSX from 'xlsx';
 
 interface PettyCashExpense {
   id: number;
@@ -29,8 +30,39 @@ function PettyCashExpensesContent() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState('30');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [settlementFilter, setSettlementFilter] = useState('all');
+
+  const exportToExcel = () => {
+    const exportData = filteredExpenses.map((expense, index) => {
+      const expensesForThisRequest = filteredExpenses.filter(e => e.request_id === expense.request_id);
+      const currentExpenseIndex = expensesForThisRequest.findIndex(e => e.id === expense.id);
+      const expensesUpToThis = expensesForThisRequest.slice(0, currentExpenseIndex + 1);
+      const runningTotal = expensesUpToThis.reduce((sum, e) => sum + e.amount, 0);
+      
+      return {
+        'Tanggal': formatDate(expense.expense_date),
+        'Request Number': expense.request_number,
+        'Cabang': expense.branch_name,
+        'Kategori': expense.category_name,
+        'Deskripsi': expense.description,
+        'Nama Barang': expense.vendor_name || '-',
+        'Jumlah': expense.amount,
+        'Running Balance': runningTotal,
+        'Status Settlement': expense.settlement_status || 'no_settlement',
+        'Receipt Number': expense.receipt_number || '-',
+        'Notes': expense.notes || '-'
+      };
+    });
+    
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
+    
+    const fileName = `petty_cash_expenses_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
 
   const handleDeleteExpense = async (id: number) => {
     if (!confirm('Hapus expense ini? Tindakan ini tidak dapat dibatalkan.')) return;
@@ -95,7 +127,7 @@ function PettyCashExpensesContent() {
           .select(`
             request_number,
             branch_code,
-            branches!inner(nama_branch)
+            branches(nama_branch)
           `)
           .eq('id', expense.request_id)
           .single();
@@ -136,7 +168,7 @@ function PettyCashExpensesContent() {
           request_number: requestData?.request_number || `REQ-${expense.request_id}`,
           category_name: categoryData?.category_name || `Category ${expense.category_id}`,
           created_by_name: userData?.nama_lengkap || `User ${expense.created_by}`,
-          branch_name: requestData?.branches?.[0]?.nama_branch || 'Unknown Branch',
+          branch_name: (requestData?.branches as any)?.nama_branch || 'Unknown Branch',
           settlement_status: settlementData?.status || 'no_settlement'
         });
       }
@@ -164,20 +196,16 @@ function PettyCashExpensesContent() {
     
     const matchesSettlement = settlementFilter === 'all' || expense.settlement_status === settlementFilter;
     
-    const expenseDate = new Date(expense.expense_date);
-    const now = new Date();
-    let dateLimit = new Date();
-    
-    switch (dateFilter) {
-      case '7': dateLimit.setDate(now.getDate() - 7); break;
-      case '30': dateLimit.setDate(now.getDate() - 30); break;
-      case '90': dateLimit.setDate(now.getDate() - 90); break;
-      case 'all': 
-      default: 
-        dateLimit = new Date(0);
+    let matchesDate = true;
+    if (startDate || endDate) {
+      const expenseDate = new Date(expense.expense_date);
+      if (startDate) {
+        matchesDate = matchesDate && expenseDate >= new Date(startDate);
+      }
+      if (endDate) {
+        matchesDate = matchesDate && expenseDate <= new Date(endDate);
+      }
     }
-    
-    const matchesDate = expenseDate >= dateLimit;
     
     return matchesSearch && matchesCategory && matchesSettlement && matchesDate;
   });
@@ -233,12 +261,20 @@ function PettyCashExpensesContent() {
           <h1 className="text-3xl font-bold text-gray-900">Petty Cash Expenses</h1>
           <p className="text-gray-600">Kelola semua pengeluaran petty cash</p>
         </div>
-        <a 
-          href="/pettycash/expenses/create"
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          ➕ Tambah Expense
-        </a>
+        <div className="flex gap-2">
+          <button
+            onClick={exportToExcel}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+          >
+            📊 Export Excel
+          </button>
+          <a 
+            href="/pettycash/expenses/create"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          >
+            ➕ Tambah Expense
+          </a>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -300,17 +336,19 @@ function PettyCashExpensesContent() {
               <option value="completed">Settlement Completed</option>
             </select>
           </div>
-          <div>
-            <select 
-              value={dateFilter} 
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
-            >
-              <option value="7">7 Hari Terakhir</option>
-              <option value="30">30 Hari Terakhir</option>
-              <option value="90">90 Hari Terakhir</option>
-              <option value="all">Semua Periode</option>
-            </select>
+          <div className="flex gap-1">
+            <input
+              type="date"
+              className="border rounded px-2 py-2 text-xs flex-1"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+            <input
+              type="date"
+              className="border rounded px-2 py-2 text-xs flex-1"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
           </div>
         </div>
       </div>
@@ -329,7 +367,7 @@ function PettyCashExpensesContent() {
                 <th className="text-left py-3 px-4">Branch</th>
                 <th className="text-left py-3 px-4">Category</th>
                 <th className="text-left py-3 px-4">Description</th>
-                <th className="text-left py-3 px-4">Vendor</th>
+                <th className="text-left py-3 px-4">Nama Barang</th>
                 <th className="text-right py-3 px-4">Amount</th>
                 <th className="text-right py-3 px-4">Running Balance</th>
                 <th className="text-left py-3 px-4">Settlement Status</th>

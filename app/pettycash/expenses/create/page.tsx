@@ -401,7 +401,7 @@ function CreateExpenseContent() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium mb-1">
-                      Vendor/Supplier
+                      Nama Barang
                     </label>
                     <input
                       type="text"
