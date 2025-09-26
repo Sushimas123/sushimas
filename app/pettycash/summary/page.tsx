@@ -299,7 +299,7 @@ function PettyCashSummaryContent() {
                       </td>
                       <td className="py-4 px-4 text-right">
                         <div className={`font-bold ${summary.remaining_amount > 0 ? 'text-green-600' : summary.remaining_amount < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                          {formatCurrency(Math.abs(summary.remaining_amount))}
+                          {summary.remaining_amount < 0 ? '-' : ''}{formatCurrency(Math.abs(summary.remaining_amount))}
                           {summary.remaining_amount < 0 && ' (Over)'}
                         </div>
                       </td>
