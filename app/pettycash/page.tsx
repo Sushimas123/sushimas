@@ -126,7 +126,7 @@ function PettyCashDashboardContent() {
     try {
       setLoading(true);
       
-      // Fetch requests data
+      // Fetch requests data with refill fields
       const { data: requestsData, error: requestsError } = await supabase
         .from('petty_cash_requests')
         .select(`
@@ -166,7 +166,11 @@ function PettyCashDashboardContent() {
       const approvedRequests = requestsData?.filter(r => r.status === 'approved').length || 0;
       const totalExpenses = expensesData?.reduce((sum, e) => sum + e.amount, 0) || 0;
       const pendingSettlements = settlementsData?.filter(s => s.status === 'pending').length || 0;
-      const totalBalance = (requestsData?.reduce((sum, r) => sum + r.amount, 0) || 0) - totalExpenses;
+      // Calculate total balance with carried_balance for refill requests
+      const totalRequestAmount = requestsData?.reduce((sum, r) => {
+        return sum + r.amount + (r.carried_balance || 0);
+      }, 0) || 0;
+      const totalBalance = totalRequestAmount - totalExpenses;
       
       // Fetch summary data
       const { data: summaryData } = await supabase
@@ -190,14 +194,17 @@ function PettyCashDashboardContent() {
         // Skip requests that are already settled
         if (hasCompletedSettlement) return;
         
+        // Calculate total available amount (amount + carried_balance)
+        const totalAvailable = request.amount + (request.carried_balance || 0);
+        
         if (!branchMap.has(branchCode)) {
           branchMap.set(branchCode, {
             branch_code: branchCode,
             branch_name: branchName,
             latest_request: request,
-            allocated_amount: request.amount,
+            allocated_amount: totalAvailable,
             spent_amount: 0,
-            pending_amount: request.status === 'pending' ? request.amount : 0,
+            pending_amount: request.status === 'pending' ? totalAvailable : 0,
             request_date: request.request_date
           });
         } else {
@@ -205,8 +212,8 @@ function PettyCashDashboardContent() {
           const existing = branchMap.get(branchCode);
           if (new Date(request.request_date) > new Date(existing.request_date)) {
             existing.latest_request = request;
-            existing.allocated_amount = request.amount;
-            existing.pending_amount = request.status === 'pending' ? request.amount : 0;
+            existing.allocated_amount = totalAvailable;
+            existing.pending_amount = request.status === 'pending' ? totalAvailable : 0;
             existing.request_date = request.request_date;
           }
         }
@@ -547,12 +554,12 @@ function PettyCashDashboardContent() {
                           {new Date(branch.last_reload).toLocaleDateString('id-ID')}
                         </td>
                         <td className="text-center py-3 px-2">
-                          <button 
-                            onClick={() => handleReloadBalance(branch.branch_code)}
-                            className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700"
+                          <a 
+                            href="/pettycash/expenses/create"
+                            className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 inline-block"
                           >
-                            📋 View Requests
-                          </button>
+                            ➕ Add Expense
+                          </a>
                         </td>
                       </tr>
                       {isExpanded && (

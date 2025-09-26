@@ -22,6 +22,7 @@ interface Settlement {
   settled_by_name?: string;
   verified_by_name?: string;
   request_amount?: number;
+  refilled_request_id?: number;
 }
 
 function SettlementsContent() {
@@ -36,7 +37,7 @@ function SettlementsContent() {
       
       const { data: settlementsData, error } = await supabase
         .from('petty_cash_settlements')
-        .select('*')
+        .select('*, refilled_request_id')
         .order('settlement_date', { ascending: false });
 
       if (error) throw error;
@@ -151,6 +152,92 @@ function SettlementsContent() {
     }
   };
 
+  const handleRefill = async (settlementId: number, remainingAmount: number) => {
+    const settlement = settlements.find(s => s.id === settlementId);
+    if (!settlement) return;
+    
+    // Validasi 1: Hanya settlement completed yang bisa di-refill
+    if (settlement.status !== 'completed') {
+      alert('Hanya settlement dengan status "completed" yang bisa di-refill');
+      return;
+    }
+    
+    // Validasi 2: Cek apakah sudah ada refill sebelumnya
+    if (settlement.refilled_request_id || settlement.notes?.includes('[REFILLED]')) {
+      alert('Settlement ini sudah di-refill sebelumnya');
+      return;
+    }
+    
+    // Validasi 3: Pastikan ada expenses yang bisa di-refill
+    if (settlement.total_expenses <= 0) {
+      alert('Tidak ada dana yang bisa di-refill (total expenses = 0)');
+      return;
+    }
+    
+    // Refill amount = total expenses (dana yang terpakai dikembalikan ke kas)
+    const refillAmount = settlement.total_expenses;
+    
+    if (!confirm(`Refill settlement ${settlement.settlement_number}?\n\nDana terpakai: ${formatCurrency(settlement.total_expenses)}\nSisa saldo: ${formatCurrency(settlement.remaining_amount)}\nTotal baru: ${formatCurrency(settlement.total_expenses + settlement.remaining_amount)}`)) return;
+    
+    try {
+      const user = localStorage.getItem('user');
+      const currentUser = user ? JSON.parse(user) : null;
+      
+      if (!currentUser?.id_user) {
+        alert('User tidak ditemukan');
+        return;
+      }
+
+      // Generate request number
+      const requestNumber = `REQ-REFILL-${Date.now()}`;
+      
+      // Get original request data for branch info
+      const { data: originalRequest } = await supabase
+        .from('petty_cash_requests')
+        .select('branch_code')
+        .eq('id', settlement.request_id)
+        .single();
+      
+      // Create new request with refill tracking fields
+      const { data: newRequest, error: requestError } = await supabase
+        .from('petty_cash_requests')
+        .insert({
+          request_number: requestNumber,
+          amount: refillAmount,
+          purpose: `Refill dari settlement ${settlement.settlement_number}`,
+          branch_code: originalRequest?.branch_code || 'UNKNOWN',
+          requested_by: currentUser.id_user,
+          status: 'approved', // Auto approve refill
+          approved_by: currentUser.id_user,
+          approved_at: new Date().toISOString(),
+          parent_request_id: settlement.request_id,
+          carried_balance: settlement.remaining_amount,
+          notes: `Auto-generated refill dari settlement ${settlement.settlement_number}. Carried balance: ${formatCurrency(settlement.remaining_amount)}`
+        })
+        .select()
+        .single();
+      
+      if (requestError) throw requestError;
+      
+      // Update settlement to mark as refilled
+      const { error: updateError } = await supabase
+        .from('petty_cash_settlements')
+        .update({ 
+          refilled_request_id: newRequest.id,
+          notes: (settlement.notes || '') + `\n[REFILLED ${new Date().toLocaleDateString('id-ID')}] Dana terpakai ${formatCurrency(refillAmount)} di-refill ke request ${requestNumber}`
+        })
+        .eq('id', settlementId);
+      
+      if (updateError) throw updateError;
+      
+      alert(`✅ Refill berhasil!\n\nRequest baru: ${requestNumber}\nRefill Amount: ${formatCurrency(refillAmount)}\nCarried Balance: ${formatCurrency(settlement.remaining_amount)}\nTotal Available: ${formatCurrency(refillAmount + settlement.remaining_amount)}\n\nDana sudah siap digunakan lagi.`);
+      fetchSettlements();
+    } catch (error) {
+      console.error('Error refilling:', error);
+      alert('Gagal melakukan refill');
+    }
+  };
+
   const filteredSettlements = settlements.filter(settlement => {
     const matchesSearch = 
       settlement.settlement_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -196,7 +283,16 @@ function SettlementsContent() {
     pending: settlements.filter(s => s.status === 'pending').length,
     verified: settlements.filter(s => s.status === 'verified').length,
     completed: settlements.filter(s => s.status === 'completed').length,
-    totalRemaining: settlements.reduce((sum, s) => sum + s.remaining_amount, 0)
+    refillable: settlements.filter(s => 
+      s.status === 'completed' && 
+      !s.refilled_request_id &&
+      !s.notes?.includes('[REFILLED]') &&
+      s.total_expenses > 0
+    ).length,
+    totalRemaining: settlements.reduce((sum, s) => sum + s.remaining_amount, 0),
+    totalRefillableAmount: settlements
+      .filter(s => s.status === 'completed' && !s.refilled_request_id && !s.notes?.includes('[REFILLED]'))
+      .reduce((sum, s) => sum + s.total_expenses, 0)
   };
 
   if (loading) {
@@ -227,7 +323,7 @@ function SettlementsContent() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
         <div className="bg-white p-4 rounded-lg border">
           <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
           <div className="text-sm text-gray-600">Total Settlements</div>
@@ -245,8 +341,12 @@ function SettlementsContent() {
           <div className="text-sm text-gray-600">Completed</div>
         </div>
         <div className="bg-white p-4 rounded-lg border">
-          <div className="text-lg font-bold text-purple-600">{formatCurrency(stats.totalRemaining)}</div>
-          <div className="text-sm text-gray-600">Total Remaining</div>
+          <div className="text-lg font-bold text-purple-600">{stats.refillable}</div>
+          <div className="text-sm text-gray-600">Ready for Refill</div>
+        </div>
+        <div className="bg-white p-4 rounded-lg border">
+          <div className="text-lg font-bold text-orange-600">{formatCurrency(stats.totalRefillableAmount)}</div>
+          <div className="text-sm text-gray-600">Total Refillable</div>
         </div>
       </div>
 
@@ -321,6 +421,9 @@ function SettlementsContent() {
                     <span className={`text-xs font-medium ${getStatusColor(settlement.status)}`}>
                       {getStatusIcon(settlement.status)} {settlement.status.toUpperCase()}
                     </span>
+                    {(settlement.refilled_request_id || settlement.notes?.includes('[REFILLED]')) && (
+                      <div className="text-xs text-purple-600 mt-1">🔄 Refilled</div>
+                    )}
                   </td>
                   <td className="py-4 px-4">
                     <div>
@@ -351,6 +454,17 @@ function SettlementsContent() {
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </button>
+                      )}
+                      {settlement.status === 'completed' && settlement.total_expenses > 0 && !settlement.refilled_request_id && !settlement.notes?.includes('[REFILLED]') && (
+                        <button
+                          onClick={() => handleRefill(settlement.id, settlement.remaining_amount)}
+                          className="text-purple-600 hover:text-purple-800 p-1 rounded transition-colors"
+                          title="Refill dana terpakai"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                           </svg>
                         </button>
                       )}

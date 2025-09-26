@@ -12,6 +12,8 @@ interface FormData {
   expense_date: string;
   description: string;
   amount: string;
+  qty: string;
+  harga: string;
   receipt_number: string;
   vendor_name: string;
   notes: string;
@@ -21,9 +23,11 @@ interface FormData {
 interface Request {
   id: number;
   request_number: string;
-  amount: number;
+  amount: number; // This will now represent total available (amount + carried_balance)
   status: string;
   branch_code: string;
+  parent_request_id?: number;
+  carried_balance?: number;
   branches?: {
     nama_branch: string;
   }[];
@@ -55,6 +59,8 @@ function CreateExpenseContent() {
     expense_date: new Date().toISOString().split('T')[0],
     description: '',
     amount: '',
+    qty: '1',
+    harga: '',
     receipt_number: '',
     vendor_name: '',
     notes: '',
@@ -69,14 +75,14 @@ function CreateExpenseContent() {
     try {
       setDataLoading(true);
 
-      // Fetch approved/disbursed requests that haven't been settled
+      // Fetch disbursed requests that haven't been settled
       const { data: requestData, error: requestError } = await supabase
         .from('petty_cash_requests')
         .select(`
-          id, request_number, amount, status, branch_code,
+          id, request_number, amount, status, branch_code, parent_request_id, carried_balance,
           branches!inner(nama_branch)
         `)
-        .in('status', ['approved', 'disbursed'])
+        .eq('status', 'disbursed')
         .order('created_at', { ascending: false });
 
       if (requestError) throw requestError;
@@ -98,11 +104,15 @@ function CreateExpenseContent() {
       }
       
       console.log('Available requests after filtering:', availableRequests);
-      // Transform the data to match our interface
-      const transformedRequests = availableRequests.map(request => ({
-        ...request,
-        branches: request.branches?.[0] ? [request.branches[0]] : undefined
-      }));
+      // Transform the data to match our interface with total available amount
+      const transformedRequests = availableRequests.map(request => {
+        const totalAvailable = request.amount + (request.carried_balance || 0);
+        return {
+          ...request,
+          amount: totalAvailable, // Show total available instead of just amount
+          branches: request.branches?.[0] ? [request.branches[0]] : undefined
+        };
+      });
       
       setRequests(transformedRequests);
 
@@ -202,6 +212,8 @@ function CreateExpenseContent() {
           expense_date: formData.expense_date,
           description: formData.description.trim() || '',
           amount: parseFloat(formData.amount),
+          qty: parseFloat(formData.qty),
+          harga: parseFloat(formData.harga),
           receipt_number: formData.receipt_number.trim() || null,
           vendor_name: formData.vendor_name.trim() || null,
           notes: formData.notes.trim() || null,
@@ -230,10 +242,54 @@ function CreateExpenseContent() {
     }
   };
 
-  const handleVendorChange = (vendorName: string) => {
+  const getLatestPrice = async (productId: number): Promise<number> => {
+    try {
+      // 1. Try to get latest actual price from po_price_history (most accurate)
+      const { data: priceHistory } = await supabase
+        .from('po_price_history')
+        .select('actual_price')
+        .eq('product_id', productId)
+        .not('actual_price', 'is', null)
+        .order('received_date', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (priceHistory?.actual_price) {
+        return priceHistory.actual_price;
+      }
+      
+      // 2. Fallback to latest actual price from barang_masuk
+      const { data: latestPrice } = await supabase
+        .from('barang_masuk')
+        .select('actual_price')
+        .eq('product_id', productId)
+        .not('actual_price', 'is', null)
+        .order('tanggal_masuk', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (latestPrice?.actual_price) {
+        return latestPrice.actual_price;
+      }
+      
+      // 3. Final fallback to master price from nama_product
+      const { data: product } = await supabase
+        .from('nama_product')
+        .select('harga')
+        .eq('id_product', productId)
+        .single();
+      
+      return product?.harga || 0;
+    } catch (error) {
+      console.error('Error getting price:', error);
+      return 0;
+    }
+  };
+
+  const handleVendorChange = async (vendorName: string) => {
     setFormData(prev => ({ ...prev, vendor_name: vendorName }));
     
-    // Auto-fill category based on selected product
+    // Auto-fill category and price based on selected product
     if (vendorName) {
       const selectedProduct = products.find(p => p.product_name === vendorName);
       if (selectedProduct) {
@@ -241,15 +297,42 @@ function CreateExpenseContent() {
         const matchingCategory = categories.find(c => 
           c.category_name.toLowerCase() === selectedProduct.category.toLowerCase()
         );
-        if (matchingCategory) {
-          setFormData(prev => ({ ...prev, category_id: matchingCategory.id_category.toString() }));
-        }
+        
+        // Get latest price
+        const latestPrice = await getLatestPrice(selectedProduct.id_product);
+        
+        setFormData(prev => ({ 
+          ...prev, 
+          category_id: matchingCategory?.id_category.toString() || '',
+          harga: latestPrice.toString(),
+          amount: (parseFloat(prev.qty) * latestPrice).toString()
+        }));
       }
     }
     
     if (errors.vendor_name) {
       setErrors(prev => ({ ...prev, vendor_name: '' }));
     }
+  };
+
+  const handleQtyChange = (qty: string) => {
+    const qtyNum = parseFloat(qty) || 0;
+    const hargaNum = parseFloat(formData.harga) || 0;
+    setFormData(prev => ({ 
+      ...prev, 
+      qty,
+      amount: (qtyNum * hargaNum).toString()
+    }));
+  };
+
+  const handleHargaChange = (harga: string) => {
+    const qtyNum = parseFloat(formData.qty) || 0;
+    const hargaNum = parseFloat(harga) || 0;
+    setFormData(prev => ({ 
+      ...prev, 
+      harga,
+      amount: (qtyNum * hargaNum).toString()
+    }));
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -320,8 +403,43 @@ function CreateExpenseContent() {
                   </select>
                   {errors.request_id && <p className="text-red-500 text-xs mt-1">{errors.request_id}</p>}
                 </div>
-
                 <div>
+                  <label className="block text-xs font-medium mb-1">
+                    Tanggal <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.expense_date}
+                    onChange={(e) => handleInputChange('expense_date', e.target.value)}
+                    className={`w-full border rounded px-2 py-1.5 text-sm ${errors.expense_date ? 'border-red-500' : 'border-gray-300'}`}
+                    required
+                  />
+                  {errors.expense_date && <p className="text-red-500 text-xs mt-1">{errors.expense_date}</p>}
+                </div>
+
+              </div>
+              <div>
+                    <label className="block text-xs font-medium mb-1">
+                      Nama Barang
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.vendor_name}
+                      onChange={(e) => handleVendorChange(e.target.value)}
+                      className="w-full border rounded px-2 py-1.5 text-sm border-gray-300"
+                      placeholder="Ketik nama vendor..."
+                      list="vendor-list"
+                    />
+                    <datalist id="vendor-list">
+                      {products.map(product => (
+                        <option key={product.id_product} value={product.product_name} />
+                      ))}
+                    </datalist>
+                  </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-3">
+
+              <div>
                   <label className="block text-xs font-medium mb-1">
                     Kategori <span className="text-red-500">*</span>
                   </label>
@@ -338,36 +456,51 @@ function CreateExpenseContent() {
                   />
                   {errors.category_id && <p className="text-red-500 text-xs mt-1">{errors.category_id}</p>}
                 </div>
-              </div>
 
+                <div>
+                  <label className="block text-xs font-medium mb-1">
+                    Qty <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.qty}
+                    onChange={(e) => handleQtyChange(e.target.value)}
+                    className="w-full border rounded px-2 py-1.5 text-sm border-gray-300"
+                    placeholder="1"
+                    min="0.01"
+                    step="0.01"
+                    required
+                  />
+                </div>
+              </div>
+              
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <div>
                   <label className="block text-xs font-medium mb-1">
-                    Tanggal <span className="text-red-500">*</span>
+                    Harga Satuan (Rp) <span className="text-red-500">*</span>
                   </label>
                   <input
-                    type="date"
-                    value={formData.expense_date}
-                    onChange={(e) => handleInputChange('expense_date', e.target.value)}
-                    className={`w-full border rounded px-2 py-1.5 text-sm ${errors.expense_date ? 'border-red-500' : 'border-gray-300'}`}
+                    type="number"
+                    value={formData.harga}
+                    onChange={(e) => handleHargaChange(e.target.value)}
+                    className="w-full border rounded px-2 py-1.5 text-sm border-gray-300"
+                    placeholder="0"
+                    min="0"
+                    step="0.01"
                     required
                   />
-                  {errors.expense_date && <p className="text-red-500 text-xs mt-1">{errors.expense_date}</p>}
                 </div>
-
+                
                 <div>
                   <label className="block text-xs font-medium mb-1">
-                    Jumlah (Rp) <span className="text-red-500">*</span>
+                    Total (Rp) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
                     value={formData.amount}
-                    onChange={(e) => handleInputChange('amount', e.target.value)}
-                    className={`w-full border rounded px-2 py-1.5 text-sm ${errors.amount ? 'border-red-500' : 'border-gray-300'}`}
+                    className="w-full border rounded px-2 py-1.5 text-sm bg-gray-100 border-gray-300"
                     placeholder="0"
-                    min="1"
-                    step="0.01"
-                    required
+                    readOnly
                   />
                   {errors.amount && <p className="text-red-500 text-xs mt-1">{errors.amount}</p>}
                   {formData.amount && !errors.amount && (
@@ -399,24 +532,7 @@ function CreateExpenseContent() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium mb-1">
-                      Nama Barang
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.vendor_name}
-                      onChange={(e) => handleVendorChange(e.target.value)}
-                      className="w-full border rounded px-2 py-1.5 text-sm border-gray-300"
-                      placeholder="Ketik nama vendor..."
-                      list="vendor-list"
-                    />
-                    <datalist id="vendor-list">
-                      {products.map(product => (
-                        <option key={product.id_product} value={product.product_name} />
-                      ))}
-                    </datalist>
-                  </div>
+                  
 
                   <div>
                     <label className="block text-xs font-medium mb-1">

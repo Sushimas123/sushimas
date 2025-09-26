@@ -13,6 +13,8 @@ interface PettyCashExpense {
   expense_date: string;
   description: string;
   amount: number;
+  qty?: number;
+  harga?: number;
   receipt_number?: string;
   vendor_name?: string;
   notes?: string;
@@ -27,6 +29,7 @@ interface PettyCashExpense {
 
 function PettyCashExpensesContent() {
   const [expenses, setExpenses] = useState<PettyCashExpense[]>([]);
+  const [requests, setRequests] = useState<{id: number, amount: number, parent_request_id?: number, carried_balance?: number, request_number?: string, branch_code?: string}[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -36,10 +39,8 @@ function PettyCashExpensesContent() {
 
   const exportToExcel = () => {
     const exportData = filteredExpenses.map((expense, index) => {
-      const expensesForThisRequest = filteredExpenses.filter(e => e.request_id === expense.request_id);
-      const currentExpenseIndex = expensesForThisRequest.findIndex(e => e.id === expense.id);
-      const expensesUpToThis = expensesForThisRequest.slice(0, currentExpenseIndex + 1);
-      const runningTotal = expensesUpToThis.reduce((sum, e) => sum + e.amount, 0);
+      // Calculate running balance for export
+      const runningBalance = calculateRunningBalance(expense);
       
       return {
         'Tanggal': formatDate(expense.expense_date),
@@ -48,8 +49,10 @@ function PettyCashExpensesContent() {
         'Kategori': expense.category_name,
         'Deskripsi': expense.description,
         'Nama Barang': expense.vendor_name || '-',
-        'Jumlah': expense.amount,
-        'Running Balance': runningTotal,
+        'Qty': expense.qty || '-',
+        'Harga Satuan': expense.harga || '-',
+        'Total': expense.amount,
+        'Running Balance': runningBalance,
         'Status Settlement': expense.settlement_status || 'no_settlement',
         'Receipt Number': expense.receipt_number || '-',
         'Notes': expense.notes || '-'
@@ -111,6 +114,21 @@ function PettyCashExpensesContent() {
     try {
       setLoading(true);
       
+      // Fetch requests data dengan informasi yang lengkap
+      const { data: requestsData } = await supabase
+        .from('petty_cash_requests')
+        .select(`
+          id, 
+          amount, 
+          parent_request_id, 
+          carried_balance,
+          request_number,
+          branch_code
+        `)
+        .order('created_at', { ascending: true }); // Urutkan dari yang paling lama
+
+      setRequests(requestsData || []);
+      
       const { data: expensesData, error } = await supabase
         .from('petty_cash_expenses')
         .select('*')
@@ -160,6 +178,8 @@ function PettyCashExpensesContent() {
           expense_date: expense.expense_date,
           description: expense.description,
           amount: expense.amount,
+          qty: expense.qty,
+          harga: expense.harga,
           receipt_number: expense.receipt_number,
           vendor_name: expense.vendor_name,
           notes: expense.notes,
@@ -235,11 +255,38 @@ function PettyCashExpensesContent() {
       };
     });
 
+  // Fungsi untuk menghitung running balance
+  const calculateRunningBalance = (expense: PettyCashExpense) => {
+    // 1. Cari data request untuk expense ini
+    const request = requests.find(r => r.id === expense.request_id);
+    if (!request) return 0;
+
+    // 2. Hitung total dana available (amount + carried_balance jika ada)
+    const totalAvailable = request.amount + (request.carried_balance || 0);
+
+    // 3. Filter expenses yang termasuk dalam request yang SAMA dan tanggal SEBELUM/SAMA
+    const relevantExpenses = expenses.filter(e => 
+      e.request_id === expense.request_id && 
+      (new Date(e.expense_date) < new Date(expense.expense_date) ||
+      (new Date(e.expense_date).getTime() === new Date(expense.expense_date).getTime() && e.id <= expense.id))
+    );
+
+    // 4. Total pengeluaran sampai dengan expense ini
+    const totalExpensesUpToNow = relevantExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+    // 5. Running balance = Total dana - Total pengeluaran
+    return totalAvailable - totalExpensesUpToNow;
+  };
+
   const stats = {
     total: expenses.length,
     totalAmount: expenses.reduce((sum, e) => sum + e.amount, 0),
     filteredAmount: filteredExpenses.reduce((sum, e) => sum + e.amount, 0),
-    runningBalance: expenses.length > 0 ? expenses.reduce((sum, e) => sum + e.amount, 0) : 0
+    totalRemaining: requests.reduce((sum, r) => {
+      const requestExpenses = expenses.filter(e => e.request_id === r.id);
+      const totalExpenses = requestExpenses.reduce((expSum, e) => expSum + e.amount, 0);
+      return sum + (r.amount + ((r as any).carried_balance || 0)) - totalExpenses;
+    }, 0)
   };
 
   if (loading) {
@@ -292,8 +339,8 @@ function PettyCashExpensesContent() {
           <div className="text-sm text-gray-600">Filtered Amount</div>
         </div>
         <div className="bg-white p-4 rounded-lg border">
-          <div className="text-lg font-bold text-orange-600">{formatCurrency(stats.runningBalance)}</div>
-          <div className="text-sm text-gray-600">Running Balance</div>
+          <div className="text-lg font-bold text-orange-600">{formatCurrency(stats.totalRemaining)}</div>
+          <div className="text-sm text-gray-600">Total Remaining</div>
         </div>
       </div>
 
@@ -368,7 +415,9 @@ function PettyCashExpensesContent() {
                 <th className="text-left py-3 px-4">Category</th>
                 <th className="text-left py-3 px-4">Description</th>
                 <th className="text-left py-3 px-4">Nama Barang</th>
-                <th className="text-right py-3 px-4">Amount</th>
+                <th className="text-right py-3 px-4">Qty</th>
+                <th className="text-right py-3 px-4">Harga</th>
+                <th className="text-right py-3 px-4">Total</th>
                 <th className="text-right py-3 px-4">Running Balance</th>
                 <th className="text-left py-3 px-4">Settlement Status</th>
                 <th className="text-left py-3 px-4">Receipt</th>
@@ -377,11 +426,8 @@ function PettyCashExpensesContent() {
             </thead>
             <tbody>
               {filteredExpenses.map((expense, index) => {
-                // Calculate running balance per request (cumulative expenses for this request up to this point)
-                const expensesForThisRequest = filteredExpenses.filter(e => e.request_id === expense.request_id);
-                const currentExpenseIndex = expensesForThisRequest.findIndex(e => e.id === expense.id);
-                const expensesUpToThis = expensesForThisRequest.slice(0, currentExpenseIndex + 1);
-                const runningTotal = expensesUpToThis.reduce((sum, e) => sum + e.amount, 0);
+                // Calculate running balance
+                const runningBalance = calculateRunningBalance(expense);
                 
                 const getSettlementStatusBadge = (status: string) => {
                   switch (status) {
@@ -427,10 +473,18 @@ function PettyCashExpensesContent() {
                     <div>{expense.vendor_name || '-'}</div>
                   </td>
                   <td className="py-4 px-4 text-right">
+                    <div>{expense.qty || (expense.amount && expense.harga ? (expense.amount / expense.harga).toFixed(2) : '-')}</div>
+                  </td>
+                  <td className="py-4 px-4 text-right">
+                    <div>{expense.harga ? formatCurrency(expense.harga) : (expense.qty && expense.amount ? formatCurrency(expense.amount / expense.qty) : '-')}</div>
+                  </td>
+                  <td className="py-4 px-4 text-right">
                     <div className="font-semibold">{formatCurrency(expense.amount)}</div>
                   </td>
                   <td className="py-4 px-4 text-right">
-                    <div className="font-semibold text-orange-600">{formatCurrency(runningTotal)}</div>
+                    <div className={`font-semibold ${runningBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency(runningBalance)}
+                    </div>
                   </td>
                   <td className="py-4 px-4">
                     {getSettlementStatusBadge(expense.settlement_status || 'no_settlement')}

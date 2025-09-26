@@ -9,7 +9,7 @@ import { supabase } from '@/src/lib/supabaseClient';
 interface RequestWithExpenses {
   id: number;
   request_number: string;
-  amount: number;
+  amount: number; // This will now represent total available (amount + carried_balance)
   total_expenses: number;
   remaining_amount: number;
   branch_name: string;
@@ -31,10 +31,10 @@ function CreateSettlementContent() {
     try {
       setDataLoading(true);
 
-      // Get disbursed requests
+      // Get disbursed requests with refill fields
       const { data: requestsData, error: requestsError } = await supabase
         .from('petty_cash_requests')
-        .select('id, request_number, amount, branch_code')
+        .select('id, request_number, amount, branch_code, parent_request_id, carried_balance')
         .eq('status', 'disbursed')
         .order('created_at', { ascending: false });
 
@@ -58,7 +58,9 @@ function CreateSettlementContent() {
           .eq('request_id', request.id);
 
         const totalExpenses = expensesData?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
-        const remainingAmount = request.amount - totalExpenses;
+        // Calculate total available = amount + carried_balance (for refill requests)
+        const totalAvailable = request.amount + (request.carried_balance || 0);
+        const remainingAmount = totalAvailable - totalExpenses;
 
         // Get branch name
         const { data: branchData } = await supabase
@@ -70,7 +72,7 @@ function CreateSettlementContent() {
         requestsWithExpenses.push({
           id: request.id,
           request_number: request.request_number,
-          amount: request.amount,
+          amount: totalAvailable, // Show total available instead of just amount
           total_expenses: totalExpenses,
           remaining_amount: remainingAmount,
           branch_name: branchData?.nama_branch || request.branch_code
@@ -202,7 +204,7 @@ function CreateSettlementContent() {
                         </div>
                         <div className="text-right">
                           <div className="text-sm">
-                            <span className="text-gray-600">Request: </span>
+                            <span className="text-gray-600">Available: </span>
                             <span className="font-semibold">{formatCurrency(request.amount)}</span>
                           </div>
                           <div className="text-sm">
@@ -231,7 +233,7 @@ function CreateSettlementContent() {
               
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div className="bg-gray-50 p-3 rounded">
-                  <div className="text-xs text-gray-600">Request Amount</div>
+                  <div className="text-xs text-gray-600">Total Available</div>
                   <div className="text-lg font-bold">{formatCurrency(selectedRequest.amount)}</div>
                 </div>
                 <div className="bg-gray-50 p-3 rounded">
