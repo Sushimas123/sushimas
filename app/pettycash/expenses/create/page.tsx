@@ -79,14 +79,20 @@ function CreateExpenseContent() {
       const { data: requestData, error: requestError } = await supabase
         .from('petty_cash_requests')
         .select(`
-          id, request_number, amount, status, branch_code, parent_request_id, carried_balance,
-          branches!inner(nama_branch)
+          id, request_number, amount, status, branch_code, parent_request_id, carried_balance
         `)
         .eq('status', 'disbursed')
         .order('created_at', { ascending: false });
 
       if (requestError) throw requestError;
       
+      // Get branch names separately
+      const { data: branchData, error: branchError } = await supabase
+        .from('branches')
+        .select('kode_branch, nama_branch');
+        
+      if (branchError) throw branchError;
+
       console.log('Raw request data:', requestData);
 
       // Filter out requests that already have settlements
@@ -107,10 +113,11 @@ function CreateExpenseContent() {
       // Transform the data to match our interface with total available amount
       const transformedRequests = availableRequests.map(request => {
         const totalAvailable = request.amount + (request.carried_balance || 0);
+        const branch = branchData?.find(b => b.kode_branch === request.branch_code);
         return {
           ...request,
           amount: totalAvailable, // Show total available instead of just amount
-          branches: request.branches?.[0] ? [request.branches[0]] : undefined
+          branches: branch ? [{ nama_branch: branch.nama_branch }] : undefined
         };
       });
       
