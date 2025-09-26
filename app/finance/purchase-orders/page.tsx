@@ -726,27 +726,38 @@ export default function FinancePurchaseOrders() {
               <div>
                 <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
                   <FileText className="h-4 w-4 mr-2" />
-                  Daftar Item
+                  Items yang Diterima
                 </h3>
                 {rowDetails[item.id]?.items?.length > 0 ? (
-                  <div className="space-y-2">
-                    {rowDetails[item.id].items.slice(0, 3).map((poItem: any) => (
-                      <div key={poItem.id} className="bg-white p-2 rounded border border-gray-200">
-                        <p className="text-sm font-medium">{poItem.product_name || `Product ${poItem.product_id}`}</p>
-                        <div className="grid grid-cols-2 gap-2 mt-1">
-                          <div>
-                            <p className="text-xs text-gray-500">Qty</p>
-                            <p className="text-xs">{poItem.received_qty ? `${poItem.received_qty}/${poItem.qty}` : poItem.qty}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500">Harga</p>
-                            <p className="text-xs">{formatCurrency(poItem.harga || poItem.actual_price || 0)}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="bg-white rounded border border-gray-200 overflow-hidden">
+                    <table className="min-w-full text-xs">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-2 py-1 text-left font-medium text-gray-500">Produk</th>
+                          <th className="px-2 py-1 text-center font-medium text-gray-500">Qty PO</th>
+                          <th className="px-2 py-1 text-center font-medium text-gray-500">Qty Diterima</th>
+                          <th className="px-2 py-1 text-right font-medium text-gray-500">Harga PO</th>
+                          <th className="px-2 py-1 text-right font-medium text-gray-500">Harga Aktual</th>
+                          <th className="px-2 py-1 text-right font-medium text-gray-500">Total</th>
+                          <th className="px-2 py-1 text-left font-medium text-gray-500">Keterangan</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {rowDetails[item.id].items.slice(0, 3).map((poItem: any) => (
+                          <tr key={poItem.id}>
+                            <td className="px-2 py-1 font-medium">{poItem.product_name || `Product ${poItem.product_id}`}</td>
+                            <td className="px-2 py-1 text-center">{poItem.qty}</td>
+                            <td className="px-2 py-1 text-center">{poItem.received_qty || poItem.qty}</td>
+                            <td className="px-2 py-1 text-right">{formatCurrency(poItem.harga || 0)}</td>
+                            <td className="px-2 py-1 text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
+                            <td className="px-2 py-1 text-right font-medium">{formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}</td>
+                            <td className="px-2 py-1">Status: {poItem.received_qty ? 'received' : 'pending'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                     {rowDetails[item.id].items.length > 3 && (
-                      <p className="text-xs text-gray-500 text-center mt-2">
+                      <p className="text-xs text-gray-500 text-center py-2">
                         +{rowDetails[item.id].items.length - 3} item lainnya
                       </p>
                     )}
@@ -871,37 +882,36 @@ export default function FinancePurchaseOrders() {
           <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
             <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
               <FileText className="h-4 w-4 mr-2" />
-              Daftar Item
+              Items yang Diterima
             </h3>
             {rowDetails[item.id]?.items?.length > 0 ? (
-              <div className="space-y-3">
-                {rowDetails[item.id].items.map((poItem: any) => (
-                  <div key={poItem.id} className="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
-                    <p className="text-sm font-medium">{poItem.product_name || `Product ${poItem.product_id}`}</p>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                      <div>
-                        <p className="text-xs text-gray-500">Quantity</p>
-                        <p className="text-xs">{poItem.received_qty ? `${poItem.received_qty}/${poItem.qty}` : poItem.qty}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Harga</p>
-                        <p className="text-xs">{formatCurrency(poItem.harga || poItem.actual_price || 0)}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-xs text-gray-500">Total</p>
-                        <p className="text-xs font-medium">
-                          {formatCurrency(
-                            poItem.actual_price && poItem.received_qty 
-                              ? poItem.received_qty * poItem.actual_price
-                              : poItem.harga 
-                                ? poItem.qty * poItem.harga
-                                : 0
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs border border-gray-200 rounded">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium text-gray-500 border-b">Produk</th>
+                      <th className="px-3 py-2 text-center font-medium text-gray-500 border-b">Qty PO</th>
+                      <th className="px-3 py-2 text-center font-medium text-gray-500 border-b">Qty Diterima</th>
+                      <th className="px-3 py-2 text-right font-medium text-gray-500 border-b">Harga PO</th>
+                      <th className="px-3 py-2 text-right font-medium text-gray-500 border-b">Harga Aktual</th>
+                      <th className="px-3 py-2 text-right font-medium text-gray-500 border-b">Total</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-500 border-b">Keterangan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {rowDetails[item.id].items.map((poItem: any) => (
+                      <tr key={poItem.id}>
+                        <td className="px-3 py-2 font-medium">{poItem.product_name || `Product ${poItem.product_id}`}</td>
+                        <td className="px-3 py-2 text-center">{poItem.qty}</td>
+                        <td className="px-3 py-2 text-center">{poItem.received_qty || poItem.qty}</td>
+                        <td className="px-3 py-2 text-right">{formatCurrency(poItem.harga || 0)}</td>
+                        <td className="px-3 py-2 text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
+                        <td className="px-3 py-2 text-right font-medium">{formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}</td>
+                        <td className="px-3 py-2">Status: {poItem.received_qty ? 'received' : 'pending'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             ) : (
               <p className="text-sm text-gray-500">Tidak ada item</p>
@@ -1670,28 +1680,36 @@ export default function FinancePurchaseOrders() {
                       <div>
                         <h4 className="text-xs font-medium text-gray-900 mb-2 flex items-center">
                           <FileText className="h-3 w-3 mr-1" />
-                          Daftar Item
+                          Items yang Diterima
                         </h4>
                         {rowDetails[item.id]?.items?.length > 0 ? (
-                          <div className="bg-gray-50 rounded p-2">
-                            {rowDetails[item.id].items.map((poItem: any) => (
-                              <div key={poItem.id} className="flex justify-between items-center py-1 text-xs border-b border-gray-200 last:border-b-0">
-                                <div className="flex-1">
-                                  <p className="font-medium">{poItem.product_name}</p>
-                                  <p className="text-gray-500">Qty: {poItem.received_qty ? `${poItem.received_qty}/${poItem.qty}` : poItem.qty}</p>
-                                </div>
-                                <div className="text-right">
-                                  <p className="font-medium">{formatCurrency(poItem.harga || poItem.actual_price || 0)}</p>
-                                  <p className="text-gray-500">{formatCurrency(
-                                    poItem.actual_price && poItem.received_qty 
-                                      ? poItem.received_qty * poItem.actual_price
-                                      : poItem.harga 
-                                        ? poItem.qty * poItem.harga
-                                        : 0
-                                  )}</p>
-                                </div>
-                              </div>
-                            ))}
+                          <div className="bg-gray-50 rounded p-2 overflow-x-auto">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="border-b border-gray-300">
+                                  <th className="text-left py-1 font-medium">Produk</th>
+                                  <th className="text-center py-1 font-medium">Qty PO</th>
+                                  <th className="text-center py-1 font-medium">Qty Diterima</th>
+                                  <th className="text-right py-1 font-medium">Harga PO</th>
+                                  <th className="text-right py-1 font-medium">Harga Aktual</th>
+                                  <th className="text-right py-1 font-medium">Total</th>
+                                  <th className="text-left py-1 font-medium">Keterangan</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rowDetails[item.id].items.map((poItem: any) => (
+                                  <tr key={poItem.id} className="border-b border-gray-200 last:border-b-0">
+                                    <td className="py-1 font-medium">{poItem.product_name}</td>
+                                    <td className="py-1 text-center">{poItem.qty}</td>
+                                    <td className="py-1 text-center">{poItem.received_qty || poItem.qty}</td>
+                                    <td className="py-1 text-right">{formatCurrency(poItem.harga || 0)}</td>
+                                    <td className="py-1 text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
+                                    <td className="py-1 text-right font-medium">{formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}</td>
+                                    <td className="py-1">Status: {poItem.received_qty ? 'received' : 'pending'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
                           </div>
                         ) : (
                           <p className="text-xs text-gray-500">Tidak ada item</p>
@@ -2176,7 +2194,7 @@ export default function FinancePurchaseOrders() {
                                 <div>
                                   <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
                                     <FileText className="h-4 w-4 mr-2" />
-                                    Daftar Item
+                                    Items yang Diterima
                                   </h3>
                                   {rowDetails[item.id]?.items?.length > 0 ? (
                                     <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
@@ -2184,28 +2202,26 @@ export default function FinancePurchaseOrders() {
                                         <thead className="bg-gray-50">
                                           <tr>
                                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Produk</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Harga</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Qty PO</th>
+                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Qty Diterima</th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Harga PO</th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Harga Aktual</th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
                                           </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-200">
                                           {rowDetails[item.id].items.map((poItem: any) => (
                                             <tr key={poItem.id}>
                                               <td className="px-3 py-2 text-sm">{poItem.product_name || `Product ${poItem.product_id}`}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm">
-                                                {poItem.received_qty ? `${poItem.received_qty}/${poItem.qty}` : poItem.qty}
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-center">{poItem.qty}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-center">{poItem.received_qty || poItem.qty}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">{formatCurrency(poItem.harga || 0)}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">
+                                                {formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}
                                               </td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm">{formatCurrency(poItem.harga || poItem.actual_price || 0)}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium">
-                                                {formatCurrency(
-                                                  poItem.actual_price && poItem.received_qty 
-                                                    ? poItem.received_qty * poItem.actual_price
-                                                    : poItem.harga 
-                                                      ? poItem.qty * poItem.harga
-                                                      : 0
-                                                )}
-                                              </td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm">Status: {poItem.received_qty ? 'received' : 'pending'}</td>
                                             </tr>
                                           ))}
                                         </tbody>

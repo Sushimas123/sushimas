@@ -63,16 +63,35 @@ export default function ReceivedPreviewPage() {
       ])
 
       // Get received items from barang_masuk
-      const { data: receivedItems } = await supabase
-        .from('barang_masuk')
-        .select(`
-          *,
-          nama_product!inner(product_name)
-        `)
-        .eq('no_po', po.po_number)
+      const { data: poItems } = await supabase
+      .from('po_items')
+      .select('*')
+      .eq('po_id', poId)
 
+      // Get product names for PO items
+      const itemsWithProducts = await Promise.all(
+        (poItems || []).map(async (item) => {
+          const { data: product } = await supabase
+            .from('nama_product')
+            .select('product_name')
+            .eq('id_product', item.product_id)
+            .single()
+
+          return {
+            ...item,
+            product_name: product?.product_name || 'Unknown Product'
+          }
+        })
+      )
       // Get invoice number from barang_masuk (first record)
-      const invoiceNumber = receivedItems && receivedItems.length > 0 ? receivedItems[0].invoice_number : po.invoice_number
+// Get invoice number from barang_masuk (first record)
+const { data: barangMasukItems } = await supabase
+  .from('barang_masuk')
+  .select('invoice_number')
+  .eq('no_po', po.po_number)
+  .limit(1)
+
+const invoiceNumber = barangMasukItems && barangMasukItems.length > 0 ? barangMasukItems[0].invoice_number : po.invoice_number
 
       // Get photo URL - try both bukti_foto field and search by PO number
       if (po.bukti_foto) {
@@ -107,14 +126,14 @@ export default function ReceivedPreviewPage() {
         tanggal_barang_sampai: po.tanggal_barang_sampai,
         invoice_number: invoiceNumber || '',
         bukti_foto: po.bukti_foto || '',
-        items: receivedItems?.map(item => ({
-          product_name: item.nama_product?.product_name || 'Unknown Product',
-          qty_po: item.qty_po || 0,
-          qty_received: item.jumlah || 0,
-          harga_po: item.harga_po || 0,
-          harga_actual: item.harga || 0,
-          keterangan: item.keterangan || ''
-        })) || []
+        items: itemsWithProducts?.map(item => ({
+          product_name: item.product_name,
+          qty_po: item.qty || 0,
+          qty_received: item.received_qty || item.qty || 0,
+          harga_po: item.harga || 0,
+          harga_actual: item.actual_price || item.harga || 0,
+          keterangan: `Status: ${item.received_qty ? 'received' : 'pending'}`
+        })) || []        
       }
 
       setReceivedData(transformedData)
