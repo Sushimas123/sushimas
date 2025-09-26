@@ -36,7 +36,7 @@ interface Product {
   harga: number
   merk: string
   stock_qty?: number
-  id_supplier?: number
+  supplier_id?: number
 }
 
 interface POItem {
@@ -339,13 +339,13 @@ function CreatePurchaseOrder() {
       }
       
       // Get unique suppliers
-      const uniqueSuppliers = matchingSuppliers.filter((supplier, index, self) => 
+      const filteredUniqueSuppliers = matchingSuppliers.filter((supplier, index, self) => 
         index === self.findIndex(s => s.nama_supplier.toLowerCase() === supplier.nama_supplier.toLowerCase())
       )
 
       return {
         product,
-        suppliers: uniqueSuppliers
+        suppliers: filteredUniqueSuppliers
       }
     })
 
