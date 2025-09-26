@@ -376,14 +376,14 @@ export default function AddBarangMasukPage() {
       if (!formData.id_barang) {
         throw new Error('Barang harus dipilih')
       }
-      if (!formData.jumlah || parseInt(formData.jumlah) <= 0) {
+      if (!formData.jumlah || parseFloat(formData.jumlah) <= 0) {
         throw new Error('Jumlah harus lebih dari 0')
       }
       if (!formData.id_branch) {
         throw new Error('Branch harus dipilih')
       }
 
-      if (!formData.total_real || parseInt(formData.total_real) <= 0) {
+      if (!formData.total_real || parseFloat(formData.total_real) <= 0) {
         throw new Error('Total barang masuk (REAL) harus lebih dari 0')
       }
 
