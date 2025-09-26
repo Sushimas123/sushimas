@@ -21,6 +21,7 @@ interface Ready {
   waste: number;
   sub_category: string;
   id_branch: number;
+  notes?: string;
   product_name?: string;
   branch_name?: string;
   created_by?: number;
@@ -46,6 +47,7 @@ interface FormProduct {
   product_name: string;
   ready: string;
   waste: string;
+  notes: string;
 }
 
 function ReadyPageContent() {
@@ -124,7 +126,7 @@ function ReadyPageContent() {
   useEffect(() => {
     const loadPermittedColumns = async () => {
       if (ready.length > 0) {
-        const allColumns = ['ready_no', 'tanggal_input', 'branch_name', 'sub_category', 'product_name', 'id_product', 'ready', 'waste', 'created_by_name', 'updated_by_name']
+        const allColumns = ['ready_no', 'tanggal_input', 'branch_name', 'sub_category', 'product_name', 'id_product', 'ready', 'waste', 'notes', 'created_by_name', 'updated_by_name']
         const permitted = []
         
         for (const col of allColumns) {
@@ -153,9 +155,9 @@ function ReadyPageContent() {
       await fetchCategories();
       
       // Handle URL parameters from Analysis page
-      const urlDate = searchParams.get('date');
-      const urlBranch = searchParams.get('branch');
-      const urlProduct = searchParams.get('product');
+      const urlDate = searchParams?.get('date');
+      const urlBranch = searchParams?.get('branch');
+      const urlProduct = searchParams?.get('product');
       
       if (urlDate) {
         setDateFilter(urlDate);
@@ -210,7 +212,8 @@ function ReadyPageContent() {
         id_product: p.id_product,
         product_name: p.product_name,
         ready: '',
-        waste: ''
+        waste: '',
+        notes: ''
       })));
     } else {
       setFormProducts([]);
@@ -434,6 +437,7 @@ function ReadyPageContent() {
         waste: parseFloat(product.waste) || 0,
         sub_category: selectedSubCategory,
         id_branch: parseInt(selectedBranch),
+        notes: product.notes.trim() || null,
         created_by: userId
       }));
     
@@ -484,7 +488,7 @@ function ReadyPageContent() {
     setEditingId(null);
   };
 
-  const updateProductValue = (productId: number, field: 'ready' | 'waste', value: string) => {
+  const updateProductValue = (productId: number, field: 'ready' | 'waste' | 'notes', value: string) => {
     setFormProducts(prev => prev.map(p => 
       p.id_product === productId ? { ...p, [field]: value } : p
     ));
@@ -503,6 +507,7 @@ function ReadyPageContent() {
         .update({
           ready: editingItem.ready,
           waste: editingItem.waste,
+          notes: editingItem.notes?.trim() || null,
           updated_by: userId
         })
         .eq('id_ready', editingItem.id_ready);
@@ -837,6 +842,7 @@ function ReadyPageContent() {
           waste: parseFloat(row['Waste']) || 0,
           sub_category: row['Sub Category'],
           id_branch: branch.id_branch,
+          notes: row['Notes'] || null,
           created_by: userId
         });
       }
@@ -934,6 +940,7 @@ function ReadyPageContent() {
         'Product': item.product_name,
         'Ready': item.ready,
         'Waste': item.waste,
+        'Notes': item.notes || '',
         'Created By': item.created_by_name,
         'Updated By': item.updated_by_name
       }));
@@ -1114,6 +1121,7 @@ function ReadyPageContent() {
                           <th className="border px-2 py-1 text-left">Product Name</th>
                           <th className="border px-2 py-1 text-center">Ready *</th>
                           <th className="border px-2 py-1 text-center">Waste</th>
+                          <th className="border px-2 py-1 text-center">Notes</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1128,7 +1136,7 @@ function ReadyPageContent() {
                             <React.Fragment key={`product-${product.id_product}`}>
                               {showSeparator && (
                                 <tr key={`separator-${idx}`}>
-                                  <td colSpan={3} className="border px-2 py-1 bg-gray-200 text-center font-medium text-gray-600">
+                                  <td colSpan={4} className="border px-2 py-1 bg-gray-200 text-center font-medium text-gray-600">
                                     WIP Products
                                   </td>
                                 </tr>
@@ -1157,6 +1165,15 @@ function ReadyPageContent() {
                                 onChange={(e) => updateProductValue(product.id_product, 'waste', e.target.value)}
                                 className="w-full text-center border-0 bg-transparent focus:bg-white focus:border focus:rounded px-1"
                                 placeholder="0"
+                              />
+                            </td>
+                            <td className="border px-2 py-1">
+                              <input
+                                type="text"
+                                value={product.notes}
+                                onChange={(e) => updateProductValue(product.id_product, 'notes', e.target.value)}
+                                className="w-full text-center border-0 bg-transparent focus:bg-white focus:border focus:rounded px-1"
+                                placeholder="Catatan..."
                               />
                             </td>
                               </tr>
@@ -1210,7 +1227,7 @@ function ReadyPageContent() {
                     required
                   />
                 </div>
-                <div className="mb-4">
+                <div className="mb-3">
                   <label className="block text-sm font-medium mb-1">Waste</label>
                   <input
                     type="number"
@@ -1218,6 +1235,16 @@ function ReadyPageContent() {
                     value={editingItem.waste}
                     onChange={(e) => setEditingItem({...editingItem, waste: parseFloat(e.target.value) || 0})}
                     className="w-full px-3 py-2 border rounded"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">Notes</label>
+                  <textarea
+                    value={editingItem.notes || ''}
+                    onChange={(e) => setEditingItem({...editingItem, notes: e.target.value})}
+                    className="w-full px-3 py-2 border rounded"
+                    rows={2}
+                    placeholder="Catatan tambahan..."
                   />
                 </div>
                 <div className="flex gap-2">
@@ -1407,6 +1434,7 @@ function ReadyPageContent() {
                 {permittedColumns.includes('id_product') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id_product')}>Product ID</th>}
                 {permittedColumns.includes('ready') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('ready')}>Ready</th>}
                 {permittedColumns.includes('waste') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('waste')}>Waste</th>}
+                {permittedColumns.includes('notes') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('notes')}>Notes</th>}
                 {permittedColumns.includes('created_by_name') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('created_by_name')}>Created By</th>}
                 {permittedColumns.includes('updated_by_name') && <th className="border px-2 py-1 text-left font-medium cursor-pointer hover:bg-gray-200" onClick={() => handleSort('updated_by_name')}>Updated By</th>}
                 {(canPerformActionSync(userRole, 'ready', 'edit') || canPerformActionSync(userRole, 'ready', 'delete')) && <th className="border px-2 py-1 text-left font-medium">Actions</th>}
@@ -1448,6 +1476,7 @@ function ReadyPageContent() {
                     {permittedColumns.includes('id_product') && <td className="border px-2 py-1 text-center">{item.id_product}</td>}
                     {permittedColumns.includes('ready') && <td className="border px-2 py-1 text-right">{item.ready}</td>}
                     {permittedColumns.includes('waste') && <td className="border px-2 py-1 text-right">{item.waste}</td>}
+                    {permittedColumns.includes('notes') && <td className="border px-2 py-1 text-xs max-w-32 truncate" title={item.notes || ''}>{item.notes || '-'}</td>}
                     {permittedColumns.includes('created_by_name') && <td className="border px-2 py-1">{item.created_by_name}</td>}
                     {permittedColumns.includes('updated_by_name') && <td className="border px-2 py-1">{item.updated_by_name}</td>}
                     {(canPerformActionSync(userRole, 'ready', 'edit') || canPerformActionSync(userRole, 'ready', 'delete')) && (
