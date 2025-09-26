@@ -317,11 +317,26 @@ function CreatePurchaseOrder() {
     )
 
     const productsWithSuppliers = filteredProducts.map(product => {
-      // Find suppliers that have this product in their nama_barang
-      const matchingSuppliers = suppliers.filter(supplier => 
+      // Method 1: Find suppliers that have this product in their nama_barang
+      let matchingSuppliers = suppliers.filter(supplier => 
         supplier.nama_barang && 
         supplier.nama_barang.toLowerCase().includes(product.product_name.toLowerCase())
       )
+      
+      // Method 2: If no suppliers found, use supplier_id from product
+      if (matchingSuppliers.length === 0 && product.supplier_id) {
+        const directSupplier = suppliers.find(supplier => 
+          supplier.id_supplier === product.supplier_id
+        )
+        if (directSupplier) {
+          matchingSuppliers = [directSupplier]
+        }
+      }
+      
+      // Method 3: If still no suppliers, show all suppliers as fallback
+      if (matchingSuppliers.length === 0) {
+        matchingSuppliers = uniqueSuppliers.slice(0, 3) // Show first 3 suppliers
+      }
       
       // Get unique suppliers
       const uniqueSuppliers = matchingSuppliers.filter((supplier, index, self) => 
@@ -332,7 +347,7 @@ function CreatePurchaseOrder() {
         product,
         suppliers: uniqueSuppliers
       }
-    }).filter(item => item.suppliers.length > 0)
+    })
 
     setProductSuppliers(productsWithSuppliers)
   }
