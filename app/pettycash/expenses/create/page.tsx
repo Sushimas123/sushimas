@@ -18,6 +18,7 @@ interface FormData {
   vendor_name: string;
   notes: string;
   receipt_image: File | null;
+  product_id: string;
 }
 
 interface Request {
@@ -64,7 +65,8 @@ function CreateExpenseContent() {
     receipt_number: '',
     vendor_name: '',
     notes: '',
-    receipt_image: null
+    receipt_image: null,
+    product_id: ''
   });
 
   useEffect(() => {
@@ -225,7 +227,8 @@ function CreateExpenseContent() {
           vendor_name: formData.vendor_name.trim() || null,
           notes: formData.notes.trim() || null,
           receipt_image_url: receiptImageUrl,
-          created_by: currentUser.id_user
+          created_by: currentUser.id_user,
+          product_id: formData.product_id ? parseInt(formData.product_id) : null
         })
         .select();
 
@@ -312,7 +315,8 @@ function CreateExpenseContent() {
           ...prev, 
           category_id: matchingCategory?.id_category.toString() || '',
           harga: latestPrice.toString(),
-          amount: (parseFloat(prev.qty) * latestPrice).toString()
+          amount: (parseFloat(prev.qty) * latestPrice).toString(),
+          product_id: selectedProduct.id_product.toString()
         }));
       }
     }

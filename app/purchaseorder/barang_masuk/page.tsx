@@ -30,6 +30,7 @@ interface BarangMasuk {
   updated_at?: string
   po_id?: number
   is_in_gudang?: boolean
+  from_petty_cash?: boolean
 }
 
 interface Branch {
@@ -223,12 +224,26 @@ export default function BarangMasukPage() {
 
       const gudangResults = await Promise.all(gudangCheckPromises);
 
+      // Check which items are from petty cash
+      const pettyCashCheckPromises = data.map(async (item) => {
+        const { data: pettyCashExpense } = await supabase
+          .from('petty_cash_expenses')
+          .select('id')
+          .eq('barang_masuk_id', item.id)
+          .maybeSingle();
+        
+        return !!pettyCashExpense;
+      });
+
+      const pettyCashResults = await Promise.all(pettyCashCheckPromises);
+
       const barangMasukWithDetails = data.map((item, index) => {
         const product = productMap.get(item.id_barang);
         const supplier = item.id_supplier ? supplierMap.get(item.id_supplier) : null;
         const branch = branchMap.get(item.id_branch);
         const po = item.no_po && item.no_po !== '-' ? poMap.get(item.no_po) : null;
         const isInGudang = gudangResults[index];
+        const fromPettyCash = pettyCashResults[index];
 
         return {
           id: item.id,
@@ -253,7 +268,8 @@ export default function BarangMasukPage() {
           created_at: item.created_at,
           updated_at: item.updated_at,
           po_id: po?.id,
-          is_in_gudang: isInGudang
+          is_in_gudang: isInGudang,
+          from_petty_cash: fromPettyCash
         }
       });
 
@@ -518,6 +534,13 @@ export default function BarangMasukPage() {
                                   >
                                     {item.no_po}
                                   </a>
+                                ) : item.no_po.startsWith('PETTY-CASH-') ? (
+                                  <a 
+                                    href={`/pettycash/expenses/${item.no_po.split('-')[2]}`}
+                                    className="text-purple-600 hover:text-purple-800"
+                                  >
+                                    {item.no_po}
+                                  </a>
                                 ) : (
                                   <span className="text-gray-600">{item.no_po}</span>
                                 )}
@@ -532,6 +555,9 @@ export default function BarangMasukPage() {
                             <td className="px-2 py-2">
                               <div className="text-xs font-medium truncate max-w-[120px]" title={item.product_name}>
                                 {item.product_name}
+                                {item.from_petty_cash && (
+                                  <span className="text-purple-600 ml-1">💰</span>
+                                )}
                               </div>
                             </td>
                             <td className="px-2 py-2 text-center">
@@ -621,6 +647,14 @@ export default function BarangMasukPage() {
                                     >
                                       {poGroup.no_po}
                                     </a>
+                                  ) : poGroup.no_po.startsWith('PETTY-CASH-') ? (
+                                    <a 
+                                      href={`/pettycash/expenses/${poGroup.no_po.split('-')[2]}`}
+                                      className="text-purple-600 hover:text-purple-800"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {poGroup.no_po}
+                                    </a>
                                   ) : (
                                     <span className="text-gray-600">{poGroup.no_po}</span>
                                   )}
@@ -654,7 +688,12 @@ export default function BarangMasukPage() {
                                   </div>
                                   <div>
                                     <div className="text-xs text-gray-500">Barang</div>
-                                    <div className="font-medium truncate text-xs">{item.product_name}</div>
+                                    <div className="font-medium truncate text-xs">
+                                      {item.product_name}
+                                      {item.from_petty_cash && (
+                                        <span className="text-purple-600 ml-1">💰</span>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                                 

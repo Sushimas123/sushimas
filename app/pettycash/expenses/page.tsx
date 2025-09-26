@@ -25,6 +25,8 @@ interface PettyCashExpense {
   created_by_name?: string;
   branch_name?: string;
   settlement_status?: string;
+  product_id?: number;
+  barang_masuk_id?: number;
 }
 
 function PettyCashExpensesContent() {
@@ -67,14 +69,47 @@ function PettyCashExpensesContent() {
     XLSX.writeFile(wb, fileName);
   };
 
+  const handleConvertToBarangMasuk = async (expense: PettyCashExpense) => {
+    if (!expense.product_id || !expense.qty) {
+      alert('Expense harus memiliki product dan quantity untuk dikonversi');
+      return;
+    }
+
+    if (expense.barang_masuk_id) {
+      alert('Expense ini sudah dikonversi ke barang masuk');
+      return;
+    }
+
+    if (!confirm(`Konversi expense "${expense.description}" ke barang masuk?`)) return;
+
+    try {
+      const response = await fetch('/api/barang-masuk/from-petty-cash', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expenseId: expense.id })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Gagal konversi');
+      }
+
+      alert('Berhasil dikonversi ke barang masuk!');
+      fetchExpenses();
+    } catch (error) {
+      alert(`Gagal konversi: ${error}`);
+    }
+  };
+
   const handleDeleteExpense = async (id: number) => {
-    if (!confirm('Hapus expense ini? Tindakan ini tidak dapat dibatalkan.')) return;
+    if (!confirm('Hapus expense ini? Jika sudah dikonversi ke barang masuk, data barang masuk juga akan terhapus.')) return;
     
     try {
-      // Get expense to check request_id
+      // Get expense to check request_id and barang_masuk_id
       const { data: expense } = await supabase
         .from('petty_cash_expenses')
-        .select('request_id')
+        .select('request_id, barang_masuk_id')
         .eq('id', id)
         .single();
       
@@ -96,6 +131,73 @@ function PettyCashExpensesContent() {
         return;
       }
       
+      // If expense has been converted to barang_masuk, check if it can be deleted
+      if (expense.barang_masuk_id) {
+        // Check if barang masuk already entered gudang
+        const { data: barangMasukData } = await supabase
+          .from('barang_masuk')
+          .select('no_po, id_barang, tanggal')
+          .eq('id', expense.barang_masuk_id)
+          .single();
+        
+        if (barangMasukData) {
+          // Check if already in gudang
+          const { data: gudangEntry } = await supabase
+            .from('gudang')
+            .select('id')
+            .eq('id_product', barangMasukData.id_barang)
+            .eq('source_type', 'PO')
+            .eq('source_reference', barangMasukData.no_po)
+            .eq('tanggal', barangMasukData.tanggal)
+            .maybeSingle();
+          
+          if (gudangEntry) {
+            if (!confirm('Barang sudah masuk ke gudang. Hapus juga dari gudang? Ini akan mempengaruhi stok.')) {
+              return;
+            }
+            
+            // Delete from gudang first
+            const { error: gudangDeleteError } = await supabase
+              .from('gudang')
+              .delete()
+              .eq('id_product', barangMasukData.id_barang)
+              .eq('source_type', 'PO')
+              .eq('source_reference', barangMasukData.no_po)
+              .eq('tanggal', barangMasukData.tanggal);
+            
+            if (gudangDeleteError) {
+              console.error('Gudang delete error:', gudangDeleteError);
+              alert(`Gagal menghapus data dari gudang: ${gudangDeleteError.message}`);
+              return;
+            }
+          }
+        }
+        
+        // First, set barang_masuk_id to null to avoid foreign key constraint
+        const { error: updateError } = await supabase
+          .from('petty_cash_expenses')
+          .update({ barang_masuk_id: null })
+          .eq('id', id);
+        
+        if (updateError) {
+          console.error('Update expense error:', updateError);
+          alert(`Gagal mengupdate expense: ${updateError.message}`);
+          return;
+        }
+        
+        // Then delete barang_masuk
+        const { error: barangMasukError } = await supabase
+          .from('barang_masuk')
+          .delete()
+          .eq('id', expense.barang_masuk_id);
+        
+        if (barangMasukError) {
+          console.error('Barang masuk delete error:', barangMasukError);
+          alert(`Gagal menghapus data barang masuk: ${barangMasukError.message}`);
+          return;
+        }
+      }
+      
       const { error } = await supabase
         .from('petty_cash_expenses')
         .delete()
@@ -103,7 +205,7 @@ function PettyCashExpensesContent() {
       
       if (error) throw error;
       
-      alert('Expense berhasil dihapus!');
+      alert('Expense berhasil dihapus!' + (expense.barang_masuk_id ? ' Data barang masuk terkait juga telah dihapus.' : ''));
       fetchExpenses();
     } catch (error) {
       alert('Gagal menghapus expense');
@@ -189,7 +291,9 @@ function PettyCashExpensesContent() {
           category_name: categoryData?.category_name || `Category ${expense.category_id}`,
           created_by_name: userData?.nama_lengkap || `User ${expense.created_by}`,
           branch_name: (requestData?.branches as any)?.nama_branch || 'Unknown Branch',
-          settlement_status: settlementData?.status || 'no_settlement'
+          settlement_status: settlementData?.status || 'no_settlement',
+          product_id: expense.product_id,
+          barang_masuk_id: expense.barang_masuk_id
         });
       }
 
@@ -504,6 +608,28 @@ function PettyCashExpensesContent() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
                       </a>
+                      {expense.product_id && expense.qty && !expense.barang_masuk_id && (
+                        <button
+                          onClick={() => handleConvertToBarangMasuk(expense)}
+                          className="text-green-600 hover:text-green-800 p-1 rounded transition-colors"
+                          title="Convert to Barang Masuk"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                          </svg>
+                        </button>
+                      )}
+                      {expense.barang_masuk_id && (
+                        <a
+                          href={`/purchaseorder/barang_masuk`}
+                          className="text-blue-600 hover:text-blue-800 p-1 rounded transition-colors"
+                          title="View in Barang Masuk"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </a>
+                      )}
                       <button
                         onClick={() => handleDeleteExpense(expense.id)}
                         className="text-red-600 hover:text-red-800 p-1 rounded transition-colors"
