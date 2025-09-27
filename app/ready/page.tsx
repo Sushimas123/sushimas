@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
 import { Plus, Edit, Trash2, Download, Upload, RefreshCw } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -58,13 +58,35 @@ function ReadyPageContent() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [subCategories, setSubCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
+  
+  // Skeleton loading component
+  const SkeletonRow = () => (
+    <tr className="animate-pulse">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <td key={i} className="px-4 py-2">
+          <div className="h-4 bg-gray-200 rounded"></div>
+        </td>
+      ))}
+    </tr>
+  );
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
   const [dateFilter, setDateFilter] = useState('');
   const [subCategoryFilter, setSubCategoryFilter] = useState('');
   const [branchFilter, setBranchFilter] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -84,6 +106,40 @@ function ReadyPageContent() {
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [permittedColumns, setPermittedColumns] = useState<string[]>([]);
+  
+  // Memoized filtered and sorted data
+  const filteredAndSortedReady = useMemo(() => {
+    let filtered = ready.filter(item => {
+      const matchesSearch = !debouncedSearchTerm || 
+        item.product_name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        item.ready_no.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
+      
+      const matchesDate = !dateFilter || item.tanggal_input === dateFilter;
+      const matchesSubCategory = !subCategoryFilter || item.sub_category === subCategoryFilter;
+      const matchesBranch = !branchFilter || item.id_branch.toString() === branchFilter;
+      
+      return matchesSearch && matchesDate && matchesSubCategory && matchesBranch;
+    });
+    
+    if (sortConfig) {
+      filtered.sort((a, b) => {
+        const aValue = a[sortConfig.key as keyof Ready] ?? '';
+        const bValue = b[sortConfig.key as keyof Ready] ?? '';
+        
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    
+    return filtered;
+  }, [ready, debouncedSearchTerm, dateFilter, subCategoryFilter, branchFilter, sortConfig]);
+  
+  // Memoized pagination
+  const paginatedReady = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredAndSortedReady.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredAndSortedReady, currentPage, itemsPerPage]);
 
 
   // Get user info and check access
@@ -248,18 +304,20 @@ function ReadyPageContent() {
 
   const fetchReady = async () => {
     try {
-      // Get branch filter first
       const branchFilter = await getBranchFilter()
       
-      // Build query with branch filtering
-      let readyQuery = supabase.from('ready').select('*')
+      // Build basic query first
+      let readyQuery = supabase
+        .from('ready')
+        .select('*')
+        .order('tanggal_input', { ascending: false })
+        .limit(100)
       
-      // Apply branch filter for non-admin/manager users
+      // Apply branch filter if needed
       if (branchFilter && branchFilter.length > 0) {
-        // Get branch IDs from codes
         const { data: branchData } = await supabase
           .from('branches')
-          .select('id_branch, kode_branch')
+          .select('id_branch')
           .in('kode_branch', branchFilter)
         
         const branchIds = branchData?.map(b => b.id_branch) || []
@@ -268,36 +326,45 @@ function ReadyPageContent() {
         }
       }
       
-      readyQuery = readyQuery.order('tanggal_input', { ascending: false })
+      const { data: readyData, error: readyError } = await readyQuery
       
-      const [readyData, productsData, branchesData, usersData] = await Promise.all([
-        readyQuery,
+      if (readyError) {
+        console.error('Ready query error:', readyError)
+        throw readyError
+      }
+      
+      if (!readyData || readyData.length === 0) {
+        setReady([])
+        return
+      }
+      
+      // Fetch related data in parallel
+      const [productsData, branchesData, usersData] = await Promise.all([
         supabase.from('nama_product').select('id_product, product_name'),
         supabase.from('branches').select('id_branch, nama_branch'),
         supabase.from('users').select('id_user, nama_lengkap')
-      ]);
-
-      if (readyData.error) throw readyData.error;
+      ])
       
-      // Create lookup maps for O(1) access
-      const productMap = new Map(productsData.data?.map(p => [p.id_product, p.product_name]) || []);
-      const branchMap = new Map(branchesData.data?.map(b => [b.id_branch, b.nama_branch]) || []);
-      const userMap = new Map(usersData.data?.map(u => [u.id_user, u.nama_lengkap]) || []);
+      // Create lookup maps
+      const productMap = new Map(productsData.data?.map(p => [p.id_product, p.product_name]) || [])
+      const branchMap = new Map(branchesData.data?.map(b => [b.id_branch, b.nama_branch]) || [])
+      const userMap = new Map(usersData.data?.map(u => [u.id_user, u.nama_lengkap]) || [])
       
-      // Transform data using lookup maps
-      const readyWithNames = (readyData.data || []).map((item: any) => ({
+      // Transform data
+      const readyWithNames = readyData.map(item => ({
         ...item,
         product_name: productMap.get(item.id_product) || '',
         branch_name: branchMap.get(item.id_branch) || '',
         created_by_name: userMap.get(item.created_by) || '',
         updated_by_name: userMap.get(item.updated_by) || ''
-      }));
+      }))
       
-      setReady(readyWithNames);
+      setReady(readyWithNames)
     } catch (error) {
-      console.error('Error fetching ready:', error);
+      console.error('Error fetching ready:', error)
+      setReady([])
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
   };
 
@@ -889,45 +956,7 @@ function ReadyPageContent() {
     setSortConfig({ key, direction });
   };
 
-  const filteredAndSortedReady = (() => {
-    let filtered = ready.filter(item => {
-      const matchesSearch = item.ready_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.sub_category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.product_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.branch_name || '').toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesDate = !dateFilter || item.tanggal_input.includes(dateFilter);
-      const matchesSubCategory = !subCategoryFilter || item.sub_category.toLowerCase().includes(subCategoryFilter.toLowerCase());
-      const matchesBranch = !branchFilter || (item.branch_name || '').toLowerCase().includes(branchFilter.toLowerCase());
-      
-      return matchesSearch && matchesDate && matchesSubCategory && matchesBranch;
-    });
-
-    if (sortConfig) {
-      filtered.sort((a, b) => {
-        let aValue = a[sortConfig.key as keyof Ready];
-        let bValue = b[sortConfig.key as keyof Ready];
-        
-        if (aValue === undefined) aValue = '';
-        if (bValue === undefined) bValue = '';
-        
-        if (typeof aValue === 'string') aValue = aValue.toLowerCase();
-        if (typeof bValue === 'string') bValue = bValue.toLowerCase();
-        
-        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return filtered;
-  })();
-
   const totalPages = Math.ceil(filteredAndSortedReady.length / itemsPerPage);
-  const paginatedReady = filteredAndSortedReady.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
 
   const exportToExcel = async () => {
     try {

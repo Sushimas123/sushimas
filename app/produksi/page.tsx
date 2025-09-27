@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense, useMemo, useCallback } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
 import { Plus, Edit, Trash2, Download, Upload } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -38,13 +38,15 @@ function ProduksiPageContent() {
   const [wipProducts, setWipProducts] = useState<Product[]>([]);
   const [subCategories, setSubCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
-  const [divisiFilter, setDivisiFilter] = useState('');
-  const [branchFilter, setBranchFilter] = useState('');
+  const [filters, setFilters] = useState({
+    searchTerm: '',
+    dateFilter: '',
+    divisiFilter: '',
+    branchFilter: ''
+  });
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(20);
+  const [itemsPerPage] = useState(50);
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
     production_no: '',
@@ -67,6 +69,11 @@ function ProduksiPageContent() {
   const [deleting, setDeleting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [permittedColumns, setPermittedColumns] = useState<string[]>([]);
+
+  // Debounced filter update
+  const updateFilters = useCallback((key: string, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  }, []);
 
   useEffect(() => {
     fetchProduksi();
@@ -116,16 +123,52 @@ function ProduksiPageContent() {
   
   const visibleColumns = permittedColumns
 
+  // Memoized filtering and sorting
+  const filteredData = useMemo(() => {
+    let filtered = produksi.filter(item => {
+      const matchesSearch = !filters.searchTerm || 
+        item.production_no.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+        item.product_name?.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+        item.divisi.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+        item.branch.toLowerCase().includes(filters.searchTerm.toLowerCase());
+      
+      const matchesDate = !filters.dateFilter || item.tanggal_input === filters.dateFilter;
+      const matchesDivisi = !filters.divisiFilter || item.divisi === filters.divisiFilter;
+      const matchesBranch = !filters.branchFilter || item.branch === filters.branchFilter;
+      
+      return matchesSearch && matchesDate && matchesDivisi && matchesBranch;
+    });
+
+    if (sortConfig) {
+      filtered.sort((a, b) => {
+        const aVal = a[sortConfig.key as keyof Produksi];
+        const bVal = b[sortConfig.key as keyof Produksi];
+        
+        if (aVal == null && bVal == null) return 0;
+        if (aVal == null) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (bVal == null) return sortConfig.direction === 'asc' ? 1 : -1;
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [produksi, filters, sortConfig]);
+
   // Handle URL parameters from Analysis page
   useEffect(() => {
-    const date = searchParams.get('date');
-    const branch = searchParams.get('branch');
-    const product = searchParams.get('product');
+    const date = searchParams?.get('date');
+    const branch = searchParams?.get('branch');
+    const product = searchParams?.get('product');
     
     if (date || branch || product) {
-      if (date) setDateFilter(date);
-      if (branch) setBranchFilter(branch);
-      if (product) setSearchTerm(product);
+      setFilters(prev => ({
+        ...prev,
+        ...(date && { dateFilter: date }),
+        ...(branch && { branchFilter: branch }),
+        ...(product && { searchTerm: product })
+      }));
       
       showToast(`Filtered by: ${[date, branch, product].filter(Boolean).join(', ')}`, 'success');
     }
@@ -134,12 +177,28 @@ function ProduksiPageContent() {
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, dateFilter, divisiFilter, branchFilter]);
+  }, [filters]);
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
   }
+
+  // Skeleton loading component
+  const TableSkeleton = () => (
+    <div className="animate-pulse">
+      {[...Array(10)].map((_, i) => (
+        <div key={i} className="flex space-x-4 py-3 border-b">
+          <div className="h-4 bg-gray-200 rounded w-20"></div>
+          <div className="h-4 bg-gray-200 rounded w-32"></div>
+          <div className="h-4 bg-gray-200 rounded w-24"></div>
+          <div className="h-4 bg-gray-200 rounded w-16"></div>
+          <div className="h-4 bg-gray-200 rounded w-20"></div>
+          <div className="h-4 bg-gray-200 rounded w-16"></div>
+        </div>
+      ))}
+    </div>
+  );
 
 
 
@@ -163,25 +222,28 @@ function ProduksiPageContent() {
     return `PRD${year}${month}${day}${time}${random}`;
   };
 
-  const fetchProduksi = async () => {
+  const fetchProduksi = useCallback(async () => {
     try {
-      
-      // Get user data for branch filtering
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       let produksiQuery = supabase.from('produksi').select('*').order('tanggal_input', { ascending: false });
       
+      // Parallel queries for better performance
+      const queries = [
+        supabase.from('nama_product').select('id_product, product_name')
+      ];
+      
       // Apply branch filter for non-admin users
       if (user.role !== 'super admin' && user.role !== 'admin') {
-        const { data: userBranches } = await supabase
+        const userBranchesQuery = supabase
           .from('user_branches')
           .select('kode_branch')
           .eq('id_user', user.id_user)
           .eq('is_active', true);
         
+        const { data: userBranches } = await userBranchesQuery;
+        
         if (userBranches && userBranches.length > 0) {
           const allowedBranchCodes = userBranches.map(b => b.kode_branch);
-          
-          // Convert branch codes to branch names for filtering
           const { data: branchNames } = await supabase
             .from('branches')
             .select('nama_branch')
@@ -194,20 +256,11 @@ function ProduksiPageContent() {
         }
       }
       
-      const [produksiData, productsData] = await Promise.all([
-        produksiQuery,
-        supabase.from('nama_product').select('id_product, product_name')
-      ]);
+      queries.unshift(produksiQuery);
+      const [produksiData, productsData] = await Promise.all(queries);
 
-      if (produksiData.error) {
-        console.error('Produksi data error:', produksiData.error);
-        throw produksiData.error;
-      }
-      
-      if (productsData.error) {
-        console.error('Products data error:', productsData.error);
-        throw productsData.error;
-      }
+      if (produksiData.error) throw produksiData.error;
+      if (productsData.error) throw productsData.error;
       
       const productMap = new Map(productsData.data?.map(p => [p.id_product, p.product_name]) || []);
       
@@ -216,15 +269,15 @@ function ProduksiPageContent() {
         product_name: productMap.get(item.id_product) || ''
       }));
       
-      console.log('Fetched produksi records:', produksiWithNames.length);
       setProduksi(produksiWithNames);
     } catch (error) {
       console.error('Error fetching produksi:', error);
       showToast('❌ Gagal memuat data produksi', 'error');
+      setProduksi([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const fetchWipProducts = async () => {
     try {
@@ -382,10 +435,12 @@ function ProduksiPageContent() {
       
       // Clear any filters that might hide the updated record
       if (editingId) {
-        setSearchTerm('');
-        setDateFilter('');
-        setDivisiFilter('');
-        setBranchFilter('');
+        setFilters({
+          searchTerm: '',
+          dateFilter: '',
+          divisiFilter: '',
+          branchFilter: ''
+        });
         setCurrentPage(1);
       }
       
@@ -519,38 +574,8 @@ function ProduksiPageContent() {
     setSortConfig({ key, direction });
   };
 
-  const filteredAndSortedProduksi = (() => {
-    let filtered = produksi.filter(item => {
-      const matchesSearch = item.production_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.divisi.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.product_name || '').toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesDate = !dateFilter || item.tanggal_input.includes(dateFilter);
-      const matchesDivisi = !divisiFilter || item.divisi.toLowerCase().includes(divisiFilter.toLowerCase());
-      const matchesBranch = !branchFilter || item.branch.toLowerCase() === branchFilter.toLowerCase();
-      
-      return matchesSearch && matchesDate && matchesDivisi && matchesBranch;
-    });
-
-    if (sortConfig) {
-      filtered.sort((a, b) => {
-        let aValue = a[sortConfig.key as keyof Produksi];
-        let bValue = b[sortConfig.key as keyof Produksi];
-        
-        if (aValue === undefined) aValue = '';
-        if (bValue === undefined) bValue = '';
-        
-        if (typeof aValue === 'string') aValue = aValue.toLowerCase();
-        if (typeof bValue === 'string') bValue = bValue.toLowerCase();
-        
-        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return filtered;
-  })();
+  // Use the memoized filtered data
+  const filteredAndSortedProduksi = filteredData;
 
   const totalPages = Math.ceil(filteredAndSortedProduksi.length / itemsPerPage);
   const paginatedProduksi = filteredAndSortedProduksi.slice(
@@ -709,19 +734,19 @@ function ProduksiPageContent() {
             <input
               type="text"
               placeholder="Search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={filters.searchTerm}
+              onChange={(e) => updateFilters('searchTerm', e.target.value)}
               className="border px-2 py-1 rounded-md text-xs"
             />
             <input
               type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              value={filters.dateFilter}
+              onChange={(e) => updateFilters('dateFilter', e.target.value)}
               className="border px-2 py-1 rounded-md text-xs"
             />
             <select
-              value={divisiFilter}
-              onChange={(e) => setDivisiFilter(e.target.value)}
+              value={filters.divisiFilter}
+              onChange={(e) => updateFilters('divisiFilter', e.target.value)}
               className="border px-2 py-1 rounded-md text-xs"
             >
               <option value="">All Divisi</option>
@@ -730,8 +755,8 @@ function ProduksiPageContent() {
               ))}
             </select>
             <select
-              value={branchFilter}
-              onChange={(e) => setBranchFilter(e.target.value)}
+              value={filters.branchFilter}
+              onChange={(e) => updateFilters('branchFilter', e.target.value)}
               className="border px-2 py-1 rounded-md text-xs"
             >
               <option value="">All Branches</option>
