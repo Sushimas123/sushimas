@@ -154,7 +154,14 @@ const invoiceNumber = barangMasukItems && barangMasukItems.length > 0 ? barangMa
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('id-ID')
+    if (!dateString || dateString === '' || dateString === null) {
+      return 'Belum diterima'
+    }
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) {
+      return 'Belum diterima'
+    }
+    return date.toLocaleDateString('id-ID')
   }
 
   const exportToPDF = async () => {
@@ -173,7 +180,7 @@ const invoiceNumber = barangMasukItems && barangMasukItems.length > 0 ? barangMa
       doc.text(`Supplier: ${receivedData?.supplier_name}`, 20, 60)
       doc.text(`Cabang: ${receivedData?.branch_name}`, 20, 70)
       doc.text(`Invoice: ${receivedData?.invoice_number}`, 20, 80)
-      doc.text(`Tanggal Diterima: ${receivedData ? formatDate(receivedData.tanggal_barang_sampai) : ''}`, 20, 90)
+      doc.text(`Tanggal Diterima: ${receivedData && receivedData.tanggal_barang_sampai ? formatDate(receivedData.tanggal_barang_sampai) : 'Belum diterima'}`, 20, 90)
       
       // Items table header
       let yPos = 110
