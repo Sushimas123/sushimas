@@ -403,7 +403,7 @@ function PettyCashExpensesContent() {
       {/* Header - Mobile Optimized */}
       <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Petty Cash Expenses</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Pengeluaran Petty Cash</h1>
           <p className="text-gray-600 text-sm md:text-base">Kelola semua pengeluaran petty cash</p>
         </div>
         
