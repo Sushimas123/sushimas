@@ -46,7 +46,9 @@ import {
   SlidersHorizontal,
   GlobeLock,
   ScrollText,
-  Receipt
+  Receipt,
+  Calendar,
+  UserCheck
 } from "lucide-react"
 import { canAccessPage } from '@/src/utils/dbPermissions'
 import { supabase } from '@/src/lib/supabaseClient'
@@ -102,6 +104,7 @@ export default function Layout({ children }: LayoutProps) {
         { name: "Ready Stock", href: AppRoutes.READY_STOCK, icon: NotepadText, pageName: 'ready' },
         { name: "Production", href: AppRoutes.PRODUCTION, icon: Factory, pageName: 'produksi' },
         { name: "Gudang", href: AppRoutes.GUDANG, icon: Warehouse, pageName: 'gudang-final' },
+        { name: "Pivot Analysis", href: "/pivot", icon: SquareSigma, pageName: 'pivot' },
         { name: "SO Batch", href: AppRoutes.SO_BATCH, icon: SquareActivity, pageName: 'stock_opname_batch' },
       ]
     },
@@ -122,7 +125,6 @@ export default function Layout({ children }: LayoutProps) {
       icon: BarChart3,
       submenu: [
         { name: "Analysis", href: AppRoutes.ANALYSIS, icon: BarChart3, pageName: 'analysis' },
-        { name: "Pivot Analysis", href: "/pivot", icon: SquareSigma, pageName: 'pivot' },
         { name: "Esb Report", href: AppRoutes.ESB, icon: CircleDollarSign , pageName: 'esb' },
         { name: "Production Detail", href: AppRoutes.PRODUCTION_DETAIL, icon: FileText, pageName: 'produksi_detail' },
         { name: "Price History", href: AppRoutes.PRICE_HISTORY, icon: ChartArea, pageName: 'price_history'}
@@ -137,6 +139,8 @@ export default function Layout({ children }: LayoutProps) {
         { name: "Bulk Payments", href: "/finance/bulk-payments", icon: Receipt, pageName: 'finance' },
         { name: "Aging Report", href: AppRoutes.FINANCE_AGING_REPORT, icon: AlertTriangle, pageName: 'aging-report' },
         { name: "Jatuh Tempo", href: "/finance/aging-pivot", icon: SquareSigma, pageName: 'aging-report' },
+        { name: "Payment Recap", href: "/finance/payment-calendar", icon: Calendar, pageName: 'finance' },
+        { name: "Payment Approvals", href: "/finance/payment-approvals", icon: UserCheck, pageName: 'finance' },
       ]
     },
     {

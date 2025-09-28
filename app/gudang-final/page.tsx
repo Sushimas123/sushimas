@@ -807,11 +807,12 @@ supabase.from('product_branch_settings').select(`
               <input
                 type="number"
                 step="0.01"
-                value="0"
-                readOnly
-                className="border px-2 py-1 rounded-md text-xs bg-gray-100 cursor-not-allowed"
-                placeholder="Jumlah Masuk (Disabled)"
-                title="Input disabled - use PO/Transfer for incoming stock"
+                value={userRole === 'admin' || userRole === 'super admin' ? formData.jumlah_masuk : '0'}
+                onChange={userRole === 'admin' || userRole === 'super admin' ? (e) => setFormData(prev => ({ ...prev, jumlah_masuk: e.target.value })) : undefined}
+                readOnly={userRole !== 'admin' && userRole !== 'super admin'}
+                className={`border px-2 py-1 rounded-md text-xs ${userRole !== 'admin' && userRole !== 'super admin' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                placeholder={userRole === 'admin' || userRole === 'super admin' ? 'Jumlah Masuk' : 'Jumlah Masuk (Admin Only)'}
+                title={userRole !== 'admin' && userRole !== 'super admin' ? 'Only Admin and Super Admin can input incoming stock' : ''}
               />
               <input
                 type="number"
