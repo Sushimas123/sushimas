@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Layout from '@/components/Layout';
 import PageAccessControl from '@/components/PageAccessControl';
 import { supabase } from '@/src/lib/supabaseClient';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface PettyCashRequest {
   id: number;
@@ -29,9 +30,20 @@ function PettyCashRequestsContent() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [branchFilter, setBranchFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('30');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(50);
+  const [isMobile, setIsMobile] = useState(false);
+  
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-  // Fungsi untuk mengambil data dari Supabase
-  const fetchRequests = async () => {
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const fetchRequests = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -76,7 +88,7 @@ function PettyCashRequestsContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Fungsi untuk mengubah status request
   const updateRequestStatus = async (id: number, newStatus: string, notes?: string) => {
@@ -198,34 +210,41 @@ function PettyCashRequestsContent() {
     fetchRequests();
   }, []);
 
-  // Filter requests
-  const filteredRequests = requests.filter(request => {
-    const matchesSearch = 
-      request.request_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.purpose.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.requested_by.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
-    const matchesBranch = branchFilter === 'all' || request.branch_code === branchFilter;
-    
-    // Filter berdasarkan tanggal
-    const requestDate = new Date(request.request_date);
-    const now = new Date();
-    let dateLimit = new Date();
-    
-    switch (dateFilter) {
-      case '7': dateLimit.setDate(now.getDate() - 7); break;
-      case '30': dateLimit.setDate(now.getDate() - 30); break;
-      case '90': dateLimit.setDate(now.getDate() - 90); break;
-      case 'all': 
-      default: 
-        dateLimit = new Date(0); // Semua tanggal
-    }
-    
-    const matchesDate = requestDate >= dateLimit;
-    
-    return matchesSearch && matchesStatus && matchesBranch && matchesDate;
-  });
+  const filteredRequests = useMemo(() => {
+    return requests.filter(request => {
+      const matchesSearch = 
+        request.request_number.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        request.purpose.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        request.requested_by.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
+      
+      const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
+      const matchesBranch = branchFilter === 'all' || request.branch_code === branchFilter;
+      
+      const requestDate = new Date(request.request_date);
+      const now = new Date();
+      let dateLimit = new Date();
+      
+      switch (dateFilter) {
+        case '7': dateLimit.setDate(now.getDate() - 7); break;
+        case '30': dateLimit.setDate(now.getDate() - 30); break;
+        case '90': dateLimit.setDate(now.getDate() - 90); break;
+        case 'all': 
+        default: 
+          dateLimit = new Date(0);
+      }
+      
+      const matchesDate = requestDate >= dateLimit;
+      
+      return matchesSearch && matchesStatus && matchesBranch && matchesDate;
+    });
+  }, [requests, debouncedSearchTerm, statusFilter, branchFilter, dateFilter]);
+
+  const paginatedRequests = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredRequests.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredRequests, currentPage, itemsPerPage]);
+
+  const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -249,21 +268,21 @@ function PettyCashRequestsContent() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = useCallback((amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
       currency: 'IDR',
       minimumFractionDigits: 0
     }).format(amount);
-  };
+  }, []);
 
-  const formatDate = (dateString: string) => {
+  const formatDate = useCallback((dateString: string) => {
     return new Date(dateString).toLocaleDateString('id-ID', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric'
     });
-  };
+  }, []);
 
   const branches = Array.from(new Set(requests.map(r => r.branch_code)))
     .map(code => {
@@ -285,6 +304,94 @@ function PettyCashRequestsContent() {
     pendingAmount: requests.filter(r => r.status === 'pending').reduce((sum, r) => sum + r.amount, 0)
   };
 
+  const MobileRequestCard = ({ request }: { request: PettyCashRequest }) => (
+    <div className="bg-white rounded-lg border p-4 space-y-3">
+      <div className="flex justify-between items-start">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="font-medium text-blue-600 text-sm">{request.request_number}</div>
+            <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(request.status)} bg-opacity-20`}>
+              {getStatusIcon(request.status)} {request.status.toUpperCase()}
+            </span>
+          </div>
+          <div className="text-xs text-gray-500">
+            {formatDate(request.request_date)} • {request.branch_name}
+          </div>
+        </div>
+      </div>
+
+      <div className="text-sm">
+        <div className="font-medium">{request.requested_by}</div>
+        <div className="text-lg font-bold text-green-600">{formatCurrency(request.amount)}</div>
+      </div>
+
+      <div>
+        <div className="text-sm text-gray-700 line-clamp-2">{request.purpose}</div>
+        {request.notes && (
+          <div className="text-xs text-gray-500 mt-1">💬 {request.notes}</div>
+        )}
+        {request.category && (
+          <div className="text-xs text-blue-500 mt-1">📁 {request.category}</div>
+        )}
+      </div>
+
+      {request.approved_by && (
+        <div className="text-xs text-green-600">
+          ✅ Disetujui oleh: {request.approved_by}
+          {request.approved_at && ` • ${formatDate(request.approved_at)}`}
+        </div>
+      )}
+
+      <div className="flex justify-between items-center pt-2 border-t">
+        <div className="flex gap-2">
+          <a
+            href={`/pettycash/request/${request.id}`}
+            className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+          >
+            👁️ Detail
+          </a>
+        </div>
+        
+        <div className="flex gap-1">
+          {request.status === 'pending' && (
+            <>
+              <button
+                onClick={() => handleApprove(request.id)}
+                className="text-green-600 hover:text-green-800 p-1 rounded transition-colors"
+                title="Approve"
+              >
+                ✅
+              </button>
+              <button
+                onClick={() => handleReject(request.id)}
+                className="text-red-600 hover:text-red-800 p-1 rounded transition-colors"
+                title="Reject"
+              >
+                ❌
+              </button>
+            </>
+          )}
+          {request.status === 'approved' && (
+            <button
+              onClick={() => handleDisburse(request.id)}
+              className="text-blue-600 hover:text-blue-800 p-1 rounded transition-colors text-xs"
+              title="Disburse"
+            >
+              💰
+            </button>
+          )}
+          <button
+            onClick={() => handleDelete(request.id)}
+            className="text-red-600 hover:text-red-800 p-1 rounded transition-colors"
+            title="Delete"
+          >
+            🗑️
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-96">
@@ -297,66 +404,68 @@ function PettyCashRequestsContent() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Petty Cash Requests</h1>
-          <p className="text-gray-600">Kelola semua permintaan petty cash</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Petty Cash Requests</h1>
+          <p className="text-gray-600 text-sm md:text-base">Kelola semua permintaan petty cash</p>
         </div>
         <a 
           href="/pettycash/request/create"
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
         >
-          ➕ Buat Request Baru
+          ➕ Buat Request
         </a>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-          <div className="text-sm text-gray-600">Total Requests</div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
+          <div className="text-lg md:text-2xl font-bold text-blue-600">{stats.total}</div>
+          <div className="text-xs md:text-sm text-gray-600">Total</div>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-          <div className="text-sm text-gray-600">Pending</div>
+        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
+          <div className="text-lg md:text-2xl font-bold text-yellow-600">{stats.pending}</div>
+          <div className="text-xs md:text-sm text-gray-600">Pending</div>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
-          <div className="text-sm text-gray-600">Approved</div>
+        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
+          <div className="text-lg md:text-2xl font-bold text-green-600">{stats.approved}</div>
+          <div className="text-xs md:text-sm text-gray-600">Approved</div>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-2xl font-bold text-blue-600">{stats.disbursed}</div>
-          <div className="text-sm text-gray-600">Disbursed</div>
+        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
+          <div className="text-lg md:text-2xl font-bold text-blue-600">{stats.disbursed}</div>
+          <div className="text-xs md:text-sm text-gray-600">Disbursed</div>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-2xl font-bold text-red-600">{stats.rejected}</div>
-          <div className="text-sm text-gray-600">Rejected</div>
+        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
+          <div className="text-lg md:text-2xl font-bold text-red-600">{stats.rejected}</div>
+          <div className="text-xs md:text-sm text-gray-600">Rejected</div>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-lg font-bold text-purple-600">{formatCurrency(stats.pendingAmount)}</div>
-          <div className="text-sm text-gray-600">Pending Amount</div>
+        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
+          <div className="text-sm md:text-lg font-bold text-purple-600">{formatCurrency(stats.pendingAmount)}</div>
+          <div className="text-xs md:text-sm text-gray-600">Pending Amount</div>
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Search */}
       <div className="bg-white p-4 rounded-lg border">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <input
-              type="text"
-              placeholder="Cari request number, purpose, atau nama..."
-              className="w-full border rounded px-3 py-2 text-sm"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <div>
+        <input
+          type="text"
+          placeholder="Cari request number, purpose, atau nama..."
+          className="w-full border rounded px-3 py-3 text-sm"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
+      {/* Filters */}
+      {!isMobile && (
+        <div className="bg-white p-4 rounded-lg border">
+          <div className="grid grid-cols-3 gap-4">
             <select 
               value={statusFilter} 
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
+              className="border rounded px-3 py-2 text-sm"
             >
               <option value="all">Semua Status</option>
               <option value="pending">Pending</option>
@@ -365,26 +474,22 @@ function PettyCashRequestsContent() {
               <option value="rejected">Rejected</option>
               <option value="settled">Settled</option>
             </select>
-          </div>
-          <div>
             <select 
               value={branchFilter} 
               onChange={(e) => setBranchFilter(e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
+              className="border rounded px-3 py-2 text-sm"
             >
               <option value="all">Semua Cabang</option>
               {branches.map(branch => (
                 <option key={branch.code} value={branch.code}>
-                  {branch.name} ({branch.code})
+                  {branch.name}
                 </option>
               ))}
             </select>
-          </div>
-          <div>
             <select 
               value={dateFilter} 
               onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
+              className="border rounded px-3 py-2 text-sm"
             >
               <option value="7">7 Hari Terakhir</option>
               <option value="30">30 Hari Terakhir</option>
@@ -393,29 +498,39 @@ function PettyCashRequestsContent() {
             </select>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Requests Table */}
+      {/* Requests List */}
       <div className="bg-white rounded-lg border">
-        <div className="p-6 border-b">
+        <div className="p-4 md:p-6 border-b">
           <h2 className="text-lg font-semibold">Daftar Requests ({filteredRequests.length})</h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-left py-3 px-4">Request Info</th>
-                <th className="text-left py-3 px-4">Branch</th>
-                <th className="text-left py-3 px-4">Requester</th>
-                <th className="text-right py-3 px-4">Amount</th>
-                <th className="text-left py-3 px-4">Purpose</th>
-                <th className="text-center py-3 px-4">Status</th>
-                <th className="text-left py-3 px-4">Approval Info</th>
-                <th className="text-center py-3 px-4">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRequests.map((request) => (
+        
+        {/* Mobile Cards */}
+        {isMobile ? (
+          <div className="space-y-3 p-4">
+            {paginatedRequests.map((request) => (
+              <MobileRequestCard key={request.id} request={request} />
+            ))}
+          </div>
+        ) : (
+          /* Desktop Table */
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left py-3 px-4">Request Info</th>
+                  <th className="text-left py-3 px-4">Branch</th>
+                  <th className="text-left py-3 px-4">Requester</th>
+                  <th className="text-right py-3 px-4">Amount</th>
+                  <th className="text-left py-3 px-4">Purpose</th>
+                  <th className="text-center py-3 px-4">Status</th>
+                  <th className="text-left py-3 px-4">Approval Info</th>
+                  <th className="text-center py-3 px-4">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedRequests.map((request) => (
                 <tr key={request.id} className="border-b hover:bg-gray-50">
                   <td className="py-4 px-4">
                     <div>
@@ -531,12 +646,13 @@ function PettyCashRequestsContent() {
                     </div>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-        {filteredRequests.length === 0 && (
+        {paginatedRequests.length === 0 && (
           <div className="text-center py-12">
             <div className="text-4xl mb-4">📋</div>
             <h3 className="text-lg font-medium">Tidak ada request ditemukan</h3>
@@ -556,13 +672,43 @@ function PettyCashRequestsContent() {
         )}
       </div>
 
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="bg-white p-4 rounded-lg border">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div className="text-sm text-gray-600">
+              Menampilkan {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredRequests.length)} dari {filteredRequests.length} requests
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Previous
+              </button>
+              <span className="px-3 py-1 text-sm">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Summary Footer */}
       <div className="bg-white p-4 rounded-lg border">
-        <div className="flex justify-between items-center text-sm">
-          <div>
-            Menampilkan {filteredRequests.length} dari {requests.length} requests
+        <div className="flex flex-col md:flex-row justify-between items-center text-sm gap-2">
+          <div className="text-gray-600">
+            Total: {filteredRequests.length} dari {requests.length} requests
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-col md:flex-row gap-2 md:gap-4 text-center md:text-left">
             <span>Total Amount: <strong>{formatCurrency(stats.totalAmount)}</strong></span>
             <span>Pending Amount: <strong className="text-yellow-600">{formatCurrency(stats.pendingAmount)}</strong></span>
           </div>

@@ -1,12 +1,30 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
 import { DollarSign, FileText, AlertTriangle, TrendingUp, Search, Plus, Filter, X, ChevronDown, ChevronRight, Calendar, Building, User, CreditCard, Clock, CheckCircle, AlertCircle, Edit, ChevronUp, Download, LinkIcon, Receipt } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 import PaymentModal from './PaymentModal'
 import BulkPaymentModal from './BulkPaymentModal'
+import { TableSkeleton, MobileCardSkeleton, StatsSkeleton } from '../../../components/SkeletonLoader'
+
+// Debounce hook for search optimization
+const useDebounce = (value: string, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value)
+    }, delay)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [value, delay])
+
+  return debouncedValue
+}
 
 
 interface FinanceData {
@@ -42,6 +60,7 @@ export default function FinancePurchaseOrders() {
   const [data, setData] = useState<FinanceData[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 300)
   const [selectedPO, setSelectedPO] = useState<FinanceData | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [suppliers, setSuppliers] = useState<any[]>([])
@@ -77,12 +96,24 @@ export default function FinancePurchaseOrders() {
   })
   const [showFilters, setShowFilters] = useState(false)
 
+  // Preload critical data on mount
   useEffect(() => {
+    // Preload suppliers and branches first (smaller datasets)
+    Promise.all([fetchSuppliers(), fetchBranches()])
+    
+    // Then load main data
     fetchFinanceData()
-    fetchSuppliers()
-    fetchBranches()
     fetchBulkPayments()
+  }, [])
+  
+  // Separate effect for filter changes
+  useEffect(() => {
+    if (Object.values(filters).some(filter => filter !== '')) {
+      fetchFinanceData()
+    }
   }, [filters])
+
+
 
   // Check screen size
   useEffect(() => {
@@ -96,15 +127,33 @@ export default function FinancePurchaseOrders() {
     return () => window.removeEventListener('resize', checkScreenSize)
   }, [])
 
-  const fetchSuppliers = async () => {
+  // Performance monitoring
+  useEffect(() => {
+    const measureLoadTime = () => {
+      const loadTime = performance.now()
+      console.log(`Finance page loaded in ${loadTime.toFixed(2)}ms`)
+      
+      // Track performance metrics
+      if (loadTime > 3000) {
+        console.warn('Finance page load time is slow:', loadTime)
+      }
+    }
+    
+    // Measure when component is fully loaded
+    if (!loading && data.length > 0) {
+      measureLoadTime()
+    }
+  }, [loading, data])
+
+  const fetchSuppliers = useCallback(async () => {
     const { data } = await supabase.from('suppliers').select('id_supplier, nama_supplier').order('nama_supplier')
     setSuppliers(data || [])
-  }
+  }, [])
 
-  const fetchBranches = async () => {
+  const fetchBranches = useCallback(async () => {
     const { data } = await supabase.from('branches').select('id_branch, nama_branch').order('nama_branch')
     setBranches(data || [])
-  }
+  }, [])
 
   const fetchBulkPayments = async () => {
     try {
@@ -194,7 +243,7 @@ export default function FinancePurchaseOrders() {
     }
   }
 
-  const toggleRowExpansion = async (id: number) => {
+  const toggleRowExpansion = useCallback(async (id: number) => {
     if (expandedRows.includes(id)) {
       setExpandedRows(expandedRows.filter(rowId => rowId !== id))
     } else {
@@ -203,14 +252,34 @@ export default function FinancePurchaseOrders() {
         await fetchRowDetails(id)
       }
     }
-  }
+  }, [expandedRows, rowDetails])
+
+  // Memoized filtered data for better performance
+  const filteredData = useMemo(() => {
+    return data.filter(item => {
+      const matchesSearch = debouncedSearch === '' || 
+        item.po_number.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        item.nama_supplier.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        item.nama_branch.toLowerCase().includes(debouncedSearch.toLowerCase())
+      
+      return matchesSearch
+    })
+  }, [data, debouncedSearch])
+
+  // Memoized paginated data
+  const paginatedData = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    return filteredData.slice(startIndex, startIndex + itemsPerPage)
+  }, [filteredData, currentPage, itemsPerPage])
 
   const fetchFinanceData = async () => {
+    setLoading(true)
     try {
       let query = supabase
         .from('finance_dashboard_view')
         .select('*')
         .order('po_date', { ascending: false })
+        .limit(50) // Add limit for initial load
 
       // Apply filters
       if (filters.dateFrom) query = query.gte('po_date', filters.dateFrom)
@@ -402,7 +471,7 @@ export default function FinancePurchaseOrders() {
 
   const totalPages = Math.ceil(allFilteredData.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
-  const filteredData = allFilteredData.slice(startIndex, startIndex + itemsPerPage)
+  const currentPageData = allFilteredData.slice(startIndex, startIndex + itemsPerPage)
 
   const clearFilters = () => {
     setFilters({
@@ -1585,7 +1654,7 @@ export default function FinancePurchaseOrders() {
 
           {/* Mobile Card View */}
           <div className="block md:hidden">
-            {filteredData.map((item) => {
+            {currentPageData.map((item) => {
               const isExpanded = expandedRows.includes(item.id)
               return (
                 <div key={item.id} className="bg-white rounded-lg shadow border border-gray-200 mb-3 p-3">
@@ -1848,13 +1917,13 @@ export default function FinancePurchaseOrders() {
                         type="checkbox"
                         onChange={(e) => {
                           if (e.target.checked) {
-                            const unpaidPOs = filteredData.filter(item => item.status_payment !== 'paid').map(item => item.id)
+                            const unpaidPOs = currentPageData.filter(item => item.status_payment !== 'paid').map(item => item.id)
                             setSelectedPOs(unpaidPOs)
                           } else {
                             setSelectedPOs([])
                           }
                         }}
-                        checked={selectedPOs.length > 0 && selectedPOs.length === filteredData.filter(item => item.status_payment !== 'paid').length}
+                        checked={selectedPOs.length > 0 && selectedPOs.length === currentPageData.filter(item => item.status_payment !== 'paid').length}
                         className="rounded border-gray-300"
                       />
                     </th>
@@ -1884,7 +1953,7 @@ export default function FinancePurchaseOrders() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredData.map((item) => {
+                  {currentPageData.map((item) => {
                     const isExpanded = expandedRows.includes(item.id)
                     const rowClass = `hover:bg-gray-50 ${item.is_overdue ? 'bg-red-50' : ''} ${isExpanded ? 'bg-blue-50' : ''}`
                     

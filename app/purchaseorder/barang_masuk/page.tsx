@@ -409,6 +409,39 @@ export default function BarangMasukPage() {
         throw gudangError
       }
       
+      // Check if all items from this PO are now in gudang
+      if (item.po_id && item.no_po !== '-') {
+        const { data: allPoItems } = await supabase
+          .from('barang_masuk')
+          .select('id, id_barang')
+          .eq('no_po', item.no_po)
+        
+        if (allPoItems && allPoItems.length > 0) {
+          // Check if all items are now in gudang
+          const gudangCheckPromises = allPoItems.map(async (poItem) => {
+            const { data: gudangEntry } = await supabase
+              .from('gudang')
+              .select('order_no')
+              .eq('id_product', poItem.id_barang)
+              .eq('cabang', branchCode)
+              .eq('source_type', 'PO')
+              .eq('source_reference', item.no_po)
+              .maybeSingle()
+            return !!gudangEntry
+          })
+          
+          const allInGudang = await Promise.all(gudangCheckPromises)
+          
+          // If all items are in gudang, update PO status
+          if (allInGudang.every(inGudang => inGudang)) {
+            await supabase
+              .from('purchase_orders')
+              .update({ status: 'Di Gudang' })
+              .eq('id', item.po_id)
+          }
+        }
+      }
+      
       alert('Barang berhasil dimasukkan ke gudang!')
       fetchBarangMasuk() // Refresh data
     } catch (error) {
