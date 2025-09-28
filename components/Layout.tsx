@@ -144,10 +144,10 @@ export default function Layout({ children }: LayoutProps) {
       ]
     },
     {
-      id: 'petty-cash',
+      id: 'pettycash',
       name: 'Petty Cash',
       icon: Receipt,
-      pageName: 'petty-cash',
+      pageName: 'pettycash',
       submenu: [
         { name: "Dashboard", href: "/pettycash", icon: LayoutDashboard, pageName: 'pettycash' },
         { name: "Requests", href: "/pettycash/request", icon: FileText, pageName: 'pettycash' },

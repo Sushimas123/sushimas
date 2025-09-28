@@ -23,7 +23,10 @@ const PAGES = [
   'users', 'stock_opname_batch', 'product_settings', 'permissions-db', 
   'crud-permissions', 'audit-log', 'pivot', 'dashboard', 'login', 'register',
   'price-history', 'purchaseorder', 'transfer-barang', 'finance', 'aging-report',
-  'aging-pivot', 'bulk-payments'
+  'aging-pivot', 'bulk-payments', 'pettycash', 'pettycash-categories', 
+  'pettycash-expenses', 'pettycash-expenses-create', 'pettycash-request',
+  'pettycash-request-create', 'pettycash-settlements', 'pettycash-settlements-create',
+  'pettycash-summary'
 ];
 
 export default function CrudPermissionsPage() {
