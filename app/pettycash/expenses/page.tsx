@@ -440,7 +440,7 @@ function PettyCashExpensesContent() {
         </div>
         <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
           <div className="text-sm md:text-lg font-bold text-orange-600">{formatCurrency(stats.totalRemaining)}</div>
-          <div className="text-xs md:text-sm text-gray-600">Total Remaining</div>
+          <div className="text-xs md:text-sm text-gray-600">Sisa Modal</div>
         </div>
       </div>
 
