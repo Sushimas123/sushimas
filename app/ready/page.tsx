@@ -86,6 +86,7 @@ function ReadyPageContent() {
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(50);
+  const [dataLimit, setDataLimit] = useState(100);
   const [totalCount, setTotalCount] = useState(0);
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState('');
@@ -311,7 +312,7 @@ function ReadyPageContent() {
         .from('ready')
         .select('*')
         .order('tanggal_input', { ascending: false })
-        .limit(100)
+        .limit(dataLimit)
       
       // Apply branch filter if needed
       if (branchFilter && branchFilter.length > 0) {
@@ -1411,12 +1412,13 @@ function ReadyPageContent() {
 
         {/* Filters */}
         <div className="bg-white p-4 rounded-lg shadow mb-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
             <input
               type="date"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
               className="border px-2 py-1 rounded-md text-xs"
+              placeholder="Filter by date"
             />
             <input
               type="text"
@@ -1439,6 +1441,48 @@ function ReadyPageContent() {
               onChange={(e) => setBranchFilter(e.target.value)}
               className="border px-2 py-1 rounded-md text-xs"
             />
+          </div>
+          <div className="flex gap-2 items-center">
+            <span className="text-xs text-gray-600">Data limit:</span>
+            <select
+              value={dataLimit}
+              onChange={(e) => {
+                setDataLimit(parseInt(e.target.value));
+                fetchReady();
+              }}
+              className="border px-2 py-1 rounded-md text-xs"
+            >
+              <option value={100}>100 records</option>
+              <option value={500}>500 records</option>
+              <option value={1000}>1000 records</option>
+              <option value={5000}>5000 records</option>
+            </select>
+            <div className="flex gap-1">
+              <button
+                onClick={() => {
+                  const today = new Date().toISOString().split('T')[0];
+                  setDateFilter(today);
+                }}
+                className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs hover:bg-blue-200"
+              >
+                Today
+              </button>
+              <button
+                onClick={() => {
+                  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                  setDateFilter(yesterday);
+                }}
+                className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs hover:bg-green-200"
+              >
+                Yesterday
+              </button>
+              <button
+                onClick={() => setDateFilter('')}
+                className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs hover:bg-gray-200"
+              >
+                All Dates
+              </button>
+            </div>
           </div>
         </div>
 
