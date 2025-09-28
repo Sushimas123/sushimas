@@ -244,7 +244,7 @@ export default function PivotPage() {
       const uniqueProductIds = [...new Set(readyData?.map(r => r.id_product) || [])];
       
       const { data: warehouseData } = await supabase
-        .from('gudang')
+        .from('gudang_final_view')
         .select('*')
         .gte('tanggal', bufferDateStr)
         .in('id_product', uniqueProductIds);
@@ -427,10 +427,10 @@ export default function PivotPage() {
         unit_kecil: product?.unit_kecil || '',
         cabang: branch?.nama_branch || `Branch ${ready.id_branch}`,
         ready: ready.ready || 0,
-        gudang: warehouseItem?.total_gudang || 0,
+        gudang: warehouseItem?.running_total || warehouseItem?.total_gudang || 0,
         barang_masuk: 0,
         waste: ready.waste || 0,
-        total_barang: (ready.ready || 0) + (warehouseItem?.total_gudang || 0),
+        total_barang: (ready.ready || 0) + (warehouseItem?.running_total || warehouseItem?.total_gudang || 0),
         sub_category: product?.sub_category || 'Unknown',
         keluar_form: keluarForm,
         hasil_esb: hasilESB,
@@ -473,7 +473,7 @@ export default function PivotPage() {
         })
       : null;
     
-    const stokKemarin = (previousReady?.ready || 0) + (previousWarehouseItem?.total_gudang || 0);
+    const stokKemarin = (previousReady?.ready || 0) + (previousWarehouseItem?.running_total || previousWarehouseItem?.total_gudang || 0);
     
     const barangMasukHariIni = warehouse
       .filter(w => {
@@ -499,7 +499,7 @@ export default function PivotPage() {
         })
       : null;
     
-    const stokHariIni = (currentReady.ready || 0) + (currentWarehouseItem?.total_gudang || 0);
+    const stokHariIni = (currentReady.ready || 0) + (currentWarehouseItem?.running_total || currentWarehouseItem?.total_gudang || 0);
     const waste = currentReady.waste || 0;
     
     const keluarForm = (stokKemarin + barangMasukHariIni) - (stokHariIni + waste) + totalKonversi;
