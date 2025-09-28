@@ -86,7 +86,7 @@ function ReadyPageContent() {
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(50);
-  const [dataLimit, setDataLimit] = useState(100);
+
   const [totalCount, setTotalCount] = useState(0);
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState('');
@@ -117,7 +117,7 @@ function ReadyPageContent() {
       
       const matchesDate = !dateFilter || item.tanggal_input === dateFilter;
       const matchesSubCategory = !subCategoryFilter || item.sub_category === subCategoryFilter;
-      const matchesBranch = !branchFilter || item.id_branch.toString() === branchFilter;
+      const matchesBranch = !branchFilter || item.branch_name === branchFilter;
       
       return matchesSearch && matchesDate && matchesSubCategory && matchesBranch;
     });
@@ -307,37 +307,54 @@ function ReadyPageContent() {
     try {
       const branchFilter = await getBranchFilter()
       
-      // Build basic query first
-      let readyQuery = supabase
-        .from('ready')
-        .select('*')
-        .order('tanggal_input', { ascending: false })
-        .limit(dataLimit)
+      let allReadyData: any[] = []
       
-      // Apply branch filter if needed
+      // Fetch all data using pagination to bypass 1000 limit
+      let from = 0
+      const batchSize = 1000
+      
+      // Get branch filter once
+      let branchIds: number[] = []
       if (branchFilter && branchFilter.length > 0) {
         const { data: branchData } = await supabase
           .from('branches')
           .select('id_branch')
           .in('kode_branch', branchFilter)
+        branchIds = branchData?.map(b => b.id_branch) || []
+      }
+      
+      while (true) {
+        let readyQuery = supabase
+          .from('ready')
+          .select('*')
+          .order('tanggal_input', { ascending: false })
+          .range(from, from + batchSize - 1)
         
-        const branchIds = branchData?.map(b => b.id_branch) || []
+        // Apply branch filter if needed
         if (branchIds.length > 0) {
           readyQuery = readyQuery.in('id_branch', branchIds)
         }
+        
+        const { data: batchData, error: batchError } = await readyQuery
+        
+        if (batchError) {
+          console.error('Ready batch query error:', batchError)
+          throw batchError
+        }
+        
+        if (!batchData || batchData.length === 0) break
+        
+        allReadyData = [...allReadyData, ...batchData]
+        
+        if (batchData.length < batchSize) break
+        from += batchSize
       }
       
-      const { data: readyData, error: readyError } = await readyQuery
-      
-      if (readyError) {
-        console.error('Ready query error:', readyError)
-        throw readyError
-      }
-      
-      if (!readyData || readyData.length === 0) {
+      if (allReadyData.length === 0) {
         setReady([])
         return
       }
+
       
       // Fetch related data in parallel
       const [productsData, branchesData, usersData] = await Promise.all([
@@ -352,7 +369,7 @@ function ReadyPageContent() {
       const userMap = new Map(usersData.data?.map(u => [u.id_user, u.nama_lengkap]) || [])
       
       // Transform data
-      const readyWithNames = readyData.map(item => ({
+      const readyWithNames = allReadyData.map(item => ({
         ...item,
         product_name: productMap.get(item.id_product) || '',
         branch_name: branchMap.get(item.id_branch) || '',
@@ -1385,18 +1402,7 @@ function ReadyPageContent() {
                 />
               </label>
             )}
-            <button
-              onClick={() => {
-                fetchReady()
-                fetchBranches()
-                fetchMenuProducts()
-                fetchSubCategories()
-              }}
-              className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1"
-            >
-              <RefreshCw size={16} />
-              Refresh
-            </button>
+
 
             {selectedItems.length > 0 && canPerformActionSync(userRole, 'ready', 'delete') && (
               <button
@@ -1416,7 +1422,10 @@ function ReadyPageContent() {
             <input
               type="date"
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              onChange={(e) => {
+                setDateFilter(e.target.value);
+                fetchReady();
+              }}
               className="border px-2 py-1 rounded-md text-xs"
               placeholder="Filter by date"
             />
@@ -1427,63 +1436,38 @@ function ReadyPageContent() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="border px-2 py-1 rounded-md text-xs"
             />
-            <input
-              type="text"
-              placeholder="Filter Sub Category"
-              value={subCategoryFilter}
-              onChange={(e) => setSubCategoryFilter(e.target.value)}
-              className="border px-2 py-1 rounded-md text-xs"
-            />
-            <input
-              type="text"
-              placeholder="Filter Cabang"
-              value={branchFilter}
-              onChange={(e) => setBranchFilter(e.target.value)}
-              className="border px-2 py-1 rounded-md text-xs"
-            />
-          </div>
-          <div className="flex gap-2 items-center">
-            <span className="text-xs text-gray-600">Data limit:</span>
             <select
-              value={dataLimit}
+              value={subCategoryFilter}
               onChange={(e) => {
-                setDataLimit(parseInt(e.target.value));
+                setSubCategoryFilter(e.target.value);
                 fetchReady();
               }}
               className="border px-2 py-1 rounded-md text-xs"
             >
-              <option value={100}>100 records</option>
-              <option value={500}>500 records</option>
-              <option value={1000}>1000 records</option>
-              <option value={5000}>5000 records</option>
+              <option value="">All Sub Categories</option>
+              {subCategories.map(subCat => (
+                <option key={subCat} value={subCat}>
+                  {subCat}
+                </option>
+              ))}
             </select>
-            <div className="flex gap-1">
-              <button
-                onClick={() => {
-                  const today = new Date().toISOString().split('T')[0];
-                  setDateFilter(today);
-                }}
-                className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs hover:bg-blue-200"
-              >
-                Today
-              </button>
-              <button
-                onClick={() => {
-                  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-                  setDateFilter(yesterday);
-                }}
-                className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs hover:bg-green-200"
-              >
-                Yesterday
-              </button>
-              <button
-                onClick={() => setDateFilter('')}
-                className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs hover:bg-gray-200"
-              >
-                All Dates
-              </button>
-            </div>
+            <select
+              value={branchFilter}
+              onChange={(e) => {
+                setBranchFilter(e.target.value);
+                fetchReady();
+              }}
+              className="border px-2 py-1 rounded-md text-xs"
+            >
+              <option value="">All Branches</option>
+              {branches.map(branch => (
+                <option key={branch.id_branch} value={branch.nama_branch}>
+                  {branch.nama_branch}
+                </option>
+              ))}
+            </select>
           </div>
+
         </div>
 
         {/* Data Table */}
@@ -1601,6 +1585,7 @@ function ReadyPageContent() {
         <div className="flex justify-between items-center mt-4">
           <p className="text-xs text-gray-600">
             Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedReady.length)} of {filteredAndSortedReady.length} entries
+            <span className="text-green-600 font-medium ml-2">(✓ {ready.length} total records loaded)</span>
           </p>
           <div className="flex gap-1">
             <button 
