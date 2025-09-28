@@ -419,7 +419,7 @@ function PettyCashExpensesContent() {
             href="/pettycash/expenses/create"
             className="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-sm md:text-base"
           >
-            ➕ Tambah Expense
+            ➕ Tambah Pengeluaran
           </a>
         </div>
       </div>
@@ -428,7 +428,7 @@ function PettyCashExpensesContent() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
           <div className="text-lg md:text-2xl font-bold text-blue-600">{stats.total}</div>
-          <div className="text-xs md:text-sm text-gray-600">Total Expenses</div>
+          <div className="text-xs md:text-sm text-gray-600">Total Pengeluaran</div>
         </div>
         <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
           <div className="text-sm md:text-lg font-bold text-green-600">{formatCurrency(stats.totalAmount)}</div>
@@ -579,7 +579,7 @@ function PettyCashExpensesContent() {
       {/* Expenses List - Mobile Cards */}
       <div className="bg-white rounded-lg border">
         <div className="p-4 md:p-6 border-b">
-          <h2 className="text-lg font-semibold">Daftar Expenses ({filteredExpenses.length})</h2>
+          <h2 className="text-lg font-semibold">Daftar Pengeluaran   ({filteredExpenses.length})</h2>
         </div>
         
         {/* Mobile View - Cards */}
@@ -716,9 +716,9 @@ function PettyCashExpensesContent() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="text-left py-3 px-4">Date</th>
-                <th className="text-left py-3 px-4">Request</th>
-                <th className="text-left py-3 px-4">Branch</th>
+                <th className="text-left py-3 px-4">Tgl</th>
+                <th className="text-left py-3 px-4">Kode Modal</th>
+                <th className="text-left py-3 px-4">Cabang</th>
                 <th className="text-left py-3 px-4">Category</th>
                 <th className="text-left py-3 px-4">Description</th>
                 <th className="text-left py-3 px-4">Nama Barang</th>
@@ -839,18 +839,18 @@ function PettyCashExpensesContent() {
         {filteredExpenses.length === 0 && (
           <div className="text-center py-12">
             <div className="text-4xl mb-4">💰</div>
-            <h3 className="text-lg font-medium">Tidak ada expense ditemukan</h3>
+            <h3 className="text-lg font-medium">Tidak ada pengeluaran ditemukan</h3>
             <p className="text-gray-600 mb-4">
               {searchTerm || categoryFilter !== 'all' 
                 ? 'Coba ubah filter pencarian' 
-                : 'Belum ada expense yang dibuat'
+                : 'Belum ada pengeluaran   yang dibuat'
               }
             </p>
             <a 
               href="/pettycash/expenses/create"
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 inline-flex items-center gap-2"
             >
-              ➕ Tambah Expense Pertama
+              ➕ Tambah Pengeluaran Pertama
             </a>
           </div>
         )}
