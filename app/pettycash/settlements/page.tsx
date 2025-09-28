@@ -30,6 +30,7 @@ function SettlementsContent() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const fetchSettlements = async () => {
     try {
@@ -156,25 +157,21 @@ function SettlementsContent() {
     const settlement = settlements.find(s => s.id === settlementId);
     if (!settlement) return;
     
-    // Validasi 1: Hanya settlement completed yang bisa di-refill
     if (settlement.status !== 'completed') {
       alert('Hanya settlement dengan status "completed" yang bisa di-refill');
       return;
     }
     
-    // Validasi 2: Cek apakah sudah ada refill sebelumnya
     if (settlement.refilled_request_id || settlement.notes?.includes('[REFILLED]')) {
       alert('Settlement ini sudah di-refill sebelumnya');
       return;
     }
     
-    // Validasi 3: Pastikan ada expenses yang bisa di-refill
     if (settlement.total_expenses <= 0) {
       alert('Tidak ada dana yang bisa di-refill (total expenses = 0)');
       return;
     }
     
-    // Refill amount = total expenses (dana yang terpakai dikembalikan ke kas)
     const refillAmount = settlement.total_expenses;
     
     if (!confirm(`Refill settlement ${settlement.settlement_number}?\n\nDana terpakai: ${formatCurrency(settlement.total_expenses)}\nSisa saldo: ${formatCurrency(settlement.remaining_amount)}\nTotal baru: ${formatCurrency(settlement.total_expenses + settlement.remaining_amount)}`)) return;
@@ -188,17 +185,14 @@ function SettlementsContent() {
         return;
       }
 
-      // Generate request number
       const requestNumber = `REQ-REFILL-${Date.now()}`;
       
-      // Get original request data for branch info
       const { data: originalRequest } = await supabase
         .from('petty_cash_requests')
         .select('branch_code')
         .eq('id', settlement.request_id)
         .single();
       
-      // Create new request with refill tracking fields
       const { data: newRequest, error: requestError } = await supabase
         .from('petty_cash_requests')
         .insert({
@@ -207,7 +201,7 @@ function SettlementsContent() {
           purpose: `Refill dari settlement ${settlement.settlement_number}`,
           branch_code: originalRequest?.branch_code || 'UNKNOWN',
           requested_by: currentUser.id_user,
-          status: 'approved', // Auto approve refill
+          status: 'approved',
           approved_by: currentUser.id_user,
           approved_at: new Date().toISOString(),
           parent_request_id: settlement.request_id,
@@ -219,7 +213,6 @@ function SettlementsContent() {
       
       if (requestError) throw requestError;
       
-      // Update settlement to mark as refilled
       const { error: updateError } = await supabase
         .from('petty_cash_settlements')
         .update({ 
@@ -262,10 +255,10 @@ function SettlementsContent() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'text-yellow-600';
-      case 'verified': return 'text-blue-600';
-      case 'completed': return 'text-green-600';
-      default: return 'text-gray-600';
+      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'verified': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'completed': return 'bg-green-100 text-green-800 border-green-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
@@ -307,61 +300,96 @@ function SettlementsContent() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
+    <div className="space-y-4 md:space-y-6">
+      {/* Header - Mobile Optimized */}
+      <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Petty Cash Settlements</h1>
-          <p className="text-gray-600">Kelola penyelesaian dan pengembalian saldo petty cash</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Petty Cash Settlements</h1>
+          <p className="text-gray-600 text-sm md:text-base">Kelola penyelesaian dan pengembalian saldo petty cash</p>
         </div>
         <a 
           href="/pettycash/settlements/create"
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          className="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-sm md:text-base"
         >
           ➕ Buat Settlement
         </a>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-          <div className="text-sm text-gray-600">Total Settlements</div>
+      {/* Stats Cards - Mobile Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-7 gap-3 md:gap-4">
+        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
+          <div className="text-lg md:text-2xl font-bold text-blue-600">{stats.total}</div>
+          <div className="text-xs md:text-sm text-gray-600">Total</div>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-          <div className="text-sm text-gray-600">Pending</div>
+        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
+          <div className="text-lg md:text-2xl font-bold text-yellow-600">{stats.pending}</div>
+          <div className="text-xs md:text-sm text-gray-600">Pending</div>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-2xl font-bold text-blue-600">{stats.verified}</div>
-          <div className="text-sm text-gray-600">Verified</div>
+        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
+          <div className="text-lg md:text-2xl font-bold text-blue-600">{stats.verified}</div>
+          <div className="text-xs md:text-sm text-gray-600">Verified</div>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
-          <div className="text-sm text-gray-600">Completed</div>
+        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
+          <div className="text-lg md:text-2xl font-bold text-green-600">{stats.completed}</div>
+          <div className="text-xs md:text-sm text-gray-600">Completed</div>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-lg font-bold text-purple-600">{stats.refillable}</div>
-          <div className="text-sm text-gray-600">Ready for Refill</div>
+        <div className="bg-white p-3 md:p-4 rounded-lg border text-center md:col-span-1 col-span-2">
+          <div className="text-sm md:text-lg font-bold text-purple-600">{stats.refillable}</div>
+          <div className="text-xs md:text-sm text-gray-600">Ready for Refill</div>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-lg font-bold text-orange-600">{formatCurrency(stats.totalRefillableAmount)}</div>
-          <div className="text-sm text-gray-600">Total Refillable</div>
+        <div className="bg-white p-3 md:p-4 rounded-lg border text-center md:col-span-2 col-span-2">
+          <div className="text-sm md:text-lg font-bold text-orange-600">{formatCurrency(stats.totalRefillableAmount)}</div>
+          <div className="text-xs md:text-sm text-gray-600">Total Refillable</div>
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Search Bar - Always visible */}
       <div className="bg-white p-4 rounded-lg border">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <input
-              type="text"
-              placeholder="Cari settlement number atau request number..."
+        <input
+          type="text"
+          placeholder="Cari settlement number atau request number..."
+          className="w-full border rounded px-3 py-3 text-sm"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
+      {/* Filter Toggle for Mobile */}
+      <div className="bg-white p-4 rounded-lg border md:hidden">
+        <button
+          onClick={() => setIsFilterOpen(!isFilterOpen)}
+          className="w-full flex justify-between items-center text-sm font-medium"
+        >
+          <span>Filter Status</span>
+          <svg 
+            className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        
+        {isFilterOpen && (
+          <div className="mt-4">
+            <select 
+              value={statusFilter} 
+              onChange={(e) => setStatusFilter(e.target.value)}
               className="w-full border rounded px-3 py-2 text-sm"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            >
+              <option value="all">Semua Status</option>
+              <option value="pending">Pending</option>
+              <option value="verified">Verified</option>
+              <option value="completed">Completed</option>
+            </select>
           </div>
+        )}
+      </div>
+
+      {/* Filters for Desktop */}
+      <div className="bg-white p-4 rounded-lg border hidden md:block">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <select 
               value={statusFilter} 
@@ -377,12 +405,136 @@ function SettlementsContent() {
         </div>
       </div>
 
-      {/* Settlements Table */}
+      {/* Settlements List - Mobile Cards */}
       <div className="bg-white rounded-lg border">
-        <div className="p-6 border-b">
+        <div className="p-4 md:p-6 border-b">
           <h2 className="text-lg font-semibold">Daftar Settlements ({filteredSettlements.length})</h2>
         </div>
-        <div className="overflow-x-auto">
+        
+        {/* Mobile View - Cards */}
+        <div className="md:hidden">
+          {filteredSettlements.map((settlement) => (
+            <div key={settlement.id} className="border-b p-4 space-y-3">
+              {/* Header */}
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="font-medium text-blue-600">{settlement.settlement_number}</div>
+                  <div className="text-sm text-gray-500">{formatDate(settlement.settlement_date)}</div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <span className={`px-2 py-1 text-xs rounded-full border ${getStatusColor(settlement.status)}`}>
+                    {getStatusIcon(settlement.status)} {settlement.status.toUpperCase()}
+                  </span>
+                  {(settlement.refilled_request_id || settlement.notes?.includes('[REFILLED]')) && (
+                    <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                      🔄 Refilled
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              {/* Request Info */}
+              <div>
+                <div className="text-sm text-gray-600">Request</div>
+                <div className="font-medium text-purple-600">{settlement.request_number}</div>
+              </div>
+              
+              {/* Amounts */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center">
+                  <div className="text-xs text-gray-600">Request Amount</div>
+                  <div className="text-sm font-semibold">{formatCurrency(settlement.request_amount || 0)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-gray-600">Total Expenses</div>
+                  <div className="text-sm font-semibold text-red-600">{formatCurrency(settlement.total_expenses)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-gray-600">Remaining</div>
+                  <div className="text-sm font-bold text-green-600">{formatCurrency(settlement.remaining_amount)}</div>
+                </div>
+              </div>
+              
+              {/* Users */}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div className="text-xs text-gray-600">Settled By</div>
+                  <div className="font-medium">{settlement.settled_by_name}</div>
+                </div>
+                {settlement.verified_by_name && (
+                  <div>
+                    <div className="text-xs text-gray-600">Verified By</div>
+                    <div className="font-medium text-green-600">✓ {settlement.verified_by_name}</div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Actions */}
+              <div className="flex justify-between pt-3 border-t">
+                <div className="flex gap-2">
+                  {settlement.status === 'pending' && (
+                    <button
+                      onClick={() => handleVerify(settlement.id)}
+                      className="text-blue-600 hover:text-blue-800 p-2 rounded transition-colors bg-blue-50"
+                      title="Verify"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </button>
+                  )}
+                  {settlement.status === 'verified' && (
+                    <button
+                      onClick={() => handleComplete(settlement.id)}
+                      className="text-green-600 hover:text-green-800 p-2 rounded transition-colors bg-green-50"
+                      title="Complete"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </button>
+                  )}
+                  {settlement.status === 'completed' && settlement.total_expenses > 0 && !settlement.refilled_request_id && !settlement.notes?.includes('[REFILLED]') && (
+                    <button
+                      onClick={() => handleRefill(settlement.id, settlement.remaining_amount)}
+                      className="text-purple-600 hover:text-purple-800 p-2 rounded transition-colors bg-purple-50"
+                      title="Refill dana terpakai"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                
+                <div className="flex gap-2">
+                  <a
+                    href={`/pettycash/settlements/${settlement.id}`}
+                    className="text-gray-600 hover:text-gray-800 p-2 rounded transition-colors bg-gray-50"
+                    title="View Detail"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  </a>
+                  <button
+                    onClick={() => handleUndoSettlement(settlement.id)}
+                    className="text-red-600 hover:text-red-800 p-2 rounded transition-colors bg-red-50"
+                    title="Undo Settlement"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop View - Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
@@ -418,7 +570,7 @@ function SettlementsContent() {
                     <div className="font-bold text-green-600">{formatCurrency(settlement.remaining_amount)}</div>
                   </td>
                   <td className="py-4 px-4 text-center">
-                    <span className={`text-xs font-medium ${getStatusColor(settlement.status)}`}>
+                    <span className={`px-2 py-1 text-xs rounded-full border ${getStatusColor(settlement.status)}`}>
                       {getStatusIcon(settlement.status)} {settlement.status.toUpperCase()}
                     </span>
                     {(settlement.refilled_request_id || settlement.notes?.includes('[REFILLED]')) && (

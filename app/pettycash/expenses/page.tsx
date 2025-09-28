@@ -38,10 +38,10 @@ function PettyCashExpensesContent() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [settlementFilter, setSettlementFilter] = useState('all');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const exportToExcel = () => {
     const exportData = filteredExpenses.map((expense, index) => {
-      // Calculate running balance for export
       const runningBalance = calculateRunningBalance(expense);
       
       return {
@@ -106,7 +106,6 @@ function PettyCashExpensesContent() {
     if (!confirm('Hapus expense ini? Jika sudah dikonversi ke barang masuk, data barang masuk juga akan terhapus.')) return;
     
     try {
-      // Get expense to check request_id and barang_masuk_id
       const { data: expense } = await supabase
         .from('petty_cash_expenses')
         .select('request_id, barang_masuk_id')
@@ -118,7 +117,6 @@ function PettyCashExpensesContent() {
         return;
       }
       
-      // Check if request has completed settlement
       const { data: settlement } = await supabase
         .from('petty_cash_settlements')
         .select('status')
@@ -131,9 +129,7 @@ function PettyCashExpensesContent() {
         return;
       }
       
-      // If expense has been converted to barang_masuk, check if it can be deleted
       if (expense.barang_masuk_id) {
-        // Check if barang masuk already entered gudang
         const { data: barangMasukData } = await supabase
           .from('barang_masuk')
           .select('no_po, id_barang, tanggal')
@@ -141,7 +137,6 @@ function PettyCashExpensesContent() {
           .single();
         
         if (barangMasukData) {
-          // Check if already in gudang
           const { data: gudangEntry } = await supabase
             .from('gudang')
             .select('id')
@@ -156,7 +151,6 @@ function PettyCashExpensesContent() {
               return;
             }
             
-            // Delete from gudang first
             const { error: gudangDeleteError } = await supabase
               .from('gudang')
               .delete()
@@ -173,7 +167,6 @@ function PettyCashExpensesContent() {
           }
         }
         
-        // First, set barang_masuk_id to null to avoid foreign key constraint
         const { error: updateError } = await supabase
           .from('petty_cash_expenses')
           .update({ barang_masuk_id: null })
@@ -185,7 +178,6 @@ function PettyCashExpensesContent() {
           return;
         }
         
-        // Then delete barang_masuk
         const { error: barangMasukError } = await supabase
           .from('barang_masuk')
           .delete()
@@ -216,7 +208,6 @@ function PettyCashExpensesContent() {
     try {
       setLoading(true);
       
-      // Fetch requests data dengan informasi yang lengkap
       const { data: requestsData } = await supabase
         .from('petty_cash_requests')
         .select(`
@@ -227,7 +218,7 @@ function PettyCashExpensesContent() {
           request_number,
           branch_code
         `)
-        .order('created_at', { ascending: true }); // Urutkan dari yang paling lama
+        .order('created_at', { ascending: true });
 
       setRequests(requestsData || []);
       
@@ -238,10 +229,8 @@ function PettyCashExpensesContent() {
 
       if (error) throw error;
 
-      // Fetch related data for each expense
       const formattedExpenses = [];
       for (const expense of expensesData || []) {
-        // Fetch request data with branch info
         const { data: requestData } = await supabase
           .from('petty_cash_requests')
           .select(`
@@ -252,21 +241,18 @@ function PettyCashExpensesContent() {
           .eq('id', expense.request_id)
           .single();
         
-        // Fetch category name
         const { data: categoryData } = await supabase
           .from('categories')
           .select('category_name')
           .eq('id_category', expense.category_id)
           .single();
         
-        // Fetch user name
         const { data: userData } = await supabase
           .from('users')
           .select('nama_lengkap')
           .eq('id_user', expense.created_by)
           .single();
         
-        // Fetch settlement status
         const { data: settlementData } = await supabase
           .from('petty_cash_settlements')
           .select('status')
@@ -359,26 +345,20 @@ function PettyCashExpensesContent() {
       };
     });
 
-  // Fungsi untuk menghitung running balance
   const calculateRunningBalance = (expense: PettyCashExpense) => {
-    // 1. Cari data request untuk expense ini
     const request = requests.find(r => r.id === expense.request_id);
     if (!request) return 0;
 
-    // 2. Hitung total dana available (amount + carried_balance jika ada)
     const totalAvailable = request.amount + (request.carried_balance || 0);
 
-    // 3. Filter expenses yang termasuk dalam request yang SAMA dan tanggal SEBELUM/SAMA
     const relevantExpenses = expenses.filter(e => 
       e.request_id === expense.request_id && 
       (new Date(e.expense_date) < new Date(expense.expense_date) ||
       (new Date(e.expense_date).getTime() === new Date(expense.expense_date).getTime() && e.id <= expense.id))
     );
 
-    // 4. Total pengeluaran sampai dengan expense ini
     const totalExpensesUpToNow = relevantExpenses.reduce((sum, e) => sum + e.amount, 0);
 
-    // 5. Running balance = Total dana - Total pengeluaran
     return totalAvailable - totalExpensesUpToNow;
   };
 
@@ -393,6 +373,20 @@ function PettyCashExpensesContent() {
     }, 0)
   };
 
+  const getSettlementStatusBadge = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Completed</span>;
+      case 'verified':
+        return <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">Verified</span>;
+      case 'pending':
+        return <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">Pending</span>;
+      case 'no_settlement':
+      default:
+        return <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">No Settlement</span>;
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-96">
@@ -405,61 +399,139 @@ function PettyCashExpensesContent() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
+    <div className="space-y-4 md:space-y-6">
+      {/* Header - Mobile Optimized */}
+      <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Petty Cash Expenses</h1>
-          <p className="text-gray-600">Kelola semua pengeluaran petty cash</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Petty Cash Expenses</h1>
+          <p className="text-gray-600 text-sm md:text-base">Kelola semua pengeluaran petty cash</p>
         </div>
-        <div className="flex gap-2">
+        
+        {/* Action Buttons - Stacked on mobile */}
+        <div className="flex flex-col sm:flex-row gap-2">
           <button
             onClick={exportToExcel}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+            className="bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 text-sm md:text-base"
           >
             📊 Export Excel
           </button>
           <a 
             href="/pettycash/expenses/create"
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            className="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-sm md:text-base"
           >
             ➕ Tambah Expense
           </a>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-          <div className="text-sm text-gray-600">Total Expenses</div>
+      {/* Stats Cards - Grid 2x2 on mobile */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
+          <div className="text-lg md:text-2xl font-bold text-blue-600">{stats.total}</div>
+          <div className="text-xs md:text-sm text-gray-600">Total Expenses</div>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-lg font-bold text-green-600">{formatCurrency(stats.totalAmount)}</div>
-          <div className="text-sm text-gray-600">Total Amount</div>
+        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
+          <div className="text-sm md:text-lg font-bold text-green-600">{formatCurrency(stats.totalAmount)}</div>
+          <div className="text-xs md:text-sm text-gray-600">Total Amount</div>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-lg font-bold text-purple-600">{formatCurrency(stats.filteredAmount)}</div>
-          <div className="text-sm text-gray-600">Filtered Amount</div>
+        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
+          <div className="text-sm md:text-lg font-bold text-purple-600">{formatCurrency(stats.filteredAmount)}</div>
+          <div className="text-xs md:text-sm text-gray-600">Filtered Amount</div>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-lg font-bold text-orange-600">{formatCurrency(stats.totalRemaining)}</div>
-          <div className="text-sm text-gray-600">Total Remaining</div>
+        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
+          <div className="text-sm md:text-lg font-bold text-orange-600">{formatCurrency(stats.totalRemaining)}</div>
+          <div className="text-xs md:text-sm text-gray-600">Total Remaining</div>
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Search Bar - Always visible */}
       <div className="bg-white p-4 rounded-lg border">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <input
-              type="text"
-              placeholder="Cari description, vendor, atau request number..."
-              className="w-full border rounded px-3 py-2 text-sm"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+        <input
+          type="text"
+          placeholder="Cari description, vendor, atau request number..."
+          className="w-full border rounded px-3 py-3 text-sm"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
+      {/* Filter Toggle for Mobile */}
+      <div className="bg-white p-4 rounded-lg border md:hidden">
+        <button
+          onClick={() => setIsFilterOpen(!isFilterOpen)}
+          className="w-full flex justify-between items-center text-sm font-medium"
+        >
+          <span>Filter Data</span>
+          <svg 
+            className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        
+        {isFilterOpen && (
+          <div className="mt-4 space-y-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Kategori</label>
+              <select 
+                value={categoryFilter} 
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm"
+              >
+                <option value="all">Semua Kategori</option>
+                {categories.map(category => (
+                  <option key={category.id} value={category.id.toString()}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Status Settlement</label>
+              <select 
+                value={settlementFilter} 
+                onChange={(e) => setSettlementFilter(e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm"
+              >
+                <option value="all">Semua Status</option>
+                <option value="no_settlement">Belum Settlement</option>
+                <option value="pending">Settlement Pending</option>
+                <option value="verified">Settlement Verified</option>
+                <option value="completed">Settlement Completed</option>
+              </select>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Dari Tanggal</label>
+                <input
+                  type="date"
+                  className="w-full border rounded px-2 py-2 text-xs"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Sampai Tanggal</label>
+                <input
+                  type="date"
+                  className="w-full border rounded px-2 py-2 text-xs"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+            </div>
           </div>
+        )}
+      </div>
+
+      {/* Filters for Desktop */}
+      <div className="bg-white p-4 rounded-lg border hidden md:block">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <select 
               value={categoryFilter} 
@@ -504,12 +576,143 @@ function PettyCashExpensesContent() {
         </div>
       </div>
 
-      {/* Expenses Table */}
+      {/* Expenses List - Mobile Cards */}
       <div className="bg-white rounded-lg border">
-        <div className="p-6 border-b">
+        <div className="p-4 md:p-6 border-b">
           <h2 className="text-lg font-semibold">Daftar Expenses ({filteredExpenses.length})</h2>
         </div>
-        <div className="overflow-x-auto">
+        
+        {/* Mobile View - Cards */}
+        <div className="md:hidden">
+          {filteredExpenses.map((expense) => {
+            const runningBalance = calculateRunningBalance(expense);
+            
+            return (
+              <div key={expense.id} className="border-b p-4 space-y-3">
+                {/* Header */}
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-medium text-blue-600">{expense.request_number}</div>
+                    <div className="text-sm text-gray-500">{formatDate(expense.expense_date)}</div>
+                  </div>
+                  {getSettlementStatusBadge(expense.settlement_status || 'no_settlement')}
+                </div>
+                
+                {/* Basic Info */}
+                <div>
+                  <div className="font-medium text-sm mb-1">{expense.description}</div>
+                  <div className="text-xs text-gray-600 flex flex-wrap gap-2">
+                    <span>{expense.branch_name}</span>
+                    <span>•</span>
+                    <span>{expense.category_name}</span>
+                  </div>
+                </div>
+                
+                {/* Vendor & Product Info */}
+                {expense.vendor_name && (
+                  <div className="text-sm">
+                    <span className="text-gray-600">Vendor: </span>
+                    {expense.vendor_name}
+                  </div>
+                )}
+                
+                {/* Quantity & Price */}
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-gray-600 text-xs">Qty</div>
+                    <div>{expense.qty || (expense.amount && expense.harga ? (expense.amount / expense.harga).toFixed(2) : '-')}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600 text-xs">Harga Satuan</div>
+                    <div>{expense.harga ? formatCurrency(expense.harga) : (expense.qty && expense.amount ? formatCurrency(expense.amount / expense.qty) : '-')}</div>
+                  </div>
+                </div>
+                
+                {/* Amount & Balance */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-gray-600 text-xs">Total Amount</div>
+                    <div className="font-semibold text-green-600">{formatCurrency(expense.amount)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600 text-xs">Running Balance</div>
+                    <div className={`font-semibold ${runningBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency(runningBalance)}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Notes */}
+                {expense.notes && (
+                  <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                    💬 {expense.notes}
+                  </div>
+                )}
+                
+                {/* Receipt */}
+                {expense.receipt_number && (
+                  <div className="text-xs">
+                    <span className="text-gray-600">Receipt: </span>
+                    {expense.receipt_number}
+                  </div>
+                )}
+                
+                {/* Actions */}
+                <div className="flex justify-between pt-2 border-t">
+                  <div className="flex gap-2">
+                    <a
+                      href={`/pettycash/expenses/${expense.id}`}
+                      className="text-gray-600 hover:text-gray-800 p-1 rounded transition-colors"
+                      title="View Detail"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    </a>
+                    
+                    {expense.product_id && expense.qty && !expense.barang_masuk_id && (
+                      <button
+                        onClick={() => handleConvertToBarangMasuk(expense)}
+                        className="text-green-600 hover:text-green-800 p-1 rounded transition-colors"
+                        title="Convert to Barang Masuk"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                        </svg>
+                      </button>
+                    )}
+                    
+                    {expense.barang_masuk_id && (
+                      <a
+                        href={`/purchaseorder/barang_masuk`}
+                        className="text-blue-600 hover:text-blue-800 p-1 rounded transition-colors"
+                        title="View in Barang Masuk"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    )}
+                  </div>
+                  
+                  <button
+                    onClick={() => handleDeleteExpense(expense.id)}
+                    className="text-red-600 hover:text-red-800 p-1 rounded transition-colors"
+                    title="Delete Expense"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop View - Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
@@ -529,119 +732,104 @@ function PettyCashExpensesContent() {
               </tr>
             </thead>
             <tbody>
-              {filteredExpenses.map((expense, index) => {
-                // Calculate running balance
+              {filteredExpenses.map((expense) => {
                 const runningBalance = calculateRunningBalance(expense);
                 
-                const getSettlementStatusBadge = (status: string) => {
-                  switch (status) {
-                    case 'completed':
-                      return <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Completed</span>;
-                    case 'verified':
-                      return <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">Verified</span>;
-                    case 'pending':
-                      return <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">Pending</span>;
-                    case 'no_settlement':
-                    default:
-                      return <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">No Settlement</span>;
-                  }
-                };
-                
                 return (
-                <tr key={expense.id} className="border-b hover:bg-gray-50">
-                  <td className="py-4 px-4">
-                    <div className="font-medium">{formatDate(expense.expense_date)}</div>
-                  </td>
-                  <td className="py-4 px-4">
-                    <div className="text-blue-600 font-medium">{expense.request_number}</div>
-                  </td>
-                  <td className="py-4 px-4">
-                    <div className="text-green-600 font-medium">{expense.branch_name}</div>
-                  </td>
-                  <td className="py-4 px-4">
-                    <div className="text-purple-600">{expense.category_name}</div>
-                  </td>
-                  <td className="py-4 px-4">
-                    <div className="max-w-xs">
-                      <div className="truncate" title={expense.description}>
-                        {expense.description}
-                      </div>
-                      {expense.notes && (
-                        <div className="text-xs text-gray-500 mt-1 truncate" title={expense.notes}>
-                          💬 {expense.notes}
+                  <tr key={expense.id} className="border-b hover:bg-gray-50">
+                    <td className="py-4 px-4">
+                      <div className="font-medium">{formatDate(expense.expense_date)}</div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="text-blue-600 font-medium">{expense.request_number}</div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="text-green-600 font-medium">{expense.branch_name}</div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="text-purple-600">{expense.category_name}</div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="max-w-xs">
+                        <div className="truncate" title={expense.description}>
+                          {expense.description}
                         </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-4 px-4">
-                    <div>{expense.vendor_name || '-'}</div>
-                  </td>
-                  <td className="py-4 px-4 text-right">
-                    <div>{expense.qty || (expense.amount && expense.harga ? (expense.amount / expense.harga).toFixed(2) : '-')}</div>
-                  </td>
-                  <td className="py-4 px-4 text-right">
-                    <div>{expense.harga ? formatCurrency(expense.harga) : (expense.qty && expense.amount ? formatCurrency(expense.amount / expense.qty) : '-')}</div>
-                  </td>
-                  <td className="py-4 px-4 text-right">
-                    <div className="font-semibold">{formatCurrency(expense.amount)}</div>
-                  </td>
-                  <td className="py-4 px-4 text-right">
-                    <div className={`font-semibold ${runningBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {formatCurrency(runningBalance)}
-                    </div>
-                  </td>
-                  <td className="py-4 px-4">
-                    {getSettlementStatusBadge(expense.settlement_status || 'no_settlement')}
-                  </td>
-                  <td className="py-4 px-4">
-                    <div className="text-xs">{expense.receipt_number || '-'}</div>
-                  </td>
-                  <td className="py-4 px-4">
-                    <div className="flex gap-1 justify-center">
-                      <a
-                        href={`/pettycash/expenses/${expense.id}`}
-                        className="text-gray-600 hover:text-gray-800 p-1 rounded transition-colors"
-                        title="View Detail"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                      </a>
-                      {expense.product_id && expense.qty && !expense.barang_masuk_id && (
-                        <button
-                          onClick={() => handleConvertToBarangMasuk(expense)}
-                          className="text-green-600 hover:text-green-800 p-1 rounded transition-colors"
-                          title="Convert to Barang Masuk"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                          </svg>
-                        </button>
-                      )}
-                      {expense.barang_masuk_id && (
+                        {expense.notes && (
+                          <div className="text-xs text-gray-500 mt-1 truncate" title={expense.notes}>
+                            💬 {expense.notes}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div>{expense.vendor_name || '-'}</div>
+                    </td>
+                    <td className="py-4 px-4 text-right">
+                      <div>{expense.qty || (expense.amount && expense.harga ? (expense.amount / expense.harga).toFixed(2) : '-')}</div>
+                    </td>
+                    <td className="py-4 px-4 text-right">
+                      <div>{expense.harga ? formatCurrency(expense.harga) : (expense.qty && expense.amount ? formatCurrency(expense.amount / expense.qty) : '-')}</div>
+                    </td>
+                    <td className="py-4 px-4 text-right">
+                      <div className="font-semibold">{formatCurrency(expense.amount)}</div>
+                    </td>
+                    <td className="py-4 px-4 text-right">
+                      <div className={`font-semibold ${runningBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(runningBalance)}
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      {getSettlementStatusBadge(expense.settlement_status || 'no_settlement')}
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="text-xs">{expense.receipt_number || '-'}</div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex gap-1 justify-center">
                         <a
-                          href={`/purchaseorder/barang_masuk`}
-                          className="text-blue-600 hover:text-blue-800 p-1 rounded transition-colors"
-                          title="View in Barang Masuk"
+                          href={`/pettycash/expenses/${expense.id}`}
+                          className="text-gray-600 hover:text-gray-800 p-1 rounded transition-colors"
+                          title="View Detail"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                           </svg>
                         </a>
-                      )}
-                      <button
-                        onClick={() => handleDeleteExpense(expense.id)}
-                        className="text-red-600 hover:text-red-800 p-1 rounded transition-colors"
-                        title="Delete Expense"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                        {expense.product_id && expense.qty && !expense.barang_masuk_id && (
+                          <button
+                            onClick={() => handleConvertToBarangMasuk(expense)}
+                            className="text-green-600 hover:text-green-800 p-1 rounded transition-colors"
+                            title="Convert to Barang Masuk"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                            </svg>
+                          </button>
+                        )}
+                        {expense.barang_masuk_id && (
+                          <a
+                            href={`/purchaseorder/barang_masuk`}
+                            className="text-blue-600 hover:text-blue-800 p-1 rounded transition-colors"
+                            title="View in Barang Masuk"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </a>
+                        )}
+                        <button
+                          onClick={() => handleDeleteExpense(expense.id)}
+                          className="text-red-600 hover:text-red-800 p-1 rounded transition-colors"
+                          title="Delete Expense"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
@@ -670,11 +858,11 @@ function PettyCashExpensesContent() {
 
       {/* Summary Footer */}
       <div className="bg-white p-4 rounded-lg border">
-        <div className="flex justify-between items-center text-sm">
+        <div className="flex flex-col md:flex-row justify-between items-center text-sm gap-2">
           <div>
             Menampilkan {filteredExpenses.length} dari {expenses.length} expenses
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-col md:flex-row gap-2 md:gap-4 text-center md:text-left">
             <span>Total Amount: <strong>{formatCurrency(stats.totalAmount)}</strong></span>
             <span>Filtered Amount: <strong className="text-purple-600">{formatCurrency(stats.filteredAmount)}</strong></span>
           </div>
