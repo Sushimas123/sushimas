@@ -267,7 +267,7 @@ export default function AnalysisPage() {
       
       // Fetch warehouse data with buffer - get ALL data for accurate calculations
       const { data: warehouseData } = await supabase
-        .from('gudang')
+        .from('gudang_final_view')
         .select('*')
         .gte('tanggal', bufferDateStr)
         .in('id_product', uniqueProductIds);
@@ -417,21 +417,21 @@ export default function AnalysisPage() {
       const branch = branchMap.get(ready.id_branch);
       const cabangName = branch?.nama_branch || `Branch ${ready.id_branch}`;
       
-      // Gudang lookup using map
+      // Gudang lookup using map - find the latest record for the specific date
       const warehouseKey = `${ready.id_product}-${branch?.kode_branch}`;
       const warehouseItems = warehouseMap.get(warehouseKey) || [];
-      const filteredWarehouseItems = warehouseItems.filter((w: any) => {
-        const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
-        return warehouseDate <= ready.tanggal_input;
-      });
       
-      const warehouseItem = filteredWarehouseItems.length > 0 
-        ? filteredWarehouseItems.reduce((latest: any, current: any) => {
-            const latestTimestamp = latest.tanggal || '1900-01-01T00:00:00.000Z';
-            const currentTimestamp = current.tanggal || '1900-01-01T00:00:00.000Z';
-            return currentTimestamp > latestTimestamp ? current : latest;
-          })
-        : null;
+      // Get the latest warehouse record on or before the ready date
+      const warehouseItem = warehouseItems
+        .filter((w: any) => {
+          const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
+          return warehouseDate && warehouseDate <= ready.tanggal_input;
+        })
+        .sort((a: any, b: any) => {
+          const aDate = new Date(a.tanggal || '1900-01-01');
+          const bDate = new Date(b.tanggal || '1900-01-01');
+          return bDate.getTime() - aDate.getTime(); // Sort descending (latest first)
+        })[0] || null;
       
       // Hasil ESB lookup using map
       const readyDate = String(ready.tanggal_input).slice(0, 10);
@@ -451,7 +451,7 @@ export default function AnalysisPage() {
       const productionKey = `${ready.id_product}-${ready.tanggal_input}`;
       const productionItem = productionMap.get(productionKey);
 
-      const gudang = warehouseItem?.total_gudang || 0;
+      const gudang = warehouseItem?.running_total || warehouseItem?.total_gudang || 0;
       
       // Barang Masuk - calculate from ALL data (not filtered by date range)
       const barangMasuk = warehouseItems
@@ -544,19 +544,18 @@ export default function AnalysisPage() {
     const previousWarehouseItems = warehouse.filter(w => {
       const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
       return w.id_product === currentReady.id_product &&
-             warehouseDate <= previousDayStr &&
+             warehouseDate && warehouseDate <= previousDayStr &&
              w.cabang === branch?.kode_branch;
     });
     
-    const previousWarehouseItem = previousWarehouseItems.length > 0 
-      ? previousWarehouseItems.reduce((latest, current) => {
-          const latestTimestamp = latest.tanggal || '1900-01-01T00:00:00.000Z';
-          const currentTimestamp = current.tanggal || '1900-01-01T00:00:00.000Z';
-          return currentTimestamp > latestTimestamp ? current : latest;
-        })
-      : null;
+    const previousWarehouseItem = previousWarehouseItems
+      .sort((a, b) => {
+        const aDate = new Date(a.tanggal || '1900-01-01');
+        const bDate = new Date(b.tanggal || '1900-01-01');
+        return bDate.getTime() - aDate.getTime();
+      })[0] || null;
     
-    const stokKemarin = (previousReady?.ready || 0) + (previousWarehouseItem?.total_gudang || 0);
+    const stokKemarin = (previousReady?.ready || 0) + (previousWarehouseItem?.running_total || previousWarehouseItem?.total_gudang || 0);
     
     // Barang masuk hari ini
     const barangMasukHariIni = warehouse
@@ -572,19 +571,18 @@ export default function AnalysisPage() {
     const currentWarehouseItems = warehouse.filter(w => {
       const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
       return w.id_product === currentReady.id_product &&
-             warehouseDate <= currentReady.tanggal_input &&
+             warehouseDate && warehouseDate <= currentReady.tanggal_input &&
              w.cabang === branch?.kode_branch;
     });
     
-    const currentWarehouseItem = currentWarehouseItems.length > 0 
-      ? currentWarehouseItems.reduce((latest, current) => {
-          const latestTimestamp = latest.tanggal || '1900-01-01T00:00:00.000Z';
-          const currentTimestamp = current.tanggal || '1900-01-01T00:00:00.000Z';
-          return currentTimestamp > latestTimestamp ? current : latest;
-        })
-      : null;
+    const currentWarehouseItem = currentWarehouseItems
+      .sort((a, b) => {
+        const aDate = new Date(a.tanggal || '1900-01-01');
+        const bDate = new Date(b.tanggal || '1900-01-01');
+        return bDate.getTime() - aDate.getTime();
+      })[0] || null;
     
-    const stokHariIni = (currentReady.ready || 0) + (currentWarehouseItem?.total_gudang || 0);
+    const stokHariIni = (currentReady.ready || 0) + (currentWarehouseItem?.running_total || currentWarehouseItem?.total_gudang || 0);
     const waste = currentReady.waste || 0;
     
     // Keluar Form = (Stok Kemarin + Barang Masuk Hari Ini) - (Stok Hari Ini + Waste) + Total Konversi
