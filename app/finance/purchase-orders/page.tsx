@@ -1929,24 +1929,27 @@ export default function FinancePurchaseOrders() {
                     </th>
                     <th className="w-6 px-1 py-2 sticky left-6 bg-gray-50 z-20"></th>
                     <th className="w-20 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 sticky left-12 bg-gray-50 z-20" onClick={() => handleSort('po_number')}>No PO</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_branch')}>Cabang</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_barang_sampai')}>Sampai</th>
                     <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="w-12 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Termin</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_jatuh_tempo')}>J.Tempo</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_branch')}>Cabang</th>                    
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_barang_sampai')}>Tgl Sampai</th>
+                    <th className="w-20 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_supplier')}>Supplier</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">No Rek</th>
                     <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_po')}>Total PO</th>
                     <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tagihan</th>
                     <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Invoice</th>
-                    <th className="w-20 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_supplier')}>Supplier</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rekening</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_jatuh_tempo')}>J.Tempo</th>
+                    <th className="w-12 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Termin</th>
                     <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_paid')}>Dibayar</th>
                     <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('sisa_bayar')}>Sisa</th>
                     <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('dibayar_tanggal')}>Release</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('status_payment')}>Pay Status</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('approved_at')}>Approved</th>
+
+
                     <th className="w-12 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipe</th>
                     <th className="w-12 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Via</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('status_payment')}>Pay Status</th>
                     <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Ref</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('approved_at')}>Approved</th>
+
                     <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
                     <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
                     <th className="w-16 px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -1998,18 +2001,6 @@ export default function FinancePurchaseOrders() {
                               </div>
                             </div>
                           </td>
-                          <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
-                            {item.nama_branch}
-                          </td>
-                          <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
-                            {(item as any).tanggal_barang_sampai ? (
-                              <div className="text-green-600">
-                                {formatDate((item as any).tanggal_barang_sampai)}
-                              </div>
-                            ) : (
-                              <span className="text-gray-400">-</span>
-                            )}
-                          </td>
                           <td className="px-2 py-2 whitespace-nowrap">
                             <span className={`inline-flex px-1 py-0.5 text-xs rounded ${
                               (item as any).po_status === 'Barang sampai' ? 'bg-green-100 text-green-800' :
@@ -2021,23 +2012,16 @@ export default function FinancePurchaseOrders() {
                             </span>
                           </td>
                           <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
-                            {(item as any).termin_days || 30}h
+                            {item.nama_branch}
                           </td>
                           <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
-                            {item.tanggal_jatuh_tempo ? (
-                              formatDate(item.tanggal_jatuh_tempo)
+                            {(item as any).tanggal_barang_sampai ? (
+                              <div className="text-green-600">
+                                {formatDate((item as any).tanggal_barang_sampai)}
+                              </div>
                             ) : (
-                              <span className="text-gray-400">Tunggu</span>
+                              <span className="text-gray-400">-</span>
                             )}
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {formatCurrency(item.total_po)}
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {formatCurrency((item as any).total_tagih || 0)}
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).invoice_number || <span className="text-gray-400">-</span>}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                             <div className="flex items-center">
@@ -2060,7 +2044,26 @@ export default function FinancePurchaseOrders() {
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
-                          </td>                          
+                          </td>   
+                          <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {formatCurrency(item.total_po)}
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {formatCurrency((item as any).total_tagih || 0)}
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(item as any).invoice_number || <span className="text-gray-400">-</span>}
+                          </td>
+                          <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
+                            {item.tanggal_jatuh_tempo ? (
+                              formatDate(item.tanggal_jatuh_tempo)
+                            ) : (
+                              <span className="text-gray-400">Tunggu</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
+                            {(item as any).termin_days || 30}h
+                          </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                             {formatCurrency(item.total_paid)}
                           </td>
@@ -2076,12 +2079,6 @@ export default function FinancePurchaseOrders() {
                             ) : (
                               <span className="text-gray-400">Belum dibayar</span>
                             )}
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).payment_method || <span className="text-gray-400">-</span>}
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).payment_via || <span className="text-gray-400">-</span>}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap">
                             <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}>
@@ -2136,7 +2133,13 @@ export default function FinancePurchaseOrders() {
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
-                          </td>                                                  
+                          </td>   
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(item as any).payment_method || <span className="text-gray-400">-</span>}
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(item as any).payment_via || <span className="text-gray-400">-</span>}
+                          </td>                    
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                             <select 
                               className="text-xs border border-gray-300 rounded px-2 py-1 bg-white"
