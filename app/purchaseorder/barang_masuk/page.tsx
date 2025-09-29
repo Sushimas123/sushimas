@@ -31,6 +31,8 @@ interface BarangMasuk {
   po_id?: number
   is_in_gudang?: boolean
   from_petty_cash?: boolean
+  created_by_name?: string
+  updated_by_name?: string
 }
 
 interface Branch {
@@ -145,7 +147,11 @@ export default function BarangMasukPage() {
       
       let query = supabase
         .from('barang_masuk')
-        .select('*')
+        .select(`
+          *,
+          created_by_user:users!barang_masuk_created_by_fkey(nama_lengkap),
+          updated_by_user:users!barang_masuk_updated_by_fkey(nama_lengkap)
+        `)
         .order('created_at', { ascending: false })
         .range(from, to)
       
@@ -269,7 +275,9 @@ export default function BarangMasukPage() {
           updated_at: item.updated_at,
           po_id: po?.id,
           is_in_gudang: isInGudang,
-          from_petty_cash: fromPettyCash
+          from_petty_cash: fromPettyCash,
+          created_by_name: (item as any).created_by_user?.nama_lengkap || '-',
+          updated_by_name: (item as any).updated_by_user?.nama_lengkap || '-'
         }
       });
 
@@ -548,6 +556,8 @@ export default function BarangMasukPage() {
                           <th className="px-2 py-2 text-center font-medium text-gray-700">Qty PO</th>
                           <th className="px-2 py-2 text-center font-medium text-gray-700">Qty Masuk</th>
                           <th className="px-2 py-2 text-left font-medium text-gray-700">Invoice</th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700">Created By</th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700">Updated By</th>
                           <th className="px-2 py-2 text-center font-medium text-gray-700">Status</th>
                           <th className="px-2 py-2 text-center font-medium text-gray-700">Actions</th>
                         </tr>
@@ -609,6 +619,12 @@ export default function BarangMasukPage() {
                               <div className="text-xs truncate max-w-[80px]">
                                 {item.invoice_number !== '-' ? item.invoice_number : '-'}
                               </div>
+                            </td>
+                            <td className="px-2 py-2">
+                              <div className="text-xs truncate max-w-[80px]">{item.created_by_name}</div>
+                            </td>
+                            <td className="px-2 py-2">
+                              <div className="text-xs truncate max-w-[80px]">{item.updated_by_name}</div>
                             </td>
                             <td className="px-2 py-2 text-center">
                               {item.is_in_gudang ? (
@@ -753,6 +769,17 @@ export default function BarangMasukPage() {
                                     <div className="text-xs">{item.keterangan}</div>
                                   </div>
                                 )}
+                                
+                                <div className="grid grid-cols-2 gap-2 text-xs mb-1">
+                                  <div>
+                                    <div className="text-xs text-gray-500">Created By</div>
+                                    <div className="text-xs">{item.created_by_name}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-gray-500">Updated By</div>
+                                    <div className="text-xs">{item.updated_by_name}</div>
+                                  </div>
+                                </div>
                                 
                                 {!item.is_in_gudang ? (
                                   <div className="flex flex-wrap gap-1 mt-2">
