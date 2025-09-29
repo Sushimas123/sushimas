@@ -886,9 +886,7 @@ function OnProgressPO() {
                   <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '25%' }}>Nama Produk</th>
                   <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '15%' }}>Merk</th>
                   <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '8%' }}>Qty</th>
-                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '8%' }}>Unit</th>
-                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'right', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '12%' }}>Harga</th>
-                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'right', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '15%' }}>Total</th>
+                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '8%' }}>Unit</th>                  
                   <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '12%' }}>Keterangan</th>
                 </tr>
               </thead>
@@ -900,8 +898,6 @@ function OnProgressPO() {
                     <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px' }}>{item.merk || '-'}</td>
                     <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px', textAlign: 'center', fontWeight: '600' }}>{item.qty}</td>
                     <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px', textAlign: 'center' }}>{item.unit_besar}</td>
-                    <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px', textAlign: 'right' }}>Rp {(item.harga || 0).toLocaleString('id-ID')}</td>
-                    <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px', textAlign: 'right', fontWeight: '600', color: '#059669' }}>Rp {(item.total || 0).toLocaleString('id-ID')}</td>
                     <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px' }}>{item.keterangan || '-'}</td>
                   </tr>
                 ))}
