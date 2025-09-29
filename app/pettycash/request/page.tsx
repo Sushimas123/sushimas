@@ -47,8 +47,29 @@ function PettyCashRequestsContent() {
     try {
       setLoading(true);
       
-      // Query utama untuk petty_cash_requests
-      const { data: requestsData, error: requestsError } = await supabase
+      // Get user data and check role
+      const userData = localStorage.getItem('user');
+      let userRole = '';
+      let allowedBranchCodes: string[] = [];
+      
+      if (userData) {
+        const user = JSON.parse(userData);
+        userRole = user.role;
+        
+        // For non-admin users, get their allowed branches
+        if (userRole !== 'super admin' && userRole !== 'admin' && user.id_user) {
+          const { data: userBranches } = await supabase
+            .from('user_branches')
+            .select('kode_branch')
+            .eq('id_user', user.id_user)
+            .eq('is_active', true);
+          
+          allowedBranchCodes = userBranches?.map(ub => ub.kode_branch) || [];
+        }
+      }
+      
+      // Query petty_cash_requests with branch filtering
+      let requestsQuery = supabase
         .from('petty_cash_requests')
         .select(`
           *,
@@ -57,6 +78,13 @@ function PettyCashRequestsContent() {
           approved_by_user:users!petty_cash_requests_approved_by_fkey(nama_lengkap)
         `)
         .order('created_at', { ascending: false });
+      
+      // Apply branch filter for non-admin users
+      if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranchCodes.length > 0) {
+        requestsQuery = requestsQuery.in('branch_code', allowedBranchCodes);
+      }
+      
+      const { data: requestsData, error: requestsError } = await requestsQuery;
 
       if (requestsError) {
         console.error('Error fetching requests:', requestsError);

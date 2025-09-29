@@ -36,6 +36,27 @@ function SettlementsContent() {
     try {
       setLoading(true);
       
+      // Get user data and check role
+      const userData = localStorage.getItem('user');
+      let userRole = '';
+      let allowedBranchCodes: string[] = [];
+      
+      if (userData) {
+        const user = JSON.parse(userData);
+        userRole = user.role;
+        
+        // For non-admin users, get their allowed branches
+        if (userRole !== 'super admin' && userRole !== 'admin' && user.id_user) {
+          const { data: userBranches } = await supabase
+            .from('user_branches')
+            .select('kode_branch')
+            .eq('id_user', user.id_user)
+            .eq('is_active', true);
+          
+          allowedBranchCodes = userBranches?.map(ub => ub.kode_branch) || [];
+        }
+      }
+      
       const { data: settlementsData, error } = await supabase
         .from('petty_cash_settlements')
         .select('*, refilled_request_id')
@@ -45,12 +66,19 @@ function SettlementsContent() {
 
       const formattedSettlements = [];
       for (const settlement of settlementsData || []) {
-        // Fetch request data
+        // Fetch request data with branch info
         const { data: requestData } = await supabase
           .from('petty_cash_requests')
-          .select('request_number, amount')
+          .select('request_number, amount, branch_code')
           .eq('id', settlement.request_id)
           .single();
+        
+        // Filter by user branches for non-admin users
+        if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranchCodes.length > 0) {
+          if (!requestData?.branch_code || !allowedBranchCodes.includes(requestData.branch_code)) {
+            continue; // Skip this settlement if branch not allowed
+          }
+        }
         
         // Fetch settled by user
         const { data: settledByData } = await supabase

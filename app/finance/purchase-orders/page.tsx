@@ -1912,7 +1912,7 @@ export default function FinancePurchaseOrders() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    <th className="w-8 px-2 py-3 sticky left-0 bg-gray-50 z-20">
+                    <th className="w-6 px-1 py-2 sticky left-0 bg-gray-50 z-20">
                       <input
                         type="checkbox"
                         onChange={(e) => {
@@ -1927,29 +1927,29 @@ export default function FinancePurchaseOrders() {
                         className="rounded border-gray-300"
                       />
                     </th>
-                    <th className="w-8 px-2 py-3 sticky left-8 bg-gray-50 z-20"></th>
-                    <th className="w-32 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 sticky left-16 bg-gray-50 z-20" onClick={() => handleSort('po_number')}>No PO {sortField === 'po_number' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
-                    <th className="w-24 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_branch')}>CABANG {sortField === 'nama_branch' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
-                    <th className="w-28 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_barang_sampai')}>Barang Sampai {sortField === 'tanggal_barang_sampai' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
-                    <th className="w-20 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">PO Status</th>
-                    <th className="w-16 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Termin</th>
-                    <th className="w-28 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_jatuh_tempo')}>Jatuh Tempo {sortField === 'tanggal_jatuh_tempo' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
-                    <th className="w-24 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_po')}>Total PO {sortField === 'total_po' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
-                    <th className="w-24 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Total Tagihan</th>
-                    <th className="w-20 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Invoice</th>                                      
-                    <th className="w-32 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_supplier')}>Supplier {sortField === 'nama_supplier' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
-                    <th className="w-28 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Rekening</th>  
-                    <th className="w-20 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_paid')}>Dibayar {sortField === 'total_paid' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
-                    <th className="w-20 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('sisa_bayar')}>Sisa {sortField === 'sisa_bayar' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>                    
-                    <th className="w-28 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('dibayar_tanggal')}>Release Payment {sortField === 'dibayar_tanggal' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>
-                    <th className="w-20 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Tipe Payment</th>                    
-                    <th className="w-20 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Payment Via</th>
-                    <th className="w-24 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('status_payment')}>Payment Status {sortField === 'status_payment' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>                                        
-                    <th className="w-28 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Ref. Pembayaran</th>
-                    <th className="w-28 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('approved_at')}>Approved Date {sortField === 'approved_at' && (sortDirection === 'asc' ? <ChevronUp className="inline h-3 w-3" /> : <ChevronDown className="inline h-3 w-3" />)}</th>                                                  
-                    <th className="w-24 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Notes Raymond</th>
-                    <th className="w-32 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Keterangan</th>
-                    <th className="w-24 px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
+                    <th className="w-6 px-1 py-2 sticky left-6 bg-gray-50 z-20"></th>
+                    <th className="w-20 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 sticky left-12 bg-gray-50 z-20" onClick={() => handleSort('po_number')}>No PO</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_branch')}>Cabang</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_barang_sampai')}>Sampai</th>
+                    <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="w-12 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Termin</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_jatuh_tempo')}>J.Tempo</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_po')}>Total PO</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tagihan</th>
+                    <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Invoice</th>
+                    <th className="w-20 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_supplier')}>Supplier</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rekening</th>
+                    <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_paid')}>Dibayar</th>
+                    <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('sisa_bayar')}>Sisa</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('dibayar_tanggal')}>Release</th>
+                    <th className="w-12 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipe</th>
+                    <th className="w-12 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Via</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('status_payment')}>Pay Status</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Ref</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('approved_at')}>Approved</th>
+                    <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
+                    <th className="w-16 px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -1960,7 +1960,7 @@ export default function FinancePurchaseOrders() {
                     return (
                       <React.Fragment key={item.id}>
                         <tr className={rowClass}>
-                          <td className="px-2 py-4 whitespace-nowrap sticky left-0 bg-white z-10">
+                          <td className="px-1 py-2 whitespace-nowrap sticky left-0 bg-white z-10">
                             <input
                               type="checkbox"
                               checked={selectedPOs.includes(item.id)}
@@ -1975,71 +1975,59 @@ export default function FinancePurchaseOrders() {
                               className="rounded border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                           </td>
-                          <td className="px-2 py-4 whitespace-nowrap sticky left-8 bg-white z-10">
+                          <td className="px-1 py-2 whitespace-nowrap sticky left-6 bg-white z-10">
                             <button 
                               onClick={() => toggleRowExpansion(item.id)}
                               className="text-gray-500 hover:text-blue-600"
                             >
-                              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                             </button>
                           </td>
-                          <td className="px-3 py-4 whitespace-nowrap sticky left-16 bg-white z-10">
+                          <td className="px-2 py-2 whitespace-nowrap sticky left-12 bg-white z-10">
                             <div>
                               <a 
                                 href={`/purchaseorder/received-preview?id=${item.id}`}
-                                className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                                className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
                                 target="_blank"
                                 rel="noopener noreferrer"
                               >
                                 {item.po_number}
                               </a>
-                              <div className="text-xs text-gray-500 flex items-center">
-                                <Calendar className="h-3 w-3 mr-1" />
+                              <div className="text-xs text-gray-500">
                                 {formatDate(item.po_date)}
                               </div>
                             </div>
                           </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <div className="flex items-center">                              
-                              {item.nama_branch}
-                            </div>
+                          <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
+                            {item.nama_branch}
                           </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
                             {(item as any).tanggal_barang_sampai ? (
-                              <div className="flex items-center">
-                                <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
+                              <div className="text-green-600">
                                 {formatDate((item as any).tanggal_barang_sampai)}
                               </div>
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
                           </td>
-                          <td className="px-3 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          <td className="px-2 py-2 whitespace-nowrap">
+                            <span className={`inline-flex px-1 py-0.5 text-xs rounded ${
                               (item as any).po_status === 'Barang sampai' ? 'bg-green-100 text-green-800' :
                               (item as any).po_status === 'Sedang diproses' ? 'bg-blue-100 text-blue-800' :
                               (item as any).po_status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
                               'bg-gray-100 text-gray-800'
                             }`}>
-                              {(item as any).po_status}
+                              {(item as any).po_status?.substring(0, 8)}
                             </span>
                           </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).termin_days || 30} hari
+                          <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
+                            {(item as any).termin_days || 30}h
                           </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
                             {item.tanggal_jatuh_tempo ? (
-                              <div className="flex items-center">
-                                <Calendar className="h-4 w-4 text-gray-400 mr-1" />
-                                {formatDate(item.tanggal_jatuh_tempo)}
-                              </div>
+                              formatDate(item.tanggal_jatuh_tempo)
                             ) : (
-                              <span className="text-gray-400">Menunggu barang sampai</span>
-                            )}
-                            {item.last_payment_date && (
-                              <div className="text-xs text-gray-500">
-                                Last: {formatDate(item.last_payment_date)}
-                              </div>
+                              <span className="text-gray-400">Tunggu</span>
                             )}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">

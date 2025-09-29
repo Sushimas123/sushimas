@@ -105,13 +105,7 @@ function OnProgressPO() {
               .eq('id_product', item.product_id)
               .single()
 
-            // Get stock data
-            const { data: stockData } = await supabase
-              .from('gudang')
-              .select('stock_qty')
-              .eq('id_product', item.product_id)
-              .eq('id_branch', po.cabang_id)
-              .single()
+            // No stock data needed for PO preview
 
             // Use actual_price first, then harga from po_items, then fallback to product price
             const finalPrice = item.actual_price || item.harga || product?.harga || 0
@@ -122,7 +116,7 @@ function OnProgressPO() {
               product_name: product?.product_name || 'Unknown Product',
               merk: product?.merk || '',
               unit_besar: item.unit_besar || product?.unit_besar || 'pcs',
-              stock_qty: stockData?.stock_qty || 0,
+              stock_qty: 0,
               harga: finalPrice,
               total: finalTotal
             }

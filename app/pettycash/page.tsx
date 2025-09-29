@@ -133,14 +133,42 @@ function PettyCashDashboardContent() {
     try {
       setLoading(true);
       
-      // Fetch requests data with refill fields
-      const { data: requestsData, error: requestsError } = await supabase
+      // Get user data and check role
+      const userData = localStorage.getItem('user');
+      let userRole = '';
+      let allowedBranchCodes: string[] = [];
+      
+      if (userData) {
+        const user = JSON.parse(userData);
+        userRole = user.role;
+        
+        // For non-admin users, get their allowed branches
+        if (userRole !== 'super admin' && userRole !== 'admin' && user.id_user) {
+          const { data: userBranches } = await supabase
+            .from('user_branches')
+            .select('kode_branch')
+            .eq('id_user', user.id_user)
+            .eq('is_active', true);
+          
+          allowedBranchCodes = userBranches?.map(ub => ub.kode_branch) || [];
+        }
+      }
+      
+      // Fetch requests data with branch filtering
+      let requestsQuery = supabase
         .from('petty_cash_requests')
         .select(`
           *,
           branches(nama_branch),
           requested_by_user:users!petty_cash_requests_requested_by_fkey(nama_lengkap)
         `);
+      
+      // Apply branch filter for non-admin users
+      if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranchCodes.length > 0) {
+        requestsQuery = requestsQuery.in('branch_code', allowedBranchCodes);
+      }
+      
+      const { data: requestsData, error: requestsError } = await requestsQuery;
       
       console.log('Requests data:', requestsData);
       console.log('Requests error:', requestsError);
@@ -179,11 +207,18 @@ function PettyCashDashboardContent() {
       }, 0) || 0;
       const totalBalance = totalRequestAmount - totalExpenses;
       
-      // Fetch summary data
-      const { data: summaryData } = await supabase
+      // Fetch summary data with branch filtering
+      let summaryQuery = supabase
         .from('petty_cash_summary')
         .select('*')
         .order('request_date', { ascending: false });
+      
+      // Apply branch filter for non-admin users
+      if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranchCodes.length > 0) {
+        summaryQuery = summaryQuery.in('branch_code', allowedBranchCodes);
+      }
+      
+      const { data: summaryData } = await summaryQuery;
       
       // Calculate branch balances - LATEST REQUEST PER BRANCH
       const branchMap = new Map();

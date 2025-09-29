@@ -873,59 +873,7 @@ export default function Layout({ children }: LayoutProps) {
 
         {/* Main content */}
         <main className="flex-1 overflow-auto focus:outline-none pb-16 lg:pb-0">
-          <div className="py-6">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              {/* Page title and breadcrumbs */}
-              <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {getCurrentPageInfo()?.name || 'Dashboard'}
-                </h1>
-                <nav className="flex mt-2 items-center" aria-label="Breadcrumb">
-                  <ol className="flex items-center space-x-1 overflow-x-auto">
-                    {getBreadcrumbs().map((crumb, index) => (
-                      <li key={`${crumb.href}-${index}`} className="flex items-center whitespace-nowrap">
-                        {index > 0 && <ChevronRight key={`chevron-${index}`} size={16} className="text-gray-400 mx-1" />}
-                        {crumb.href !== '#' ? (
-                          <Link 
-                            href={crumb.href} 
-                            className="text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 flex items-center"
-                          >
-                            {index === 0 ? <Home size={14} className="inline mr-1" /> : null}
-                            {crumb.name}
-                          </Link>
-                        ) : (
-                          <span className={`text-sm font-medium ${
-                            index === getBreadcrumbs().length - 1 
-                              ? 'text-gray-700 dark:text-gray-300 flex items-center' 
-                              : 'text-gray-500 dark:text-gray-400'
-                          }`}>
-                            {crumb.name}
-                            {index === getBreadcrumbs().length - 1 && (
-                              <span className="ml-2 text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
-                                {new Date().toLocaleDateString()}
-                              </span>
-                            )}
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ol>
-                  {/* Quick action buttons */}
-                  {pathname?.includes('/purchaseorder') && (
-                    <Link href="/purchaseorder/create" className="ml-4 flex items-center text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg">
-                      <Plus size={14} className="mr-1" />
-                      PO Baru
-                    </Link>
-                  )}
-                </nav>
-              </div>
-
-              {/* Content */}
-              <div className="bg-white dark:bg-gray-800 shadow-lg dark:shadow-gray-900/20 rounded-xl p-4 sm:p-6">
-                {children}
-              </div>
-            </div>
-          </div>
+          {children}
         </main>
       </div>
 

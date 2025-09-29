@@ -77,14 +77,42 @@ function CreateExpenseContent() {
     try {
       setDataLoading(true);
 
-      // Fetch disbursed requests that haven't been settled
-      const { data: requestData, error: requestError } = await supabase
+      // Get user data and check role
+      const userData = localStorage.getItem('user');
+      let userRole = '';
+      let allowedBranchCodes: string[] = [];
+      
+      if (userData) {
+        const user = JSON.parse(userData);
+        userRole = user.role;
+        
+        // For non-admin users, get their allowed branches
+        if (userRole !== 'super admin' && userRole !== 'admin' && user.id_user) {
+          const { data: userBranches } = await supabase
+            .from('user_branches')
+            .select('kode_branch')
+            .eq('id_user', user.id_user)
+            .eq('is_active', true);
+          
+          allowedBranchCodes = userBranches?.map(ub => ub.kode_branch) || [];
+        }
+      }
+
+      // Fetch disbursed requests with branch filtering
+      let requestQuery = supabase
         .from('petty_cash_requests')
         .select(`
           id, request_number, amount, status, branch_code, parent_request_id, carried_balance
         `)
         .eq('status', 'disbursed')
         .order('created_at', { ascending: false });
+      
+      // Apply branch filter for non-admin users
+      if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranchCodes.length > 0) {
+        requestQuery = requestQuery.in('branch_code', allowedBranchCodes);
+      }
+      
+      const { data: requestData, error: requestError } = await requestQuery;
 
       if (requestError) throw requestError;
       

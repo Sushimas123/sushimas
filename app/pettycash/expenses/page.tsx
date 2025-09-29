@@ -208,7 +208,29 @@ function PettyCashExpensesContent() {
     try {
       setLoading(true);
       
-      const { data: requestsData } = await supabase
+      // Get user data and check role
+      const userData = localStorage.getItem('user');
+      let userRole = '';
+      let allowedBranchCodes: string[] = [];
+      
+      if (userData) {
+        const user = JSON.parse(userData);
+        userRole = user.role;
+        
+        // For non-admin users, get their allowed branches
+        if (userRole !== 'super admin' && userRole !== 'admin' && user.id_user) {
+          const { data: userBranches } = await supabase
+            .from('user_branches')
+            .select('kode_branch')
+            .eq('id_user', user.id_user)
+            .eq('is_active', true);
+          
+          allowedBranchCodes = userBranches?.map(ub => ub.kode_branch) || [];
+        }
+      }
+      
+      // Fetch requests with branch filtering
+      let requestsQuery = supabase
         .from('petty_cash_requests')
         .select(`
           id, 
@@ -219,13 +241,30 @@ function PettyCashExpensesContent() {
           branch_code
         `)
         .order('created_at', { ascending: true });
-
+      
+      // Apply branch filter for non-admin users
+      if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranchCodes.length > 0) {
+        requestsQuery = requestsQuery.in('branch_code', allowedBranchCodes);
+      }
+      
+      const { data: requestsData } = await requestsQuery;
       setRequests(requestsData || []);
       
-      const { data: expensesData, error } = await supabase
+      // Get request IDs for filtering expenses
+      const allowedRequestIds = requestsData?.map(r => r.id) || [];
+      
+      // Fetch expenses filtered by allowed requests
+      let expensesQuery = supabase
         .from('petty_cash_expenses')
         .select('*')
         .order('expense_date', { ascending: false });
+      
+      // Apply request filter for non-admin users
+      if (userRole !== 'super admin' && userRole !== 'admin' && allowedRequestIds.length > 0) {
+        expensesQuery = expensesQuery.in('request_id', allowedRequestIds);
+      }
+      
+      const { data: expensesData, error } = await expensesQuery;
 
       if (error) throw error;
 
