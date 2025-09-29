@@ -1929,7 +1929,7 @@ export default function FinancePurchaseOrders() {
                     </th>
                     <th className="w-6 px-1 py-2 sticky left-6 bg-gray-50 z-20"></th>
                     <th className="w-20 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 sticky left-12 bg-gray-50 z-20" onClick={() => handleSort('po_number')}>No PO</th>
-                    <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="w-24 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_branch')}>Cabang</th>                    
                     <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_barang_sampai')}>Tgl Sampai</th>
                     <th className="w-20 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_supplier')}>Supplier</th>
@@ -1944,10 +1944,8 @@ export default function FinancePurchaseOrders() {
                     <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('dibayar_tanggal')}>Release</th>
                     <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('status_payment')}>Pay Status</th>
                     <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('approved_at')}>Approved</th>
-
-
                     <th className="w-12 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipe</th>
-                    <th className="w-12 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Via</th>
+                    <th className="w-12 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Bank</th>
                     <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Ref</th>
 
                     <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
@@ -2008,7 +2006,7 @@ export default function FinancePurchaseOrders() {
                               (item as any).po_status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
                               'bg-gray-100 text-gray-800'
                             }`}>
-                              {(item as any).po_status?.substring(0, 8)}
+                              {(item as any).po_status}
                             </span>
                           </td>
                           <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
@@ -2062,7 +2060,7 @@ export default function FinancePurchaseOrders() {
                             )}
                           </td>
                           <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
-                            {(item as any).termin_days || 30}h
+                            {(item as any).termin_days || 30}d
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                             {formatCurrency(item.total_paid)}
@@ -2099,6 +2097,22 @@ export default function FinancePurchaseOrders() {
                             )}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(item as any).approved_at ? (
+                              <div className="flex items-center">
+                                <CheckCircle className="h-4 w-4 text-purple-500 mr-1" />
+                                {formatDate((item as any).approved_at)}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>  
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(item as any).payment_method || <span className="text-gray-400">-</span>}
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(item as any).payment_via || <span className="text-gray-400">-</span>}
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                             {(item as any).bulk_payment_ref ? (
                               <button
                                 onClick={() => {
@@ -2124,22 +2138,6 @@ export default function FinancePurchaseOrders() {
                               <span className="text-gray-400">-</span>
                             )}
                           </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).approved_at ? (
-                              <div className="flex items-center">
-                                <CheckCircle className="h-4 w-4 text-purple-500 mr-1" />
-                                {formatDate((item as any).approved_at)}
-                              </div>
-                            ) : (
-                              <span className="text-gray-400">-</span>
-                            )}
-                          </td>   
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).payment_method || <span className="text-gray-400">-</span>}
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).payment_via || <span className="text-gray-400">-</span>}
-                          </td>                    
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                             <select 
                               className="text-xs border border-gray-300 rounded px-2 py-1 bg-white"
