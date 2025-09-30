@@ -24,7 +24,7 @@ function KPICards({ data, loading }: { data: KPIData; loading: boolean }) {
     { title: 'Total PO', value: data.totalPOs, subtext: `${data.pendingPOs} pending`, icon: ShoppingCart, href: '/purchaseorder' },
     { title: 'Stock Items', value: data.totalStock, subtext: `${data.lowStock} low stock`, icon: Package, href: '/gudang-final' },
     { title: 'Production', value: data.totalProduction, subtext: `${data.activeProduction} active`, icon: Factory, href: '/produksi' },
-    { title: 'Petty Cash', value: `Rp ${(data.totalPettyCash / 1000000).toFixed(1)}Jt`, subtext: `${data.pendingRequests} requests`, icon: Wallet, href: '/pettycash' },
+    { title: 'Petty Cash', value: `Rp ${(data.totalPettyCash / 1000000).toFixed(1)}JT`, subtext: `${data.pendingRequests} requests`, icon: Wallet, href: '/pettycash' },
     { title: 'Suppliers', value: data.totalSuppliers, subtext: 'Active suppliers', icon: Truck, href: '/supplier' },
     { title: 'Users', value: data.totalUsers, subtext: 'System users', icon: Users, href: '/users' }
   ]

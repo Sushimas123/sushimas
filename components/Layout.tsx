@@ -140,7 +140,6 @@ export default function Layout({ children }: LayoutProps) {
         { name: "Aging Report", href: AppRoutes.FINANCE_AGING_REPORT, icon: AlertTriangle, pageName: 'aging-report' },
         { name: "Jatuh Tempo", href: "/finance/aging-pivot", icon: SquareSigma, pageName: 'aging-report' },
         { name: "Payment Recap", href: "/finance/payment-calendar", icon: Calendar, pageName: 'finance' },
-        { name: "Payment Approvals", href: "/finance/payment-approvals", icon: UserCheck, pageName: 'finance' },
       ]
     },
     {

@@ -155,8 +155,8 @@ export default function StockOpnameBatchPage() {
         try {
           // Stok sistem saat SO (historical)
           const { data: stockData, error } = await supabase
-            .from("gudang")
-            .select("total_gudang")
+          .from("gudang_final_view")
+          .select("running_total")        
             .eq("cabang", branchCode)
             .eq("id_product", product.id_product)
             .lte("tanggal", cutoffDateTime)
@@ -167,8 +167,8 @@ export default function StockOpnameBatchPage() {
           
           // Stok sistem terkini (real-time)
           const { data: currentStockData, error: currentError } = await supabase
-            .from("gudang")
-            .select("total_gudang")
+            .from("gudang_final_view")
+            .select("running_total")
             .eq("cabang", branchCode)
             .eq("id_product", product.id_product)
             .order("tanggal", { ascending: false })
@@ -178,8 +178,8 @@ export default function StockOpnameBatchPage() {
           
           return {
             ...product,
-            system_stock: (!error && stockData) ? stockData.total_gudang : 0,
-            current_system_stock: (!currentError && currentStockData) ? currentStockData.total_gudang : 0,
+            system_stock: (!error && stockData) ? stockData.running_total : 0,
+            current_system_stock: (!currentError && currentStockData) ? currentStockData.running_total : 0,            
             physical_stock: 0,
             notes: ''
           }
@@ -754,8 +754,8 @@ export default function StockOpnameBatchPage() {
 
       // Get previous total before the deleted SO record
       const { data: prevRecord, error: prevError } = await supabase
-        .from('gudang')
-        .select('total_gudang')
+      .from('gudang_final_view')
+      .select('running_total')    
         .eq('id_product', idProduct)
         .eq('cabang', branchCode)
         .lt('tanggal', fromDate)
@@ -766,7 +766,7 @@ export default function StockOpnameBatchPage() {
 
       if (prevError) throw prevError
       
-      let runningTotal = prevRecord?.total_gudang || 0
+      let runningTotal = prevRecord?.running_total || 0
 
       for (const record of affectedRecords) {
         try {
