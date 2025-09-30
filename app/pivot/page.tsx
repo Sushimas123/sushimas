@@ -239,7 +239,6 @@ export default function PivotPage() {
 
       const { data: productData } = await supabase.from('nama_product').select('*');
       const { data: branchData } = await supabase.from('branches').select('*');
-      const { data: toleranceData } = await supabase.from('product_tolerances').select('*');
       
       const uniqueProductIds = [...new Set(readyData?.map(r => r.id_product) || [])];
       
@@ -294,8 +293,7 @@ export default function PivotPage() {
         esbData || [],
         productionData || [],
         branchData || [],
-        productionDetailData || [],
-        toleranceData || []
+        productionDetailData || [],        
       );
       
       // Filter untuk display
@@ -339,10 +337,10 @@ export default function PivotPage() {
     }
   };
 
-  const processAnalysisData = (readyStock: any[], products: any[], warehouse: any[], esb: any[], production: any[], branches: any[], productionDetail: any[], tolerances: any[]): AnalysisData[] => {
+  const processAnalysisData = (readyStock: any[], products: any[], warehouse: any[], esb: any[], production: any[], branches: any[], productionDetail: any[]): AnalysisData[] => {
     const productMap = new Map(products.map(p => [p.id_product, p]));
     const branchMap = new Map(branches.map(b => [b.id_branch, b]));
-    const toleranceMap = new Map(tolerances.map(t => [t.id_product, t]));
+
     
     const warehouseMap = new Map();
     warehouse.forEach(w => {
@@ -411,8 +409,7 @@ export default function PivotPage() {
       const keluarForm = calculateKeluarForm(ready, readyStock, warehouse, branchMap, sumifTotal);
       const selisih = calculateSelisih(hasilESB, keluarForm, totalProduction);
       
-      const tolerance = toleranceMap.get(ready.id_product);
-      const tolerancePercentage = tolerance?.tolerance_percentage || 5.0;
+      const tolerancePercentage = 5.0; // Default tolerance
       const toleranceValue = hasilESB * (tolerancePercentage / 100);
       const toleranceMin = -toleranceValue;
       const toleranceMax = toleranceValue;
