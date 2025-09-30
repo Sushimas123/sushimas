@@ -149,8 +149,8 @@ function QuickActions() {
     { name: 'Buat PO', href: '/purchaseorder/create', icon: ShoppingCart },
     { name: 'Cek Stock', href: '/gudang-final', icon: Package },
     { name: 'Produksi', href: '/produksi', icon: Factory },
+    { name: 'Assets', href: '/assets', icon: Package },
     { name: 'Petty Cash', href: '/pettycash', icon: Wallet },
-    { name: 'Transfer', href: '/transfer-barang', icon: Truck },
     { name: 'Analysis', href: '/analysis', icon: BarChart3 }
   ]
 

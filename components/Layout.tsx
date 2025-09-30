@@ -168,6 +168,7 @@ export default function Layout({ children }: LayoutProps) {
         { name: "Supplier", href: AppRoutes.SUPPLIER, icon: Truck, pageName: 'supplier' },
         { name: "Branches", href: AppRoutes.BRANCHES, icon: MapPinHouse, pageName: 'branches' },
         { name: "Users", href: AppRoutes.USERS, icon: Users, pageName: 'users' },
+        { name: "Assets", href: "/assets", icon: Package, pageName: 'assets' },
       ]
     },
     {
