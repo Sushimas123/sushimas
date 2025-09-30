@@ -642,12 +642,11 @@ export default function TransferBarangPage() {
       if (!branch) return
 
       const { data, error } = await supabase
-        .from('gudang')
-        .select('total_gudang')
+        .from('gudang_final_view')
+        .select('running_total')
         .eq('id_product', parseInt(productId))
         .eq('cabang', branch.kode_branch)
-        .lte('tanggal', date)
-        .order('tanggal', { ascending: false })
+        .eq('is_latest_record', true)
         .limit(1)
 
       if (error) {
@@ -656,7 +655,7 @@ export default function TransferBarangPage() {
       }
 
       const product = products.find(p => p.id_product === parseInt(productId))
-      const stock = data?.[0]?.total_gudang || 0
+      const stock = data?.[0]?.running_total || 0
       
       const stockInfo = {
         jumlah: stock,
