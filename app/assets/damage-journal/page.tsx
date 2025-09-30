@@ -9,12 +9,14 @@ import { Asset, AssetDamageJournal } from '@/src/types/assets';
 
 export default function DamageJournalPage() {
   const [journals, setJournals] = useState<AssetDamageJournal[]>([]);
-  const [assets, setAssets] = useState<Asset[]>([]);
+  const [assets, setAssets] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [selectedAsset, setSelectedAsset] = useState<any | null>(null);
   const [editingJournal, setEditingJournal] = useState<AssetDamageJournal | null>(null);
   const [formData, setFormData] = useState({
     asset_id: '',
@@ -39,6 +41,9 @@ export default function DamageJournalPage() {
               asset_name,
               asset_categories (
                 category_name
+              ),
+              branches (
+                nama_branch
               )
             )
           `)
@@ -275,10 +280,16 @@ export default function DamageJournalPage() {
     }
   };
 
-  const filteredJournals = journals.filter(journal =>
-    journal.assets?.asset_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    journal.damaged_by.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredJournals = journals.filter(journal => {
+    const matchesSearch = journal.assets?.asset_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      journal.damaged_by.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const journalDate = new Date(journal.damage_date).toISOString().split('T')[0];
+    const matchesDateFrom = !dateFrom || journalDate >= dateFrom;
+    const matchesDateTo = !dateTo || journalDate <= dateTo;
+    
+    return matchesSearch && matchesDateFrom && matchesDateTo;
+  });
 
   if (loading) {
     return (
@@ -309,15 +320,45 @@ export default function DamageJournalPage() {
           </div>
 
           <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center gap-2">
-              <Search size={16} className="text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by asset name or person..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="px-3 py-2 border rounded text-sm w-64"
-              />
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Search size={16} className="text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by asset name or person..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="px-3 py-2 border rounded text-sm w-64"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">From:</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="px-3 py-2 border rounded text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">To:</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="px-3 py-2 border rounded text-sm"
+                />
+              </div>
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setDateFrom('');
+                  setDateTo('');
+                }}
+                className="px-3 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
+              >
+                Reset
+              </button>
             </div>
           </div>
 
@@ -377,8 +418,8 @@ export default function DamageJournalPage() {
                       type="number"
                       min="0"
                       value={formData.damage_value}
-                      onChange={(e) => setFormData({ ...formData, damage_value: parseFloat(e.target.value) })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
+                      readOnly
                     />
                   </div>
                   <div>
@@ -420,6 +461,7 @@ export default function DamageJournalPage() {
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Date</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Asset</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Branch</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Damaged By</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Quantity</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Value</th>
@@ -439,6 +481,7 @@ export default function DamageJournalPage() {
                           <div className="text-xs text-gray-500">{journal.asset_id}</div>
                         </div>
                       </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{journal.assets?.branches?.nama_branch || '-'}</td>
                       <td className="px-4 py-3 text-sm text-gray-900">{journal.damaged_by}</td>
                       <td className="px-4 py-3 text-sm text-gray-900">{journal.quantity_damaged}</td>
                       <td className="px-4 py-3 text-sm text-gray-900">
@@ -476,8 +519,8 @@ export default function DamageJournalPage() {
             <div className="bg-white rounded-lg shadow p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total Incidents</p>
-                  <p className="text-2xl font-bold text-red-600">{journals.length}</p>
+                  <p className="text-sm text-gray-600">Total Incidents {(dateFrom || dateTo) && '(Filtered)'}</p>
+                  <p className="text-2xl font-bold text-red-600">{filteredJournals.length}</p>
                 </div>
                 <AlertTriangle className="text-red-600" size={24} />
               </div>
@@ -485,9 +528,9 @@ export default function DamageJournalPage() {
             <div className="bg-white rounded-lg shadow p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Items Damaged</p>
+                  <p className="text-sm text-gray-600">Items Damaged {(dateFrom || dateTo) && '(Filtered)'}</p>
                   <p className="text-2xl font-bold text-orange-600">
-                    {journals.reduce((sum, j) => sum + j.quantity_damaged, 0)}
+                    {filteredJournals.reduce((sum, j) => sum + j.quantity_damaged, 0)}
                   </p>
                 </div>
                 <Package className="text-orange-600" size={24} />
@@ -496,9 +539,9 @@ export default function DamageJournalPage() {
             <div className="bg-white rounded-lg shadow p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total Damage Value</p>
+                  <p className="text-sm text-gray-600">Total Damage Value {(dateFrom || dateTo) && '(Filtered)'}</p>
                   <p className="text-2xl font-bold text-red-600">
-                    Rp {journals.reduce((sum, j) => sum + (j.damage_value || 0), 0).toLocaleString('id-ID')}
+                    Rp {filteredJournals.reduce((sum, j) => sum + (j.damage_value || 0), 0).toLocaleString('id-ID')}
                   </p>
                 </div>
                 <AlertTriangle className="text-red-600" size={24} />
