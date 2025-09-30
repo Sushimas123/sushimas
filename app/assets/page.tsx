@@ -136,8 +136,8 @@ function QRCodeGenerator({ assetId, assetName, onClose }: {
         // Method 1: Using external QR code service (more reliable)
         const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
         const assetUrl = `${baseUrl}/assets/${assetId}`;
-        const qrText = encodeURIComponent(`${assetUrl}\n\nAsset: ${assetName}\nID: ${assetId}`);
-        const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${qrText}`;
+        // Use only the URL for QR code to avoid encoding issues
+        const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(assetUrl)}`;
         
         setQrCodeUrl(qrCodeImageUrl);
         
@@ -207,7 +207,10 @@ function QRCodeGenerator({ assetId, assetName, onClose }: {
               </div>
               
               <p className="text-sm text-gray-600 mb-2">Asset: {assetName}</p>
-              <p className="text-sm text-gray-600 mb-4">ID: {assetId}</p>
+              <p className="text-sm text-gray-600 mb-2">ID: {assetId}</p>
+              <p className="text-xs text-gray-500 mb-4 break-all">
+                URL: {typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/assets/{assetId}
+              </p>
               
               <div className="flex gap-2">
                 <button
@@ -254,33 +257,33 @@ export default function AssetsPage() {
   const handleQRScan = useCallback((scannedText: string) => {
     setShowScanner(false);
     
+    // Clean the scanned text
+    const cleanText = scannedText.trim();
+    
     // Extract asset ID from scanned text
     let assetId = '';
     
-    // Check if it's a URL
-    if (scannedText.includes('/assets/')) {
-      const urlMatch = scannedText.match(/\/assets\/([^\s\n]+)/);
+    // Check if it's a URL (our new format)
+    if (cleanText.includes('/assets/')) {
+      const urlMatch = cleanText.match(/\/assets\/([A-Za-z0-9\-_]+)/);
       if (urlMatch) {
         assetId = urlMatch[1];
       }
-    } else if (scannedText.includes('ID: ')) {
-      // Extract from "ID: ASSET_ID" format
-      const idMatch = scannedText.match(/ID: ([^\s\n]+)/);
-      if (idMatch) {
-        assetId = idMatch[1];
-      }
     } else {
       // Assume the scanned text is the asset ID itself
-      assetId = scannedText.trim();
+      assetId = cleanText;
     }
     
     if (assetId) {
-      setSearchTerm(assetId);
-      // Optional: Navigate to asset detail if found
+      // First try to find the asset
       const foundAsset = assets.find(asset => asset.asset_id === assetId);
       if (foundAsset) {
-        // Could navigate to detail page or just highlight in search
+        // Navigate directly to asset detail
         window.location.href = `/assets/${assetId}`;
+      } else {
+        // If not found, set search term to show in search results
+        setSearchTerm(assetId);
+        alert(`Asset ${assetId} not found. Showing search results.`);
       }
     } else {
       alert('No valid Asset ID found in QR code');
