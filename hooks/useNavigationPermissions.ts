@@ -30,7 +30,7 @@ export const useNavigationPermissions = () => {
             'crud-permissions', 'esb', 'gudang-final', 'permissions-db', 'pivot',
             'price-history', 'product_name', 'product_settings', 'recipes',
             'purchaseorder', 'stock-alert', 'supplier', 'transfer_barang', 'users',
-            'price_history', 'finance', 'aging-report', 'pettycash'
+            'price_history', 'finance', 'aging-report', 'pettycash', 'assets'
           ]
           
           allPossiblePages.forEach(page => {
@@ -79,6 +79,7 @@ export const useNavigationPermissions = () => {
             finance: true,
             'aging-report': true,
             pettycash: true,
+            assets: true,
           }
         } else if (user.role === 'admin') {
           // Admin has access to most things including audit and crud permissions
@@ -110,6 +111,7 @@ export const useNavigationPermissions = () => {
             finance: true,
             'aging-report': true,
             pettycash: true,
+            assets: true,
           }
         } else if (user.role === 'finance') {
           // Finance role permissions
@@ -141,6 +143,7 @@ export const useNavigationPermissions = () => {
             finance: true,
             'aging-report': true,
             pettycash: true,
+            assets: false,
           }
         } else if (user.role === 'pic_branch') {
           // PIC Branch role permissions
@@ -171,6 +174,7 @@ export const useNavigationPermissions = () => {
             transfer_barang: false,
             users: false,
             pettycash: true,
+            assets: true,
           }
         } else if (user.role === 'staff') {
           // Staff role permissions
@@ -200,6 +204,7 @@ export const useNavigationPermissions = () => {
             transfer_barang: false,
             users: false,
             pettycash: true,
+            assets: true,
           }
         } else {
           // Default permissions for unknown roles

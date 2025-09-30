@@ -80,15 +80,15 @@ export const getCrudPermissions = async (userRole: string): Promise<{ [key: stri
 const getDefaultPagePermissions = (userRole: string): string[] => {
   switch (userRole) {
     case 'super admin':
-      return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang-final', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname_batch', 'supplier', 'permissions-db', 'audit-log', 'crud-permissions', 'pivot', 'price-history', 'purchaseorder', 'barang_masuk', 'stock-alert', 'transfer-barang']
+      return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang-final', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname_batch', 'supplier', 'permissions-db', 'audit-log', 'crud-permissions', 'pivot', 'price-history', 'purchaseorder', 'barang_masuk', 'stock-alert', 'transfer-barang', 'assets']
     case 'admin':
-      return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang-final', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname_batch', 'supplier', 'audit-log', 'crud-permissions', 'pivot', 'price-history', 'purchaseorder', 'barang_masuk', 'stock-alert', 'transfer-barang']
+      return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang-final', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname_batch', 'supplier', 'audit-log', 'crud-permissions', 'pivot', 'price-history', 'purchaseorder', 'barang_masuk', 'stock-alert', 'transfer-barang', 'assets']
     case 'finance':
       return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'gudang-final', 'product_settings', 'produksi_detail', 'stock_opname_batch']
     case 'pic_branch':
-      return ['dashboard', 'esb', 'ready', 'produksi', 'analysis', 'gudang-final', 'stock_opname_batch', 'produksi_detail']
+      return ['dashboard', 'esb', 'ready', 'produksi', 'analysis', 'gudang-final', 'stock_opname_batch', 'produksi_detail', 'assets']
     case 'staff':
-      return ['dashboard', 'esb', 'ready', 'produksi', 'gudang-final', 'stock_opname_batch']
+      return ['dashboard', 'esb', 'ready', 'produksi', 'gudang-final', 'stock_opname_batch', 'assets']
     default:
       return ['dashboard']
   }
