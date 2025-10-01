@@ -16,7 +16,7 @@ export default function HomePage() {
       router.push('/dashboard')
     } else {
       // If not logged in, redirect to login
-      router.push('/login')
+      router.push('/auth/login')
     }
   }, [])
   return (

@@ -1,0 +1,173 @@
+"use client"
+
+import { useState } from 'react'
+import { supabase } from '@/src/lib/supabaseClient'
+import { useRouter } from 'next/navigation'
+import { Eye, EyeOff, Mail, Lock } from 'lucide-react'
+
+export default function LoginPage() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [message, setMessage] = useState('')
+  const router = useRouter()
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setMessage('')
+
+    try {
+      // Sign in with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
+
+      if (authError) throw authError
+
+      if (!authData.user?.email_confirmed_at) {
+        setMessage('Please verify your email before logging in. Check your inbox.')
+        setLoading(false)
+        return
+      }
+
+      // Get user data from custom users table
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single()
+
+      if (userError || !userData) {
+        throw new Error('User data not found')
+      }
+
+      // Store user data in localStorage
+      localStorage.setItem('user', JSON.stringify({
+        ...userData,
+        auth_id: authData.user.id
+      }))
+
+      router.push('/dashboard')
+    } catch (error: any) {
+      setMessage(error.message || 'Login failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResendVerification = async () => {
+    if (!email) {
+      setMessage('Please enter your email first')
+      return
+    }
+
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email
+      })
+
+      if (error) throw error
+      setMessage('Verification email sent! Check your inbox.')
+    } catch (error: any) {
+      setMessage(error.message || 'Failed to send verification email')
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="max-w-md w-full space-y-8 p-8">
+        <div className="text-center">
+          <h2 className="text-3xl font-bold text-gray-900">Sign In</h2>
+          <p className="mt-2 text-gray-600">Access your account</p>
+        </div>
+
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter your email"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Password
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter your password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+
+          {message && (
+            <div className={`p-3 rounded-lg text-sm ${
+              message.includes('verify') || message.includes('sent') 
+                ? 'bg-yellow-100 text-yellow-800' 
+                : 'bg-red-100 text-red-800'
+            }`}>
+              {message}
+              {message.includes('verify') && (
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  className="ml-2 underline hover:no-underline"
+                >
+                  Resend verification email
+                </button>
+              )}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Signing in...' : 'Sign In'}
+          </button>
+
+          <div className="text-center">
+            <p className="text-sm text-gray-600">
+              Don't have an account?{' '}
+              <button
+                type="button"
+                onClick={() => router.push('/auth/signup')}
+                className="text-blue-600 hover:underline"
+              >
+                Sign up
+              </button>
+            </p>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}

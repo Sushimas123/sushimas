@@ -62,7 +62,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   
   // Skip middleware untuk public routes
-  if (pathname === '/login' || pathname === '/' || pathname.startsWith('/_next') || pathname.startsWith('/api') || pathname.includes('.')) {
+  if (pathname === '/auth/login' || pathname === '/' || pathname.startsWith('/_next') || pathname.startsWith('/api') || pathname.includes('.')) {
     return NextResponse.next()
   }
 
@@ -80,7 +80,7 @@ export function middleware(request: NextRequest) {
     const userCookie = request.cookies.get('user')
     
     if (!userCookie) {
-      return NextResponse.redirect(new URL('/login', request.url))
+      return NextResponse.redirect(new URL('/auth/login', request.url))
     }
 
     try {
@@ -94,7 +94,7 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL('/dashboard', request.url))
       }
     } catch (error) {
-      return NextResponse.redirect(new URL('/login', request.url))
+      return NextResponse.redirect(new URL('/auth/login', request.url))
     }
   }
 

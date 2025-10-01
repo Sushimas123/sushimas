@@ -69,6 +69,7 @@ export default function Layout({ children }: LayoutProps) {
   const [userBranches, setUserBranches] = useState<string[]>([])
   const [userName, setUserName] = useState<string>('')
   const [userEmail, setUserEmail] = useState<string>('')
+  const [userPhoto, setUserPhoto] = useState<string>('')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false)
@@ -224,9 +225,44 @@ export default function Layout({ children }: LayoutProps) {
     })
   }, [allMenuItems, permissions, permissionsLoading, userRole])
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut()
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
     localStorage.removeItem('user')
-    window.location.href = '/login'
+    window.location.href = '/auth/login'
+  }
+
+  const refreshUserData = async () => {
+    const user = localStorage.getItem('user')
+    if (user) {
+      const userData = JSON.parse(user)
+      if (userData.email) {
+        try {
+          const { data: updatedUser, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', userData.email)
+            .single()
+          
+          if (!error && updatedUser) {
+            localStorage.setItem('user', JSON.stringify(updatedUser))
+            setUserRole(updatedUser.role || 'guest')
+            setUserName(updatedUser.nama_lengkap || updatedUser.email || '')
+            setUserEmail(updatedUser.email || '')
+            setUserPhoto(updatedUser.foto_profile || '')
+            
+            if (updatedUser.id_user) {
+              await fetchUserBranches(updatedUser.id_user, updatedUser.role)
+            }
+          }
+        } catch (error) {
+          console.error('Error refreshing user data:', error)
+        }
+      }
+    }
   }
 
   // Keep session alive - prevent auto logout
@@ -254,10 +290,14 @@ export default function Layout({ children }: LayoutProps) {
         setUserRole(userData.role || 'guest')
         setUserName(userData.nama_lengkap || userData.email || '')
         setUserEmail(userData.email || '')
+        setUserPhoto(userData.foto_profile || '')
         
         if (userData.id_user) {
           await fetchUserBranches(userData.id_user, userData.role)
         }
+        
+        // Refresh user data from database to get latest role
+        await refreshUserData()
       }
 
       // Load recent pages
@@ -669,8 +709,21 @@ export default function Layout({ children }: LayoutProps) {
                     aria-expanded="false"
                     aria-haspopup="true"
                   >
-                    <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-medium">
-                      {userName ? userName.charAt(0).toUpperCase() : 'U'}
+                    <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-medium overflow-hidden">
+                      {userPhoto ? (
+                        <img 
+                          src={userPhoto} 
+                          alt="Profile" 
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none'
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                          }}
+                        />
+                      ) : null}
+                      <span className={`${userPhoto ? 'hidden' : ''}`}>
+                        {userName ? userName.charAt(0).toUpperCase() : 'U'}
+                      </span>
                     </div>
                     <div className="ml-2 hidden md:block">
                       <div className="text-left">

@@ -18,7 +18,7 @@ export default function PageAccessControl({ children, pageName }: PageAccessCont
     const checkAccess = () => {
       const userData = localStorage.getItem('user')
       if (!userData) {
-        router.push('/login')
+        router.push('/auth/login')
         return
       }
 
