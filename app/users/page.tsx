@@ -59,6 +59,10 @@ function UsersPageContent() {
   const [permittedColumns, setPermittedColumns] = useState<string[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
+  const [branchFilter, setBranchFilter] = useState<string>('all');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'nama_lengkap' | 'email' | 'role' | 'created_at'>('nama_lengkap');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   
   // Mobile specific states
   const [isMobile, setIsMobile] = useState(false);
@@ -644,16 +648,47 @@ function UsersPageContent() {
     </div>
   );
 
-  const filteredUsers = users.filter(user =>
-    user.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.role.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredUsers = users
+    .filter(user => {
+      // Search filter
+      const matchesSearch = searchTerm === '' || 
+        user.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.role.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Branch filter
+      const matchesBranch = branchFilter === 'all' || 
+        (user.branches && user.branches.includes(branchFilter)) ||
+        user.cabang === branchFilter;
+      
+      // Role filter
+      const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+      
+      return matchesSearch && matchesBranch && matchesRole;
+    })
+    .sort((a, b) => {
+      let aValue: string | number = a[sortBy];
+      let bValue: string | number = b[sortBy];
+      
+      if (sortBy === 'created_at') {
+        aValue = new Date(aValue as string).getTime();
+        bValue = new Date(bValue as string).getTime();
+      } else {
+        aValue = String(aValue || '').toLowerCase();
+        bValue = String(bValue || '').toLowerCase();
+      }
+      
+      if (sortOrder === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      }
+    });
 
-  // Reset pagination when search changes
+  // Reset pagination when filters change
   useEffect(() => {
     setPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, branchFilter, roleFilter, sortBy, sortOrder]);
 
   // Pagination
   const totalPages = Math.ceil(filteredUsers.length / pageSize);
@@ -821,13 +856,13 @@ function UsersPageContent() {
       {/* Search & Controls */}
       <div className="space-y-3 mb-4">
         {!isMobile ? (
-          <div className="flex gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2">
             <input
               type="text"
               placeholder="🔍 Search users..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="border px-2 py-1 rounded-md text-xs w-full sm:w-64"
+              className="border px-2 py-1 rounded-md text-xs"
             />
             <select
               value={statusFilter}
@@ -838,6 +873,49 @@ function UsersPageContent() {
               <option value="inactive">Inactive</option>
               <option value="all">All</option>
             </select>
+            <select
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
+              className="border px-2 py-1 rounded-md text-xs"
+            >
+              <option value="all">All Branches</option>
+              {branches.map(branch => (
+                <option key={branch.kode_branch} value={branch.kode_branch}>
+                  {branch.nama_branch}
+                </option>
+              ))}
+            </select>
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="border px-2 py-1 rounded-md text-xs"
+            >
+              <option value="all">All Roles</option>
+              <option value="super admin">Super Admin</option>
+              <option value="admin">Admin</option>
+              <option value="finance">Finance</option>
+              <option value="pic_branch">PIC Branch</option>
+              <option value="staff">Staff</option>
+            </select>
+            <div className="flex gap-1">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="border px-2 py-1 rounded-md text-xs flex-1"
+              >
+                <option value="nama_lengkap">Name</option>
+                <option value="email">Email</option>
+                <option value="role">Role</option>
+                <option value="created_at">Date</option>
+              </select>
+              <button
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="border px-2 py-1 rounded-md text-xs hover:bg-gray-50"
+                title={`Sort ${sortOrder === 'asc' ? 'Descending' : 'Ascending'}`}
+              >
+                {sortOrder === 'asc' ? '↑' : '↓'}
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-2">
@@ -909,13 +987,17 @@ function UsersPageContent() {
               />
             </label>
           )}
-          {searchTerm && (
+          {(searchTerm || branchFilter !== 'all' || roleFilter !== 'all') && (
             <button 
-              onClick={() => setSearchTerm('')}
+              onClick={() => {
+                setSearchTerm('');
+                setBranchFilter('all');
+                setRoleFilter('all');
+              }}
               className="px-3 py-1 rounded-md text-xs flex items-center gap-1 bg-red-100 text-red-700 hover:bg-red-200"
             >
               <X size={16} />
-              Clear Search
+              Clear Filters
             </button>
           )}
         </div>
