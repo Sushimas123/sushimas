@@ -983,9 +983,8 @@ function PurchaseOrderPageContent() {
                             <div className="text-xs text-gray-900 truncate max-w-[120px]">{po.supplier_name}</div>
                           </td>
                           <td className="px-2 py-2">
-                            <div className="flex items-center text-xs text-gray-900">
-                              <Building2 size={12} className="mr-1 text-gray-400" />
-                              <span className="truncate max-w-[100px]">{po.branch_name}</span>
+                            <div className="flex items-start text-xs text-gray-900">
+                                <span className="break-words">{po.branch_name}</span>
                             </div>
                           </td>
                           <td className="px-2 py-2">

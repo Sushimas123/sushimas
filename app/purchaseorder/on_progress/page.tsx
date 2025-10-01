@@ -71,7 +71,10 @@ function OnProgressPO() {
   const [editingItems, setEditingItems] = useState<{[key: number]: boolean}>({})
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
   const [whatsappNumber, setWhatsappNumber] = useState('')
+  const [selectedUser, setSelectedUser] = useState<{id: number, name: string, phone: string} | null>(null)
+  const [branchUsers, setBranchUsers] = useState<{id: number, name: string, phone: string}[]>([])
   const [isSaving, setIsSaving] = useState(false)
+  const [isApprovalMode, setIsApprovalMode] = useState(false)
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -191,8 +194,36 @@ function OnProgressPO() {
 
         setSupplier(supplierData)
 
-        // Set default WhatsApp number
-        setWhatsappNumber('6289654997567')
+        // Fetch users from the same branch
+        if (branchData?.kode_branch) {
+          const { data: usersData } = await supabase
+            .from('user_branches')
+            .select(`
+              id_user,
+              users!inner (
+                id_user,
+                nama_lengkap,
+                no_telp
+              )
+            `)
+            .eq('kode_branch', branchData.kode_branch)
+            .eq('is_active', true)
+            .eq('users.is_active', true)
+
+          const formattedUsers = (usersData || []).map((item: any) => ({
+            id: item.users.id_user,
+            name: item.users.nama_lengkap,
+            phone: item.users.no_telp || ''
+          })).filter(user => user.phone) // Only users with phone numbers
+
+          setBranchUsers(formattedUsers)
+          
+          // Set default to first user with phone number
+          if (formattedUsers.length > 0) {
+            setSelectedUser(formattedUsers[0])
+            setWhatsappNumber(formattedUsers[0].phone)
+          }
+        }
 
         // Set PIC cabang sebagai user yang membuat PO
         setCreatedByUser({ nama_lengkap: picName })
@@ -210,13 +241,23 @@ function OnProgressPO() {
       return
     }
 
-    // Show WhatsApp modal instead of directly approving
+    setIsApprovalMode(true)
+    setShowWhatsAppModal(true)
+  }
+
+  const handleExportWhatsApp = () => {
+    if (!poData) {
+      alert('Data PO tidak tersedia')
+      return
+    }
+
+    setIsApprovalMode(false)
     setShowWhatsAppModal(true)
   }
 
   const handleFinalApprove = async () => {
-    if (!poData || !whatsappNumber) {
-      alert('Nomor WhatsApp harus diisi')
+    if (!poData || !selectedUser) {
+      alert('User dan nomor WhatsApp harus dipilih')
       return
     }
 
@@ -236,7 +277,7 @@ function OnProgressPO() {
       }
 
       // Export to WhatsApp
-      await exportToWhatsApp()
+      exportToWhatsApp()
 
       alert('PO berhasil disetujui dan dikirim ke WhatsApp!')
       window.location.href = '/purchaseorder'
@@ -249,8 +290,24 @@ function OnProgressPO() {
     }
   }
 
+  const handleWhatsAppExport = () => {
+    if (!poData || !branch || !selectedUser) {
+      alert('User dan nomor WhatsApp harus dipilih')
+      return
+    }
+
+    exportToWhatsApp()
+    setShowWhatsAppModal(false)
+  }
+
   const exportToWhatsApp = () => {
     if (!poData || !branch) return
+
+    // Validate phone number
+    if (!whatsappNumber || whatsappNumber.trim() === '') {
+      alert('Nomor WhatsApp harus diisi')
+      return
+    }
 
     // Format WhatsApp message
     const message = `*PURCHASE ORDER - ${poData.po_number}*
@@ -280,11 +337,31 @@ ${poData.keterangan ? `\n📝 *CATATAN:*\n${poData.keterangan}` : ''}
 
 _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}*_`
 
+    // Clean and format phone number
+    let cleanPhone = whatsappNumber.replace(/[^0-9]/g, '')
+    
+    // Add country code if not present
+    if (!cleanPhone.startsWith('62')) {
+      if (cleanPhone.startsWith('0')) {
+        cleanPhone = '62' + cleanPhone.substring(1)
+      } else {
+        cleanPhone = '62' + cleanPhone
+      }
+    }
+
+    // Validate phone number length
+    if (cleanPhone.length < 10 || cleanPhone.length > 15) {
+      alert('Format nomor WhatsApp tidak valid')
+      return
+    }
+
     // Encode message for WhatsApp URL
     const encodedMessage = encodeURIComponent(message)
     
     // Create WhatsApp URL
-    const whatsappUrl = `https://wa.me/${whatsappNumber.replace(/[^0-9]/g, '')}?text=${encodedMessage}`
+    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`
+    
+    console.log('WhatsApp URL:', whatsappUrl)
     
     // Open WhatsApp in new tab
     window.open(whatsappUrl, '_blank')
@@ -457,8 +534,26 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
       // Create WhatsApp message
       const message = `Halo, berikut adalah Purchase Order ${poData.po_number}. File PDF sudah didownload, silakan attach file PDF tersebut ke chat ini.`
       
+      // Clean and format phone number
+      let cleanPhone = whatsappNumber.replace(/[^0-9]/g, '')
+      
+      // Add country code if not present
+      if (!cleanPhone.startsWith('62')) {
+        if (cleanPhone.startsWith('0')) {
+          cleanPhone = '62' + cleanPhone.substring(1)
+        } else {
+          cleanPhone = '62' + cleanPhone
+        }
+      }
+
+      // Validate phone number
+      if (cleanPhone.length < 10 || cleanPhone.length > 15) {
+        alert('Format nomor WhatsApp tidak valid')
+        return
+      }
+      
       const encodedMessage = encodeURIComponent(message)
-      const whatsappUrl = `https://wa.me/${whatsappNumber.replace(/[^0-9]/g, '')}?text=${encodedMessage}`
+      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`
       
       // Open WhatsApp after a short delay to allow PDF download
       setTimeout(() => {
@@ -553,13 +648,45 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <div className="flex items-center gap-3 mb-4">
               <MessageCircle className="text-green-600" size={24} />
-              <h3 className="text-lg font-semibold">Kirim ke WhatsApp</h3>
+              <h3 className="text-lg font-semibold">
+                {isApprovalMode ? 'Setujui & Kirim ke WhatsApp' : 'Kirim ke WhatsApp'}
+              </h3>
             </div>
             
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nomor WhatsApp Supplier
+                  Pilih User Cabang
+                </label>
+                <select
+                  value={selectedUser?.id || ''}
+                  onChange={(e) => {
+                    const userId = parseInt(e.target.value)
+                    const user = branchUsers.find(u => u.id === userId)
+                    if (user) {
+                      setSelectedUser(user)
+                      setWhatsappNumber(user.phone)
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  <option value="">Pilih user...</option>
+                  {branchUsers.map(user => (
+                    <option key={user.id} value={user.id}>
+                      {user.name} - {user.phone}
+                    </option>
+                  ))}
+                </select>
+                {branchUsers.length === 0 && (
+                  <p className="text-xs text-red-500 mt-1">
+                    Tidak ada user dengan nomor telepon di cabang ini
+                  </p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nomor WhatsApp
                 </label>
                 <input
                   type="tel"
@@ -575,7 +702,10 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
 
               <div className="bg-blue-50 p-3 rounded-lg">
                 <p className="text-sm text-blue-700">
-                  PO akan disetujui dan langsung dikirim ke WhatsApp supplier
+                  {isApprovalMode 
+                    ? 'PO akan disetujui dan langsung dikirim ke WhatsApp supplier'
+                    : 'PO akan dikirim ke WhatsApp tanpa mengubah status'
+                  }
                 </p>
               </div>
 
@@ -588,8 +718,8 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
                   Batal
                 </button>
                 <button
-                  onClick={handleFinalApprove}
-                  disabled={!whatsappNumber || isSaving}
+                  onClick={isApprovalMode ? handleFinalApprove : handleWhatsAppExport}
+                  disabled={!selectedUser || !whatsappNumber || isSaving}
                   className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isSaving ? (
@@ -599,8 +729,8 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
                     </>
                   ) : (
                     <>
-                      <CheckCircle size={16} />
-                      Setujui & Kirim
+                      <MessageCircle size={16} />
+                      {isApprovalMode ? 'Setujui & Kirim' : 'Kirim WhatsApp'}
                     </>
                   )}
                 </button>
@@ -644,7 +774,7 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
           </button>
           {/* WhatsApp Export Button */}
           <button 
-            onClick={exportToWhatsApp}
+            onClick={handleExportWhatsApp}
             className="bg-green-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm md:text-base"
           >
             <MessageCircle size={16} />
