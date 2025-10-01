@@ -1,8 +1,8 @@
-"use client"
+'use client'
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { CheckCircle, XCircle, Package, Building2, Calendar, User, FileText, Download, ArrowLeft, Printer, Clock, AlertCircle, Edit, Save, X } from 'lucide-react'
+import { CheckCircle, XCircle, Package, Building2, Calendar, User, FileText, Download, ArrowLeft, Printer, Clock, AlertCircle, Edit, Save, X, MessageCircle } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 
@@ -58,6 +58,7 @@ interface Supplier {
   telp?: string
   email?: string
   termin_tempo?: number
+  whatsapp?: string
 }
 
 function OnProgressPO() {
@@ -68,6 +69,9 @@ function OnProgressPO() {
   const [createdByUser, setCreatedByUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [editingItems, setEditingItems] = useState<{[key: number]: boolean}>({})
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
+  const [whatsappNumber, setWhatsappNumber] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -179,16 +183,16 @@ function OnProgressPO() {
         }
 
         // Fetch supplier data
-        const { data: supplierData, error: supplierError } = await supabase
+        const { data: supplierData } = await supabase
           .from('suppliers')
-          .select('id_supplier, nama_supplier, nomor_rekening, bank_penerima, nama_penerima, termin_tempo, estimasi_pengiriman, divisi')
+          .select('id_supplier, nama_supplier')
           .eq('id_supplier', po.supplier_id)
           .single()
 
-        if (supplierError) {
-          console.error('Supplier fetch error:', supplierError)
-        }
         setSupplier(supplierData)
+
+        // Set default WhatsApp number
+        setWhatsappNumber('6289654997567')
 
         // Set PIC cabang sebagai user yang membuat PO
         setCreatedByUser({ nama_lengkap: picName })
@@ -206,7 +210,20 @@ function OnProgressPO() {
       return
     }
 
+    // Show WhatsApp modal instead of directly approving
+    setShowWhatsAppModal(true)
+  }
+
+  const handleFinalApprove = async () => {
+    if (!poData || !whatsappNumber) {
+      alert('Nomor WhatsApp harus diisi')
+      return
+    }
+
+    setIsSaving(true)
+
     try {
+      // Update PO status
       const { error } = await supabase
         .from('purchase_orders')
         .update({ status: 'Sedang diproses' })
@@ -218,12 +235,59 @@ function OnProgressPO() {
         return
       }
 
-      alert('PO berhasil disetujui!')
+      // Export to WhatsApp
+      await exportToWhatsApp()
+
+      alert('PO berhasil disetujui dan dikirim ke WhatsApp!')
       window.location.href = '/purchaseorder'
     } catch (error) {
       console.error('Error approving PO:', error)
       alert('Terjadi kesalahan saat menyetujui PO')
+    } finally {
+      setIsSaving(false)
+      setShowWhatsAppModal(false)
     }
+  }
+
+  const exportToWhatsApp = () => {
+    if (!poData || !branch) return
+
+    // Format WhatsApp message
+    const message = `*PURCHASE ORDER - ${poData.po_number}*
+
+📋 *INFORMASI PO*
+• Nomor PO: ${poData.po_number}
+• Tanggal: ${new Date(poData.po_date).toLocaleDateString('id-ID')}
+• Prioritas: ${poData.priority.toUpperCase()}
+• Termin: ${poData.termin_days} hari
+
+🏢 *DARI*
+• Cabang: ${branch.nama_branch}
+• Alamat: ${branch.alamat || '-'}
+• PIC: ${branch.pic || '-'}
+
+👥 *KEPADA*
+• Supplier: ${supplier?.nama_supplier || 'Supplier'}
+
+📦 *DETAIL ITEM*
+${poItems.map((item, index) => 
+  `${index + 1}. ${item.product_name} (${item.merk || '-'})
+   Qty: ${item.qty} ${item.unit_besar}
+   Ket: ${item.keterangan || '-'}`
+).join('\n\n')}
+
+${poData.keterangan ? `\n📝 *CATATAN:*\n${poData.keterangan}` : ''}
+
+_*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}*_`
+
+    // Encode message for WhatsApp URL
+    const encodedMessage = encodeURIComponent(message)
+    
+    // Create WhatsApp URL
+    const whatsappUrl = `https://wa.me/${whatsappNumber.replace(/[^0-9]/g, '')}?text=${encodedMessage}`
+    
+    // Open WhatsApp in new tab
+    window.open(whatsappUrl, '_blank')
   }
 
   const handleReject = async () => {
@@ -348,6 +412,66 @@ function OnProgressPO() {
     }
   }
 
+  const exportPDFToWhatsApp = async () => {
+    if (!poData) {
+      alert('Data PO tidak tersedia')
+      return
+    }
+    
+    const element = document.getElementById('po-content')
+    if (!element) {
+      alert('Konten PDF tidak ditemukan')
+      return
+    }
+
+    try {
+      // Dynamic import html2pdf
+      const html2pdf = (await import('html2pdf.js')).default
+      
+      const tempElement = element.cloneNode(true) as HTMLElement
+      tempElement.style.width = '210mm'
+      tempElement.style.padding = '15mm'
+      tempElement.style.fontSize = '12pt'
+      tempElement.style.position = 'static'
+      tempElement.style.visibility = 'visible'
+      
+      const opt = {
+        margin: 10,
+        filename: `PO-${poData.po_number}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2,
+          useCORS: true,
+          logging: false
+        },
+        jsPDF: { 
+          unit: 'mm', 
+          format: 'a4', 
+          orientation: 'portrait' 
+        }
+      }
+
+      // Generate and download PDF
+      await html2pdf().set(opt).from(tempElement).save()
+      
+      // Create WhatsApp message
+      const message = `Halo, berikut adalah Purchase Order ${poData.po_number}. File PDF sudah didownload, silakan attach file PDF tersebut ke chat ini.`
+      
+      const encodedMessage = encodeURIComponent(message)
+      const whatsappUrl = `https://wa.me/${whatsappNumber.replace(/[^0-9]/g, '')}?text=${encodedMessage}`
+      
+      // Open WhatsApp after a short delay to allow PDF download
+      setTimeout(() => {
+        window.open(whatsappUrl, '_blank')
+      }, 1000)
+      
+      alert('PDF berhasil didownload dan WhatsApp akan terbuka. Silakan attach file PDF yang sudah didownload ke chat WhatsApp.')
+    } catch (error) {
+      console.error('Error generating PDF for WhatsApp:', error)
+      alert('Gagal membuat PDF untuk WhatsApp')
+    }
+  }
+
   const handlePrint = () => {
     const printContent = document.getElementById('po-content')
     if (printContent && poData) {
@@ -423,6 +547,69 @@ function OnProgressPO() {
 
   return (
     <div className="p-3 md:p-6 space-y-4 md:space-y-6 bg-gray-50 min-h-screen">
+      {/* WhatsApp Modal */}
+      {showWhatsAppModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <div className="flex items-center gap-3 mb-4">
+              <MessageCircle className="text-green-600" size={24} />
+              <h3 className="text-lg font-semibold">Kirim ke WhatsApp</h3>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nomor WhatsApp Supplier
+                </label>
+                <input
+                  type="tel"
+                  value={whatsappNumber}
+                  onChange={(e) => setWhatsappNumber(e.target.value)}
+                  placeholder="Contoh: 6281234567890"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Format: 62xxxxxxxxxxx (tanpa + dan spasi)
+                </p>
+              </div>
+
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  PO akan disetujui dan langsung dikirim ke WhatsApp supplier
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowWhatsAppModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  disabled={isSaving}
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleFinalApprove}
+                  disabled={!whatsappNumber || isSaving}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isSaving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Memproses...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={16} />
+                      Setujui & Kirim
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3 md:gap-4">
@@ -455,295 +642,179 @@ function OnProgressPO() {
             <span className="hidden md:inline">Export PDF</span>
             <span className="md:hidden">PDF</span>
           </button>
+          {/* WhatsApp Export Button */}
+          <button 
+            onClick={exportToWhatsApp}
+            className="bg-green-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm md:text-base"
+          >
+            <MessageCircle size={16} />
+            <span className="hidden md:inline">Export WhatsApp</span>
+            <span className="md:hidden">WA</span>
+          </button>
+          {/* PDF to WhatsApp Button */}
+          <button 
+            onClick={exportPDFToWhatsApp}
+            className="bg-purple-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm md:text-base"
+          >
+            <Download size={16} />
+            <MessageCircle size={14} className="-ml-1" />
+            <span className="hidden md:inline">PDF ke WA</span>
+            <span className="md:hidden">PDF WA</span>
+          </button>
         </div>
       </div>
 
-      {/* Status Banner */}
-      <div className={`p-3 md:p-4 rounded-lg ${getStatusColor(poData.status)} flex items-center gap-2 md:gap-3`}>
-        {poData.status === 'Pending' && <Clock className="text-yellow-600" size={18} />}
-        {poData.status === 'Dibatalkan' && <XCircle className="text-red-600" size={18} />}
-        {poData.status === 'Sedang diproses' && <Package className="text-blue-600" size={18} />}
-        <div>
-          <h3 className="font-semibold text-sm md:text-base">Status: {poData.status}</h3>
-          <p className="text-xs md:text-sm">
-            {poData.status === 'Pending' && 'Menunggu persetujuan'}
-            {poData.status === 'Sedang diproses' && 'PO sedang diproses oleh supplier'}
-            {poData.status === 'Dibatalkan' && 'PO telah dibatalkan'}
-          </p>
-        </div>
-      </div>
-
-      {/* PO Content */}
+      {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-        {/* Main Content */}
+        {/* Left Column - PO Details */}
         <div className="lg:col-span-2 space-y-4 md:space-y-6">
-          {/* PO Details Card */}
+          {/* PO Information Card */}
           <div className="bg-white rounded-lg shadow p-4 md:p-6">
-            <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-3 md:mb-4 flex items-center gap-2">
-              <FileText size={18} />
-              Informasi PO
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mb-4">
-              <div>
-                <label className="block text-xs md:text-sm font-medium text-gray-500">Nomor PO</label>
-                <p className="font-semibold text-sm md:text-base">{poData.po_number}</p>
-              </div>
-              <div>
-                <label className="block text-xs md:text-sm font-medium text-gray-500">Tanggal PO</label>
-                <p className="font-semibold text-sm md:text-base">{new Date(poData.po_date).toLocaleDateString('id-ID')}</p>
-              </div>
-              <div>
-                <label className="block text-xs md:text-sm font-medium text-gray-500">Termin Pembayaran</label>
-                <p className="font-semibold text-sm md:text-base">{poData.termin_days} hari</p>
-              </div>
-              <div>
-                <label className="block text-xs md:text-sm font-medium text-gray-500">Prioritas</label>
-                <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(poData.priority)}`}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 md:mb-6">
+              <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-2 md:mb-0">Informasi Purchase Order</h2>
+              <div className="flex gap-2">
+                <span className={`px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-medium ${getStatusColor(poData.status)}`}>
+                  {poData.status}
+                </span>
+                <span className={`px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-medium ${getPriorityColor(poData.priority)}`}>
                   {poData.priority.toUpperCase()}
                 </span>
               </div>
             </div>
-
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              <div>
+                <label className="block text-xs md:text-sm font-medium text-gray-500">Nomor PO</label>
+                <p className="text-gray-700 font-medium text-sm md:text-base">{poData.po_number}</p>
+              </div>
+              <div>
+                <label className="block text-xs md:text-sm font-medium text-gray-500">Tanggal PO</label>
+                <p className="text-gray-700 text-sm md:text-base">{new Date(poData.po_date).toLocaleDateString('id-ID')}</p>
+              </div>
+              <div>
+                <label className="block text-xs md:text-sm font-medium text-gray-500">Termin Pembayaran</label>
+                <p className="text-gray-700 text-sm md:text-base">{poData.termin_days} hari</p>
+              </div>
+              <div>
+                <label className="block text-xs md:text-sm font-medium text-gray-500">Dibuat Oleh</label>
+                <p className="text-gray-700 text-sm md:text-base">{createdByUser?.nama_lengkap || 'System'}</p>
+              </div>
+            </div>
+            
             {poData.keterangan && (
-              <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="mt-4 md:mt-6">
                 <label className="block text-xs md:text-sm font-medium text-gray-500 mb-2">Catatan</label>
-                <p className="text-gray-700 bg-gray-50 p-3 rounded text-sm md:text-base">{poData.keterangan}</p>
+                <p className="text-gray-700 bg-gray-50 p-3 rounded-lg text-sm md:text-base">{poData.keterangan}</p>
               </div>
             )}
           </div>
 
-          {/* Items Card */}
+          {/* Items List */}
           <div className="bg-white rounded-lg shadow p-4 md:p-6">
-            <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-3 md:mb-4 flex items-center gap-2">
+            <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-4 md:mb-6 flex items-center gap-2">
               <Package size={18} />
               Daftar Item
             </h2>
             
-            {/* Mobile Card View */}
-            <div className="md:hidden space-y-3">
-              {poItems.map((item, index) => (
-                <div key={item.id} className="border border-gray-200 rounded-lg p-3">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="font-medium text-gray-900">{item.product_name}</div>
-                    <div className="flex gap-1">
-                      {editingItems[item.id] ? (
-                        <>
-                          <button
-                            onClick={() => handleSaveItem(item.id)}
-                            className="text-green-600 hover:text-green-800 p-1"
-                          >
-                            <Save size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleCancelEdit(item.id)}
-                            className="text-red-600 hover:text-red-800 p-1"
-                          >
-                            <X size={14} />
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => handleEditItem(item.id)}
-                          className="text-blue-600 hover:text-blue-800 p-1"
-                        >
-                          <Edit size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-gray-500">Merk:</span>
-                      <span className="ml-1 text-gray-700">{item.merk || '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Qty:</span>
-                      {editingItems[item.id] ? (
-                        <input
-                          type="number"
-                          value={item.qty}
-                          onChange={(e) => handleItemChange(item.id, 'qty', parseInt(e.target.value) || 0)}
-                          className="ml-1 w-16 px-1 py-0.5 border border-gray-300 rounded text-xs"
-                        />
-                      ) : (
-                        <span className="ml-1 font-semibold">{item.qty}</span>
-                      )}
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Unit:</span>
-                      <span className="ml-1 text-gray-700">{item.unit_besar}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Harga:</span>
-                      {editingItems[item.id] ? (
-                        <input
-                          type="number"
-                          value={item.harga || 0}
-                          onChange={(e) => handleItemChange(item.id, 'harga', parseFloat(e.target.value) || 0)}
-                          className="ml-1 w-20 px-1 py-0.5 border border-gray-300 rounded text-xs"
-                        />
-                      ) : (
-                        <span className="ml-1 text-gray-700">Rp {(item.harga || 0).toLocaleString('id-ID')}</span>
-                      )}
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-gray-500">Total:</span>
-                      {editingItems[item.id] ? (
-                        <span className="ml-1 font-semibold text-green-600">Rp {(item.total || 0).toLocaleString('id-ID')}</span>
-                      ) : (
-                        <span className="ml-1 font-semibold text-green-600">Rp {(item.total || 0).toLocaleString('id-ID')}</span>
-                      )}
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-gray-500">Ket:</span>
-                      <span className="ml-1 text-gray-700">{item.keterangan || '-'}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-100 text-left">
-                    <th className="p-3 font-semibold text-gray-700">Produk</th>
-                    <th className="p-3 font-semibold text-gray-700">Merk</th>
-                    <th className="p-3 font-semibold text-gray-700 text-center">Qty</th>
-                    <th className="p-3 font-semibold text-gray-700 text-center">Unit</th>
-                    <th className="p-3 font-semibold text-gray-700 text-right">Harga</th>
-                    <th className="p-3 font-semibold text-gray-700 text-right">Total</th>
-                    <th className="p-3 font-semibold text-gray-700">Keterangan</th>
-                    <th className="p-3 font-semibold text-gray-700 text-center">Aksi</th>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-2 md:py-3 px-2 md:px-4 font-medium text-gray-700">Produk</th>
+                    <th className="text-center py-2 md:py-3 px-2 md:px-4 font-medium text-gray-700">Qty</th>
+                    <th className="text-center py-2 md:py-3 px-2 md:px-4 font-medium text-gray-700">Unit</th>
+                    <th className="text-left py-2 md:py-3 px-2 md:px-4 font-medium text-gray-700">Keterangan</th>
+                    {poData.status === 'Pending' && (
+                      <th className="text-center py-2 md:py-3 px-2 md:px-4 font-medium text-gray-700">Aksi</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
-                  {poItems.map((item, index) => (
-                    <tr key={item.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="p-3 border-b border-gray-200">
-                        <div className="font-medium">{item.product_name}</div>
+                  {poItems.map((item) => (
+                    <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-2 md:py-3 px-2 md:px-4">
+                        <div>
+                          <p className="font-medium text-gray-800 text-xs md:text-sm">{item.product_name}</p>
+                          {item.merk && <p className="text-xs text-gray-500">Merk: {item.merk}</p>}
+                        </div>
                       </td>
-                      <td className="p-3 border-b border-gray-200">
-                        <div className="text-gray-600">{item.merk || '-'}</div>
-                      </td>
-                      <td className="p-3 border-b border-gray-200 text-center">
+                      <td className="py-2 md:py-3 px-2 md:px-4 text-center">
                         {editingItems[item.id] ? (
                           <input
                             type="number"
                             value={item.qty}
                             onChange={(e) => handleItemChange(item.id, 'qty', parseInt(e.target.value) || 0)}
-                            className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                            className="w-16 px-2 py-1 border rounded text-center text-xs md:text-sm"
                           />
                         ) : (
-                          <span className="font-semibold">{item.qty}</span>
+                          <span className="text-xs md:text-sm">{item.qty}</span>
                         )}
                       </td>
-                      <td className="p-3 border-b border-gray-200 text-center">
-                        {item.unit_besar}
-                      </td>
-                      <td className="p-3 border-b border-gray-200 text-right">
-                        {editingItems[item.id] ? (
-                          <input
-                            type="number"
-                            value={item.harga || 0}
-                            onChange={(e) => handleItemChange(item.id, 'harga', parseFloat(e.target.value) || 0)}
-                            className="w-24 px-2 py-1 border border-gray-300 rounded text-right"
-                          />
-                        ) : (
-                          <span className="text-gray-700">Rp {(item.harga || 0).toLocaleString('id-ID')}</span>
-                        )}
-                      </td>
-                      <td className="p-3 border-b border-gray-200 text-right">
-                        <span className="font-semibold text-green-600">Rp {(item.total || 0).toLocaleString('id-ID')}</span>
-                      </td>
-                      <td className="p-3 border-b border-gray-200">
-                        {item.keterangan || '-'}
-                      </td>
-                      <td className="p-3 border-b border-gray-200 text-center">
-                        {editingItems[item.id] ? (
-                          <div className="flex justify-center gap-1">
+                      <td className="py-2 md:py-3 px-2 md:px-4 text-center text-xs md:text-sm">{item.unit_besar}</td>
+                      <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.keterangan || '-'}</td>
+                      {poData.status === 'Pending' && (
+                        <td className="py-2 md:py-3 px-2 md:px-4 text-center">
+                          {editingItems[item.id] ? (
+                            <div className="flex gap-1 justify-center">
+                              <button
+                                onClick={() => handleSaveItem(item.id)}
+                                className="text-green-600 hover:text-green-800 p-1"
+                              >
+                                <Save size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleCancelEdit(item.id)}
+                                className="text-red-600 hover:text-red-800 p-1"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ) : (
                             <button
-                              onClick={() => handleSaveItem(item.id)}
-                              className="text-green-600 hover:text-green-800 p-1"
-                              title="Simpan"
+                              onClick={() => handleEditItem(item.id)}
+                              className="text-blue-600 hover:text-blue-800 p-1"
                             >
-                              <Save size={16} />
+                              <Edit size={14} />
                             </button>
-                            <button
-                              onClick={() => handleCancelEdit(item.id)}
-                              className="text-red-600 hover:text-red-800 p-1"
-                              title="Batal"
-                            >
-                              <X size={16} />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => handleEditItem(item.id)}
-                            className="text-blue-600 hover:text-blue-800 p-1"
-                            title="Edit"
-                          >
-                            <Edit size={16} />
-                          </button>
-                        )}
-                      </td>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
-              
-              {/* Total Summary */}
-              <div className="mt-4 flex justify-end">
-                <div className="bg-gray-50 p-4 rounded-lg border">
-                  <div className="text-right">
-                    <div className="text-sm text-gray-600 mb-1">Total Keseluruhan:</div>
-                    <div className="text-xl font-bold text-green-600">
-                      Rp {poItems.reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('id-ID')}
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
 
-        {/* Sidebar */}
+        {/* Right Column - Additional Info */}
         <div className="space-y-4 md:space-y-6">
-          {/* Supplier Card */}
+          {/* Supplier Info */}
           <div className="bg-white rounded-lg shadow p-4 md:p-6">
             <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-3 md:mb-4 flex items-center gap-2">
               <Building2 size={18} />
               Supplier
             </h2>
             
-            <div className="space-y-2 md:space-y-3">
+            <div className="space-y-3">
               <div>
                 <label className="block text-xs md:text-sm font-medium text-gray-500">Nama Supplier</label>
-                <p className="font-semibold text-sm md:text-base">{supplier?.nama_supplier}</p>
+                <p className="text-gray-700 font-medium text-sm md:text-base">{supplier?.nama_supplier || 'Loading...'}</p>
               </div>
-              
-              {supplier?.termin_tempo && (
-                <div>
-                  <label className="block text-xs md:text-sm font-medium text-gray-500">Tempo Pembayaran</label>
-                  <p className="text-gray-700 text-sm md:text-base">{supplier.termin_tempo} hari</p>
-                </div>
-              )}
             </div>
           </div>
 
-          {/* Branch Card */}
+          {/* Branch Info */}
           <div className="bg-white rounded-lg shadow p-4 md:p-6">
             <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-3 md:mb-4 flex items-center gap-2">
               <Building2 size={18} />
               Cabang
             </h2>
             
-            <div className="space-y-2 md:space-y-3">
+            <div className="space-y-3">
               <div>
                 <label className="block text-xs md:text-sm font-medium text-gray-500">Nama Cabang</label>
-                <p className="font-semibold text-sm md:text-base">{branch?.nama_branch}</p>
+                <p className="text-gray-700 font-medium text-sm md:text-base">{branch?.nama_branch || 'Loading...'}</p>
               </div>
               
               {branch?.alamat && (
@@ -840,96 +911,107 @@ function OnProgressPO() {
 
       {/* Hidden content for PDF export */}
       <div id="po-content" style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '210mm' }}>
-        <div style={{ fontFamily: 'Arial, sans-serif', padding: '20px', color: '#333' }}>
-          <div style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '3px solid #2563eb', paddingBottom: '20px' }}>
-            <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#1e40af', marginBottom: '5px', letterSpacing: '1px' }}>PURCHASE ORDER</h1>
-            <div style={{ fontSize: '16px', color: '#6b7280', fontWeight: '500' }}>No: {poData.po_number}</div>
+        <div style={{ fontFamily: 'Arial, sans-serif', padding: '20px', color: '#000', lineHeight: '1.4' }}>
+          {/* Header */}
+          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+            <h1 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '5px' }}>PURCHASE ORDER</h1>
+            <p style={{ fontSize: '16px', fontWeight: 'bold' }}>No. {poData.po_number}</p>
           </div>
           
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', marginBottom: '30px' }}>
-            <div style={{ border: '1px solid #e5e7eb', padding: '20px', borderRadius: '8px', background: '#f9fafb' }}>
-              <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#374151', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #2563eb', paddingBottom: '5px' }}>Dari</h3>
-              <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#1f2937', marginBottom: '8px' }}>{branch?.nama_branch || 'Nama Cabang'}</div>
-              <p style={{ marginBottom: '5px', fontSize: '13px' }}>{branch?.alamat || 'Alamat cabang'}</p>
-              {(branch as any)?.telp && <p style={{ marginBottom: '5px', fontSize: '13px' }}>Telp: {(branch as any).telp}</p>}
-              {(branch as any)?.email && <p style={{ marginBottom: '5px', fontSize: '13px' }}>Email: {(branch as any).email}</p>}
-              <p style={{ marginTop: '10px', fontWeight: '600', fontSize: '13px' }}>PIC: {branch?.pic || 'Tidak ada'}</p>
+          {/* Company Info */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginBottom: '25px' }}>
+            <div>
+              <h3 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px', borderBottom: '1px solid #000', paddingBottom: '5px' }}>DARI:</h3>
+              <p style={{ fontSize: '12px', margin: '3px 0' }}>{branch?.nama_branch || 'Nama Cabang'}</p>
+              <p style={{ fontSize: '12px', margin: '3px 0' }}>{branch?.alamat || 'Alamat cabang'}</p>
+              <p style={{ fontSize: '12px', margin: '3px 0' }}>PIC: {branch?.pic || 'Tidak ada'}</p>
             </div>
-            
-            <div style={{ border: '1px solid #e5e7eb', padding: '20px', borderRadius: '8px', background: '#f9fafb' }}>
-              <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#374151', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #2563eb', paddingBottom: '5px' }}>Kepada</h3>
-              <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#1f2937', marginBottom: '8px' }}>{supplier?.nama_supplier || 'Nama Supplier'}</div>
-            </div>
-          </div>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px', padding: '20px', background: '#f3f4f6', borderRadius: '8px', border: '1px solid #d1d5db' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500', marginBottom: '5px', textTransform: 'uppercase' }}>Tanggal PO</div>
-              <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#1f2937' }}>{new Date(poData.po_date).toLocaleDateString('id-ID')}</div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500', marginBottom: '5px', textTransform: 'uppercase' }}>Termin Pembayaran</div>
-              <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#1f2937' }}>{poData.termin_days} Hari</div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500', marginBottom: '5px', textTransform: 'uppercase' }}>Prioritas</div>
-              <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#1f2937' }}>{poData.priority.toUpperCase()}</div>
+            <div>
+              <h3 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px', borderBottom: '1px solid #000', paddingBottom: '5px' }}>KEPADA:</h3>
+              <p style={{ fontSize: '12px', margin: '3px 0' }}>{supplier?.nama_supplier || 'Nama Supplier'}</p>
             </div>
           </div>
           
-          <div style={{ marginBottom: '30px' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1f2937', marginBottom: '15px', paddingBottom: '10px', borderBottom: '2px solid #2563eb' }}>Detail Pesanan</h3>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-              <thead>
+          {/* PO Details */}
+          <div style={{ marginBottom: '25px' }}>
+            <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
+              <tbody>
                 <tr>
-                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '5%' }}>No</th>
-                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '25%' }}>Nama Produk</th>
-                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '15%' }}>Merk</th>
-                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '8%' }}>Qty</th>
-                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '8%' }}>Unit</th>                  
-                  <th style={{ background: '#2563eb', color: 'white', padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '12%' }}>Keterangan</th>
+                  <td style={{ padding: '5px', border: '1px solid #000', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Tanggal PO</td>
+                  <td style={{ padding: '5px', border: '1px solid #000' }}>{new Date(poData.po_date).toLocaleDateString('id-ID')}</td>
+                  <td style={{ padding: '5px', border: '1px solid #000', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Prioritas</td>
+                  <td style={{ padding: '5px', border: '1px solid #000' }}>{poData.priority.toUpperCase()}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '5px', border: '1px solid #000', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Termin Pembayaran</td>
+                  <td style={{ padding: '5px', border: '1px solid #000' }}>{poData.termin_days} hari</td>
+                  <td style={{ padding: '5px', border: '1px solid #000', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Status</td>
+                  <td style={{ padding: '5px', border: '1px solid #000' }}>{poData.status}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          {/* Items Table */}
+          <div style={{ marginBottom: '25px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>DETAIL ITEM:</h3>
+            <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f5f5f5' }}>
+                  <th style={{ padding: '8px', border: '1px solid #000', textAlign: 'center', fontWeight: 'bold' }}>No</th>
+                  <th style={{ padding: '8px', border: '1px solid #000', textAlign: 'left', fontWeight: 'bold' }}>Nama Produk</th>
+                  <th style={{ padding: '8px', border: '1px solid #000', textAlign: 'left', fontWeight: 'bold' }}>Merk</th>
+                  <th style={{ padding: '8px', border: '1px solid #000', textAlign: 'center', fontWeight: 'bold' }}>Qty</th>
+                  <th style={{ padding: '8px', border: '1px solid #000', textAlign: 'center', fontWeight: 'bold' }}>Unit</th>
+                  <th style={{ padding: '8px', border: '1px solid #000', textAlign: 'left', fontWeight: 'bold' }}>Keterangan</th>
                 </tr>
               </thead>
               <tbody>
                 {poItems.map((item, index) => (
-                  <tr key={item.id} style={{ background: index % 2 === 0 ? '#f9fafb' : 'white' }}>
-                    <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px', textAlign: 'center' }}>{index + 1}</td>
-                    <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px', fontWeight: '600', color: '#1f2937' }}>{item.product_name}</td>
-                    <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px' }}>{item.merk || '-'}</td>
-                    <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px', textAlign: 'center', fontWeight: '600' }}>{item.qty}</td>
-                    <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px', textAlign: 'center' }}>{item.unit_besar}</td>
-                    <td style={{ padding: '10px 8px', borderBottom: '1px solid #e5e7eb', fontSize: '13px' }}>{item.keterangan || '-'}</td>
+                  <tr key={item.id}>
+                    <td style={{ padding: '8px', border: '1px solid #000', textAlign: 'center' }}>{index + 1}</td>
+                    <td style={{ padding: '8px', border: '1px solid #000' }}>{item.product_name}</td>
+                    <td style={{ padding: '8px', border: '1px solid #000' }}>{item.merk || '-'}</td>
+                    <td style={{ padding: '8px', border: '1px solid #000', textAlign: 'center' }}>{item.qty}</td>
+                    <td style={{ padding: '8px', border: '1px solid #000', textAlign: 'center' }}>{item.unit_besar}</td>
+                    <td style={{ padding: '8px', border: '1px solid #000' }}>{item.keterangan || '-'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           
+          {/* Notes */}
           {poData?.keterangan && (
-            <div style={{ margin: '30px 0', padding: '20px', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: '8px' }}>
-              <h4 style={{ fontSize: '14px', fontWeight: 'bold', color: '#92400e', marginBottom: '10px' }}>Catatan Khusus:</h4>
-              <p style={{ color: '#78350f', fontSize: '13px', lineHeight: '1.5' }}>{poData.keterangan}</p>
+            <div style={{ marginBottom: '25px' }}>
+              <h3 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>CATATAN:</h3>
+              <p style={{ fontSize: '12px', border: '1px solid #000', padding: '10px' }}>{poData.keterangan}</p>
             </div>
           )}
           
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px', marginTop: '50px', paddingTop: '30px', borderTop: '1px solid #d1d5db' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '60px', fontSize: '14px', color: '#374151' }}>Dibuat Oleh</div>
-              <div style={{ borderBottom: '1px solid #374151', marginBottom: '8px', height: '1px' }}></div>
-              <div style={{ fontSize: '13px', fontWeight: '500', color: '#1f2937' }}>({createdByUser?.nama_lengkap || createdByUser?.username || 'User'})</div>
-              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '5px' }}>Tanggal: {new Date(poData?.created_at || '').toLocaleDateString('id-ID')}</div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '60px', fontSize: '14px', color: '#374151' }}>Disetujui Oleh</div>
-              <div style={{ borderBottom: '1px solid #374151', marginBottom: '8px', height: '1px' }}></div>
-              <div style={{ fontSize: '13px', fontWeight: '500', color: '#1f2937' }}>(Andi)</div>
-              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '5px' }}>Tanggal: {new Date().toLocaleDateString('id-ID')}</div>
-            </div>
+          {/* Signatures */}
+          <div style={{ marginTop: '50px' }}>
+            <table style={{ width: '100%', fontSize: '12px' }}>
+              <tbody>
+                <tr>
+                  <td style={{ width: '50%', textAlign: 'center', verticalAlign: 'top' }}>
+                    <p style={{ fontWeight: 'bold', marginBottom: '60px' }}>Dibuat Oleh</p>
+                    <div style={{ borderBottom: '1px solid #000', marginBottom: '5px', width: '200px', margin: '0 auto' }}></div>
+                    <p>({createdByUser?.nama_lengkap || 'User'})</p>
+                  </td>
+                  <td style={{ width: '50%', textAlign: 'center', verticalAlign: 'top' }}>
+                    <p style={{ fontWeight: 'bold', marginBottom: '60px' }}>Disetujui Oleh</p>
+                    <div style={{ borderBottom: '1px solid #000', marginBottom: '5px', width: '200px', margin: '0 auto' }}></div>
+                    <p>(Andi)</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
           
-          <div style={{ marginTop: '40px', textAlign: 'center', fontSize: '11px', color: '#9ca3af', borderTop: '1px solid #e5e7eb', paddingTop: '15px' }}>
-            <p>Dokumen ini digenerate secara otomatis pada {new Date().toLocaleDateString('id-ID')}</p>
-            <p>Purchase Order - {poData?.po_number}</p>
+          {/* Footer */}
+          <div style={{ marginTop: '30px', textAlign: 'center', fontSize: '10px', color: '#666' }}>
+            <p>Dokumen ini digenerate otomatis pada {new Date().toLocaleDateString('id-ID')}</p>
           </div>
         </div>
       </div>
