@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import PageAccessControl from '@/components/PageAccessControl';
 import { supabase } from '@/src/lib/supabaseClient';
@@ -24,59 +24,57 @@ interface RequestDetail {
   branch_name?: string;
 }
 
+const fetchRequestDetail = async (id: string) => {
+  const { data, error } = await supabase
+    .from('petty_cash_requests')
+    .select(`
+      *,
+      users(id_user, nama_lengkap),
+      branches(kode_branch, nama_branch)
+    `)
+    .eq('id', parseInt(id))
+    .single();
+
+  if (error) throw error;
+  
+  return {
+    ...data,
+    user_name: data.users?.nama_lengkap || null,
+    branch_name: data.branches?.nama_branch || data.branch_code
+  };
+};
+
 function RequestDetailContent() {
   const params = useParams();
-  const [request, setRequest] = useState<RequestDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const id = params?.id as string;
 
-  useEffect(() => {
-    if (params?.id) {
-      fetchRequestDetail(params.id as string);
-    }
-  }, [params?.id]);
+  const { data: request, isLoading: loading, error } = useQuery({
+    queryKey: ['petty-cash-request', id],
+    queryFn: () => fetchRequestDetail(id),
+    enabled: !!id,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
 
-  const fetchRequestDetail = async (id: string) => {
-    try {
-      setLoading(true);
-      
-      const { data, error } = await supabase
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ status, additionalData }: { status: string; additionalData?: any }) => {
+      const updateData = { status, ...additionalData };
+      const { error } = await supabase
         .from('petty_cash_requests')
-        .select('*')
-        .eq('id', parseInt(id))
-        .single();
-
+        .update(updateData)
+        .eq('id', parseInt(id));
+      
       if (error) throw error;
-      
-      // Fetch user name separately
-      if (data.requested_by) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('nama_lengkap')
-          .eq('id_user', data.requested_by)
-          .single();
-        
-        data.user_name = userData?.nama_lengkap || null;
-      }
-      
-      // Fetch branch name separately
-      if (data.branch_code) {
-        const { data: branchData } = await supabase
-          .from('branches')
-          .select('nama_branch')
-          .eq('kode_branch', data.branch_code)
-          .single();
-        
-        data.branch_name = branchData?.nama_branch || data.branch_code;
-      }
-      
-      setRequest(data);
-    } catch (error) {
-      console.error('Error fetching request detail:', error);
-      alert(`Gagal memuat detail request: ${(error as any)?.message || 'Unknown error'}`);
-    } finally {
-      setLoading(false);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['petty-cash-request', id] });
+      alert('Status berhasil diupdate!');
+    },
+    onError: (error) => {
+      alert(`Gagal update status: ${error.message}`);
     }
-  };
+  });
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -112,75 +110,46 @@ function RequestDetailContent() {
     }
   };
 
-  const handleApprove = async () => {
+  const handleApprove = () => {
     if (!confirm('Approve request ini?')) return;
-    
-    try {
-      const { error } = await supabase
-        .from('petty_cash_requests')
-        .update({ 
-          status: 'approved',
-          approved_at: new Date().toISOString()
-        })
-        .eq('id', request!.id);
-      
-      if (error) throw error;
-      
-      alert('Request berhasil di-approve!');
-      if (params?.id) {
-        fetchRequestDetail(params.id as string);
-      }
-    } catch (error) {
-      alert('Gagal approve request');
-    }
+    updateStatusMutation.mutate({
+      status: 'approved',
+      additionalData: { approved_at: new Date().toISOString() }
+    });
   };
 
-  const handleReject = async () => {
+  const handleReject = () => {
     if (!confirm('Reject request ini?')) return;
-    
-    try {
-      const { error } = await supabase
-        .from('petty_cash_requests')
-        .update({ status: 'rejected' })
-        .eq('id', request!.id);
-      
-      if (error) throw error;
-      
-      alert('Request berhasil di-reject!');
-      if (params?.id) {
-        fetchRequestDetail(params.id as string);
-      }
-    } catch (error) {
-      alert('Gagal reject request');
-    }
+    updateStatusMutation.mutate({ status: 'rejected' });
   };
 
-  const handleDisburse = async () => {
+  const handleDisburse = () => {
     if (!confirm('Disburse request ini?')) return;
-    
-    try {
-      const { error } = await supabase
-        .from('petty_cash_requests')
-        .update({ 
-          status: 'disbursed',
-          disbursed_at: new Date().toISOString()
-        })
-        .eq('id', request!.id);
-      
-      if (error) throw error;
-      
-      alert('Request berhasil di-disburse!');
-      if (params?.id) {
-        fetchRequestDetail(params.id as string);
-      }
-    } catch (error) {
-      alert('Gagal disburse request');
-    }
+    updateStatusMutation.mutate({
+      status: 'disbursed',
+      additionalData: { disbursed_at: new Date().toISOString() }
+    });
   };
 
   const handlePrint = () => {
     window.print();
   };
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <div className="text-2xl mb-2">❌</div>
+        <h3 className="text-sm font-medium">Error loading request</h3>
+        <p className="text-xs text-gray-500 mb-3">{(error as any)?.message}</p>
+        <a 
+          href="/pettycash/request"
+          className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-sm inline-block"
+        >
+          Kembali
+        </a>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -295,21 +264,31 @@ function RequestDetailContent() {
             <>
               <button 
                 onClick={handleApprove}
-                className="text-green-600 hover:text-green-800 border border-green-300 hover:border-green-500 px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
+                disabled={updateStatusMutation.isPending}
+                className="text-green-600 hover:text-green-800 border border-green-300 hover:border-green-500 px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Approve
+                {updateStatusMutation.isPending ? (
+                  <div className="animate-spin w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full"></div>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                {updateStatusMutation.isPending ? 'Processing...' : 'Approve'}
               </button>
               <button 
                 onClick={handleReject}
-                className="text-red-600 hover:text-red-800 border border-red-300 hover:border-red-500 px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
+                disabled={updateStatusMutation.isPending}
+                className="text-red-600 hover:text-red-800 border border-red-300 hover:border-red-500 px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                Reject
+                {updateStatusMutation.isPending ? (
+                  <div className="animate-spin w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full"></div>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
+                {updateStatusMutation.isPending ? 'Processing...' : 'Reject'}
               </button>
             </>
           )}
@@ -317,12 +296,17 @@ function RequestDetailContent() {
           {request.status === 'approved' && (
             <button 
               onClick={handleDisburse}
-              className="text-blue-600 hover:text-blue-800 border border-blue-300 hover:border-blue-500 px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
+              disabled={updateStatusMutation.isPending}
+              className="text-blue-600 hover:text-blue-800 border border-blue-300 hover:border-blue-500 px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-              </svg>
-              Disburse
+              {updateStatusMutation.isPending ? (
+                <div className="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                </svg>
+              )}
+              {updateStatusMutation.isPending ? 'Processing...' : 'Disburse'}
             </button>
           )}
           
@@ -343,10 +327,10 @@ function RequestDetailContent() {
 
 export default function RequestDetailPage() {
   return (
-    <PageAccessControl pageName="pettycash">
-      <Layout>
+    <Layout>
+      <PageAccessControl pageName="pettycash">
         <RequestDetailContent />
-      </Layout>
-    </PageAccessControl>
+      </PageAccessControl>
+    </Layout>
   );
 }
