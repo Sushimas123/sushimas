@@ -406,6 +406,9 @@ export default function FinancePurchaseOrders() {
             total_paid: displayTotalPaid,
             sisa_bayar: sisaBayar,
             status_payment: calculatedStatus,
+            // Override overdue status for paid POs
+            is_overdue: calculatedStatus === 'paid' ? false : item.is_overdue,
+            days_overdue: calculatedStatus === 'paid' ? 0 : item.days_overdue,
             dibayar_tanggal: bulkPaymentInfo?.payment_date || latestPayment?.payment_date || null,
             payment_via: bulkPaymentInfo?.payment_via || latestPayment?.payment_via || null,
             payment_method: bulkPaymentInfo?.payment_method || latestPayment?.payment_method || null,
@@ -615,7 +618,7 @@ export default function FinancePurchaseOrders() {
     
     return (
       <div className={`bg-white rounded-lg shadow border mb-4 overflow-hidden ${
-        item.is_overdue ? 'border-red-200' : 'border-gray-200'
+        item.is_overdue && item.status_payment !== 'paid' ? 'border-red-200' : 'border-gray-200'
       } ${isExpanded ? 'border-blue-200' : ''}`}>
         <div className="p-4">
           {/* Header */}
@@ -687,7 +690,7 @@ export default function FinancePurchaseOrders() {
                 Wait for Approval
               </div>
             )}
-            {item.is_overdue && (
+            {item.is_overdue && item.status_payment !== 'paid' && (
               <div className="text-xs text-red-600 mt-1 flex items-center">
                 <AlertTriangle className="h-3 w-3 mr-1" />
                 Overdue {item.days_overdue} hari
@@ -1956,7 +1959,7 @@ export default function FinancePurchaseOrders() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {currentPageData.map((item) => {
                     const isExpanded = expandedRows.includes(item.id)
-                    const rowClass = `hover:bg-gray-50 ${item.is_overdue ? 'bg-red-50' : ''} ${isExpanded ? 'bg-blue-50' : ''}`
+                    const rowClass = `hover:bg-gray-50 ${item.is_overdue && item.status_payment !== 'paid' ? 'bg-red-50' : ''} ${isExpanded ? 'bg-blue-50' : ''}`
                     
                     return (
                       <React.Fragment key={item.id}>
@@ -2089,11 +2092,11 @@ export default function FinancePurchaseOrders() {
                                 Wait for Approval
                               </div>
                             )}
-                            {item.is_overdue && (
+                            {item.is_overdue && item.status_payment !== 'paid' && (
                               <div className="text-xs text-red-600 mt-1 flex items-center">
                                 <AlertTriangle className="h-3 w-3 mr-1" />
                                 Overdue {item.days_overdue} hari
-                              </div>
+              </div>
                             )}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">

@@ -869,6 +869,60 @@ function PurchaseOrderPageContent() {
                   <span className="hidden sm:inline">Filter</span>
                 </button>
               </div>
+              
+              {/* Status Filter Buttons */}
+              <div className="flex flex-wrap gap-1">
+                <button
+                  onClick={() => setFilters({...filters, status: ''})}
+                  className={`px-3 py-2 text-sm rounded-lg border ${
+                    filters.status === ''
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Semua
+                </button>
+                <button
+                  onClick={() => setFilters({...filters, status: 'Pending'})}
+                  className={`px-3 py-2 text-sm rounded-lg border ${
+                    filters.status === 'Pending'
+                      ? 'bg-yellow-600 text-white border-yellow-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Pending
+                </button>
+                <button
+                  onClick={() => setFilters({...filters, status: 'Sedang diproses'})}
+                  className={`px-3 py-2 text-sm rounded-lg border ${
+                    filters.status === 'Sedang diproses'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Diproses
+                </button>
+                <button
+                  onClick={() => setFilters({...filters, status: 'Barang sampai'})}
+                  className={`px-3 py-2 text-sm rounded-lg border ${
+                    filters.status === 'Barang sampai'
+                      ? 'bg-green-600 text-white border-green-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Sampai
+                </button>
+                <button
+                  onClick={() => setFilters({...filters, status: 'Dibatalkan'})}
+                  className={`px-3 py-2 text-sm rounded-lg border ${
+                    filters.status === 'Dibatalkan'
+                      ? 'bg-red-600 text-white border-red-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Batal
+                </button>
+              </div>
             </div>
 
             {/* Advanced Filters */}
@@ -984,7 +1038,8 @@ function PurchaseOrderPageContent() {
                           </td>
                           <td className="px-2 py-2">
                             <div className="flex items-start text-xs text-gray-900">
-                                <span className="break-words">{po.branch_name}</span>
+                              <Building2 size={12} className="mr-1 text-gray-400 mt-0.5 flex-shrink-0" />
+                              <span className="break-words">{po.branch_name}</span>
                             </div>
                           </td>
                           <td className="px-2 py-2">
