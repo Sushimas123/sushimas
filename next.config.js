@@ -7,7 +7,7 @@ const nextConfig = {
   },
   
   experimental: {
-    optimizeCss: true,
+    optimizeCss: false,
     optimizePackageImports: ['lucide-react', '@supabase/supabase-js', '@tanstack/react-query'],
   },
   
