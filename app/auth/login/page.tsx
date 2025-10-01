@@ -19,7 +19,7 @@ export default function LoginPage() {
     setMessage('')
 
     try {
-      // Sign in with Supabase Auth
+      // Sign in with Supabase Auth only
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -27,27 +27,11 @@ export default function LoginPage() {
 
       if (authError) throw authError
 
-      if (!authData.user?.email_confirmed_at) {
-        setMessage('Please verify your email before logging in. Check your inbox.')
-        setLoading(false)
-        return
-      }
-
-      // Get user data from custom users table
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .single()
-
-      if (userError || !userData) {
-        throw new Error('User data not found')
-      }
-
-      // Store user data in localStorage
+      // Store basic auth data only
       localStorage.setItem('user', JSON.stringify({
-        ...userData,
-        auth_id: authData.user.id
+        id: authData.user.id,
+        email: authData.user.email,
+        nama_lengkap: authData.user.email?.split('@')[0] || 'User'
       }))
 
       router.push('/dashboard')
