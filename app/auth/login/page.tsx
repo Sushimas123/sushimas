@@ -19,7 +19,7 @@ export default function LoginPage() {
     setMessage('')
 
     try {
-      // Sign in with Supabase Auth only
+      // Sign in with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -27,11 +27,21 @@ export default function LoginPage() {
 
       if (authError) throw authError
 
-      // Store basic auth data only
+      // Get user data from custom users table (now auto-created by trigger)
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single()
+
+      if (userError || !userData) {
+        throw new Error('User profile not found')
+      }
+
+      // Store complete user data
       localStorage.setItem('user', JSON.stringify({
-        id: authData.user.id,
-        email: authData.user.email,
-        nama_lengkap: authData.user.email?.split('@')[0] || 'User'
+        ...userData,
+        auth_id: authData.user.id
       }))
 
       router.push('/dashboard')
