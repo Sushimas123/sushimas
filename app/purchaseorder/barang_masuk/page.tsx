@@ -82,6 +82,7 @@ export default function BarangMasukPage() {
   const [barangMasuk, setBarangMasuk] = useState<BarangMasuk[]>([])
   const [branches, setBranches] = useState<Branch[]>([])
   const [selectedBranch, setSelectedBranch] = useState<string>('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
@@ -107,7 +108,7 @@ export default function BarangMasukPage() {
   useEffect(() => {
     setCurrentPage(1)
     fetchBarangMasuk()
-  }, [selectedBranch])
+  }, [selectedBranch, searchTerm])
   
   useEffect(() => {
     fetchBarangMasuk()
@@ -299,6 +300,19 @@ export default function BarangMasukPage() {
     }
   }
 
+  // Filter barang masuk based on search term
+  const filteredBarangMasuk = barangMasuk.filter(item => {
+    if (!searchTerm) return true
+    const search = searchTerm.toLowerCase()
+    return (
+      item.no_po.toLowerCase().includes(search) ||
+      item.product_name.toLowerCase().includes(search) ||
+      item.supplier_name.toLowerCase().includes(search) ||
+      item.invoice_number.toLowerCase().includes(search) ||
+      item.branch_name.toLowerCase().includes(search)
+    )
+  })
+
   // Group barang masuk by PO
   const groupByPO = (items: BarangMasuk[]): Record<string, POGroup> => {
     return items.reduce((groups: Record<string, POGroup>, item) => {
@@ -321,7 +335,7 @@ export default function BarangMasukPage() {
     }, {})
   }
 
-  const poGroups = groupByPO(barangMasuk)
+  const poGroups = groupByPO(filteredBarangMasuk)
   const totalPages = Math.ceil(totalCount / itemsPerPage)
   
   const handlePageChange = (page: number) => {
@@ -514,20 +528,32 @@ export default function BarangMasukPage() {
               </div>
               
               {showFilter && (
-                <div className="bg-white p-3 rounded-lg shadow border">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
-                  <select
-                    value={selectedBranch}
-                    onChange={(e) => setSelectedBranch(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  >
-                    <option value="">Semua Cabang</option>
-                    {branches.map(branch => (
-                      <option key={branch.id_branch} value={branch.id_branch}>
-                        {branch.nama_branch}
-                      </option>
-                    ))}
-                  </select>
+                <div className="bg-white p-3 rounded-lg shadow border space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                    <input
+                      type="text"
+                      placeholder="Cari PO, produk, supplier, invoice..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
+                    <select
+                      value={selectedBranch}
+                      onChange={(e) => setSelectedBranch(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    >
+                      <option value="">Semua Cabang</option>
+                      {branches.map(branch => (
+                        <option key={branch.id_branch} value={branch.id_branch}>
+                          {branch.nama_branch}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
             </div>
@@ -563,7 +589,7 @@ export default function BarangMasukPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {barangMasuk.map((item) => (
+                        {filteredBarangMasuk.map((item) => (
                           <tr key={item.id} className="hover:bg-gray-50">
                             <td className="px-2 py-2">
                               <div className="text-xs">{new Date(item.tanggal).toLocaleDateString('id-ID')}</div>
@@ -823,9 +849,9 @@ export default function BarangMasukPage() {
                 </div>
               )}
                 
-              {(isMobile ? Object.keys(poGroups).length === 0 : barangMasuk.length === 0) && (
+              {(isMobile ? Object.keys(poGroups).length === 0 : filteredBarangMasuk.length === 0) && (
                 <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
-                  Tidak ada data barang masuk
+                  {searchTerm ? 'Tidak ada data yang sesuai dengan pencarian' : 'Tidak ada data barang masuk'}
                 </div>
               )}
               
