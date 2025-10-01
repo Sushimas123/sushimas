@@ -89,6 +89,7 @@ export default function BarangMasukPage() {
   const [expandedPOs, setExpandedPOs] = useState<Record<string, boolean>>({})
   const [showFilter, setShowFilter] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_gudang'>('all')
   const itemsPerPage = 20
 
   useEffect(() => {
@@ -300,17 +301,29 @@ export default function BarangMasukPage() {
     }
   }
 
-  // Filter barang masuk based on search term
+  // Filter barang masuk based on search term and status
   const filteredBarangMasuk = barangMasuk.filter(item => {
-    if (!searchTerm) return true
-    const search = searchTerm.toLowerCase()
-    return (
-      item.no_po.toLowerCase().includes(search) ||
-      item.product_name.toLowerCase().includes(search) ||
-      item.supplier_name.toLowerCase().includes(search) ||
-      item.invoice_number.toLowerCase().includes(search) ||
-      item.branch_name.toLowerCase().includes(search)
-    )
+    // Search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase()
+      const matchesSearch = (
+        item.no_po.toLowerCase().includes(search) ||
+        item.product_name.toLowerCase().includes(search) ||
+        item.supplier_name.toLowerCase().includes(search) ||
+        item.invoice_number.toLowerCase().includes(search) ||
+        item.branch_name.toLowerCase().includes(search)
+      )
+      if (!matchesSearch) return false
+    }
+    
+    // Status filter
+    if (statusFilter === 'pending') {
+      return !item.is_in_gudang
+    } else if (statusFilter === 'in_gudang') {
+      return item.is_in_gudang
+    }
+    
+    return true
   })
 
   // Group barang masuk by PO
@@ -492,7 +505,39 @@ export default function BarangMasukPage() {
                   Filter
                 </button>
                 
-
+                {/* Status Filter Buttons */}
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setStatusFilter('all')}
+                    className={`px-3 py-2 text-sm rounded-lg border ${
+                      statusFilter === 'all'
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    Semua
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('pending')}
+                    className={`px-3 py-2 text-sm rounded-lg border ${
+                      statusFilter === 'pending'
+                        ? 'bg-yellow-600 text-white border-yellow-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    Pending
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('in_gudang')}
+                    className={`px-3 py-2 text-sm rounded-lg border ${
+                      statusFilter === 'in_gudang'
+                        ? 'bg-green-600 text-white border-green-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    Di Gudang
+                  </button>
+                </div>
                 
                 <div className="flex gap-1 ml-auto">
                   {isMobile && (
