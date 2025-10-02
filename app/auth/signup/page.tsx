@@ -213,14 +213,23 @@ export default function SignupPage() {
               Branch
             </label>
             <div className="relative">
-              <input
-                type="text"
+              <select
                 name="cabang"
                 value={formData.cabang}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter your branch"
-              />
+              >
+                <option value="">Select your branch</option>
+                <option value="JAK729">JAK729 - Sushimas Condet</option>
+                <option value="BEK516">BEK516 - Sushimas Grand Galaxy</option>
+                <option value="DEP464">DEP464 - Sushimas Depok</option>
+                <option value="TAN624">TAN624 - Sushimas Serpong</option>
+                <option value="BOG853">BOG853 - Sushimas Cibinong</option>
+                <option value="BEK068">BEK068 - Sushimas Grand Wisata</option>
+                <option value="BEK458">BEK458 - Sushimas Harapan Indah</option>
+                <option value="JAK672">JAK672 - Central Condet</option>
+                <option value="BEK261">BEK261 - Central Grandwis</option>
+              </select>
             </div>
           </div>
 
