@@ -314,7 +314,7 @@ export default function FinancePurchaseOrders() {
                 .from('nama_product')
                 .select('harga')
                 .eq('id_product', poItem.product_id)
-                .single()
+                .maybeSingle()
               correctedTotal += poItem.qty * (product?.harga || 0)
             }
           }
@@ -334,7 +334,7 @@ export default function FinancePurchaseOrders() {
             .from('purchase_orders')
             .select('bulk_payment_ref, total_tagih, keterangan, approval_photo, approval_status, approved_at')
             .eq('id', item.id)
-            .single()
+            .maybeSingle()
 
           // Get invoice number from barang_masuk
           const { data: barangMasuk } = await supabase
@@ -342,7 +342,7 @@ export default function FinancePurchaseOrders() {
             .select('invoice_number')
             .eq('no_po', item.po_number)
             .limit(1)
-            .single()
+            .maybeSingle()
 
           const invoiceNumber = barangMasuk?.invoice_number || null
 
@@ -351,7 +351,7 @@ export default function FinancePurchaseOrders() {
             .from('branches')
             .select('badan')
             .eq('id_branch', item.cabang_id)
-            .single()
+            .maybeSingle()
 
           const totalTagih = poData?.total_tagih || 0
           
@@ -392,7 +392,7 @@ export default function FinancePurchaseOrders() {
               .from('bulk_payments')
               .select('payment_date, payment_via, payment_method')
               .eq('bulk_reference', poData.bulk_payment_ref)
-              .single()
+              .maybeSingle()
             bulkPaymentInfo = bulkPayment
             // For display purposes, show the basis amount as paid for bulk payments
             displayTotalPaid = basisAmount
