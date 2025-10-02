@@ -81,6 +81,7 @@ export default function LoginPage() {
             .from('users')
             .insert({
               email: authData.user.email,
+              password_hash: 'supabase_managed',
               nama_lengkap: authData.user.user_metadata?.nama_lengkap || authData.user.email?.split('@')[0] || 'User',
               no_telp: authData.user.user_metadata?.no_telp || null,
               cabang: authData.user.user_metadata?.cabang || null,
