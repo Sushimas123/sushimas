@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useNavigationPermissions } from '@/hooks/useNavigationPermissions'
 
 interface PageAccessControlProps {
   children: React.ReactNode
@@ -11,19 +12,17 @@ export default function PageAccessControl({ children, pageName }: PageAccessCont
   const [hasAccess, setHasAccess] = useState<boolean | null>(null)
   const [userRole, setUserRole] = useState<string>('')
   const router = useRouter()
+  const { permissions, loading: permissionsLoading } = useNavigationPermissions()
 
   useEffect(() => {
     const checkAccess = (retryCount = 0) => {
       const userData = localStorage.getItem('user')
-      console.log('PageAccessControl check:', { pageName, retryCount, userData: !!userData, url: window.location.href })
-      
       if (!userData) {
+        // Retry up to 3 times with delay to handle localStorage timing
         if (retryCount < 3) {
-          console.log('No user data, retrying...', retryCount + 1)
           setTimeout(() => checkAccess(retryCount + 1), 500)
           return
         }
-        console.log('No user data after retries, redirecting to login')
         router.push('/auth/login')
         return
       }
@@ -32,28 +31,28 @@ export default function PageAccessControl({ children, pageName }: PageAccessCont
         const user = JSON.parse(userData)
         setUserRole(user.role)
         
-        // Dashboard always accessible for logged in users
-        if (pageName === 'dashboard') {
-          setHasAccess(true)
-          return
-        }
-        
         // Super admin and admin always have access
         if (user.role === 'super admin' || user.role === 'admin') {
           setHasAccess(true)
           return
         }
         
-        // Simple role-based access for other pages
-        const rolePermissions: Record<string, string[]> = {
-          'staff': ['dashboard', 'ready', 'stock_opname_batch', 'produksi', 'esb', 'gudang-final', 'pettycash', 'assets'],
-          'pic_branch': ['dashboard', 'ready', 'stock_opname_batch', 'produksi', 'analysis', 'esb', 'gudang-final', 'pettycash', 'assets'],
-          'finance': ['dashboard', 'ready', 'stock_opname_batch', 'produksi', 'analysis', 'esb', 'gudang-final', 'product_settings', 'users', 'finance', 'aging-report', 'pettycash']
+        // Use the same permission system as navigation
+        if (!permissionsLoading) {
+          // For nested routes, check parent permission
+          let permissionKey = pageName
+          
+          // Handle special cases for nested routes
+          if (pageName === 'stock-alert') {
+            permissionKey = 'purchaseorder' // stock-alert is under purchaseorder
+          } else if (pageName === 'barang_masuk') {
+            permissionKey = 'purchaseorder' // barang_masuk is under purchaseorder
+          }
+          
+          const access = permissions[permissionKey] === true || permissions[pageName] === true
+
+          setHasAccess(access)
         }
-        
-        const allowedPages = rolePermissions[user.role] || ['dashboard']
-        setHasAccess(allowedPages.includes(pageName))
-        
       } catch (error) {
         console.error('Error checking access:', error)
         setHasAccess(false)
@@ -61,9 +60,9 @@ export default function PageAccessControl({ children, pageName }: PageAccessCont
     }
 
     checkAccess()
-  }, [pageName, router])
+  }, [pageName, router, permissions, permissionsLoading])
 
-  if (hasAccess === null) {
+  if (hasAccess === null || permissionsLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -85,7 +84,7 @@ export default function PageAccessControl({ children, pageName }: PageAccessCont
             Page: <span className="font-medium">{pageName}</span>
           </p>
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push('/')}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
           >
             Go to Dashboard
