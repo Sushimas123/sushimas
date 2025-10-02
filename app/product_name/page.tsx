@@ -128,8 +128,9 @@ export default function ProductPage() {
         .select(`
           *,
           suppliers(nama_supplier),
-          product_branches!inner(branches(kode_branch, nama_branch))
+          product_branches(branches(kode_branch, nama_branch))
         `)
+        .eq('is_active', true)
         .order('id_product', { ascending: false })
 
       if (error) throw error
@@ -356,16 +357,20 @@ export default function ProductPage() {
 
   const handleDelete = async (id: number) => {
     try {
-      const { error } = await supabase.from("nama_product").delete().eq("id_product", id)
+      const { error } = await supabase
+        .from("nama_product")
+        .update({ is_active: false })
+        .eq("id_product", id)
+      
       if (error) {
         console.error('Delete error:', error)
-        throw new Error(error.message || 'Failed to delete product')
+        throw new Error(error.message || 'Failed to deactivate product')
       }
-      showToast("✅ Product deleted successfully", "success")
+      showToast("✅ Product deactivated successfully", "success")
       fetchData()
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      showToast(`❌ Delete failed: ${errorMessage}`, "error")
+      showToast(`❌ Deactivate failed: ${errorMessage}`, "error")
     } finally {
       setDeleteConfirm({show: false, id: null});
     }
@@ -702,7 +707,7 @@ export default function ProductPage() {
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
                 <h3 className="font-bold text-lg mb-4">Confirm Delete</h3>
-                <p>Are you sure you want to delete this product? This action cannot be undone.</p>
+                <p>Are you sure you want to deactivate this product? This will hide it from the list but preserve historical data.</p>
                 <div className="flex justify-end gap-3 mt-6">
                   <button 
                     onClick={() => setDeleteConfirm({show: false, id: null})}
@@ -714,7 +719,7 @@ export default function ProductPage() {
                     onClick={() => handleDelete(deleteConfirm.id!)}
                     className="px-4 py-2 bg-red-600 text-white rounded-md"
                   >
-                    Delete
+                    Deactivate
                   </button>
                 </div>
               </div>

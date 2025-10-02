@@ -208,6 +208,7 @@ export default function TransferBarangPage() {
       const { data, error } = await supabase
         .from('nama_product')
         .select('id_product, product_name, unit_kecil, harga')
+        .eq('is_active', true)
         .order('product_name')
       
       if (error) throw error
