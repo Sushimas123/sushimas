@@ -761,8 +761,8 @@ export default function PivotPage() {
               </tr>
             </thead>
             <tbody>
-              {paginatedData.map(item => (
-                <React.Fragment key={`${item.id_product}-${item.tanggal}`}>
+              {paginatedData.map((item, index) => (
+                <React.Fragment key={`${item.id_product}-${item.tanggal}-${item.cabang}`}>
                   <tr className={`border-b hover:bg-gray-50 ${
                     getSeverityLevel(item.selisih) === 'high' ? 'bg-red-50' : 
                     getSeverityLevel(item.selisih) === 'medium' ? 'bg-orange-50' : 'bg-yellow-50'
