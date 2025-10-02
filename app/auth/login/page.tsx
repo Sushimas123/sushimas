@@ -25,24 +25,73 @@ export default function LoginPage() {
         password
       })
 
-      if (authError) throw authError
+      if (authError) {
+        // Skip email confirmation error and try to find user by email
+        if (authError.message.includes('Email not confirmed')) {
+          console.log('Email not confirmed, trying to find user by email...')
+          
+          // Try to find user in custom table by email
+          const { data: userByEmail, error: emailError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', email)
+            .eq('is_active', true)
+            .single()
 
-      // Get user data from custom users table (now auto-created by trigger)
+          if (emailError || !userByEmail) {
+            throw new Error('User not found or inactive')
+          }
+
+          // Store user data and redirect
+          localStorage.setItem('user', JSON.stringify(userByEmail))
+          router.push('/dashboard')
+          return
+        } else {
+          throw authError
+        }
+      }
+
+      // Check if user exists
+      if (!authData.user) {
+        throw new Error('Authentication failed - no user data')
+      }
+
+      // Get user data from custom users table
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
-        .eq('email', email)
+        .eq('auth_id', authData.user.id)
+        .eq('is_active', true)
         .single()
 
       if (userError || !userData) {
-        throw new Error('User profile not found')
-      }
+        // Try to find by email if auth_id lookup fails
+        const { data: userByEmail, error: emailError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', email)
+          .eq('is_active', true)
+          .single()
 
-      // Store complete user data
-      localStorage.setItem('user', JSON.stringify({
-        ...userData,
-        auth_id: authData.user.id
-      }))
+        if (emailError || !userByEmail) {
+          throw new Error('User profile not found or inactive')
+        }
+
+        // Update auth_id if found by email
+        await supabase
+          .from('users')
+          .update({ auth_id: authData.user.id })
+          .eq('id_user', userByEmail.id_user)
+
+        // Store user data
+        localStorage.setItem('user', JSON.stringify({
+          ...userByEmail,
+          auth_id: authData.user.id
+        }))
+      } else {
+        // Store user data
+        localStorage.setItem('user', JSON.stringify(userData))
+      }
 
       router.push('/dashboard')
     } catch (error: any) {

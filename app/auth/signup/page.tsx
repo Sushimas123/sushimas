@@ -10,7 +10,9 @@ export default function SignupPage() {
     email: '',
     password: '',
     confirmPassword: '',
-    nama_lengkap: ''
+    nama_lengkap: '',
+    no_telp: '',
+    cabang: ''
   })
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -53,24 +55,37 @@ export default function SignupPage() {
       if (authError) throw authError
 
       if (authData.user) {
-        // Try to create user profile, but don't fail if it errors
-        try {
-          const { error: profileError } = await supabase
-            .from('users')
-            .insert({
-              email: formData.email,
-              nama_lengkap: formData.nama_lengkap,
-              role: 'user'
-            })
+        // Create user profile in custom users table
+        const { data: newUser, error: profileError } = await supabase
+          .from('users')
+          .insert({
+            email: formData.email,
+            nama_lengkap: formData.nama_lengkap,
+            no_telp: formData.no_telp || null,
+            cabang: formData.cabang || null,
+            password_hash: 'supabase_auth_managed',
+            role: 'staff',
+            is_active: true,
+            auth_id: authData.user.id
+          })
+          .select()
+          .single()
 
-          if (profileError) {
-            console.warn('Profile creation failed, user can create profile later:', profileError)
-          }
-        } catch (err) {
-          console.warn('Profile creation failed, user can create profile later:', err)
+        if (profileError) {
+          console.error('Full profile error:', profileError)
+          console.error('Error code:', profileError.code)
+          console.error('Error details:', profileError.details)
+          console.error('Error hint:', profileError.hint)
+          setMessage(`Database error: ${profileError.message || profileError.code || 'Unknown error'}`)
+          return
         }
 
-        setMessage('Account created! Please check your email to verify your account.')
+        console.log('User created successfully:', newUser)
+        setMessage('Account created successfully! You can now login immediately.')
+        // Auto redirect to login after 2 seconds
+        setTimeout(() => {
+          router.push('/auth/login')
+        }, 2000)
       }
     } catch (error: any) {
       setMessage(error.message || 'Signup failed')
@@ -102,6 +117,38 @@ export default function SignupPage() {
                 required
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Enter your full name"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Phone Number
+            </label>
+            <div className="relative">
+              <input
+                type="tel"
+                name="no_telp"
+                value={formData.no_telp}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter your phone number"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Branch
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                name="cabang"
+                value={formData.cabang}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter your branch"
               />
             </div>
           </div>
