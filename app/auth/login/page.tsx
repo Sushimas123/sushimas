@@ -116,8 +116,32 @@ export default function LoginPage() {
         localStorage.setItem('user', JSON.stringify(userData))
       }
 
-      router.push('/dashboard')
+      console.log('Login successful, redirecting to dashboard...')
+      
+      // Multiple redirect methods for maximum compatibility
+      setTimeout(() => {
+        try {
+          // Method 1: Next.js router
+          router.push('/dashboard')
+        } catch (e) {
+          console.warn('Router failed, using window.location')
+        }
+        
+        // Method 2: Direct window location (fallback)
+        setTimeout(() => {
+          window.location.href = '/dashboard'
+        }, 500)
+        
+        // Method 3: Force redirect if still on login page
+        setTimeout(() => {
+          if (window.location.pathname.includes('/auth/login')) {
+            window.location.replace('/dashboard')
+          }
+        }, 1500)
+      }, 100)
+      
     } catch (error: any) {
+      console.error('Login error:', error)
       setMessage(error.message || 'Login failed')
     } finally {
       setLoading(false)
