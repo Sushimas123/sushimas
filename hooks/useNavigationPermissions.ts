@@ -7,9 +7,14 @@ export const useNavigationPermissions = () => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const loadPermissions = async () => {
+    const loadPermissions = async (retryCount = 0) => {
       const userData = localStorage.getItem('user')
       if (!userData) {
+        // Retry up to 3 times with delay to handle localStorage timing
+        if (retryCount < 3) {
+          setTimeout(() => loadPermissions(retryCount + 1), 500)
+          return
+        }
         setLoading(false)
         return
       }
