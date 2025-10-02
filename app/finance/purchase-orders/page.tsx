@@ -108,9 +108,7 @@ export default function FinancePurchaseOrders() {
   
   // Separate effect for filter changes
   useEffect(() => {
-    if (Object.values(filters).some(filter => filter !== '')) {
-      fetchFinanceData()
-    }
+    fetchFinanceData()
   }, [filters])
 
 
@@ -1282,13 +1280,180 @@ export default function FinancePurchaseOrders() {
                 </button>
               </div>
               
+              {/* Quick Filter Buttons - Mobile */}
+              <div className="flex flex-col gap-3 mb-3">
+                {/* Status Filter Buttons */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">Status PO:</label>
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, poStatus: ''})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                        filters.poStatus === '' 
+                          ? 'bg-blue-600 text-white border-blue-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Semua
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, poStatus: 'Pending'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                        filters.poStatus === 'Pending' 
+                          ? 'bg-yellow-600 text-white border-yellow-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Pending
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, poStatus: 'Sedang diproses'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                        filters.poStatus === 'Sedang diproses' 
+                          ? 'bg-blue-600 text-white border-blue-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Diproses
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, poStatus: 'Barang sampai'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                        filters.poStatus === 'Barang sampai' 
+                          ? 'bg-green-600 text-white border-green-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Sampai
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Payment Status Filter Buttons */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">Payment Status:</label>
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, paymentStatus: ''})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                        filters.paymentStatus === '' 
+                          ? 'bg-blue-600 text-white border-blue-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Semua
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, paymentStatus: 'unpaid'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                        filters.paymentStatus === 'unpaid' 
+                          ? 'bg-red-600 text-white border-red-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Unpaid
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, paymentStatus: 'partial'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                        filters.paymentStatus === 'partial' 
+                          ? 'bg-yellow-600 text-white border-yellow-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Partial
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, paymentStatus: 'paid'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                        filters.paymentStatus === 'paid' 
+                          ? 'bg-green-600 text-white border-green-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Paid
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Approval Status Filter Buttons */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">Approval Status:</label>
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, approvalStatus: ''})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                        filters.approvalStatus === '' 
+                          ? 'bg-blue-600 text-white border-blue-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Semua
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, approvalStatus: 'pending'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                        filters.approvalStatus === 'pending' 
+                          ? 'bg-orange-600 text-white border-orange-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Pending
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, approvalStatus: 'approved'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                        filters.approvalStatus === 'approved' 
+                          ? 'bg-purple-600 text-white border-purple-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Approved
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowMobileFilters(true)}
                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-sm"
                 >
                   <Filter size={16} />
-                  Filter
+                  More Filters
                 </button>
                 <div className="text-xs text-gray-500 flex items-center px-3">
                   {allFilteredData.length} items
@@ -1520,6 +1685,174 @@ export default function FinancePurchaseOrders() {
                   <span className="hidden sm:inline">Filter</span>
                 </button>
               </div>
+              
+              {/* Quick Filter Buttons */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Status Filter Buttons */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">Status PO:</label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, poStatus: ''})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                        filters.poStatus === '' 
+                          ? 'bg-blue-600 text-white border-blue-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Semua
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, poStatus: 'Pending'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                        filters.poStatus === 'Pending' 
+                          ? 'bg-yellow-600 text-white border-yellow-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Pending
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, poStatus: 'Sedang diproses'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                        filters.poStatus === 'Sedang diproses' 
+                          ? 'bg-blue-600 text-white border-blue-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Diproses
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, poStatus: 'Barang sampai'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                        filters.poStatus === 'Barang sampai' 
+                          ? 'bg-green-600 text-white border-green-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Sampai
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Payment Status Filter Buttons */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">Payment Status:</label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, paymentStatus: ''})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                        filters.paymentStatus === '' 
+                          ? 'bg-blue-600 text-white border-blue-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Semua
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, paymentStatus: 'unpaid'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                        filters.paymentStatus === 'unpaid' 
+                          ? 'bg-red-600 text-white border-red-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Unpaid
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, paymentStatus: 'partial'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                        filters.paymentStatus === 'partial' 
+                          ? 'bg-yellow-600 text-white border-yellow-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Partial
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, paymentStatus: 'paid'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                        filters.paymentStatus === 'paid' 
+                          ? 'bg-green-600 text-white border-green-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Paid
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Approval Status Filter Buttons */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">Approval Status:</label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, approvalStatus: ''})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                        filters.approvalStatus === '' 
+                          ? 'bg-blue-600 text-white border-blue-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Semua
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, approvalStatus: 'pending'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                        filters.approvalStatus === 'pending' 
+                          ? 'bg-orange-600 text-white border-orange-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Pending
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, approvalStatus: 'approved'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                        filters.approvalStatus === 'approved' 
+                          ? 'bg-purple-600 text-white border-purple-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Approved
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
               <div className="flex gap-2">
                 <button
                   onClick={exportToXLSX}
