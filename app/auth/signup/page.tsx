@@ -44,51 +44,122 @@ export default function SignupPage() {
     }
 
     try {
+      // Test connection first
+      console.log('Testing Supabase connection...')
+      const { data: testData, error: testError } = await supabase
+        .from('users')
+        .select('count')
+        .limit(1)
+      
+      if (testError) {
+        console.error('Connection test failed:', testError)
+      }
+
+      // Try signup with email confirmation
+      console.log('Attempting signup for:', formData.email)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            nama_lengkap: formData.nama_lengkap,
+            no_telp: formData.no_telp,
+            cabang: formData.cabang
+          }
         }
       })
 
-      if (authError) throw authError
+      console.log('Signup response:', { authData, authError })
+
+      if (authError) {
+        console.error('Auth error:', authError)
+        if (authError.message.includes('User already registered')) {
+          setMessage('Email already exists. Try logging in instead.')
+          setTimeout(() => router.push('/auth/login'), 2000)
+          return
+        }
+        throw authError
+      }
 
       if (authData.user) {
-        // Create user profile in custom users table
-        const { data: newUser, error: profileError } = await supabase
-          .from('users')
-          .insert({
+        console.log('Auth user created:', authData.user.id)
+        
+        // Check if email confirmation is required
+        if (!authData.user.email_confirmed_at) {
+          setMessage('Account created! Please check your email and click the confirmation link to activate your account.')
+          // Don't redirect, let user confirm email first
+          return
+        }
+        
+        setMessage('Account created! Redirecting to login...')
+        
+        // Try to create profile (optional)
+        try {
+          const insertData = {
             email: formData.email,
             nama_lengkap: formData.nama_lengkap,
             no_telp: formData.no_telp || null,
             cabang: formData.cabang || null,
-            password_hash: 'supabase_auth_managed',
             role: 'staff',
             is_active: true,
             auth_id: authData.user.id
-          })
-          .select()
-          .single()
+          }
+          
+          const { error: profileError } = await supabase
+            .from('users')
+            .insert(insertData)
 
-        if (profileError) {
-          console.error('Full profile error:', profileError)
-          console.error('Error code:', profileError.code)
-          console.error('Error details:', profileError.details)
-          console.error('Error hint:', profileError.hint)
-          setMessage(`Database error: ${profileError.message || profileError.code || 'Unknown error'}`)
-          return
+          if (profileError) {
+            console.error('Profile creation failed:', profileError)
+          } else {
+            console.log('Profile created successfully')
+          }
+        } catch (dbError) {
+          console.error('Database operation failed:', dbError)
         }
 
-        console.log('User created successfully:', newUser)
-        setMessage('Account created successfully! You can now login immediately.')
-        // Auto redirect to login after 2 seconds
+        // Redirect to login
         setTimeout(() => {
           router.push('/auth/login')
         }, 2000)
       }
     } catch (error: any) {
-      setMessage(error.message || 'Signup failed')
+      console.error('Signup failed:', error)
+      
+      // Fallback: Create user directly in custom table if Auth fails
+      if (error.message.includes('Database error saving new user')) {
+        try {
+          console.log('Attempting manual user creation...')
+          const { data: manualUser, error: manualError } = await supabase
+            .from('users')
+            .insert({
+              email: formData.email,
+              nama_lengkap: formData.nama_lengkap,
+              no_telp: formData.no_telp || null,
+              cabang: formData.cabang || null,
+              role: 'staff',
+              is_active: true,
+              auth_id: null // Will be linked later
+            })
+            .select()
+            .single()
+
+          if (manualError) {
+            console.error('Manual creation failed:', manualError)
+            setMessage('Signup failed. Please contact administrator.')
+          } else {
+            console.log('Manual user created:', manualUser)
+            setMessage('Account created successfully! You can now login.')
+            setTimeout(() => router.push('/auth/login'), 2000)
+          }
+        } catch (fallbackError) {
+          console.error('Fallback failed:', fallbackError)
+          setMessage('Signup failed. Please try again or contact support.')
+        }
+      } else {
+        setMessage(error.message || 'Signup failed. Please try again.')
+      }
     } finally {
       setLoading(false)
     }
