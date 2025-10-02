@@ -15,9 +15,14 @@ export default function PageAccessControl({ children, pageName }: PageAccessCont
   const { permissions, loading: permissionsLoading } = useNavigationPermissions()
 
   useEffect(() => {
-    const checkAccess = () => {
+    const checkAccess = (retryCount = 0) => {
       const userData = localStorage.getItem('user')
       if (!userData) {
+        // Retry up to 3 times with delay to handle localStorage timing
+        if (retryCount < 3) {
+          setTimeout(() => checkAccess(retryCount + 1), 500)
+          return
+        }
         router.push('/auth/login')
         return
       }
