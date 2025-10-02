@@ -129,44 +129,33 @@ function PettyCashExpensesContent() {
         return;
       }
       
-      if (expense.barang_masuk_id) {
-        const { data: barangMasukData } = await supabase
-          .from('barang_masuk')
-          .select('no_po, id_barang, tanggal')
-          .eq('id', expense.barang_masuk_id)
-          .single();
-        
-        if (barangMasukData) {
-          const { data: gudangEntry } = await supabase
-            .from('gudang')
-            .select('id')
-            .eq('id_product', barangMasukData.id_barang)
-            .eq('source_type', 'PO')
-            .eq('source_reference', barangMasukData.no_po)
-            .eq('tanggal', barangMasukData.tanggal)
-            .maybeSingle();
-          
-          if (gudangEntry) {
-            if (!confirm('Barang sudah masuk ke gudang. Hapus juga dari gudang? Ini akan mempengaruhi stok.')) {
-              return;
-            }
-            
-            const { error: gudangDeleteError } = await supabase
-              .from('gudang')
-              .delete()
-              .eq('id_product', barangMasukData.id_barang)
-              .eq('source_type', 'PO')
-              .eq('source_reference', barangMasukData.no_po)
-              .eq('tanggal', barangMasukData.tanggal);
-            
-            if (gudangDeleteError) {
-              console.error('Gudang delete error:', gudangDeleteError);
-              alert(`Gagal menghapus data dari gudang: ${gudangDeleteError.message}`);
-              return;
-            }
-          }
+      // Check for related gudang entries (both via barang_masuk_id and source_reference)
+      const { data: gudangEntries } = await supabase
+        .from('gudang')
+        .select('*')
+        .or(`source_reference.like.%PETTY-CASH-${id}%,source_reference.like.%${id}%`);
+      
+      if (gudangEntries && gudangEntries.length > 0) {
+        if (!confirm('Expense ini sudah masuk ke gudang. Hapus juga dari gudang? Ini akan mempengaruhi stok.')) {
+          return;
         }
         
+        for (const gudangEntry of gudangEntries) {
+          const { error: gudangDeleteError } = await supabase
+            .from('gudang')
+            .delete()
+            .eq('order_no', gudangEntry.order_no);
+          
+          if (gudangDeleteError) {
+            console.error('Gudang delete error:', gudangDeleteError);
+            alert(`Gagal menghapus data dari gudang: ${gudangDeleteError.message}`);
+            return;
+          }
+        }
+      }
+      
+      // First, remove foreign key reference by updating barang_masuk_id to null
+      if (expense.barang_masuk_id) {
         const { error: updateError } = await supabase
           .from('petty_cash_expenses')
           .update({ barang_masuk_id: null })
@@ -177,7 +166,22 @@ function PettyCashExpensesContent() {
           alert(`Gagal mengupdate expense: ${updateError.message}`);
           return;
         }
-        
+      }
+      
+      // Now delete the expense first
+      const { error: expenseDeleteError } = await supabase
+        .from('petty_cash_expenses')
+        .delete()
+        .eq('id', id);
+      
+      if (expenseDeleteError) {
+        console.error('Expense delete error:', expenseDeleteError);
+        alert(`Gagal menghapus expense: ${expenseDeleteError.message}`);
+        return;
+      }
+      
+      // Then delete related barang_masuk entries
+      if (expense.barang_masuk_id) {
         const { error: barangMasukError } = await supabase
           .from('barang_masuk')
           .delete()
@@ -185,17 +189,29 @@ function PettyCashExpensesContent() {
         
         if (barangMasukError) {
           console.error('Barang masuk delete error:', barangMasukError);
-          alert(`Gagal menghapus data barang masuk: ${barangMasukError.message}`);
-          return;
+          // Don't return here since expense is already deleted
+        }
+      } else {
+        // Also check for barang_masuk with source_reference containing expense ID
+        const { data: barangMasukEntries } = await supabase
+          .from('barang_masuk')
+          .select('*')
+          .or(`no_po.like.%PETTY-CASH-${id}%,no_po.like.%${id}%`);
+        
+        if (barangMasukEntries && barangMasukEntries.length > 0) {
+          for (const barangMasuk of barangMasukEntries) {
+            const { error: barangMasukError } = await supabase
+              .from('barang_masuk')
+              .delete()
+              .eq('id', barangMasuk.id);
+            
+            if (barangMasukError) {
+              console.error('Barang masuk delete error:', barangMasukError);
+              // Don't return here since expense is already deleted
+            }
+          }
         }
       }
-      
-      const { error } = await supabase
-        .from('petty_cash_expenses')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
       
       alert('Expense berhasil dihapus!' + (expense.barang_masuk_id ? ' Data barang masuk terkait juga telah dihapus.' : ''));
       fetchExpenses();

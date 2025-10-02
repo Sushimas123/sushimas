@@ -230,6 +230,7 @@ supabase.from('product_branch_settings').select(`
       const { data, error } = await supabase
         .from('nama_product')
         .select('id_product, product_name, category, sub_category')
+        .eq('is_active', true)
         .order('product_name');
       
       if (error) throw error;

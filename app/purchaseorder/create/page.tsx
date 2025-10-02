@@ -303,6 +303,7 @@ function CreatePurchaseOrder() {
       const { data: products } = await supabase
         .from('nama_product')
         .select('*')
+        .eq('is_active', true)
         .order('product_name')
       
       setAllProducts(products || [])

@@ -120,6 +120,7 @@ function EditPurchaseOrder() {
               .from('nama_product')
               .select('product_name, merk, unit_besar')
               .eq('id_product', item.product_id)
+              .eq('is_active', true)
               .single()
 
             return {
@@ -196,6 +197,7 @@ function EditPurchaseOrder() {
         const { data } = await supabase
           .from('nama_product')
           .select('*')
+          .eq('is_active', true)
           .ilike('product_name', `%${namaBarang}%`)
         return data || []
       })

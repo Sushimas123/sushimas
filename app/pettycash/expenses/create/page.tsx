@@ -169,6 +169,7 @@ function CreateExpenseContent() {
       const { data: productData, error: productError } = await supabase
         .from('nama_product')
         .select('id_product, product_name, category')
+        .eq('is_active', true)
         .order('product_name');
 
       if (productError) throw productError;

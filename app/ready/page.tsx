@@ -423,6 +423,7 @@ function ReadyPageContent() {
           category,
           product_branches(branch_code)
         `)
+        .eq('is_active', true)
         .in('category', selectedCategories)
       
       const { data, error } = await query.order('product_name');
@@ -452,6 +453,7 @@ function ReadyPageContent() {
       const { data, error } = await supabase
         .from('nama_product')
         .select('sub_category')
+        .eq('is_active', true)
         .not('sub_category', 'is', null);
       
       if (error) throw error;
@@ -480,6 +482,7 @@ function ReadyPageContent() {
       const { data, error } = await supabase
         .from('nama_product')
         .select('category')
+        .eq('is_active', true)
         .not('category', 'is', null);
       
       if (error) throw error;
