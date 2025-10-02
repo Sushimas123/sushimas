@@ -116,7 +116,8 @@ export default function LoginPage() {
         localStorage.setItem('user', JSON.stringify(userData))
       }
 
-      console.log('Login successful, redirecting to dashboard...')
+      console.log('Login successful, user data stored:', JSON.parse(localStorage.getItem('user') || '{}'))
+      console.log('Current URL:', window.location.href)
       
       // Force immediate redirect
       window.location.replace('/dashboard')
