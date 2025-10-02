@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react'
+import { setUserData } from '@/utils/userStorage'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -43,8 +44,8 @@ export default function LoginPage() {
           }
 
           // Store user data and redirect
-          localStorage.setItem('user', JSON.stringify(userByEmail))
-          router.push('/dashboard')
+          setUserData(userByEmail)
+          window.location.href = '/dashboard'
           return
         } else {
           throw authError
@@ -96,7 +97,7 @@ export default function LoginPage() {
             throw new Error('Failed to create user profile')
           }
 
-          localStorage.setItem('user', JSON.stringify(newProfile))
+          setUserData(newProfile)
         } else {
           // Update auth_id if found by email
           await supabase
@@ -105,17 +106,17 @@ export default function LoginPage() {
             .eq('id_user', userByEmail.id_user)
 
           // Store user data
-          localStorage.setItem('user', JSON.stringify({
+          setUserData({
             ...userByEmail,
             auth_id: authData.user.id
-          }))
+          })
         }
       } else {
         // Store user data
-        localStorage.setItem('user', JSON.stringify(userData))
+        setUserData(userData)
       }
 
-      router.push('/dashboard')
+      window.location.href = '/dashboard'
     } catch (error: any) {
       setMessage(error.message || 'Login failed')
     } finally {

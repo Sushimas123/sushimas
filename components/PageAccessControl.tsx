@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavigationPermissions } from '@/hooks/useNavigationPermissions'
+import { getUserData } from '@/utils/userStorage'
 
 interface PageAccessControlProps {
   children: React.ReactNode
@@ -16,9 +17,9 @@ export default function PageAccessControl({ children, pageName }: PageAccessCont
 
   useEffect(() => {
     const checkAccess = (retryCount = 0) => {
-      const userData = localStorage.getItem('user')
+      const userData = getUserData()
       if (!userData) {
-        // Retry up to 3 times with delay to handle localStorage timing
+        // Retry up to 3 times with delay to handle timing issues
         if (retryCount < 3) {
           setTimeout(() => checkAccess(retryCount + 1), 500)
           return

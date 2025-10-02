@@ -5,6 +5,9 @@ let permissionsCache: { [key: string]: any } = {}
 let cacheExpiry = 0
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
+// Request deduplication
+let ongoingRequests: { [key: string]: Promise<any> } = {}
+
 // Function to get page permissions from database
 export const getPagePermissions = async (userRole: string): Promise<string[]> => {
   const cacheKey = `page_permissions_${userRole}`
@@ -15,26 +18,42 @@ export const getPagePermissions = async (userRole: string): Promise<string[]> =>
     return permissionsCache[cacheKey]
   }
   
-  try {
-    const { data, error } = await supabase
-      .from('user_permissions')
-      .select('page')
-      .eq('role', userRole)
-      .eq('can_access', true)
-    
-    if (error) throw error
-    
-    const pages = data?.map(item => item.page) || []
-    
-    // Cache the result
-    permissionsCache[cacheKey] = pages
-    cacheExpiry = now + CACHE_DURATION
-    
-    return pages
-  } catch (error) {
-    console.error('Error fetching page permissions:', error)
-    return getDefaultPagePermissions(userRole)
+  // Return ongoing request if exists
+  if (ongoingRequests[cacheKey]) {
+    return ongoingRequests[cacheKey]
   }
+  
+  // Create and store the request promise
+  ongoingRequests[cacheKey] = (async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_permissions')
+        .select('page')
+        .eq('role', userRole)
+        .eq('can_access', true)
+      
+      if (error) throw error
+      
+      const pages = data?.map(item => item.page) || []
+      
+      // Cache the result
+      permissionsCache[cacheKey] = pages
+      cacheExpiry = now + CACHE_DURATION
+      
+      return pages
+    } catch (error) {
+      console.error('Error fetching page permissions:', error)
+      const fallback = getDefaultPagePermissions(userRole)
+      permissionsCache[cacheKey] = fallback
+      cacheExpiry = now + CACHE_DURATION
+      return fallback
+    } finally {
+      // Clean up ongoing request
+      delete ongoingRequests[cacheKey]
+    }
+  })()
+  
+  return ongoingRequests[cacheKey]
 }
 
 // Function to get CRUD permissions from database

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getPagePermissions } from '@/src/utils/dynamicPermissions'
+import { getUserData } from '@/utils/userStorage'
 
 export const useNavigationPermissions = () => {
   const [userRole, setUserRole] = useState<string>('')
@@ -8,7 +9,7 @@ export const useNavigationPermissions = () => {
 
   useEffect(() => {
     const loadPermissions = async () => {
-      const userData = localStorage.getItem('user')
+      const userData = getUserData()
       if (!userData) {
         setLoading(false)
         return
