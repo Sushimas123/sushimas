@@ -74,20 +74,42 @@ export default function LoginPage() {
           .single()
 
         if (emailError || !userByEmail) {
-          throw new Error('User profile not found or inactive')
+          // User exists in auth but not in custom table - create profile
+          console.log('Creating missing user profile for:', authData.user.email)
+          
+          const { data: newProfile, error: createError } = await supabase
+            .from('users')
+            .insert({
+              email: authData.user.email,
+              nama_lengkap: authData.user.user_metadata?.nama_lengkap || authData.user.email?.split('@')[0] || 'User',
+              no_telp: authData.user.user_metadata?.no_telp || null,
+              cabang: authData.user.user_metadata?.cabang || null,
+              role: 'staff',
+              is_active: true,
+              auth_id: authData.user.id
+            })
+            .select()
+            .single()
+
+          if (createError) {
+            console.error('Failed to create user profile:', createError)
+            throw new Error('Failed to create user profile')
+          }
+
+          localStorage.setItem('user', JSON.stringify(newProfile))
+        } else {
+          // Update auth_id if found by email
+          await supabase
+            .from('users')
+            .update({ auth_id: authData.user.id })
+            .eq('id_user', userByEmail.id_user)
+
+          // Store user data
+          localStorage.setItem('user', JSON.stringify({
+            ...userByEmail,
+            auth_id: authData.user.id
+          }))
         }
-
-        // Update auth_id if found by email
-        await supabase
-          .from('users')
-          .update({ auth_id: authData.user.id })
-          .eq('id_user', userByEmail.id_user)
-
-        // Store user data
-        localStorage.setItem('user', JSON.stringify({
-          ...userByEmail,
-          auth_id: authData.user.id
-        }))
       } else {
         // Store user data
         localStorage.setItem('user', JSON.stringify(userData))
