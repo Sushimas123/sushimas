@@ -277,7 +277,6 @@ export default function FinancePurchaseOrders() {
         .from('finance_dashboard_view')
         .select('*')
         .order('po_date', { ascending: false })
-        .limit(50) // Add limit for initial load
 
       // Apply filters
       if (filters.dateFrom) query = query.gte('po_date', filters.dateFrom)

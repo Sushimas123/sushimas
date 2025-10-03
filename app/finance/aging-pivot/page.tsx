@@ -81,30 +81,11 @@ export default function AgingPivotReport() {
       for (const item of financeData || []) {
         const supplierInfo = suppliersMap.get(item.supplier_id)
 
-        // Fetch PO items
-        const { data: items } = await supabase
-          .from('po_items')
-          .select('qty, actual_price, received_qty, product_id')
-          .eq('po_id', item.id)
-
-        let correctedTotal = 0
-        for (const poItem of items || []) {
-          if (poItem.actual_price && poItem.received_qty) {
-            correctedTotal += poItem.received_qty * poItem.actual_price
-          } else {
-            const { data: product } = await supabase
-              .from('nama_product')
-              .select('harga')
-              .eq('id_product', poItem.product_id)
-              .single()
-            correctedTotal += poItem.qty * (product?.harga || 0)
-          }
-        }
-
-        // Skip jika sudah paid atau outstanding <= 0
-        if (item.status_payment === 'paid') continue
-        const outstanding = correctedTotal - item.total_paid
-        if (outstanding <= 0) continue
+        // Gunakan sisa_bayar dari database view
+        const outstanding = item.sisa_bayar
+        
+        // Skip jika sudah paid atau outstanding <= 0 atau bulk payment
+        if (item.status_payment === 'paid' || outstanding <= 0 || item.bulk_payment_ref) continue
 
         const defaultNotes = item.nama_branch === 'Sushimas Harapan Indah' ? 'Rek CV' : 'REK PT'
         const finalNotes = item.notes || defaultNotes

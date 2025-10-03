@@ -5,6 +5,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 import { TrendingDown, FileText } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
+import { useRouter } from 'next/navigation'
 
 
 interface AgingData {
@@ -22,9 +23,14 @@ interface AgingData {
 }
 
 export default function AgingReport() {
+  const router = useRouter()
   const [data, setData] = useState<AgingData[]>([])
   const [loading, setLoading] = useState(true)
   const [isMobileView, setIsMobileView] = useState(false)
+
+  const navigateToPO = (poId: number) => {
+    router.push(`/purchaseorder/received-preview?id=${poId}`)
+  }
 
   useEffect(() => {
     fetchAgingData()
@@ -164,7 +170,12 @@ export default function AgingReport() {
       <div className="bg-white rounded-lg shadow border border-gray-200 mb-3 p-4">
         <div className="flex justify-between items-start mb-3">
           <div>
-            <h3 className="text-sm font-medium text-gray-900">{item.po_number}</h3>
+            <button
+              onClick={() => navigateToPO(item.id)}
+              className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+            >
+              {item.po_number}
+            </button>
             <p className="text-xs text-gray-500">{item.nama_supplier}</p>
           </div>
           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getBucketColor(item.aging_bucket)}`}>
@@ -345,7 +356,12 @@ export default function AgingReport() {
                     <tr key={item.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
-                          <div className="text-sm font-medium text-gray-900">{item.po_number}</div>
+                          <button
+                            onClick={() => navigateToPO(item.id)}
+                            className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                          >
+                            {item.po_number}
+                          </button>
                           <div className="text-sm text-gray-500">Total: {formatCurrency(item.total_po)}</div>
                         </div>
                       </td>
