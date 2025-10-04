@@ -86,7 +86,7 @@ function SuratJalanRow({ suratJalan, onExportPDF, onDelete, exportLoading }: {
       if (error) throw error
       setItems(data || [])
     } catch (error) {
-      console.error('Error fetching items:', error)
+      // Error fetching items
     } finally {
       setLoading(false)
     }
@@ -272,10 +272,8 @@ function ProductSelect({ products, value, onChange, placeholder = "Pilih Produk"
   )
 }
 
-// Fungsi untuk export PDF dengan html2pdf
 const exportToPDF = async (suratJalan: SuratJalan) => {
   try {
-    // Fetch detail items surat jalan
     const { data: items, error } = await supabase
       .from('surat_jalan_items')
       .select(`
@@ -287,122 +285,204 @@ const exportToPDF = async (suratJalan: SuratJalan) => {
 
     if (error) throw error
 
-    const itemsDetail: SuratJalanItemDetail[] = items?.map(item => ({
-      no_urut: item.no_urut,
-      id_product: item.id_product,
-      product_name: (item.nama_product as any)?.product_name || 'Unknown',
-      unit_kecil: item.satuan || '',
-      jumlah_barang: item.jumlah_barang,
-      keterangan: item.keterangan || ''
-    })) || []
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      throw new Error('Popup blocked. Please allow popups for this site.')
+    }
 
-    // Create HTML content for PDF
-    const content = `
-      <div style="font-family: 'Arial', sans-serif; padding: 25px; max-width: 800px; margin: 0 auto;">
-        <!-- Header -->
-        <div style="text-align: center; margin-bottom: 30px; border-bottom: 3px solid #2c5aa0; padding-bottom: 15px;">
-          <h1 style="margin: 0; font-size: 28px; font-weight: bold; color: #2c5aa0;">SURAT JALAN</h1>
-          <h2 style="margin: 8px 0 0 0; font-size: 20px; font-weight: normal; color: #333;">No: ${suratJalan.no_surat_jalan}</h2>
-        </div>
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Surat Jalan - ${suratJalan.no_surat_jalan}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: Arial, sans-serif; 
+              padding: 40px;
+              max-width: 210mm;
+              margin: 0 auto;
+            }
+            .header { 
+              text-align: center; 
+              margin-bottom: 30px;
+              border-bottom: 3px solid #2c5aa0;
+              padding-bottom: 15px;
+            }
+            .header h1 { 
+              font-size: 28px; 
+              color: #2c5aa0;
+              margin-bottom: 10px;
+            }
+            .header h2 { 
+              font-size: 18px; 
+              color: #333;
+              font-weight: normal;
+            }
+            .info-table { 
+              width: 100%; 
+              margin-bottom: 25px;
+              border-collapse: collapse;
+            }
+            .info-table td { 
+              padding: 10px;
+              border: 1px solid #dee2e6;
+            }
+            .info-table td:first-child { 
+              background-color: #2c5aa0;
+              color: white;
+              font-weight: bold;
+              width: 25%;
+            }
+            .items-title {
+              background: #2c5aa0;
+              color: white;
+              padding: 12px;
+              margin: 20px 0 10px 0;
+              font-size: 16px;
+              font-weight: bold;
+            }
+            .items-table { 
+              width: 100%; 
+              border-collapse: collapse;
+              border: 2px solid #2c5aa0;
+            }
+            .items-table th { 
+              background-color: #e9ecef;
+              padding: 12px;
+              border: 1px solid #2c5aa0;
+              text-align: center;
+              font-weight: bold;
+            }
+            .items-table td { 
+              padding: 10px;
+              border: 1px solid #dee2e6;
+              vertical-align: top;
+            }
+            .items-table tbody tr:nth-child(even) { 
+              background-color: #f8f9fa;
+            }
+            .items-table td:nth-child(1) { text-align: center; width: 8%; }
+            .items-table td:nth-child(2) { width: 42%; }
+            .items-table td:nth-child(3) { text-align: center; width: 15%; }
+            .items-table td:nth-child(4) { text-align: center; width: 15%; }
+            .items-table td:nth-child(5) { width: 20%; }
+            .signatures { 
+              display: flex;
+              justify-content: space-between;
+              margin-top: 60px;
+            }
+            .signature { 
+              text-align: center;
+              flex: 1;
+            }
+            .signature-label {
+              font-weight: bold;
+              margin-bottom: 80px;
+            }
+            .signature-name {
+              border-top: 2px solid #2c5aa0;
+              padding-top: 8px;
+              font-weight: bold;
+            }
+            .footer {
+              margin-top: 40px;
+              text-align: center;
+              font-size: 11px;
+              color: #6c757d;
+              border-top: 1px solid #dee2e6;
+              padding-top: 10px;
+            }
+            @media print { 
+              body { padding: 20px; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>SURAT JALAN</h1>
+            <h2>No: ${suratJalan.no_surat_jalan}</h2>
+          </div>
+          
+          <table class="info-table">
+            <tr>
+              <td>Tanggal</td>
+              <td>${new Date(suratJalan.tanggal).toLocaleDateString('id-ID')}</td>
+            </tr>
+            <tr>
+              <td>Cabang Tujuan</td>
+              <td>${suratJalan.cabang_tujuan}</td>
+            </tr>
+            <tr>
+              <td>Driver</td>
+              <td>${suratJalan.driver}</td>
+            </tr>
+          </table>
 
-        <!-- Information Table -->
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px; background: #f8f9fa; border-radius: 8px; overflow: hidden;">
-          <tr>
-            <td style="padding: 12px; border: 1px solid #dee2e6; font-weight: bold; background-color: #2c5aa0; color: white; width: 25%;">Tanggal</td>
-            <td style="padding: 12px; border: 1px solid #dee2e6; background: white;">${new Date(suratJalan.tanggal).toLocaleDateString('id-ID')}</td>
-          </tr>
-          <tr>
-            <td style="padding: 12px; border: 1px solid #dee2e6; font-weight: bold; background-color: #2c5aa0; color: white;">Cabang Tujuan</td>
-            <td style="padding: 12px; border: 1px solid #dee2e6; background: white;">${suratJalan.cabang_tujuan}</td>
-          </tr>
-          <tr>
-            <td style="padding: 12px; border: 1px solid #dee2e6; font-weight: bold; background-color: #2c5aa0; color: white;">Driver</td>
-            <td style="padding: 12px; border: 1px solid #dee2e6; background: white;">${suratJalan.driver}</td>
-          </tr>
-        </table>
-
-        <!-- Items Table -->
-        <div style="margin-bottom: 30px;">
-          <h3 style="background: #2c5aa0; color: white; padding: 12px; margin: 0 0 15px 0; border-radius: 6px; font-size: 16px;">
-            DAFTAR BARANG
-          </h3>
-          <table style="width: 100%; border-collapse: collapse; border: 2px solid #2c5aa0;">
+          <div class="items-title">DAFTAR BARANG</div>
+          <table class="items-table">
             <thead>
-              <tr style="background: #e9ecef;">
-                <th style="padding: 12px; border: 1px solid #2c5aa0; text-align: center; font-weight: bold; width: 8%;">No</th>
-                <th style="padding: 12px; border: 1px solid #2c5aa0; text-align: left; font-weight: bold; width: 42%;">Nama Barang</th>
-                <th style="padding: 12px; border: 1px solid #2c5aa0; text-align: center; font-weight: bold; width: 15%;">Jumlah</th>
-                <th style="padding: 12px; border: 1px solid #2c5aa0; text-align: center; font-weight: bold; width: 15%;">Satuan</th>
-                <th style="padding: 12px; border: 1px solid #2c5aa0; text-align: left; font-weight: bold; width: 20%;">Keterangan</th>
+              <tr>
+                <th>No</th>
+                <th>Nama Barang</th>
+                <th>Jumlah</th>
+                <th>Satuan</th>
+                <th>Keterangan</th>
               </tr>
             </thead>
             <tbody>
-              ${itemsDetail.map((item, index) => `
-                <tr style="${index % 2 === 0 ? 'background: #f8f9fa;' : 'background: white;'}">
-                  <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; vertical-align: top;">${item.no_urut}</td>
-                  <td style="padding: 10px; border: 1px solid #dee2e6; vertical-align: top;">${item.product_name}</td>
-                  <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; vertical-align: top;">${item.jumlah_barang}</td>
-                  <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; vertical-align: top;">${item.unit_kecil}</td>
-                  <td style="padding: 10px; border: 1px solid #dee2e6; vertical-align: top;">${item.keterangan}</td>
+              ${items?.map((item: any, index: number) => `
+                <tr>
+                  <td>${index + 1}</td>
+                  <td>${item.nama_product?.product_name || '-'}</td>
+                  <td>${item.jumlah_barang}</td>
+                  <td>${item.satuan}</td>
+                  <td>${item.keterangan || '-'}</td>
                 </tr>
-              `).join('')}
+              `).join('') || ''}
             </tbody>
           </table>
-        </div>
 
-        <!-- Signatures -->
-        <div style="display: flex; justify-content: space-between; margin-top: 60px;">
-          <div style="text-align: center; flex: 1;">
-            <div style="margin-bottom: 80px; font-weight: bold;">Dibuat Oleh,</div>
-            <div style="border-top: 2px solid #2c5aa0; padding-top: 8px; font-weight: bold;">${suratJalan.dibuat_oleh}</div>
+          <div style="margin: 25px 0; padding: 15px; background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 6px; text-align: center;">
+            <p style="font-weight: bold; font-size: 14px; color: #856404; margin: 0;">
+              JANGAN LUPA! SEMUA INVOICE, BON, DAN FAKTUR PAJAK DARI SUPPLIER, DIKIRIM KE DEPOK
+            </p>
           </div>
-          <div style="text-align: center; flex: 1;">
-            <div style="margin-bottom: 20px; font-weight: bold;">Disetujui Oleh,</div>
-            ${suratJalan.disetujui_oleh?.toLowerCase() === 'andi' ? 
-              '<div style="margin-bottom: 10px;"><img src="/signatures/andi.png" alt="Signature" style="width: 200px; height: 50px; object-fit: contain;"/></div>' : 
-              '<div style="margin-bottom: 60px;"></div>'
-            }
-            <div style="border-top: 2px solid #2c5aa0; padding-top: 8px; font-weight: bold;">${suratJalan.disetujui_oleh}</div>
-          </div>
-          <div style="text-align: center; flex: 1;">
-            <div style="margin-bottom: 80px; font-weight: bold;">Diterima Oleh,</div>
-            <div style="border-top: 2px solid #2c5aa0; padding-top: 8px; font-weight: bold;">${suratJalan.diterima_oleh || '(_________________)'}</div>
-          </div>
-        </div>
 
-        <!-- Footer -->
-        <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #6c757d; border-top: 1px solid #dee2e6; padding-top: 10px;">
-          Dokumen ini dicetak secara elektronik pada ${new Date().toLocaleDateString('id-ID')} ${new Date().toLocaleTimeString('id-ID')}
-        </div>
-      </div>
+          <div class="signatures">
+            <div class="signature">
+              <div class="signature-label">Dibuat Oleh</div>
+              <div class="signature-name">${suratJalan.dibuat_oleh}</div>
+            </div>
+            <div class="signature">
+              <div class="signature-label">Disetujui Oleh</div>
+              <div class="signature-name">${suratJalan.disetujui_oleh}</div>
+            </div>
+            <div class="signature">
+              <div class="signature-label">Diterima Oleh</div>
+              <div class="signature-name">${suratJalan.diterima_oleh || '(_________________)'}</div>
+            </div>
+          </div>
+
+          <div class="footer">
+            Dokumen ini dicetak secara elektronik pada ${new Date().toLocaleDateString('id-ID')} ${new Date().toLocaleTimeString('id-ID')}
+          </div>
+
+          <div class="no-print" style="margin-top: 30px; text-align: center;">
+            <button onclick="window.print()" style="padding: 12px 24px; background: #2c5aa0; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; margin-right: 10px;">Print PDF</button>
+            <button onclick="window.close()" style="padding: 12px 24px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">Close</button>
+          </div>
+        </body>
+      </html>
     `
 
-    const element = document.createElement('div')
-    element.innerHTML = content
-
-    const options = {
-      margin: [15, 15, 15, 15] as [number, number, number, number],
-      filename: `surat-jalan-${suratJalan.no_surat_jalan}.pdf`,
-      image: { type: 'jpeg' as 'jpeg', quality: 0.98 },
-      html2canvas: { 
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        windowWidth: 800
-      },
-      jsPDF: { 
-        unit: 'mm', 
-        format: 'a4', 
-        orientation: 'portrait' as 'portrait'
-      }
-    }
-
-    const html2pdf = (await import('html2pdf.js')).default
-    html2pdf().set(options).from(element).save()
+    printWindow.document.write(printContent)
+    printWindow.document.close()
+    printWindow.focus()
 
   } catch (error) {
-    console.error('Error exporting to PDF:', error)
-    alert('Gagal mengekspor PDF')
+    throw error
   }
 }
 
@@ -455,7 +535,7 @@ export default function SuratJalanPage() {
       if (error) throw error
       setBranches(data || [])
     } catch (error) {
-      console.error('Error fetching branches:', error)
+      // Error fetching branches
     }
   }
 
@@ -470,7 +550,7 @@ export default function SuratJalanPage() {
       if (error) throw error
       setProducts(data || [])
     } catch (error) {
-      console.error('Error fetching products:', error)
+      // Error fetching products
     }
   }
 
@@ -484,7 +564,6 @@ export default function SuratJalanPage() {
         .select('*', { count: 'exact', head: true })
       
       if (countError) {
-        console.log('Table surat_jalan not found, showing empty state')
         setTotalCount(0)
         setSuratJalans([])
         return
@@ -515,7 +594,6 @@ export default function SuratJalanPage() {
       
       setSuratJalans(formattedData)
     } catch (error) {
-      console.error('Error fetching surat jalans:', error)
       // Don't show error toast if table doesn't exist
       if (!(error as any)?.message?.includes('does not exist')) {
         showToast('Gagal memuat data surat jalan', 'error')
@@ -596,7 +674,6 @@ export default function SuratJalanPage() {
       resetForm()
       fetchSuratJalans()
     } catch (error) {
-      console.error('Error saving surat jalan:', error)
       showToast('Gagal menyimpan surat jalan', 'error')
     }
   }
@@ -639,7 +716,6 @@ export default function SuratJalanPage() {
       showToast('Surat jalan berhasil dihapus', 'success')
       fetchSuratJalans()
     } catch (error) {
-      console.error('Error deleting surat jalan:', error)
       showToast('Gagal menghapus surat jalan', 'error')
     } finally {
       setDeleteConfirm({show: false, id: null})

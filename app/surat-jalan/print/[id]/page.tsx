@@ -74,7 +74,7 @@ export default function PrintSuratJalanPage() {
         }))
       })
     } catch (error) {
-      console.error('Error fetching surat jalan:', error)
+      // Error fetching data
     } finally {
       setLoading(false)
     }
@@ -171,7 +171,7 @@ export default function PrintSuratJalanPage() {
         {/* Notes */}
         <div className="mb-8 p-4 bg-yellow-50 border border-yellow-200 rounded">
           <p className="text-sm font-medium text-center">
-            JANGAN LUPA, SEMUA INVOICE DAN FAKTUR PAJAK DARI SUPPLIER, DIKIRIM KE DEPOK
+            JANGAN LUPA! SEMUA INVOICE , BON, DAN FAKTUR PAJAK DARI SUPPLIER, DIKIRIM KE DEPOK
           </p>
         </div>
 

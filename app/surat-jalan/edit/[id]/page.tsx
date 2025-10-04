@@ -145,12 +145,17 @@ export default function EditSuratJalanPage() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   useEffect(() => {
-    if (params.id) {
+    console.log('Params:', params)
+    if (params?.id) {
+      console.log('ID found:', params.id)
       fetchSuratJalan(parseInt(params.id as string))
       fetchBranches()
       fetchProducts()
+    } else {
+      console.log('No ID found in params')
+      setLoading(false)
     }
-  }, [params.id])
+  }, [params?.id])
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
@@ -158,6 +163,7 @@ export default function EditSuratJalanPage() {
   }
 
   const fetchSuratJalan = async (id: number) => {
+    console.log('Fetching surat jalan with ID:', id)
     try {
       const { data: sjData, error: sjError } = await supabase
         .from('surat_jalan')
@@ -165,6 +171,7 @@ export default function EditSuratJalanPage() {
         .eq('id_surat_jalan', id)
         .single()
 
+      console.log('Surat jalan data:', sjData, 'Error:', sjError)
       if (sjError) throw sjError
 
       const { data: itemsData, error: itemsError } = await supabase
@@ -173,6 +180,7 @@ export default function EditSuratJalanPage() {
         .eq('id_surat_jalan', id)
         .order('no_urut')
 
+      console.log('Items data:', itemsData, 'Error:', itemsError)
       if (itemsError) throw itemsError
 
       setSuratJalan(sjData)
