@@ -1109,7 +1109,7 @@ function ReadyPageContent() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1 text-gray-700">Category Filter</label>
-                  <div className="border rounded-md p-2 max-h-20 overflow-y-auto bg-white">
+                  <div className="border rounded-md p-2 max-h-40 overflow-y-auto bg-white">
                     {categories.map(cat => (
                       <label key={cat} className="flex items-center gap-1 text-xs">
                         <input
