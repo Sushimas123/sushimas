@@ -20,8 +20,12 @@ interface Produksi {
   branch: string;
   jumlah_buat: number;
   konversi: number;
-  total_konversi: number;
-  product_name?: string;
+  total_konversi: number; // Generated column
+  created_at?: number;    // integer di database
+  created_by?: number;
+  created_by_name?: string; // Virtual field dari JOIN
+  updated_by?: number;
+  product_name?: string;  // Virtual field dari JOIN
 }
 
 interface Product {
@@ -225,7 +229,7 @@ function ProduksiPageContent() {
   const fetchProduksi = useCallback(async () => {
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      let produksiQuery = supabase.from('produksi').select('*').order('tanggal_input', { ascending: false });
+      let produksiQuery = supabase.from('produksi').select('*, users!created_by(nama_lengkap)').order('tanggal_input', { ascending: false });
       
       // Parallel queries for better performance
       const queries = [
@@ -266,7 +270,8 @@ function ProduksiPageContent() {
       
       const produksiWithNames = (produksiData.data || []).map((item: any) => ({
         ...item,
-        product_name: productMap.get(item.id_product) || ''
+        product_name: productMap.get(item.id_product) || '',
+        created_by_name: item.users?.nama_lengkap || '-'
       }));
       
       setProduksi(produksiWithNames);
@@ -391,6 +396,8 @@ function ProduksiPageContent() {
     };
 
     try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      
       if (editingId) {
         // Sanitize log data to prevent log injection
         const sanitizedData = {
@@ -401,10 +408,12 @@ function ProduksiPageContent() {
         };
         console.log('Updating produksi with ID:', editingId, 'Data:', sanitizedData);
         
-        // Direct update without audit trail columns that don't exist
         const { error } = await supabase
           .from('produksi')
-          .update(submitData)
+          .update({
+            ...submitData,
+            updated_by: user.id_user
+          })
           .eq('id', editingId);
         
         if (error) {
@@ -417,7 +426,11 @@ function ProduksiPageContent() {
         console.log('Inserting new produksi:', submitData);
         const { error } = await supabase
           .from('produksi')
-          .insert(submitData);
+          .insert({
+            ...submitData,
+            created_by: user.id_user,
+            created_at: Math.floor(Date.now() / 1000)
+          });
         
         if (error) {
           throw new Error(error.message);
@@ -957,6 +970,9 @@ function ProduksiPageContent() {
                   {visibleColumns.includes('total_konversi') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_konversi')}>
                     Total {sortConfig?.key === 'total_konversi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>}
+                  {visibleColumns.includes('created_by_name') && <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('created_by_name')}>
+                    Created By {sortConfig?.key === 'created_by_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>}
                   <th className="px-1 py-1 text-left font-medium text-gray-700">Action</th>
                 </tr>
               </thead>
@@ -993,6 +1009,7 @@ function ProduksiPageContent() {
                       {visibleColumns.includes('jumlah_buat') && <td className="px-1 py-1">{item.jumlah_buat}</td>}
                       {visibleColumns.includes('konversi') && <td className="px-1 py-1">{item.konversi}</td>}
                       {visibleColumns.includes('total_konversi') && <td className="px-1 py-1 font-medium">{item.total_konversi}</td>}
+                      {visibleColumns.includes('created_by_name') && <td className="px-1 py-1">{item.created_by_name}</td>}
                       <td className="px-1 py-1">
                         <div className="flex gap-1">
                           {canPerformActionSync(userRole, 'produksi', 'edit') && (
