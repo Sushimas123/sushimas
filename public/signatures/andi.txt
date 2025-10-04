@@ -1,0 +1,2 @@
+Placeholder for Andi's signature image
+Save the cropped signature image as andi.png in this folder

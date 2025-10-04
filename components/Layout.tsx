@@ -118,6 +118,7 @@ export default function Layout({ children }: LayoutProps) {
         { name: "Purchase Order", href: "/purchaseorder", icon: BaggageClaim, pageName: 'purchaseorder' },
         { name: "Barang Masuk", href: "/purchaseorder/barang_masuk", icon: ShoppingBasket, pageName: 'barang_masuk'},
         { name: "Transfer Cabang", href: AppRoutes.TRANSFER_BARANG, icon: FolderSync, pageName: 'transfer-barang'},
+        { name: "Surat Jalan", href: "/surat-jalan", icon: FileText, pageName: 'surat-jalan'},
       ]
     },    
     {

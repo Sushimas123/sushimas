@@ -30,7 +30,7 @@ export const useNavigationPermissions = () => {
             'analysis', 'audit-log', 'barang_masuk', 'branches', 'categories',
             'crud-permissions', 'esb', 'gudang-final', 'permissions-db', 'pivot',
             'price-history', 'product_name', 'product_settings', 'recipes',
-            'purchaseorder', 'stock-alert', 'supplier', 'transfer_barang', 'transfer-barang', 'users',
+            'purchaseorder', 'stock-alert', 'supplier', 'transfer_barang', 'transfer-barang', 'surat-jalan', 'users',
             'price_history', 'finance', 'aging-report', 'pettycash', 'assets'
           ]
           
@@ -109,6 +109,7 @@ export const useNavigationPermissions = () => {
             supplier: true,
             transfer_barang: true,
             'transfer-barang': true,
+            'surat-jalan': true,
             users: true,
             finance: true,
             'aging-report': true,
@@ -141,6 +142,7 @@ export const useNavigationPermissions = () => {
             'stock-alert': false,
             supplier: false,
             transfer_barang: false,
+            'surat-jalan': false,
             users: true,
             finance: true,
             'aging-report': true,
@@ -174,6 +176,7 @@ export const useNavigationPermissions = () => {
             'stock-alert': false,
             supplier: false,
             transfer_barang: false,
+            'surat-jalan': false,
             users: false,
             pettycash: true,
             assets: true,
@@ -204,6 +207,7 @@ export const useNavigationPermissions = () => {
             'stock-alert': false,
             supplier: false,
             transfer_barang: false,
+            'surat-jalan': false,
             users: false,
             pettycash: true,
             assets: true,
