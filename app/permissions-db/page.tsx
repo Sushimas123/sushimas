@@ -97,7 +97,7 @@ export default function PermissionsDBPage() {
         'product_name', 'product_settings', 'produksi', 'produksi_detail',
         'purchaseorder', 'ready', 'recipes', 'stock_opname_batch', 'supplier',
         'transfer-barang', 'users', 'stock-alert', 'finance', 'aging-report',
-        'aging-pivot', 'bulk-payments', 'barang_masuk', 'pettycash',
+        'aging-pivot', 'bulk-payments', 'barang_masuk', 'pettycash', 'surat-jalan',
         // Add missing pages here:
         'finance-purchase-orders', 'finance-aging-pivot', 'finance-aging-report',
         'finance-bulk-payments', 'purchaseorder-barang-masuk', 'purchaseorder-received-preview',
@@ -109,7 +109,8 @@ export default function PermissionsDBPage() {
       const dbTables = [
         'nama_product', 'user_permissions', 'audit_log', 'transfer_barang',
          'user_branches', 'suppliers', 'po_items',
-        'purchase_orders', 'po_payments', 'bulk_payments', 'finance_dashboard_view'
+        'purchase_orders', 'po_payments', 'bulk_payments', 'finance_dashboard_view',
+        'surat_jalan', 'surat_jalan_items'
       ]
       
       // Add all pages (even if no corresponding database table)
@@ -162,7 +163,7 @@ export default function PermissionsDBPage() {
         'dashboard', 'esb', 'gudang', 'permissions-db', 'pivot', 'price-history',
         'product_name', 'product_settings', 'produksi', 'produksi_detail',
         'purchaseorder', 'ready', 'recipes', 'stock_opname_batch', 'supplier',
-        'transfer-barang', 'users', 'stock-alert', 'barang_masuk', 'pettycash',
+        'transfer-barang', 'users', 'stock-alert', 'barang_masuk', 'pettycash', 'surat-jalan',
         // Add missing pages here:
         'finance-purchase-orders', 'finance-aging-pivot', 'finance-aging-report',
         'finance-bulk-payments', 'purchaseorder-barang-masuk', 'purchaseorder-received-preview',
