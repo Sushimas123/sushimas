@@ -242,18 +242,35 @@ export default function AnalysisPage() {
       bufferDate.setDate(bufferDate.getDate() - 7);
       const bufferDateStr = bufferDate.toISOString().split('T')[0];
 
-      // Fetch ready data with simple date filter
-      const { data: readyData, error: readyError } = await supabase
-        .from('ready')
-        .select('*')
-        .gte('tanggal_input', bufferDateStr)
-        .lte('tanggal_input', dateRange.endDate)
-        .order('tanggal_input', { ascending: false })
-        ;
-
-        if (readyError || !readyData) {
-          throw new Error(`Failed to fetch ready data: ${readyError?.message || 'No data returned'}`);
+      // Fetch ready data with batching
+      let readyData: any[] = [];
+      let readyFrom = 0;
+      const readyBatchSize = 1000;
+      
+      while (true) {
+        const { data: readyBatch, error: readyError } = await supabase
+          .from('ready')
+          .select('*')
+          .gte('tanggal_input', bufferDateStr)
+          .lte('tanggal_input', dateRange.endDate)
+          .order('tanggal_input', { ascending: false })
+          .range(readyFrom, readyFrom + readyBatchSize - 1);
+        
+        if (readyError) {
+          throw new Error(`Failed to fetch ready data: ${readyError.message}`);
         }
+        
+        if (!readyBatch || readyBatch.length === 0) break;
+        
+        readyData = [...readyData, ...readyBatch];
+        
+        if (readyBatch.length < readyBatchSize) break;
+        readyFrom += readyBatchSize;
+      }
+      
+      if (!readyData || readyData.length === 0) {
+        throw new Error('No ready data returned');
+      }
 
       const { data: productData } = await supabase.from('nama_product').select('*');
       const { data: branchData } = await supabase.from('branches').select('*');
@@ -265,17 +282,31 @@ export default function AnalysisPage() {
       // Get unique products and dates for optimized queries
       const uniqueProductIds = [...new Set(readyData?.map(r => r.id_product) || [])];
       
-      // Fetch warehouse data with buffer - get ALL data for accurate calculations
-      const { data: warehouseData } = await supabase
-        .from('gudang_final_view')
-        .select('*')
-        .gte('tanggal', bufferDateStr)
-        .in('id_product', uniqueProductIds);
+      // Fetch warehouse data with batching
+      let warehouseData: any[] = [];
+      let warehouseFrom = 0;
+      const warehouseBatchSize = 1000;
       
-      // Fetch all ESB data using pagination to avoid 1000 record limit
-      let allEsbData: any[] = [];
-      let from = 0;
-      const batchSize = 1000;
+      while (true) {
+        const { data: warehouseBatch } = await supabase
+          .from('gudang_final_view')
+          .select('*')
+          .gte('tanggal', bufferDateStr)
+          .in('id_product', uniqueProductIds)
+          .range(warehouseFrom, warehouseFrom + warehouseBatchSize - 1);
+        
+        if (!warehouseBatch || warehouseBatch.length === 0) break;
+        
+        warehouseData = [...warehouseData, ...warehouseBatch];
+        
+        if (warehouseBatch.length < warehouseBatchSize) break;
+        warehouseFrom += warehouseBatchSize;
+      }
+      
+      // Fetch ESB data with batching
+      let esbData: any[] = [];
+      let esbFrom = 0;
+      const esbBatchSize = 1000;
       
       while (true) {
         const { data: esbBatch, error: esbError } = await supabase
@@ -284,8 +315,8 @@ export default function AnalysisPage() {
           .gte('sales_date', dateRange.startDate)
           .lte('sales_date', dateRange.endDate)
           .in('product_id', uniqueProductIds)
-          .range(from, from + batchSize - 1)
-          .order('sales_date', { ascending: false });
+          .order('sales_date', { ascending: false })
+          .range(esbFrom, esbFrom + esbBatchSize - 1);
         
         if (esbError) {
           console.error('ESB query error:', esbError);
@@ -294,13 +325,11 @@ export default function AnalysisPage() {
         
         if (!esbBatch || esbBatch.length === 0) break;
         
-        allEsbData = [...allEsbData, ...esbBatch];
+        esbData = [...esbData, ...esbBatch];
         
-        if (esbBatch.length < batchSize) break;
-        from += batchSize;
+        if (esbBatch.length < esbBatchSize) break;
+        esbFrom += esbBatchSize;
       }
-      
-      const esbData = allEsbData;
 
       
       // Fetch production data with buffer

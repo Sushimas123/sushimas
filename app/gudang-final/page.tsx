@@ -70,7 +70,7 @@ function GudangFinalContent() {
   const [branchFilter, setBranchFilter] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage] = useState(50);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -107,35 +107,58 @@ function GudangFinalContent() {
 
   const fetchGudang = async () => {
     try {
-      const [gudangData, productsData, branchesData, stockSettingsData] = await Promise.all([
-        supabase.from('gudang_final_view').select('*').order('tanggal', { ascending: false }).order('order_no', { ascending: false }),
+      let allGudangData: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      
+      // Fetch all data using pagination
+      while (true) {
+        const { data: batchData, error: batchError } = await supabase
+          .from('gudang_final_view')
+          .select('*')
+          .order('tanggal', { ascending: false })
+          .order('order_no', { ascending: false })
+          .range(from, from + batchSize - 1);
+        
+        if (batchError) throw batchError;
+        if (!batchData || batchData.length === 0) break;
+        
+        allGudangData = [...allGudangData, ...batchData];
+        
+        if (batchData.length < batchSize) break;
+        from += batchSize;
+      }
+      
+      // Fetch related data
+      const [productsData, branchesData, stockSettingsData] = await Promise.all([
         supabase.from('nama_product').select('id_product, product_name'),
         supabase.from('branches').select('kode_branch, nama_branch'),
-supabase.from('product_branch_settings').select(`
+        supabase.from('product_branch_settings').select(`
           id_product,
           safety_stock,
           branches!inner(kode_branch)
         `)
       ]);
-
-      if (gudangData.error) throw gudangData.error;
       
       const productMap = new Map(productsData.data?.map(p => [p.id_product, p.product_name]) || []);
       const branchMap = new Map(branchesData.data?.map(b => [b.kode_branch, b.nama_branch]) || []);
       const stockSettingsMap = new Map(stockSettingsData.data?.map(s => [`${s.id_product}-${(s.branches as any).kode_branch}`, s.safety_stock]) || []);
       
-      let gudangWithNames = (gudangData.data || []).map((item: any) => ({
+      let gudangWithNames = allGudangData.map((item: any) => ({
         ...item,
         product_name: productMap.get(item.id_product) || item.product_name || '',
         branch_name: branchMap.get(item.cabang) || item.branch_name || item.cabang,
         minimum_stock: stockSettingsMap.get(`${item.id_product}-${item.cabang}`) || 0
       }));
       
-      const branchFilter = await getBranchFilter();
-      if (branchFilter && branchFilter.length > 0) {
-        gudangWithNames = gudangWithNames.filter(item => 
-          branchFilter.includes(item.cabang) || branchFilter.includes(item.branch_name)
-        );
+      // Only apply branch filter for non-super admin users
+      if (userRole !== 'super admin' && userRole !== 'admin') {
+        const branchFilter = await getBranchFilter();
+        if (branchFilter && branchFilter.length > 0) {
+          gudangWithNames = gudangWithNames.filter(item => 
+            branchFilter.includes(item.cabang) || branchFilter.includes(item.branch_name)
+          );
+        }
       }
       
       setGudang(gudangWithNames);
