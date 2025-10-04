@@ -184,23 +184,33 @@ export default function PrintSuratJalanPage() {
             </div>
           </div>
           <div>
-            <p className="font-medium mb-16">Dibuat oleh:</p>
-            <div className="border-t border-gray-400 pt-2">
-              <p>{suratJalan.dibuat_oleh}</p>
-            </div>
-          </div>
-          <div>
-            <p className="font-medium mb-4">Disetujui oleh:</p>
-            {suratJalan.disetujui_oleh?.toLowerCase() === 'andi' && (
-              <div className="mb-2">
+            <p className="font-medium mb-4">Dibuat oleh:</p>
+            <div className="mb-2" style={{height: '40px'}}>
+              {suratJalan.dibuat_oleh?.toLowerCase() === 'andi' && (
                 <img 
                   src="/signatures/andi.png" 
                   alt="Signature" 
                   className="mx-auto" 
                   style={{width: '250px', height: '40px', objectFit: 'contain'}}
                 />
-              </div>
-            )}
+              )}
+            </div>
+            <div className="border-t border-gray-400 pt-2">
+              <p>{suratJalan.dibuat_oleh}</p>
+            </div>
+          </div>
+          <div>
+            <p className="font-medium mb-4">Disetujui oleh:</p>
+            <div className="mb-2" style={{height: '40px'}}>
+              {suratJalan.disetujui_oleh?.toLowerCase() === 'andi' && (
+                <img 
+                  src="/signatures/andi.png" 
+                  alt="Signature" 
+                  className="mx-auto" 
+                  style={{width: '250px', height: '40px', objectFit: 'contain'}}
+                />
+              )}
+            </div>
             <div className="border-t border-gray-400 pt-2">
               <p>{suratJalan.disetujui_oleh}</p>
             </div>

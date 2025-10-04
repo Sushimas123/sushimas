@@ -378,7 +378,11 @@ const exportToPDF = async (suratJalan: SuratJalan) => {
             }
             .signature-label {
               font-weight: bold;
-              margin-bottom: 80px;
+              margin-bottom: 16px;
+            }
+            .signature-space {
+              height: 40px;
+              margin-bottom: 8px;
             }
             .signature-name {
               border-top: 2px solid #2c5aa0;
@@ -452,16 +456,23 @@ const exportToPDF = async (suratJalan: SuratJalan) => {
 
           <div class="signatures">
             <div class="signature">
+              <div class="signature-label">Diterima Oleh</div>
+              <div class="signature-space"></div>
+              <div class="signature-name">${suratJalan.diterima_oleh || '(_________________)'}</div>
+            </div>
+            <div class="signature">
               <div class="signature-label">Dibuat Oleh</div>
+              <div class="signature-space">
+                ${suratJalan.dibuat_oleh?.toLowerCase() === 'andi' ? '<img src="/signatures/andi.png" alt="Signature" style="width: 250px; height: 40px; object-fit: contain; margin: 0 auto; display: block;" />' : ''}
+              </div>
               <div class="signature-name">${suratJalan.dibuat_oleh}</div>
             </div>
             <div class="signature">
               <div class="signature-label">Disetujui Oleh</div>
+              <div class="signature-space">
+                ${suratJalan.disetujui_oleh?.toLowerCase() === 'andi' ? '<img src="/signatures/andi.png" alt="Signature" style="width: 250px; height: 40px; object-fit: contain; margin: 0 auto; display: block;" />' : ''}
+              </div>
               <div class="signature-name">${suratJalan.disetujui_oleh}</div>
-            </div>
-            <div class="signature">
-              <div class="signature-label">Diterima Oleh</div>
-              <div class="signature-name">${suratJalan.diterima_oleh || '(_________________)'}</div>
             </div>
           </div>
 
