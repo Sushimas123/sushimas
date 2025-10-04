@@ -55,7 +55,7 @@ export default function PrintSuratJalanPage() {
         .from('surat_jalan_items')
         .select(`
           *,
-          nama_product(product_name, unit_kecil)
+          nama_product(product_name)
         `)
         .eq('id_surat_jalan', id)
         .order('no_urut')
@@ -68,7 +68,7 @@ export default function PrintSuratJalanPage() {
         items: itemsData.map(item => ({
           no_urut: item.no_urut,
           product_name: (item.nama_product as any).product_name,
-          unit_kecil: (item.nama_product as any).unit_kecil,
+          unit_kecil: item.satuan,
           jumlah_barang: item.jumlah_barang,
           keterangan: item.keterangan
         }))

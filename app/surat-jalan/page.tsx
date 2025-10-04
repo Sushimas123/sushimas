@@ -280,7 +280,7 @@ const exportToPDF = async (suratJalan: SuratJalan) => {
       .from('surat_jalan_items')
       .select(`
         *,
-        nama_product(product_name, unit_kecil)
+        nama_product(product_name)
       `)
       .eq('id_surat_jalan', suratJalan.id_surat_jalan)
       .order('no_urut')
@@ -291,7 +291,7 @@ const exportToPDF = async (suratJalan: SuratJalan) => {
       no_urut: item.no_urut,
       id_product: item.id_product,
       product_name: (item.nama_product as any)?.product_name || 'Unknown',
-      unit_kecil: (item.nama_product as any)?.unit_kecil || '',
+      unit_kecil: item.satuan || '',
       jumlah_barang: item.jumlah_barang,
       keterangan: item.keterangan || ''
     })) || []
