@@ -27,7 +27,9 @@ const FALLBACK_PERMISSIONS = {
     'aging-report': { create: true, edit: true, delete: true },
     'aging-pivot': { create: true, edit: true, delete: true },
     'bulk-payments': { create: true, edit: true, delete: true },
-    'crud-permissions': { create: true, edit: true, delete: true }
+    'crud-permissions': { create: true, edit: true, delete: true },
+    'transfer-barang': { create: true, edit: true, delete: true },
+    transfer_barang: { create: true, edit: true, delete: true }
   },
   'admin': {
     ready: { create: true, edit: true, delete: true },
@@ -49,7 +51,9 @@ const FALLBACK_PERMISSIONS = {
     'aging-report': { create: true, edit: true, delete: true },
     'aging-pivot': { create: true, edit: true, delete: true },
     'bulk-payments': { create: true, edit: true, delete: true },
-    'crud-permissions': { create: true, edit: true, delete: true }
+    'crud-permissions': { create: true, edit: true, delete: true },
+    'transfer-barang': { create: true, edit: true, delete: true },
+    transfer_barang: { create: true, edit: true, delete: true }
   },
   'finance': {
     ready: { create: false, edit: false, delete: false },

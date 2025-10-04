@@ -117,7 +117,7 @@ export default function Layout({ children }: LayoutProps) {
         { name: "Stock Alert", href: AppRoutes.STOCK_ALERT, icon: AlertTriangleIcon, pageName: 'stock-alert'},
         { name: "Purchase Order", href: "/purchaseorder", icon: BaggageClaim, pageName: 'purchaseorder' },
         { name: "Barang Masuk", href: "/purchaseorder/barang_masuk", icon: ShoppingBasket, pageName: 'barang_masuk'},
-        { name: "Transfer Cabang", href: AppRoutes.TRANSFER_BARANG, icon: FolderSync, pageName: 'transfer_barang'},
+        { name: "Transfer Cabang", href: AppRoutes.TRANSFER_BARANG, icon: FolderSync, pageName: 'transfer-barang'},
       ]
     },    
     {

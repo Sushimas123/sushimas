@@ -101,7 +101,7 @@ const getDefaultPagePermissions = (userRole: string): string[] => {
     case 'super admin':
       return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang-final', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname_batch', 'supplier', 'permissions-db', 'audit-log', 'crud-permissions', 'pivot', 'price-history', 'purchaseorder', 'barang_masuk', 'stock-alert', 'transfer-barang', 'assets']
     case 'admin':
-      return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang-final', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname_batch', 'supplier', 'audit-log', 'crud-permissions', 'pivot', 'price-history', 'purchaseorder', 'barang_masuk', 'stock-alert', 'transfer-barang', 'assets']
+      return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang-final', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname_batch', 'supplier', 'audit-log', 'crud-permissions', 'pivot', 'price-history', 'purchaseorder', 'barang_masuk', 'stock-alert', 'transfer_barang', 'transfer-barang', 'assets', 'finance', 'aging-report', 'pettycash']
     case 'finance':
       return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'gudang-final', 'product_settings', 'produksi_detail', 'stock_opname_batch']
     case 'pic_branch':

@@ -97,7 +97,12 @@ export default function PermissionsDBPage() {
         'product_name', 'product_settings', 'produksi', 'produksi_detail',
         'purchaseorder', 'ready', 'recipes', 'stock_opname_batch', 'supplier',
         'transfer-barang', 'users', 'stock-alert', 'finance', 'aging-report',
-        'aging-pivot', 'bulk-payments', 'barang_masuk', 'pettycash'
+        'aging-pivot', 'bulk-payments', 'barang_masuk', 'pettycash',
+        // Add missing pages here:
+        'finance-purchase-orders', 'finance-aging-pivot', 'finance-aging-report',
+        'finance-bulk-payments', 'purchaseorder-barang-masuk', 'purchaseorder-received-preview',
+        'purchaseorder-submit-approval', 'pettycash-expenses', 'pettycash-dashboard',
+        'stock-opname', 'inventory', 'reports', 'settings'
       ]
       
       // Also try database tables that might exist
@@ -157,7 +162,12 @@ export default function PermissionsDBPage() {
         'dashboard', 'esb', 'gudang', 'permissions-db', 'pivot', 'price-history',
         'product_name', 'product_settings', 'produksi', 'produksi_detail',
         'purchaseorder', 'ready', 'recipes', 'stock_opname_batch', 'supplier',
-        'transfer-barang', 'users', 'stock-alert', 'barang_masuk', 'pettycash'
+        'transfer-barang', 'users', 'stock-alert', 'barang_masuk', 'pettycash',
+        // Add missing pages here:
+        'finance-purchase-orders', 'finance-aging-pivot', 'finance-aging-report',
+        'finance-bulk-payments', 'purchaseorder-barang-masuk', 'purchaseorder-received-preview',
+        'purchaseorder-submit-approval', 'pettycash-expenses', 'pettycash-dashboard',
+        'stock-opname', 'inventory', 'reports', 'settings'
       ]
       
       allPages.forEach(page => {
