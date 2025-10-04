@@ -5,6 +5,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 import { Package, Edit, ChevronDown, ChevronUp, Filter, RefreshCw } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
+import { getBranchFilter } from '@/src/utils/branchAccess'
 
 interface BarangMasuk {
   id: number
@@ -117,10 +118,20 @@ export default function BarangMasukPage() {
 
   const fetchBranches = async () => {
     try {
-      const { data } = await supabase
+      // Get branch filter first
+      const branchFilter = await getBranchFilter()
+      
+      let branchQuery = supabase
         .from('branches')
         .select('*')
         .order('nama_branch')
+      
+      // Apply branch filter for non-admin/manager users
+      if (branchFilter && branchFilter.length > 0) {
+        branchQuery = branchQuery.in('kode_branch', branchFilter)
+      }
+      
+      const { data } = await branchQuery
       setBranches(data || [])
     } catch (error) {
       // Error fetching branches
@@ -131,10 +142,27 @@ export default function BarangMasukPage() {
     try {
       setLoading(true)
       
+      // Get branch filter for access control
+      const branchFilter = await getBranchFilter()
+      let allowedBranchIds: number[] = []
+      
+      if (branchFilter && branchFilter.length > 0) {
+        const { data: branchData } = await supabase
+          .from('branches')
+          .select('id_branch')
+          .in('kode_branch', branchFilter)
+        allowedBranchIds = branchData?.map(b => b.id_branch) || []
+      }
+      
       // Get total count first
       let countQuery = supabase
         .from('barang_masuk')
         .select('*', { count: 'exact', head: true })
+      
+      // Apply branch access control
+      if (allowedBranchIds.length > 0) {
+        countQuery = countQuery.in('id_branch', allowedBranchIds)
+      }
       
       if (selectedBranch) {
         countQuery = countQuery.eq('id_branch', parseInt(selectedBranch))
@@ -156,6 +184,11 @@ export default function BarangMasukPage() {
         `)
         .order('created_at', { ascending: false })
         .range(from, to)
+      
+      // Apply branch access control
+      if (allowedBranchIds.length > 0) {
+        query = query.in('id_branch', allowedBranchIds)
+      }
       
       if (selectedBranch) {
         query = query.eq('id_branch', parseInt(selectedBranch))
@@ -664,7 +697,7 @@ export default function BarangMasukPage() {
                               <div className="text-xs truncate max-w-[100px]">{item.supplier_name}</div>
                             </td>
                             <td className="px-2 py-2">
-                              <div className="text-xs truncate max-w-[80px]">{item.branch_name}</div>
+                              <div className="text-xs">{item.branch_name}</div>
                             </td>
                             <td className="px-2 py-2">
                               <div className="text-xs font-medium truncate max-w-[120px]" title={item.product_name}>
