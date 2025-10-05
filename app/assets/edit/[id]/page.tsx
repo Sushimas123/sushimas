@@ -31,7 +31,8 @@ export default function EditAssetPage() {
     status: 'ACTIVE',
     condition: 'GOOD',
     warranty_expiry: '',
-    notes: ''
+    notes: '',
+    quantity: ''
   });
 
   useEffect(() => {
@@ -85,7 +86,8 @@ export default function EditAssetPage() {
         status: data.status,
         condition: data.condition,
         warranty_expiry: data.warranty_expiry || '',
-        notes: data.notes || ''
+        notes: data.notes || '',
+        quantity: data.quantity?.toString() || '1'
       });
     } catch (error) {
       console.error('Error fetching asset:', error);
@@ -118,7 +120,8 @@ export default function EditAssetPage() {
           status: formData.status,
           condition: formData.condition,
           warranty_expiry: formData.warranty_expiry || null,
-          notes: formData.notes || null
+          notes: formData.notes || null,
+          quantity: parseInt(formData.quantity) || 1
         })
         .eq('asset_id', formData.asset_id);
 
@@ -266,6 +269,17 @@ export default function EditAssetPage() {
                   type="number"
                   value={formData.current_value}
                   onChange={(e) => setFormData({...formData, current_value: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={formData.quantity}
+                  onChange={(e) => setFormData({...formData, quantity: e.target.value})}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>

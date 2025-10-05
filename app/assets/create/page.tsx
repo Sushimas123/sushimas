@@ -29,7 +29,8 @@ export default function CreateAssetPage() {
     status: 'ACTIVE',
     condition: 'GOOD',
     warranty_expiry: '',
-    notes: ''
+    notes: '',
+    quantity: '1'
   });
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -112,7 +113,8 @@ export default function CreateAssetPage() {
           current_value: parseFloat(formData.current_value) || null,
           purchase_date: formData.purchase_date || null,
           warranty_expiry: formData.warranty_expiry || null,
-          photo_url: photoUrl
+          photo_url: photoUrl,
+          quantity: parseInt(formData.quantity) || 1
         }]);
 
       if (error) throw error;
@@ -250,6 +252,17 @@ export default function CreateAssetPage() {
                   type="number"
                   value={formData.current_value}
                   onChange={(e) => setFormData({...formData, current_value: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={formData.quantity}
+                  onChange={(e) => setFormData({...formData, quantity: e.target.value})}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
