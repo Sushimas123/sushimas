@@ -103,10 +103,30 @@ export default function CreateAssetPage() {
         });
       }
 
+      // Regenerate asset_id to avoid duplicate
+      const { data: lastAsset } = await supabase
+        .from('assets')
+        .select('asset_id')
+        .order('asset_id', { ascending: false })
+        .limit(1);
+      
+      const lastId = lastAsset?.[0]?.asset_id || 'AST-000';
+      const num = parseInt(lastId.split('-')[1]) + 1;
+      const newAssetId = `AST-${num.toString().padStart(3, '0')}`;
+      
       const { error } = await supabase
         .from('assets')
         .insert([{
-          ...formData,
+          asset_id: newAssetId,
+          asset_name: formData.asset_name,
+          brand: formData.brand,
+          model: formData.model,
+          serial_number: formData.serial_number,
+          supplier: formData.supplier,
+          location: formData.location,
+          status: formData.status,
+          condition: formData.condition,
+          notes: formData.notes,
           category_id: parseInt(formData.category_id),
           id_branch: parseInt(formData.id_branch) || null,
           purchase_price: parseFloat(formData.purchase_price) || null,
