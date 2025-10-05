@@ -237,9 +237,9 @@ export default function AnalysisPage() {
         return;
       }
 
-      // Add buffer 1 day before start date for accurate calculation
+      // Add buffer 7 day before start date for accurate calculation
       const bufferDate = new Date(dateRange.startDate);
-      bufferDate.setDate(bufferDate.getDate() - 7);
+      bufferDate.setDate(bufferDate.getDate() - 30);
       const bufferDateStr = bufferDate.toISOString().split('T')[0];
 
       // Fetch ready data with batching
