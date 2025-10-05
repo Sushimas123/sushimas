@@ -218,6 +218,42 @@ export default function TransferBarangPage() {
     }
   }
 
+  const getLatestPrice = async (productId: number): Promise<number> => {
+    try {
+      // 1. Cek po_price_history (prioritas tertinggi)
+      const { data: priceHistory } = await supabase
+        .from('po_price_history')
+        .select('actual_price')
+        .eq('product_id', productId)
+        .order('received_date', { ascending: false })
+        .limit(1)
+        .single()
+      
+      if (priceHistory?.actual_price) return priceHistory.actual_price
+      
+      // 2. Cek po_items (prioritas kedua)
+      const { data: poItem } = await supabase
+        .from('po_items')
+        .select('actual_price, harga')
+        .eq('product_id', productId)
+        .not('actual_price', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+      
+      if (poItem?.actual_price) return poItem.actual_price
+      if (poItem?.harga) return poItem.harga
+      
+      // 3. Fallback ke nama_product
+      const product = products.find(p => p.id_product === productId)
+      return product?.harga || 0
+    } catch (error) {
+      console.error('Error getting latest price:', error)
+      const product = products.find(p => p.id_product === productId)
+      return product?.harga || 0
+    }
+  }
+
   const fetchTransfers = async () => {
     try {
       setLoading(true)
@@ -299,7 +335,7 @@ export default function TransferBarangPage() {
       if (editing && form.id) {
         // Mode edit - update existing transfer
         const item = validItems[0] // Ambil item pertama karena edit hanya 1 item
-        const selectedProduct = products.find(p => p.id_product === parseInt(item.id_product))
+        const latestPrice = await getLatestPrice(parseInt(item.id_product))
         
         // Get original transfer data
         const originalTransfer = transfers.find(t => t.id === form.id)
@@ -317,7 +353,7 @@ export default function TransferBarangPage() {
             cabang_tujuan_id: parseInt(form.cabang_tujuan_id),
             id_product: parseInt(item.id_product),
             jumlah: newJumlah,
-            harga_satuan: selectedProduct?.harga || 0,
+            harga_satuan: latestPrice,
             tgl_pinjam: form.tgl_pinjam,
             keterangan: form.keterangan
           })
@@ -358,20 +394,20 @@ export default function TransferBarangPage() {
         showToast('Transfer berhasil diupdate', 'success')
       } else {
         // Mode create - insert new transfers
-        const transfersData = validItems.map(item => {
-          const selectedProduct = products.find(p => p.id_product === parseInt(item.id_product))
+        const transfersData = await Promise.all(validItems.map(async item => {
+          const latestPrice = await getLatestPrice(parseInt(item.id_product))
           return {
             cabang_peminjam_id: parseInt(form.cabang_peminjam_id),
             cabang_tujuan_id: parseInt(form.cabang_tujuan_id),
             id_product: parseInt(item.id_product),
             jumlah: parseFloat(item.jumlah),
-            harga_satuan: selectedProduct?.harga || 0,
+            harga_satuan: latestPrice,
             tgl_pinjam: form.tgl_pinjam,
             tgl_barang_sampai: null,
             keterangan: form.keterangan,
             created_by: user.id_user
           }
-        })
+        }))
 
         const { error } = await supabase
           .from('transfer_barang')
@@ -795,6 +831,8 @@ export default function TransferBarangPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cabang Tujuan</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produk</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jumlah</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Harga Satuan</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tgl Pinjam</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tgl Sampai</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -805,7 +843,7 @@ export default function TransferBarangPage() {
                   {loading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i}>
-                        <td colSpan={9} className="px-6 py-4">
+                        <td colSpan={11} className="px-6 py-4">
                           <div className="animate-pulse flex space-x-4">
                             <div className="flex-1 space-y-2 py-1">
                               <div className="h-4 bg-gray-200 rounded w-3/4"></div>
@@ -816,7 +854,7 @@ export default function TransferBarangPage() {
                     ))
                   ) : transfers.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan={11} className="px-6 py-4 text-center text-gray-500">
                         Tidak ada data transfer
                       </td>
                     </tr>
@@ -837,6 +875,12 @@ export default function TransferBarangPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {transfer.jumlah} {transfer.unit_kecil}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(transfer.harga_satuan)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(transfer.total_harga)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {new Date(transfer.tgl_pinjam).toLocaleDateString('id-ID')}
@@ -936,6 +980,14 @@ export default function TransferBarangPage() {
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500">Jumlah:</span>
                         <span className="font-medium">{transfer.jumlah} {transfer.unit_kecil}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Harga Satuan:</span>
+                        <span className="font-medium">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(transfer.harga_satuan)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Total:</span>
+                        <span className="font-medium text-green-600">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(transfer.total_harga)}</span>
                       </div>
                       {transfer.tgl_barang_sampai && (
                         <div className="flex justify-between text-sm">
