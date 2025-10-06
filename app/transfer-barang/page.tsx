@@ -5,6 +5,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 import { Package, ArrowRightLeft, Edit, Trash2, Plus, RefreshCw, Filter, X, Share2, Search, ChevronDown } from 'lucide-react'
 import Layout from '../../components/Layout'
 import PageAccessControl from '../../components/PageAccessControl'
+import { canPerformActionSync } from '@/src/utils/rolePermissions'
 
 interface TransferBarang {
   id: number
@@ -136,6 +137,15 @@ function ProductSelect({ products, value, onChange, placeholder = "Pilih Produk"
 
 export default function TransferBarangPage() {
   const [transfers, setTransfers] = useState<TransferBarang[]>([])
+  const [userRole, setUserRole] = useState('')
+  
+  useEffect(() => {
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      const user = JSON.parse(userData)
+      setUserRole(user.role || 'guest')
+    }
+  }, [])
   const [branches, setBranches] = useState<Branch[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -756,14 +766,16 @@ export default function TransferBarangPage() {
                 <Filter className="h-4 w-4" />
                 <span className="hidden sm:inline">Filter</span>
               </button>
-              <button
-                onClick={() => setShowForm(true)}
-                className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex-1 sm:flex-none"
-              >
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Transfer Baru</span>
-                <span className="sm:hidden">Baru</span>
-              </button>
+              {canPerformActionSync(userRole, 'transfer-barang', 'create') && (
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex-1 sm:flex-none"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Transfer Baru</span>
+                  <span className="sm:hidden">Baru</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -913,18 +925,22 @@ export default function TransferBarangPage() {
                                 <RefreshCw className={`h-4 w-4 ${completingTransfer === transfer.id ? 'animate-spin' : ''}`} />
                               </button>
                             )}
-                            <button
-                              onClick={() => handleEdit(transfer)}
-                              className="text-blue-600 hover:text-blue-900"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirm({show: true, id: transfer.id})}
-                              className="text-red-600 hover:text-red-900"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                            {canPerformActionSync(userRole, 'transfer-barang', 'edit') && (
+                              <button
+                                onClick={() => handleEdit(transfer)}
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                            )}
+                            {canPerformActionSync(userRole, 'transfer-barang', 'delete') && (
+                              <button
+                                onClick={() => setDeleteConfirm({show: true, id: transfer.id})}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1018,18 +1034,22 @@ export default function TransferBarangPage() {
                           <RefreshCw className={`h-4 w-4 ${completingTransfer === transfer.id ? 'animate-spin' : ''}`} />
                         </button>
                       )}
-                      <button
-                        onClick={() => handleEdit(transfer)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirm({show: true, id: transfer.id})}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {canPerformActionSync(userRole, 'transfer-barang', 'edit') && (
+                        <button
+                          onClick={() => handleEdit(transfer)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                      )}
+                      {canPerformActionSync(userRole, 'transfer-barang', 'delete') && (
+                        <button
+                          onClick={() => setDeleteConfirm({show: true, id: transfer.id})}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))

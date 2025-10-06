@@ -8,7 +8,7 @@ import Layout from '../../../../components/Layout';
 import PageAccessControl from '../../../../components/PageAccessControl';
 
 export default function UploadPhotoPage() {
-  const params = useParams();
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -27,26 +27,46 @@ export default function UploadPhotoPage() {
 
   const handleUpload = async () => {
     const file = fileInputRef.current?.files?.[0];
-    if (!file || !params.id) return;
+    if (!file || !params?.id) return;
 
     setUploading(true);
     try {
-      // Convert to base64 and store directly in database (simple approach)
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target?.result as string;
-        
-        const { error } = await supabase
-          .from('assets')
-          .update({ photo_url: base64 })
-          .eq('asset_id', params.id);
+      // Get old photo URL
+      const { data: asset } = await supabase
+        .from('assets')
+        .select('photo_url')
+        .eq('asset_id', params!.id)
+        .single();
 
-        if (error) throw error;
+      // Delete old photo from storage if exists
+      if (asset?.photo_url && asset.photo_url.includes('asset-photos')) {
+        const oldFileName = asset.photo_url.split('/').pop();
+        if (oldFileName) {
+          await supabase.storage.from('asset-photos').remove([oldFileName]);
+        }
+      }
 
-        alert('Photo uploaded successfully!');
-        router.push(`/assets/${params.id}`);
-      };
-      reader.readAsDataURL(file);
+      const fileName = `${params!.id}-${Date.now()}.${file.name.split('.').pop()}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('asset-photos')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('asset-photos')
+        .getPublicUrl(fileName);
+
+      const { error: updateError } = await supabase
+        .from('assets')
+        .update({ photo_url: publicUrl })
+        .eq('asset_id', params!.id);
+
+      if (updateError) throw updateError;
+
+      alert('Photo uploaded successfully!');
+      router.push(`/assets/${params!.id}`);
     } catch (error) {
       console.error('Error uploading photo:', error);
       alert('Failed to upload photo');
@@ -65,7 +85,7 @@ export default function UploadPhotoPage() {
             </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-800">Upload Asset Photo</h1>
-              <p className="text-gray-600">Asset ID: {params.id}</p>
+              <p className="text-gray-600">Asset ID: {params?.id}</p>
             </div>
           </div>
 

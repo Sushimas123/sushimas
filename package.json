@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "migrate-photos": "tsx scripts/migrate-photos.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.2",
@@ -20,6 +21,7 @@
     "autoprefixer": "^10.4.21",
     "chart.js": "^4.5.0",
     "critters": "^0.0.23",
+    "dotenv": "^17.2.3",
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.542.0",
     "next": "15.5.2",
@@ -50,6 +52,7 @@
     "eslint-config-next": "15.5.2",
     "jest": "^30.1.2",
     "jest-environment-jsdom": "^30.1.2",
+    "tsx": "^4.19.2",
     "typescript": "^5"
   }
 }

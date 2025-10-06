@@ -472,7 +472,7 @@ export default function FinishPO() {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Invoice Number *
+                  Nomor Invoice *
                 </label>
                 <input
                   type="text"
@@ -486,7 +486,7 @@ export default function FinishPO() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Foto Barang Sampai *
+                  Foto NOTA !!!!! *
                 </label>
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
                   <input

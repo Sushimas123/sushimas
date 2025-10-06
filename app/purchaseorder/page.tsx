@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx'
 import { useSearchParams } from 'next/navigation'
 import Layout from '../../components/Layout'
 import PageAccessControl from '../../components/PageAccessControl'
-import { useCRUDPermissions } from '@/hooks/useCRUDPermissions'
+import { canPerformActionSync } from '@/src/utils/rolePermissions'
 
 
 interface PurchaseOrder {
@@ -33,8 +33,16 @@ interface FilterOptions {
 
 function PurchaseOrderPageContent() {
   const searchParams = useSearchParams()
-  const { permissions: crudPermissions } = useCRUDPermissions('purchaseorder')
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
+  const [userRole, setUserRole] = useState('')
+  
+  useEffect(() => {
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      const user = JSON.parse(userData)
+      setUserRole(user.role || 'guest')
+    }
+  }, [])
   const [stockAlerts, setStockAlerts] = useState<any[]>([])
   const [filteredStockAlerts, setFilteredStockAlerts] = useState<any[]>([])
   const [selectedBranch, setSelectedBranch] = useState('')
@@ -56,7 +64,6 @@ function PurchaseOrderPageContent() {
   const [showFilters, setShowFilters] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
-  const [userRole, setUserRole] = useState('')
   const [allowedBranches, setAllowedBranches] = useState<string[]>([])
   const [search, setSearch] = useState('')
 
@@ -740,7 +747,7 @@ function PurchaseOrderPageContent() {
                 <Download size={16} />
                 <span className="hidden md:inline">Export</span>
               </button>
-              {crudPermissions.canCreate && (
+              {canPerformActionSync(userRole, 'purchaseorder', 'create') && (
                 <a href="/purchaseorder/create" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 flex-1 md:flex-none justify-center">
                   <Plus size={16} />
                   <span className="hidden md:inline">Buat PO Baru</span>
@@ -1129,7 +1136,7 @@ function PurchaseOrderPageContent() {
                                 </a>
                               )}
 
-                              {crudPermissions.canUpdate && (
+                              {canPerformActionSync(userRole, 'purchaseorder', 'edit') && (
                                 po.status !== 'Dibatalkan' ? (
                                   <a 
                                     href={`/purchaseorder/edit?id=${po.id}`}
@@ -1147,7 +1154,7 @@ function PurchaseOrderPageContent() {
                                   </span>
                                 )
                               )}
-                              {crudPermissions.canDelete && (
+                              {canPerformActionSync(userRole, 'purchaseorder', 'delete') && (
                                 <button
                                   onClick={() => handleDeletePO(po.id, po.po_number)}
                                   className="text-red-600 hover:text-red-800 p-1 rounded"
@@ -1267,7 +1274,7 @@ function PurchaseOrderPageContent() {
                               </a>
                             )}
 
-                            {crudPermissions.canUpdate && (
+                            {canPerformActionSync(userRole, 'purchaseorder', 'edit') && (
                               po.status !== 'Dibatalkan' ? (
                                 <a 
                                   href={`/purchaseorder/edit?id=${po.id}`}
@@ -1285,7 +1292,7 @@ function PurchaseOrderPageContent() {
                                 </span>
                               )
                             )}
-                            {crudPermissions.canDelete && (
+                            {canPerformActionSync(userRole, 'purchaseorder', 'delete') && (
                               <button
                                 onClick={() => handleDeletePO(po.id, po.po_number)}
                                 className="text-red-600 hover:text-red-800 p-1 rounded"

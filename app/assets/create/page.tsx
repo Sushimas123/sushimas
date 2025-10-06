@@ -92,17 +92,6 @@ export default function CreateAssetPage() {
     setLoading(true);
 
     try {
-      let photoUrl = null;
-      
-      // Convert photo to base64 if selected
-      if (photoFile) {
-        const reader = new FileReader();
-        photoUrl = await new Promise<string>((resolve) => {
-          reader.onload = (e) => resolve(e.target?.result as string);
-          reader.readAsDataURL(photoFile);
-        });
-      }
-
       // Regenerate asset_id to avoid duplicate
       const { data: lastAsset } = await supabase
         .from('assets')
@@ -113,6 +102,25 @@ export default function CreateAssetPage() {
       const lastId = lastAsset?.[0]?.asset_id || 'AST-000';
       const num = parseInt(lastId.split('-')[1]) + 1;
       const newAssetId = `AST-${num.toString().padStart(3, '0')}`;
+
+      let photoUrl = null;
+      
+      // Upload photo to storage if selected
+      if (photoFile) {
+        const fileName = `${newAssetId}-${Date.now()}.${photoFile.name.split('.').pop()}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('asset-photos')
+          .upload(fileName, photoFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('asset-photos')
+          .getPublicUrl(fileName);
+        
+        photoUrl = publicUrl;
+      }
       
       const { error } = await supabase
         .from('assets')

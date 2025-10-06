@@ -237,6 +237,7 @@ export default function AssetDetailPage() {
                     <img 
                       src={asset.photo_url} 
                       alt={asset.asset_name}
+                      loading="lazy"
                       className="w-full h-48 object-cover rounded-lg border"
                       onError={(e) => {
                         e.currentTarget.src = '/placeholder-image.png';
