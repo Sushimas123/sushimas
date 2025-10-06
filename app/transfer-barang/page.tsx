@@ -38,6 +38,7 @@ interface Product {
   product_name: string
   unit_kecil: string
   harga: number
+  satuan_kecil: number
 }
 
 interface ProductSelectProps {
@@ -207,7 +208,7 @@ export default function TransferBarangPage() {
     try {
       const { data, error } = await supabase
         .from('nama_product')
-        .select('id_product, product_name, unit_kecil, harga')
+        .select('id_product, product_name, unit_kecil, harga, satuan_kecil')
         .eq('is_active', true)
         .order('product_name')
       
@@ -220,6 +221,9 @@ export default function TransferBarangPage() {
 
   const getLatestPrice = async (productId: number): Promise<number> => {
     try {
+      const product = products.find(p => p.id_product === productId)
+      const satuanKecil = product?.satuan_kecil || 1
+      
       // 1. Cek po_price_history (prioritas tertinggi)
       const { data: priceHistory } = await supabase
         .from('po_price_history')
@@ -229,7 +233,7 @@ export default function TransferBarangPage() {
         .limit(1)
         .single()
       
-      if (priceHistory?.actual_price) return priceHistory.actual_price
+      if (priceHistory?.actual_price) return priceHistory.actual_price / satuanKecil
       
       // 2. Cek po_items (prioritas kedua)
       const { data: poItem } = await supabase
@@ -241,16 +245,15 @@ export default function TransferBarangPage() {
         .limit(1)
         .single()
       
-      if (poItem?.actual_price) return poItem.actual_price
-      if (poItem?.harga) return poItem.harga
+      if (poItem?.actual_price) return poItem.actual_price / satuanKecil
+      if (poItem?.harga) return poItem.harga / satuanKecil
       
       // 3. Fallback ke nama_product
-      const product = products.find(p => p.id_product === productId)
-      return product?.harga || 0
+      return product?.harga ? product.harga / satuanKecil : 0
     } catch (error) {
       console.error('Error getting latest price:', error)
       const product = products.find(p => p.id_product === productId)
-      return product?.harga || 0
+      return product?.harga && product?.satuan_kecil ? product.harga / product.satuan_kecil : 0
     }
   }
 
