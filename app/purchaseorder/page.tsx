@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx'
 import { useSearchParams } from 'next/navigation'
 import Layout from '../../components/Layout'
 import PageAccessControl from '../../components/PageAccessControl'
+import { useCRUDPermissions } from '@/hooks/useCRUDPermissions'
 
 
 interface PurchaseOrder {
@@ -32,6 +33,7 @@ interface FilterOptions {
 
 function PurchaseOrderPageContent() {
   const searchParams = useSearchParams()
+  const { permissions: crudPermissions } = useCRUDPermissions('purchaseorder')
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
   const [stockAlerts, setStockAlerts] = useState<any[]>([])
   const [filteredStockAlerts, setFilteredStockAlerts] = useState<any[]>([])
@@ -738,11 +740,13 @@ function PurchaseOrderPageContent() {
                 <Download size={16} />
                 <span className="hidden md:inline">Export</span>
               </button>
-              <a href="/purchaseorder/create" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 flex-1 md:flex-none justify-center">
-                <Plus size={16} />
-                <span className="hidden md:inline">Buat PO Baru</span>
-                <span className="md:hidden">PO Baru</span>
-              </a>
+              {crudPermissions.canCreate && (
+                <a href="/purchaseorder/create" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 flex-1 md:flex-none justify-center">
+                  <Plus size={16} />
+                  <span className="hidden md:inline">Buat PO Baru</span>
+                  <span className="md:hidden">PO Baru</span>
+                </a>
+              )}
             </div>
           </div>
 
@@ -1125,29 +1129,33 @@ function PurchaseOrderPageContent() {
                                 </a>
                               )}
 
-                              {po.status !== 'Dibatalkan' ? (
-                                <a 
-                                  href={`/purchaseorder/edit?id=${po.id}`}
-                                  className="text-orange-600 hover:text-orange-800 p-1 rounded" 
-                                  title="Edit PO"
-                                >
-                                  <Edit size={14} />
-                                </a>
-                              ) : (
-                                <span 
-                                  className="text-gray-400 p-1 rounded cursor-not-allowed" 
-                                  title="PO dibatalkan tidak dapat diedit"
-                                >
-                                  <Edit size={14} />
-                                </span>
+                              {crudPermissions.canUpdate && (
+                                po.status !== 'Dibatalkan' ? (
+                                  <a 
+                                    href={`/purchaseorder/edit?id=${po.id}`}
+                                    className="text-orange-600 hover:text-orange-800 p-1 rounded" 
+                                    title="Edit PO"
+                                  >
+                                    <Edit size={14} />
+                                  </a>
+                                ) : (
+                                  <span 
+                                    className="text-gray-400 p-1 rounded cursor-not-allowed" 
+                                    title="PO dibatalkan tidak dapat diedit"
+                                  >
+                                    <Edit size={14} />
+                                  </span>
+                                )
                               )}
-                              <button
-                                onClick={() => handleDeletePO(po.id, po.po_number)}
-                                className="text-red-600 hover:text-red-800 p-1 rounded"
-                                title="Delete PO"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                              {crudPermissions.canDelete && (
+                                <button
+                                  onClick={() => handleDeletePO(po.id, po.po_number)}
+                                  className="text-red-600 hover:text-red-800 p-1 rounded"
+                                  title="Delete PO"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1259,29 +1267,33 @@ function PurchaseOrderPageContent() {
                               </a>
                             )}
 
-                            {po.status !== 'Dibatalkan' ? (
-                              <a 
-                                href={`/purchaseorder/edit?id=${po.id}`}
-                                className="text-orange-600 hover:text-orange-800 p-1 rounded" 
-                                title="Edit PO"
-                              >
-                                <Edit size={20} />
-                              </a>
-                            ) : (
-                              <span 
-                                className="text-gray-400 p-1 rounded cursor-not-allowed" 
-                                title="PO dibatalkan tidak dapat diedit"
-                              >
-                                <Edit size={20} />
-                              </span>
+                            {crudPermissions.canUpdate && (
+                              po.status !== 'Dibatalkan' ? (
+                                <a 
+                                  href={`/purchaseorder/edit?id=${po.id}`}
+                                  className="text-orange-600 hover:text-orange-800 p-1 rounded" 
+                                  title="Edit PO"
+                                >
+                                  <Edit size={20} />
+                                </a>
+                              ) : (
+                                <span 
+                                  className="text-gray-400 p-1 rounded cursor-not-allowed" 
+                                  title="PO dibatalkan tidak dapat diedit"
+                                >
+                                  <Edit size={20} />
+                                </span>
+                              )
                             )}
-                            <button
-                              onClick={() => handleDeletePO(po.id, po.po_number)}
-                              className="text-red-600 hover:text-red-800 p-1 rounded"
-                              title="Delete PO"
-                            >
-                              <Trash2 size={20} />
-                            </button>
+                            {crudPermissions.canDelete && (
+                              <button
+                                onClick={() => handleDeletePO(po.id, po.po_number)}
+                                className="text-red-600 hover:text-red-800 p-1 rounded"
+                                title="Delete PO"
+                              >
+                                <Trash2 size={20} />
+                              </button>
+                            )}
                           </div>
                         </div>
                       )}
