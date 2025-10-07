@@ -5,6 +5,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 import { Package, ArrowLeft, Save, Camera, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
+import { lockPO, unlockPO, checkPOLock } from '@/src/utils/poLock'
 
 interface POData {
   id: number
@@ -45,23 +46,43 @@ export default function FinishPO() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const poId = urlParams.get('id')
-    console.log('URL params:', window.location.search)
-    console.log('PO ID from URL:', poId)
     
     if (poId && !isNaN(parseInt(poId))) {
-      fetchPOData(parseInt(poId))
+      initializePage(parseInt(poId))
     } else {
-      console.error('Invalid or missing PO ID')
-      alert('PO ID tidak ditemukan. Akan diarahkan ke halaman Purchase Order.')
+      alert('PO ID tidak ditemukan')
       window.location.href = '/purchaseorder'
     }
     
     return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl)
-      }
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+      // Unlock PO when leaving page
+      const poIdNum = parseInt(poId || '0')
+      if (poIdNum) unlockPO(poIdNum)
     }
   }, [])
+
+  const initializePage = async (poId: number) => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    
+    // Check if PO is locked
+    const lockStatus = await checkPOLock(poId)
+    if (lockStatus.isLocked) {
+      alert(`PO sedang diproses oleh ${lockStatus.lockedBy}. Silakan coba lagi nanti.`)
+      window.location.href = '/purchaseorder'
+      return
+    }
+    
+    // Lock the PO
+    const lockResult = await lockPO(poId, user.id_user, user.nama_lengkap || user.username)
+    if (!lockResult.success) {
+      alert(lockResult.message)
+      window.location.href = '/purchaseorder'
+      return
+    }
+    
+    fetchPOData(poId)
+  }
 
   const fetchPOData = async (poId: number) => {
     try {
@@ -378,8 +399,10 @@ export default function FinishPO() {
         }
       }
 
+      // Unlock PO after successful submission
+      await unlockPO(poData.id)
+      
       alert('Data barang sampai berhasil disimpan ke barang masuk!')
-      // Redirect to barang masuk page to see the results
       window.location.href = '/purchaseorder/barang_masuk'
     } catch (error) {
       console.error('Error saving:', error)

@@ -102,7 +102,7 @@ export default function PermissionsDBPage() {
         'finance-purchase-orders', 'finance-aging-pivot', 'finance-aging-report',
         'finance-bulk-payments', 'purchaseorder-barang-masuk', 'purchaseorder-received-preview',
         'purchaseorder-submit-approval', 'pettycash-expenses', 'pettycash-dashboard',
-        'stock-opname', 'inventory', 'reports', 'settings'
+        'stock-opname', 'inventory', 'reports', 'settings', 'fix-data'
       ]
       
       // Also try database tables that might exist
@@ -168,7 +168,7 @@ export default function PermissionsDBPage() {
         'finance-purchase-orders', 'finance-aging-pivot', 'finance-aging-report',
         'finance-bulk-payments', 'purchaseorder-barang-masuk', 'purchaseorder-received-preview',
         'purchaseorder-submit-approval', 'pettycash-expenses', 'pettycash-dashboard',
-        'stock-opname', 'inventory', 'reports', 'settings'
+        'stock-opname', 'inventory', 'reports', 'settings', 'fix-data'
       ]
       
       allPages.forEach(page => {

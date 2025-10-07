@@ -19,7 +19,7 @@ export const getPagePermissions = async (userRole: string): Promise<string[]> =>
   }
   
   // Return ongoing request if exists
-  if (ongoingRequests[cacheKey]) {
+  if (cacheKey in ongoingRequests) {
     return ongoingRequests[cacheKey]
   }
   
@@ -103,9 +103,9 @@ const getDefaultPagePermissions = (userRole: string): string[] => {
     case 'admin':
       return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'branches', 'categories', 'gudang-final', 'product_name', 'product_settings', 'produksi_detail', 'recipes', 'stock_opname_batch', 'supplier', 'audit-log', 'crud-permissions', 'pivot', 'price-history', 'purchaseorder', 'barang_masuk', 'stock-alert', 'transfer_barang', 'transfer-barang', 'assets', 'finance', 'aging-report', 'pettycash']
     case 'finance':
-      return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'gudang-final', 'product_settings', 'produksi_detail', 'stock_opname_batch']
+      return ['dashboard', 'esb', 'ready', 'users', 'produksi', 'analysis', 'gudang-final', 'product_settings', 'produksi_detail', 'stock_opname_batch', 'purchaseorder', 'fix-data', 'finance', 'aging-report', 'pettycash']
     case 'pic_branch':
-      return ['dashboard', 'esb', 'ready', 'produksi', 'analysis', 'gudang-final', 'stock_opname_batch', 'produksi_detail', 'assets']
+      return ['dashboard', 'esb', 'ready', 'produksi', 'analysis', 'gudang-final', 'stock_opname_batch', 'produksi_detail', 'assets', 'purchaseorder', 'fix-data', 'pettycash']
     case 'staff':
       return ['dashboard', 'esb', 'ready', 'produksi', 'gudang-final', 'stock_opname_batch', 'assets']
     default:
@@ -133,6 +133,7 @@ const getDefaultCrudPermissions = (userRole: string): { [key: string]: { create:
 export const clearPermissionsCache = () => {
   permissionsCache = {}
   cacheExpiry = 0
+  ongoingRequests = {}
 }
 
 // Check if user can access page (async version)
