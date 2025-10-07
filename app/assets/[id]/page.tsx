@@ -16,11 +16,11 @@ export default function AssetDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (params.id) {
+    if (params?.id) {
       fetchAssetDetail(params.id as string);
       fetchMaintenanceHistory(params.id as string);
     }
-  }, [params.id]);
+  }, [params?.id]);
 
   const fetchAssetDetail = async (assetId: string) => {
     try {
@@ -33,6 +33,9 @@ export default function AssetDetailPage() {
             category_type,
             depreciation_rate,
             useful_life
+          ),
+          branches (
+            nama_branch
           )
         `)
         .eq('asset_id', assetId)
@@ -166,6 +169,10 @@ export default function AssetDetailPage() {
                     <p className="font-medium">{asset.location}</p>
                   </div>
                   <div>
+                    <label className="text-sm text-gray-600">Branch</label>
+                    <p className="font-medium">{asset.branches?.nama_branch || '-'}</p>
+                  </div>
+                  <div>
                     <label className="text-sm text-gray-600">Supplier</label>
                     <p className="font-medium">{asset.supplier || '-'}</p>
                   </div>
@@ -267,7 +274,6 @@ export default function AssetDetailPage() {
               {/* Financial Info */}
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold mb-4 flex items-center">
-                  <DollarSign size={20} className="mr-2" />
                   Financial Information
                 </h3>
                 <div className="space-y-3">

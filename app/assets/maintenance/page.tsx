@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
-import { Calendar, Wrench, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { Calendar, Wrench, AlertTriangle, CheckCircle, Clock, Edit2, Trash2 } from 'lucide-react';
 import Layout from '../../../components/Layout';
 import PageAccessControl from '../../../components/PageAccessControl';
 import { AssetMaintenance, Asset } from '@/src/types/assets';
@@ -13,6 +13,10 @@ export default function MaintenancePage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [assetSearch, setAssetSearch] = useState('');
+  const [showAssetDropdown, setShowAssetDropdown] = useState(false);
   const [formData, setFormData] = useState({
     asset_id: '',
     maintenance_date: new Date().toISOString().split('T')[0],
@@ -43,7 +47,10 @@ export default function MaintenancePage() {
           .order('maintenance_date', { ascending: false }),
         supabase
           .from('assets')
-          .select('asset_id, asset_name, location')
+          .select(`
+            *,
+            branches(nama_branch)
+          `)
           .eq('status', 'ACTIVE')
           .order('asset_name')
       ]);
@@ -105,6 +112,7 @@ export default function MaintenancePage() {
       
       alert('Maintenance record added successfully!');
       setShowAddForm(false);
+      setAssetSearch('');
       setFormData({
         asset_id: '',
         maintenance_date: new Date().toISOString().split('T')[0],
@@ -115,6 +123,74 @@ export default function MaintenancePage() {
         next_maintenance_date: '',
         status: 'SCHEDULED'
       });
+      fetchData();
+    } catch (error: any) {
+      alert('Error: ' + error.message);
+    }
+  };
+
+  const handleEdit = (maintenance: AssetMaintenance) => {
+    setEditingId(maintenance.maintenance_id);
+    setFormData({
+      asset_id: maintenance.asset_id,
+      maintenance_date: maintenance.maintenance_date,
+      maintenance_type: maintenance.maintenance_type,
+      description: maintenance.description || '',
+      cost: maintenance.cost.toString(),
+      technician: maintenance.technician || '',
+      next_maintenance_date: maintenance.next_maintenance_date || '',
+      status: maintenance.status
+    });
+    setAssetSearch(maintenance.assets?.asset_name || '');
+    setShowEditForm(true);
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase
+        .from('asset_maintenance')
+        .update({
+          ...formData,
+          cost: parseFloat(formData.cost) || 0,
+          next_maintenance_date: formData.next_maintenance_date || null
+        })
+        .eq('maintenance_id', editingId);
+
+      if (error) throw error;
+      
+      alert('Maintenance record updated successfully!');
+      setShowEditForm(false);
+      setEditingId(null);
+      setAssetSearch('');
+      setFormData({
+        asset_id: '',
+        maintenance_date: new Date().toISOString().split('T')[0],
+        maintenance_type: 'ROUTINE',
+        description: '',
+        cost: '',
+        technician: '',
+        next_maintenance_date: '',
+        status: 'SCHEDULED'
+      });
+      fetchData();
+    } catch (error: any) {
+      alert('Error: ' + error.message);
+    }
+  };
+
+  const handleDelete = async (maintenanceId: number) => {
+    if (!confirm('Are you sure you want to delete this maintenance record?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('asset_maintenance')
+        .delete()
+        .eq('maintenance_id', maintenanceId);
+
+      if (error) throw error;
+      
+      alert('Maintenance record deleted successfully!');
       fetchData();
     } catch (error: any) {
       alert('Error: ' + error.message);
@@ -275,6 +351,7 @@ export default function MaintenancePage() {
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Cost</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Next Maintenance</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Status</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -310,6 +387,24 @@ export default function MaintenancePage() {
                           </select>
                         </div>
                       </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleEdit(maintenance)}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                            title="Edit"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(maintenance.maintenance_id)}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -319,25 +414,54 @@ export default function MaintenancePage() {
 
           {/* Add Maintenance Modal */}
           {showAddForm && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowAddForm(false)}>
+              <div className="bg-white rounded-lg p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
                 <h2 className="text-lg font-semibold mb-4">Add Maintenance Record</h2>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
+                  <div className="relative">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Asset</label>
-                    <select
-                      value={formData.asset_id}
-                      onChange={(e) => setFormData({...formData, asset_id: e.target.value})}
+                    <input
+                      type="text"
+                      value={assetSearch}
+                      onChange={(e) => {
+                        setAssetSearch(e.target.value);
+                        setShowAssetDropdown(true);
+                        if (!e.target.value) setFormData({...formData, asset_id: ''});
+                      }}
+                      onFocus={() => setShowAssetDropdown(true)}
+                      placeholder="Search asset..."
                       className="w-full px-3 py-2 border rounded-lg"
-                      required
-                    >
-                      <option value="">Select Asset</option>
-                      {assets.map(asset => (
-                        <option key={asset.asset_id} value={asset.asset_id}>
-                          {asset.asset_name} ({asset.location})
-                        </option>
-                      ))}
-                    </select>
+                      required={!formData.asset_id}
+                    />
+                    {formData.asset_id && (
+                      <div className="mt-1 text-xs text-gray-600 bg-blue-50 px-2 py-1 rounded">
+                        🏢 {assets.find(a => a.asset_id === formData.asset_id)?.branches?.nama_branch || 'Unknown Branch'}
+                      </div>
+                    )}
+                    {showAssetDropdown && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {assets
+                          .filter(asset => 
+                            asset.asset_name.toLowerCase().includes(assetSearch.toLowerCase()) ||
+                            asset.location.toLowerCase().includes(assetSearch.toLowerCase())
+                          )
+                          .map(asset => (
+                            <div
+                              key={asset.asset_id}
+                              onClick={() => {
+                                setFormData({...formData, asset_id: asset.asset_id});
+                                setAssetSearch(`${asset.asset_name}`);
+                                setShowAssetDropdown(false);
+                              }}
+                              className="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
+                            >
+                              <div className="font-medium text-sm">{asset.asset_name}</div>
+                              <div className="text-xs text-gray-500">🏢 {asset.branches?.nama_branch || 'Unknown Branch'}</div>
+                            </div>
+                          ))
+                        }
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -418,6 +542,146 @@ export default function MaintenancePage() {
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                     >
                       Save
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Edit Maintenance Modal */}
+          {showEditForm && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowEditForm(false)}>
+              <div className="bg-white rounded-lg p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+                <h2 className="text-lg font-semibold mb-4">Edit Maintenance Record</h2>
+                <form onSubmit={handleUpdate} className="space-y-4">
+                  <div className="relative">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Asset</label>
+                    <input
+                      type="text"
+                      value={assetSearch}
+                      onChange={(e) => {
+                        setAssetSearch(e.target.value);
+                        setShowAssetDropdown(true);
+                        if (!e.target.value) setFormData({...formData, asset_id: ''});
+                      }}
+                      onFocus={() => setShowAssetDropdown(true)}
+                      placeholder="Search asset..."
+                      className="w-full px-3 py-2 border rounded-lg"
+                      required={!formData.asset_id}
+                    />
+                    {formData.asset_id && (
+                      <div className="mt-1 text-xs text-gray-600 bg-blue-50 px-2 py-1 rounded">
+                        🏢 {assets.find(a => a.asset_id === formData.asset_id)?.branches?.nama_branch || 'Unknown Branch'}
+                      </div>
+                    )}
+                    {showAssetDropdown && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {assets
+                          .filter(asset => 
+                            asset.asset_name.toLowerCase().includes(assetSearch.toLowerCase()) ||
+                            asset.location.toLowerCase().includes(assetSearch.toLowerCase())
+                          )
+                          .map(asset => (
+                            <div
+                              key={asset.asset_id}
+                              onClick={() => {
+                                setFormData({...formData, asset_id: asset.asset_id});
+                                setAssetSearch(`${asset.asset_name}`);
+                                setShowAssetDropdown(false);
+                              }}
+                              className="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
+                            >
+                              <div className="font-medium text-sm">{asset.asset_name}</div>
+                              <div className="text-xs text-gray-500">🏢 {asset.branches?.nama_branch || 'Unknown Branch'}</div>
+                            </div>
+                          ))
+                        }
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Maintenance Type</label>
+                    <select
+                      value={formData.maintenance_type}
+                      onChange={(e) => setFormData({...formData, maintenance_type: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    >
+                      <option value="ROUTINE">Routine</option>
+                      <option value="REPAIR">Repair</option>
+                      <option value="OVERHAUL">Overhaul</option>
+                      <option value="CLEANING">Cleaning</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <input
+                      type="date"
+                      value={formData.maintenance_date}
+                      onChange={(e) => setFormData({...formData, maintenance_date: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Cost</label>
+                    <input
+                      type="number"
+                      value={formData.cost}
+                      onChange={(e) => setFormData({...formData, cost: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Technician</label>
+                    <input
+                      type="text"
+                      value={formData.technician}
+                      onChange={(e) => setFormData({...formData, technician: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Next Maintenance Date</label>
+                    <input
+                      type="date"
+                      value={formData.next_maintenance_date}
+                      onChange={(e) => setFormData({...formData, next_maintenance_date: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-4 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowEditForm(false);
+                        setEditingId(null);
+                      }}
+                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Update
                     </button>
                   </div>
                 </form>
