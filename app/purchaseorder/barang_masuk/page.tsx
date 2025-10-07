@@ -91,6 +91,7 @@ export default function BarangMasukPage() {
   const [showFilter, setShowFilter] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_gudang'>('all')
+  const [processingItems, setProcessingItems] = useState<Set<number>>(new Set())
   const itemsPerPage = 20
 
   useEffect(() => {
@@ -448,9 +449,17 @@ export default function BarangMasukPage() {
   }
 
   const handleMasukGudang = async (item: BarangMasuk) => {
+    // Prevent double click
+    if (processingItems.has(item.id)) {
+      return
+    }
+    
     if (!confirm(`Masukkan barang ${item.product_name} ke gudang?`)) {
       return
     }
+
+    // Mark as processing
+    setProcessingItems(prev => new Set(prev).add(item.id))
 
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}')
@@ -553,6 +562,13 @@ export default function BarangMasukPage() {
       fetchBarangMasuk() // Refresh data
     } catch (error) {
       alert('Gagal memasukkan barang ke gudang: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    } finally {
+      // Remove from processing
+      setProcessingItems(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(item.id)
+        return newSet
+      })
     }
   }
 
@@ -794,13 +810,15 @@ export default function BarangMasukPage() {
                                   </a>
                                   <button
                                     onClick={() => handleMasukGudang(item)}
-                                    disabled={!item.updated_at}
+                                    disabled={!item.updated_at || processingItems.has(item.id)}
                                     className={`p-1 rounded ${
-                                      item.updated_at 
+                                      processingItems.has(item.id)
+                                        ? 'text-gray-400 cursor-wait'
+                                        : item.updated_at 
                                         ? 'text-blue-600 hover:text-blue-800' 
                                         : 'text-gray-400 cursor-not-allowed'
                                     }`}
-                                    title={item.updated_at ? "Masuk Gudang" : "Harus update data terlebih dahulu"}
+                                    title={processingItems.has(item.id) ? "Processing..." : item.updated_at ? "Masuk Gudang" : "Harus update data terlebih dahulu"}
                                   >
                                     <Package size={12} />
                                   </button>
@@ -936,16 +954,18 @@ export default function BarangMasukPage() {
                                     </a>
                                     <button
                                       onClick={() => handleMasukGudang(item)}
-                                      disabled={!item.updated_at}
+                                      disabled={!item.updated_at || processingItems.has(item.id)}
                                       className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
-                                        item.updated_at 
+                                        processingItems.has(item.id)
+                                          ? 'bg-gray-400 text-white cursor-wait'
+                                          : item.updated_at 
                                           ? 'bg-blue-600 text-white hover:bg-blue-700' 
                                           : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                       }`}
-                                      title={item.updated_at ? "Masuk Gudang" : "Harus update data terlebih dahulu"}
+                                      title={processingItems.has(item.id) ? "Processing..." : item.updated_at ? "Masuk Gudang" : "Harus update data terlebih dahulu"}
                                     >
                                       <Package size={12} />
-                                      Masuk Gudang
+                                      {processingItems.has(item.id) ? 'Processing...' : 'Masuk Gudang'}
                                     </button>
                                   </div>
                                 ) : (

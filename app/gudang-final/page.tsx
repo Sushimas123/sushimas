@@ -66,6 +66,7 @@ function GudangFinalContent() {
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [subCategoryFilter, setSubCategoryFilter] = useState('');
   const [branchFilter, setBranchFilter] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
@@ -75,7 +76,7 @@ function GudangFinalContent() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, dateFilter, branchFilter, subCategoryFilter]);
+  }, [searchTerm, dateFilter, branchFilter, categoryFilter, subCategoryFilter]);
   
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -524,10 +525,12 @@ function GudangFinalContent() {
         (item.cabang || '').toLowerCase().includes(branchFilter.toLowerCase());
       
       const product = products.find(p => p.id_product === item.id_product);
+      const itemCategory = product?.category || '';
       const itemSubCategory = product?.sub_category || '';
+      const matchesCategory = !categoryFilter || itemCategory.toLowerCase().includes(categoryFilter.toLowerCase());
       const matchesSubCategory = !subCategoryFilter || itemSubCategory.toLowerCase().includes(subCategoryFilter.toLowerCase());
       
-      return matchesSearch && matchesDate && matchesBranch && matchesSubCategory;
+      return matchesSearch && matchesDate && matchesBranch && matchesCategory && matchesSubCategory;
     });
 
     if (sortConfig) {
@@ -609,7 +612,7 @@ function GudangFinalContent() {
       </div>
 
       <div className="bg-white p-1 rounded-lg shadow mb-1">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-1 mb-2">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-1 mb-2">
           <input
             type="text"
             placeholder="Search..."
@@ -633,6 +636,21 @@ function GudangFinalContent() {
               <option key={cabang.kode_branch} value={cabang.nama_branch}>
                 {cabang.nama_branch}
               </option>
+            ))}
+          </select>
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="border px-2 py-1 rounded-md text-xs"
+          >
+            <option value="">All Categories</option>
+            {[...new Set(
+              gudang.map(g => {
+                const product = products.find(p => p.id_product === g.id_product);
+                return product?.category || '';
+              }).filter(Boolean)
+            )].sort().map(category => (
+              <option key={category} value={category}>{category}</option>
             ))}
           </select>
           <select
