@@ -34,14 +34,14 @@ function RecentActivity() {
       const [poData, barangData, prodData, pettyCashData] = await Promise.all([
         supabase.from('purchase_orders').select('po_number, created_at, status').order('created_at', { ascending: false }).limit(3),
         supabase.from('barang_masuk').select('id_barang, created_at, nama_product(product_name)').order('created_at', { ascending: false }).limit(2),
-        supabase.from('produksi').select('nama_produk, created_at, status').order('created_at', { ascending: false }).limit(2),
+        supabase.from('produksi').select('production_no, created_at, id_product, nama_product(product_name)').order('created_at', { ascending: false }).limit(2),
         supabase.from('petty_cash_requests').select('purpose, created_at, status').order('created_at', { ascending: false }).limit(2)
       ])
 
       const allActivities = [
         ...(poData.data?.map(po => ({ action: 'PO Dibuat', item: po.po_number, time: formatTimeAgo(po.created_at), type: 'success', href: '/purchaseorder' })) || []),
         ...(barangData.data?.map(bm => ({ action: 'Barang Masuk', item: (bm.nama_product as any)?.product_name || 'Product', time: formatTimeAgo(bm.created_at), type: 'info', href: '/purchaseorder/barang_masuk' })) || []),
-        ...(prodData.data?.map(prod => ({ action: prod.status === 'completed' ? 'Produksi Selesai' : 'Produksi Dimulai', item: prod.nama_produk, time: formatTimeAgo(prod.created_at), type: 'info', href: '/produksi' })) || []),
+        ...(prodData.data?.map(prod => ({ action: 'Produksi', item: (prod.nama_product as any)?.product_name || prod.production_no, time: formatTimeAgo(prod.created_at), type: 'info', href: '/produksi' })) || []),
         ...(pettyCashData.data?.map(pc => ({ action: 'Petty Cash Request', item: pc.purpose, time: formatTimeAgo(pc.created_at), type: 'warning', href: '/pettycash' })) || [])
       ]
 
