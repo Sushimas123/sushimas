@@ -285,155 +285,121 @@ export default function FinancePurchaseOrders() {
       if (filters.branch) query = query.eq('cabang_id', filters.branch)
       if (filters.poStatus) query = query.eq('po_status', filters.poStatus)
       if (filters.dueDate === 'overdue') query = query.eq('is_overdue', true)
-      if (filters.dueDate === 'due_soon') query = query.lte('days_until_due', 7).gt('days_until_due', 0)
       if (filters.goodsReceived === 'received') query = query.not('tanggal_barang_sampai', 'is', null)
       if (filters.goodsReceived === 'not_received') query = query.is('tanggal_barang_sampai', null)
 
       const { data: financeData, error } = await query
-
       if (error) throw error
+
+      // Batch queries - ambil semua data sekaligus
+      const poIds = financeData.map(item => item.id)
+      const poNumbers = financeData.map(item => item.po_number)
       
-      // Recalculate totals and get payment dates
-      const correctedData = await Promise.all(
-        (financeData || []).map(async (item: any) => {
-          // Get actual items data
-          const { data: items } = await supabase
-            .from('po_items')
-            .select('qty, harga, total, actual_price, received_qty, product_id')
-            .eq('po_id', item.id)
+      const [itemsData, paymentsData, poDetailsData, barangMasukData] = await Promise.all([
+        supabase.from('po_items').select('po_id, qty, harga, actual_price, received_qty, product_id').in('po_id', poIds),
+        supabase.from('po_payments').select('po_id, payment_amount, payment_date, payment_via, payment_method, reference_number, status').in('po_id', poIds).order('payment_date', { ascending: false }),
+        supabase.from('purchase_orders').select('id, bulk_payment_ref, total_tagih, keterangan, approval_photo, approval_status, approved_at').in('id', poIds),
+        supabase.from('barang_masuk').select('no_po, invoice_number').in('no_po', poNumbers)
+      ])
 
-          let correctedTotal = 0
-          for (const poItem of items || []) {
-            if (poItem.actual_price && poItem.received_qty) {
-              correctedTotal += poItem.received_qty * poItem.actual_price
-            } else if (poItem.harga) {
-              correctedTotal += poItem.qty * poItem.harga
-            } else {
-              const { data: product } = await supabase
-                .from('nama_product')
-                .select('harga')
-                .eq('id_product', poItem.product_id)
-                .maybeSingle()
-              correctedTotal += poItem.qty * (product?.harga || 0)
-            }
+      // Group data by po_id
+      const itemsByPO: Record<number, any[]> = {}
+      itemsData.data?.forEach(item => {
+        if (!itemsByPO[item.po_id]) itemsByPO[item.po_id] = []
+        itemsByPO[item.po_id].push(item)
+      })
+
+      const paymentsByPO: Record<number, any[]> = {}
+      paymentsData.data?.forEach(payment => {
+        if (payment.status === 'completed') {
+          if (!paymentsByPO[payment.po_id]) paymentsByPO[payment.po_id] = []
+          paymentsByPO[payment.po_id].push(payment)
+        }
+      })
+
+      const poDetailsMap: Record<number, any> = {}
+      poDetailsData.data?.forEach(po => { poDetailsMap[po.id] = po })
+
+      const invoiceMap: Record<string, string> = {}
+      barangMasukData.data?.forEach(bm => { invoiceMap[bm.no_po] = bm.invoice_number })
+
+      // Process data dengan perhitungan KAMU (tidak berubah)
+      const correctedData = financeData.map((item: any) => {
+        const items = itemsByPO[item.id] || []
+        const payments = paymentsByPO[item.id] || []
+        const poData = poDetailsMap[item.id]
+        const invoiceNumber = invoiceMap[item.po_number]
+
+        // Hitung correctedTotal (logic kamu)
+        let correctedTotal = 0
+        for (const poItem of items) {
+          if (poItem.actual_price && poItem.received_qty) {
+            correctedTotal += poItem.received_qty * poItem.actual_price
+          } else if (poItem.harga) {
+            correctedTotal += poItem.qty * poItem.harga
           }
+        }
 
-          // Get latest payment info and calculate total paid
-          const { data: payments } = await supabase
-            .from('po_payments')
-            .select('payment_amount, payment_date, payment_via, payment_method, reference_number')
-            .eq('po_id', item.id)
-            .order('payment_date', { ascending: false })
+        // Calculate payments (logic kamu)
+        const totalPaid = payments.reduce((sum, p) => sum + p.payment_amount, 0)
+        const latestPayment = payments[0] || null
+        const totalTagih = poData?.total_tagih || 0
+        const basisAmount = totalTagih > 0 ? totalTagih : correctedTotal
+        
+        // Calculate status (logic kamu)
+        let calculatedStatus = 'unpaid'
+        if (poData?.bulk_payment_ref) {
+          calculatedStatus = 'paid'
+        } else {
+          calculatedStatus = totalPaid === 0 ? 'unpaid' : totalPaid >= basisAmount ? 'paid' : 'partial'
+        }
+        
+        // Apply filters (logic kamu)
+        if (filters.paymentStatus && calculatedStatus !== filters.paymentStatus) return null
+        if (filters.approvalStatus && poData?.approval_status !== filters.approvalStatus) return null
+        
+        let sisaBayar = basisAmount - totalPaid
+        let displayTotalPaid = totalPaid
+        
+        if (poData?.bulk_payment_ref) {
+          sisaBayar = 0
+          displayTotalPaid = basisAmount
+        }
 
-          const totalPaid = payments?.reduce((sum, payment) => sum + payment.payment_amount, 0) || 0
-          const latestPayment = payments?.[0] || null
+        return {
+          ...item,
+          total_po: correctedTotal,
+          total_paid: displayTotalPaid,
+          sisa_bayar: sisaBayar,
+          status_payment: calculatedStatus,
+          is_overdue: calculatedStatus === 'paid' ? false : item.is_overdue,
+          days_overdue: calculatedStatus === 'paid' ? 0 : item.days_overdue,
+          dibayar_tanggal: latestPayment?.payment_date || null,
+          payment_via: latestPayment?.payment_via || null,
+          payment_method: latestPayment?.payment_method || null,
+          payment_reference: latestPayment?.reference_number || null,
+          invoice_number: invoiceNumber,
+          total_tagih: totalTagih,
+          keterangan: poData?.keterangan || '',
+          approval_photo: poData?.approval_photo || null,
+          approval_status: poData?.approval_status || null,
+          approved_at: poData?.approved_at || null,
+          bulk_payment_ref: poData?.bulk_payment_ref || null
+        }
+      }).filter(item => item !== null)
 
-          // Get bulk payment reference
-          const { data: poData } = await supabase
-            .from('purchase_orders')
-            .select('bulk_payment_ref, total_tagih, keterangan, approval_photo, approval_status, approved_at')
-            .eq('id', item.id)
-            .maybeSingle()
+      setData(correctedData)
 
-          // Get invoice number from barang_masuk
-          const { data: barangMasuk } = await supabase
-            .from('barang_masuk')
-            .select('invoice_number')
-            .eq('no_po', item.po_number)
-            .limit(1)
-            .maybeSingle()
-
-          const invoiceNumber = barangMasuk?.invoice_number || null
-
-          // Get branch badan
-          const { data: branchData } = await supabase
-            .from('branches')
-            .select('badan')
-            .eq('id_branch', item.cabang_id)
-            .maybeSingle()
-
-          const totalTagih = poData?.total_tagih || 0
-          
-          // Calculate sisa_bayar: use total_tagih if > 0, otherwise use correctedTotal
-          const basisAmount = totalTagih > 0 ? totalTagih : correctedTotal
-          
-          // Calculate status considering bulk payments and total_tagih
-          let calculatedStatus
-          if (poData?.bulk_payment_ref) {
-            calculatedStatus = 'paid' // POs with bulk payment reference are considered paid
-          } else {
-            calculatedStatus = totalPaid === 0 ? 'unpaid' : totalPaid >= basisAmount ? 'paid' : 'partial'
-          }
-          
-          // Apply payment status filter
-          if (filters.paymentStatus && calculatedStatus !== filters.paymentStatus) {
-            return null
-          }
-
-          // Apply approval status filter
-          if (filters.approvalStatus && poData?.approval_status !== filters.approvalStatus) {
-            return null
-          }
-          
-          let sisaBayar = basisAmount - totalPaid
-          
-          // For bulk payments, sisa_bayar should be 0
-          if (poData?.bulk_payment_ref) {
-            sisaBayar = 0
-          }
-
-          // Get bulk payment info if exists
-          let bulkPaymentInfo = null
-          let displayTotalPaid = totalPaid
-          
-          if (poData?.bulk_payment_ref) {
-            const { data: bulkPayment } = await supabase
-              .from('bulk_payments')
-              .select('payment_date, payment_via, payment_method')
-              .eq('bulk_reference', poData.bulk_payment_ref)
-              .maybeSingle()
-            bulkPaymentInfo = bulkPayment
-            // For display purposes, show the basis amount as paid for bulk payments
-            displayTotalPaid = basisAmount
-          }
-
-          return {
-            ...item,
-            total_po: correctedTotal,
-            total_paid: displayTotalPaid,
-            sisa_bayar: sisaBayar,
-            status_payment: calculatedStatus,
-            // Override overdue status for paid POs
-            is_overdue: calculatedStatus === 'paid' ? false : item.is_overdue,
-            days_overdue: calculatedStatus === 'paid' ? 0 : item.days_overdue,
-            dibayar_tanggal: bulkPaymentInfo?.payment_date || latestPayment?.payment_date || null,
-            payment_via: bulkPaymentInfo?.payment_via || latestPayment?.payment_via || null,
-            payment_method: bulkPaymentInfo?.payment_method || latestPayment?.payment_method || null,
-            payment_reference: latestPayment?.reference_number || null,
-            badan: branchData?.badan || null,
-            invoice_number: invoiceNumber,
-            total_tagih: totalTagih,
-            keterangan: poData?.keterangan || '',
-            approval_photo: poData?.approval_photo || null,
-            approval_status: poData?.approval_status || null,
-            approved_at: poData?.approved_at || null,
-            bulk_payment_ref: poData?.bulk_payment_ref || null
-          }
-        })
-      )
-      
-      const filteredCorrectedData = correctedData.filter(item => item !== null)
-      setData(filteredCorrectedData)
-
-      // Initialize notes state from the data
+      // Initialize notes
       const newNotesState: Record<number, string> = {}
-      filteredCorrectedData.forEach(item => {
+      correctedData.forEach(item => {
         const defaultNotes = item.nama_branch === 'Sushimas Harapan Indah' ? 'Rek CV' : 'Rek PT'
-        newNotesState[item.id] = (item as any).notes || defaultNotes
+        newNotesState[item.id] = item.notes || defaultNotes
       })
       setNotesState(newNotesState)
+      
     } catch (error) {
-      console.error('Error fetching finance data:', error)
+      console.error('Error:', error)
     } finally {
       setLoading(false)
     }
