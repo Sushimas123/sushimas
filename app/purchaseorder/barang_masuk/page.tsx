@@ -154,7 +154,37 @@ export default function BarangMasukPage() {
         allowedBranchIds = branchData?.map(b => b.id_branch) || []
       }
       
-      // Get total count first
+      // Get IDs for search filters if searchTerm exists
+      let searchProductIds: number[] = []
+      let searchSupplierIds: number[] = []
+      let searchBranchIds: number[] = []
+      
+      if (searchTerm) {
+        const search = `%${searchTerm}%`
+        
+        // Search in products
+        const { data: products } = await supabase
+          .from('nama_product')
+          .select('id_product')
+          .ilike('product_name', search)
+        searchProductIds = products?.map(p => p.id_product) || []
+        
+        // Search in suppliers
+        const { data: suppliers } = await supabase
+          .from('suppliers')
+          .select('id_supplier')
+          .ilike('nama_supplier', search)
+        searchSupplierIds = suppliers?.map(s => s.id_supplier) || []
+        
+        // Search in branches
+        const { data: branches } = await supabase
+          .from('branches')
+          .select('id_branch')
+          .ilike('nama_branch', search)
+        searchBranchIds = branches?.map(b => b.id_branch) || []
+      }
+      
+      // Build count query
       let countQuery = supabase
         .from('barang_masuk')
         .select('*', { count: 'exact', head: true })
@@ -166,6 +196,17 @@ export default function BarangMasukPage() {
       
       if (selectedBranch) {
         countQuery = countQuery.eq('id_branch', parseInt(selectedBranch))
+      }
+      
+      // Apply search filters
+      if (searchTerm) {
+        countQuery = countQuery.or(
+          `no_po.ilike.%${searchTerm}%,` +
+          `invoice_number.ilike.%${searchTerm}%` +
+          (searchProductIds.length > 0 ? `,id_barang.in.(${searchProductIds.join(',')})` : '') +
+          (searchSupplierIds.length > 0 ? `,id_supplier.in.(${searchSupplierIds.join(',')})` : '') +
+          (searchBranchIds.length > 0 ? `,id_branch.in.(${searchBranchIds.join(',')})` : '')
+        )
       }
       
       const { count } = await countQuery
@@ -192,6 +233,17 @@ export default function BarangMasukPage() {
       
       if (selectedBranch) {
         query = query.eq('id_branch', parseInt(selectedBranch))
+      }
+      
+      // Apply search filters
+      if (searchTerm) {
+        query = query.or(
+          `no_po.ilike.%${searchTerm}%,` +
+          `invoice_number.ilike.%${searchTerm}%` +
+          (searchProductIds.length > 0 ? `,id_barang.in.(${searchProductIds.join(',')})` : '') +
+          (searchSupplierIds.length > 0 ? `,id_supplier.in.(${searchSupplierIds.join(',')})` : '') +
+          (searchBranchIds.length > 0 ? `,id_branch.in.(${searchBranchIds.join(',')})` : '')
+        )
       }
       
       const { data, error } = await query
@@ -334,21 +386,8 @@ export default function BarangMasukPage() {
     }
   }
 
-  // Filter barang masuk based on search term and status
+  // Filter barang masuk based on status only (search is now server-side)
   const filteredBarangMasuk = barangMasuk.filter(item => {
-    // Search filter
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase()
-      const matchesSearch = (
-        item.no_po.toLowerCase().includes(search) ||
-        item.product_name.toLowerCase().includes(search) ||
-        item.supplier_name.toLowerCase().includes(search) ||
-        item.invoice_number.toLowerCase().includes(search) ||
-        item.branch_name.toLowerCase().includes(search)
-      )
-      if (!matchesSearch) return false
-    }
-    
     // Status filter
     if (statusFilter === 'pending') {
       return !item.is_in_gudang

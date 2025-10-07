@@ -193,6 +193,55 @@ function PurchaseOrderPageContent() {
       const userBranchIdsStr = localStorage.getItem('user_branch_ids')
       const userBranchIds = userBranchIdsStr ? JSON.parse(userBranchIdsStr) : []
       
+      // Get IDs for search filters if search exists
+      let searchSupplierIds: number[] = []
+      let searchBranchIds: number[] = []
+      let searchPOIds: number[] = []
+      
+      if (search) {
+        const searchPattern = `%${search}%`
+        
+        // Search in suppliers
+        const { data: suppliers } = await supabase
+          .from('suppliers')
+          .select('id_supplier')
+          .ilike('nama_supplier', searchPattern)
+        searchSupplierIds = suppliers?.map(s => s.id_supplier) || []
+        
+        // Search in branches
+        const { data: branches } = await supabase
+          .from('branches')
+          .select('id_branch')
+          .ilike('nama_branch', searchPattern)
+        searchBranchIds = branches?.map(b => b.id_branch) || []
+        
+        // Search in PO numbers
+        const { data: pos } = await supabase
+          .from('purchase_orders')
+          .select('id')
+          .ilike('po_number', searchPattern)
+        searchPOIds = pos?.map(p => p.id) || []
+        
+        // Search in products and get related PO IDs
+        const { data: products } = await supabase
+          .from('nama_product')
+          .select('id_product')
+          .ilike('product_name', searchPattern)
+        
+        if (products && products.length > 0) {
+          const productIds = products.map(p => p.id_product)
+          const { data: poItems } = await supabase
+            .from('po_items')
+            .select('po_id')
+            .in('product_id', productIds)
+          
+          if (poItems) {
+            const productPOIds = poItems.map(item => item.po_id)
+            searchPOIds = [...new Set([...searchPOIds, ...productPOIds])]
+          }
+        }
+      }
+      
       // Count total records first
       let countQuery = supabase
         .from('purchase_orders')
@@ -215,6 +264,18 @@ function PurchaseOrderPageContent() {
       // Filter by allowed branches for non-admin users
       if (userRole !== 'super admin' && userRole !== 'admin' && userBranchIds.length > 0) {
         countQuery = countQuery.in('cabang_id', userBranchIds)
+      }
+      
+      // Apply search filters
+      if (search && (searchPOIds.length > 0 || searchSupplierIds.length > 0 || searchBranchIds.length > 0)) {
+        const orConditions = []
+        if (searchPOIds.length > 0) orConditions.push(`id.in.(${searchPOIds.join(',')})`)
+        if (searchSupplierIds.length > 0) orConditions.push(`supplier_id.in.(${searchSupplierIds.join(',')})`)
+        if (searchBranchIds.length > 0) orConditions.push(`cabang_id.in.(${searchBranchIds.join(',')})`)
+        
+        if (orConditions.length > 0) {
+          countQuery = countQuery.or(orConditions.join(','))
+        }
       }
 
       const { count } = await countQuery
@@ -247,6 +308,18 @@ function PurchaseOrderPageContent() {
       // Filter by allowed branches for non-admin users
       if (userRole !== 'super admin' && userRole !== 'admin' && userBranchIds.length > 0) {
         query = query.in('cabang_id', userBranchIds)
+      }
+      
+      // Apply search filters
+      if (search && (searchPOIds.length > 0 || searchSupplierIds.length > 0 || searchBranchIds.length > 0)) {
+        const orConditions = []
+        if (searchPOIds.length > 0) orConditions.push(`id.in.(${searchPOIds.join(',')})`)
+        if (searchSupplierIds.length > 0) orConditions.push(`supplier_id.in.(${searchSupplierIds.join(',')})`)
+        if (searchBranchIds.length > 0) orConditions.push(`cabang_id.in.(${searchBranchIds.join(',')})`)
+        
+        if (orConditions.length > 0) {
+          query = query.or(orConditions.join(','))
+        }
       }
 
       const { data: poData, error } = await query
@@ -317,16 +390,7 @@ function PurchaseOrderPageContent() {
         })
       )
       
-      // Apply search filter
-      const filteredData = transformedData.filter(po => {
-        const searchLower = search.toLowerCase()
-        return po.po_number.toLowerCase().includes(searchLower) ||
-               po.supplier_name.toLowerCase().includes(searchLower) ||
-               po.branch_name.toLowerCase().includes(searchLower) ||
-               po.items.some(item => item.product_name.toLowerCase().includes(searchLower))
-      })
-      
-      setPurchaseOrders(filteredData)
+      setPurchaseOrders(transformedData)
     } catch (error) {
       console.error('Error fetching purchase orders:', error)
       console.error('Error details:', JSON.stringify(error, null, 2))
