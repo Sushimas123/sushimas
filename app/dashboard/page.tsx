@@ -19,50 +19,7 @@ interface KPIData {
   totalUsers: number
 }
 
-function KPICards({ data, loading }: { data: KPIData; loading: boolean }) {
-  const kpis = [
-    { title: 'Total PO', value: data.totalPOs, subtext: `${data.pendingPOs} pending`, icon: ShoppingCart, href: '/purchaseorder' },
-    { title: 'Stock Items', value: data.totalStock, subtext: `${data.lowStock} low stock`, icon: Package, href: '/gudang-final' },
-    { title: 'Production', value: data.totalProduction, subtext: `${data.activeProduction} active`, icon: Factory, href: '/produksi' },
-    { title: 'Petty Cash', value: `Rp ${(data.totalPettyCash / 1000000).toFixed(1)}JT`, subtext: `${data.pendingRequests} requests`, icon: Wallet, href: '/pettycash' },
-    { title: 'Suppliers', value: data.totalSuppliers, subtext: 'Active suppliers', icon: Truck, href: '/supplier' },
-    { title: 'Users', value: data.totalUsers, subtext: 'System users', icon: Users, href: '/users' }
-  ]
 
-  if (loading) {
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {Array(6).fill(0).map((_, i) => (
-          <div key={i} className="bg-white dark:bg-gray-800 rounded-xl p-4 animate-pulse">
-            <div className="h-4 bg-gray-300 rounded mb-2"></div>
-            <div className="h-6 bg-gray-300 rounded mb-1"></div>
-            <div className="h-3 bg-gray-300 rounded"></div>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-      {kpis.map((kpi, index) => {
-        const Icon = kpi.icon
-        return (
-          <a key={index} href={kpi.href} className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-all hover:scale-105">
-            <div className="flex items-center justify-between mb-2">
-              <div className="p-2">
-                <Icon size={16} className="text-gray-600 dark:text-gray-400" />
-              </div>
-            </div>
-            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">{kpi.title}</h3>
-            <p className="text-xl font-bold text-gray-900 dark:text-white">{kpi.value}</p>
-            <p className="text-xs text-gray-500">{kpi.subtext}</p>
-          </a>
-        )
-      })}
-    </div>
-  )
-}
 
 function RecentActivity() {
   const [activities, setActivities] = useState<any[]>([])
@@ -182,37 +139,7 @@ function DashboardContent() {
   }, [])
 
   const fetchKPIData = async () => {
-    try {
-      const [poData, stockData, prodData, pettyCashData, supplierData, userData] = await Promise.all([
-        supabase.from('purchase_orders').select('status'),
-        supabase.from('gudang_final_view').select('running_total'),        
-        supabase.from('produksi').select('production_no, divisi'),
-        supabase.from('petty_cash_requests').select('amount, status'),
-        supabase.from('suppliers').select('id_supplier'),
-        supabase.from('users').select('id_user')
-      ])
-
-      const totalPettyCash = pettyCashData.data?.reduce((sum, req) => sum + (req.amount || 0), 0) || 0
-      const pendingRequests = pettyCashData.data?.filter(req => req.status === 'pending').length || 0
-      const lowStockCount = stockData.data?.filter(item => (item.running_total || 0) < 10).length || 0
-
-      setKpiData({
-        totalPOs: poData.data?.length || 0,
-        pendingPOs: poData.data?.filter(po => po.status === 'pending').length || 0,
-        totalStock: stockData.data?.length || 0,
-        lowStock: lowStockCount,
-        totalProduction: prodData.data?.length || 0,
-        activeProduction: 0, // Status not available in current query
-        totalPettyCash: totalPettyCash,
-        pendingRequests,
-        totalSuppliers: supplierData.data?.length || 0,
-        totalUsers: userData.data?.length || 0
-      })
-    } catch (error) {
-      console.error('Error fetching KPI data:', error)
-    } finally {
-      setLoading(false)
-    }
+    setLoading(false)
   }
 
   return (
@@ -227,9 +154,6 @@ function DashboardContent() {
           <p className="text-sm text-gray-500">{new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
         </div>
       </div>
-
-      {/* KPI Cards */}
-      <KPICards data={kpiData} loading={loading} />
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
