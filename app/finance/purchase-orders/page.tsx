@@ -295,11 +295,12 @@ export default function FinancePurchaseOrders() {
       const poIds = financeData.map(item => item.id)
       const poNumbers = financeData.map(item => item.po_number)
       
-      const [itemsData, paymentsData, poDetailsData, barangMasukData] = await Promise.all([
+      const [itemsData, paymentsData, poDetailsData, barangMasukData, bulkPaymentsData] = await Promise.all([
         supabase.from('po_items').select('po_id, qty, harga, actual_price, received_qty, product_id').in('po_id', poIds),
         supabase.from('po_payments').select('po_id, payment_amount, payment_date, payment_via, payment_method, reference_number, status').in('po_id', poIds).order('payment_date', { ascending: false }),
         supabase.from('purchase_orders').select('id, bulk_payment_ref, total_tagih, keterangan, approval_photo, approval_status, approved_at').in('id', poIds),
-        supabase.from('barang_masuk').select('no_po, invoice_number').in('no_po', poNumbers)
+        supabase.from('barang_masuk').select('no_po, invoice_number').in('no_po', poNumbers),
+        supabase.from('bulk_payments').select('*')
       ])
 
       // Group data by po_id
@@ -322,6 +323,10 @@ export default function FinancePurchaseOrders() {
 
       const invoiceMap: Record<string, string> = {}
       barangMasukData.data?.forEach(bm => { invoiceMap[bm.no_po] = bm.invoice_number })
+
+      // Create bulk payments map
+      const bulkPaymentsMap: Record<string, any> = {}
+      bulkPaymentsData.data?.forEach(bp => { bulkPaymentsMap[bp.bulk_reference] = bp })
 
       // Process data dengan perhitungan KAMU (tidak berubah)
       const correctedData = financeData.map((item: any) => {
@@ -366,6 +371,9 @@ export default function FinancePurchaseOrders() {
           displayTotalPaid = basisAmount
         }
 
+        // Get payment info from bulk payment if exists, otherwise from latest payment
+        const bulkPayment = poData?.bulk_payment_ref ? bulkPaymentsMap[poData.bulk_payment_ref] : null
+        
         return {
           ...item,
           total_po: correctedTotal,
@@ -374,10 +382,10 @@ export default function FinancePurchaseOrders() {
           status_payment: calculatedStatus,
           is_overdue: calculatedStatus === 'paid' ? false : item.is_overdue,
           days_overdue: calculatedStatus === 'paid' ? 0 : item.days_overdue,
-          dibayar_tanggal: latestPayment?.payment_date || null,
-          payment_via: latestPayment?.payment_via || null,
-          payment_method: latestPayment?.payment_method || null,
-          payment_reference: latestPayment?.reference_number || null,
+          dibayar_tanggal: bulkPayment?.payment_date || latestPayment?.payment_date || null,
+          payment_via: bulkPayment?.payment_via || latestPayment?.payment_via || null,
+          payment_method: bulkPayment?.payment_method || latestPayment?.payment_method || null,
+          payment_reference: poData?.bulk_payment_ref || latestPayment?.reference_number || null,
           invoice_number: invoiceNumber,
           total_tagih: totalTagih,
           keterangan: poData?.keterangan || '',

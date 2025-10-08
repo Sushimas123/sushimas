@@ -91,14 +91,12 @@ export default function BulkPaymentModal({ isOpen, onClose, onSuccess, available
 
       if (bulkError) throw bulkError
 
-      // Update purchase_orders with bulk_payment_ref and release_date
+      // Update purchase_orders with bulk_payment_ref
       for (const po of selectedPOs) {
         const { error: updateError } = await supabase
           .from('purchase_orders')
           .update({ 
-            bulk_payment_ref: formData.bulk_reference,
-            release_date: formData.payment_date,
-            status_payment: 'paid'
+            bulk_payment_ref: formData.bulk_reference
           })
           .eq('id', po.id)
         
