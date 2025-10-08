@@ -27,6 +27,8 @@ export default function AgingReport() {
   const [data, setData] = useState<AgingData[]>([])
   const [loading, setLoading] = useState(true)
   const [isMobileView, setIsMobileView] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize] = useState(15)
 
   const navigateToPO = (poId: number) => {
     router.push(`/purchaseorder/received-preview?id=${poId}`)
@@ -156,6 +158,10 @@ export default function AgingReport() {
 
   const totalOutstanding = Object.values(summary).reduce((sum, val) => sum + val, 0)
 
+  // Pagination
+  const totalPages = Math.ceil(data.length / pageSize)
+  const paginatedData = data.slice((page - 1) * pageSize, page * pageSize)
+
   // Mobile Components
   const MobileAgingCard = ({ item }: { item: AgingData }) => {
     const formatDate = (dateString: string) => {
@@ -275,10 +281,31 @@ export default function AgingReport() {
             {/* Mobile Cards List */}
             <div className="mb-4">
               <h3 className="text-sm font-medium text-gray-900 mb-3">Detail Aging ({data.length} items)</h3>
-              {data.map((item) => (
+              {paginatedData.map((item) => (
                 <MobileAgingCard key={item.id} item={item} />
               ))}
             </div>
+
+            {/* Mobile Pagination */}
+            {totalPages > 1 && (
+              <div className="flex justify-between items-center bg-white p-3 rounded shadow">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-3 py-1 text-sm bg-gray-100 rounded disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span className="text-sm text-gray-600">Page {page} of {totalPages}</span>
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="px-3 py-1 text-sm bg-gray-100 rounded disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            )}
 
             {data.length === 0 && (
               <div className="text-center py-8 text-gray-500 bg-white rounded-lg border">
@@ -352,7 +379,7 @@ export default function AgingReport() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {data.map((item) => (
+                  {paginatedData.map((item) => (
                     <tr key={item.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
@@ -406,6 +433,44 @@ export default function AgingReport() {
             <div className="text-center py-8 text-gray-500">
               <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
               <p>Tidak ada outstanding payment</p>
+            </div>
+          )}
+
+          {/* Desktop Pagination */}
+          {totalPages > 1 && (
+            <div className="flex justify-between items-center mt-4 bg-white p-4 rounded-lg shadow">
+              <div className="text-sm text-gray-600">
+                Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, data.length)} of {data.length} entries
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-4 py-2 text-sm bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                {[...Array(totalPages)].map((_, i) => (
+                  <button
+                    key={i + 1}
+                    onClick={() => setPage(i + 1)}
+                    className={`px-3 py-2 text-sm rounded ${
+                      page === i + 1
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 hover:bg-gray-200'
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="px-4 py-2 text-sm bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>

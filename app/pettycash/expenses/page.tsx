@@ -34,11 +34,14 @@ function PettyCashExpensesContent() {
   const [requests, setRequests] = useState<{id: number, amount: number, parent_request_id?: number, carried_balance?: number, request_number?: string, branch_code?: string}[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [settlementFilter, setSettlementFilter] = useState('all');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(50);
 
   const exportToExcel = () => {
     const exportData = filteredExpenses.map((expense, index) => {
@@ -224,7 +227,6 @@ function PettyCashExpensesContent() {
     try {
       setLoading(true);
       
-      // Get user data and check role
       const userData = localStorage.getItem('user');
       let userRole = '';
       let allowedBranchCodes: string[] = [];
@@ -233,7 +235,6 @@ function PettyCashExpensesContent() {
         const user = JSON.parse(userData);
         userRole = user.role;
         
-        // For non-admin users, get their allowed branches
         if (userRole !== 'super admin' && userRole !== 'admin' && user.id_user) {
           const { data: userBranches } = await supabase
             .from('user_branches')
@@ -245,98 +246,46 @@ function PettyCashExpensesContent() {
         }
       }
       
-      // Fetch requests with branch filtering
-      let requestsQuery = supabase
-        .from('petty_cash_requests')
-        .select(`
-          id, 
-          amount, 
-          parent_request_id, 
-          carried_balance,
-          request_number,
-          branch_code
-        `)
-        .order('created_at', { ascending: true });
-      
-      // Apply branch filter for non-admin users
+      // ✅ FETCH ALL DATA IN PARALLEL
+      const [requestsResult, expensesResult, categoriesResult, usersResult, settlementsResult] = await Promise.all([
+        supabase.from('petty_cash_requests').select('id, amount, parent_request_id, carried_balance, request_number, branch_code, branches(nama_branch)').order('created_at', { ascending: true }),
+        supabase.from('petty_cash_expenses').select('*').order('expense_date', { ascending: false }),
+        supabase.from('categories').select('id_category, category_name'),
+        supabase.from('users').select('id_user, nama_lengkap'),
+        supabase.from('petty_cash_settlements').select('request_id, status')
+      ]);
+
+      if (expensesResult.error) throw expensesResult.error;
+
+      // ✅ CREATE LOOKUP MAPS
+      const requestsMap = new Map(requestsResult.data?.map(r => [r.id, r]));
+      const categoriesMap = new Map(categoriesResult.data?.map(c => [c.id_category, c.category_name]));
+      const usersMap = new Map(usersResult.data?.map(u => [u.id_user, u.nama_lengkap]));
+      const settlementsMap = new Map(settlementsResult.data?.map(s => [s.request_id, s.status]));
+
+      // ✅ FILTER REQUESTS BY BRANCH
+      let filteredRequests = requestsResult.data || [];
       if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranchCodes.length > 0) {
-        requestsQuery = requestsQuery.in('branch_code', allowedBranchCodes);
+        filteredRequests = filteredRequests.filter(r => allowedBranchCodes.includes(r.branch_code));
       }
-      
-      const { data: requestsData } = await requestsQuery;
-      setRequests(requestsData || []);
-      
-      // Get request IDs for filtering expenses
-      const allowedRequestIds = requestsData?.map(r => r.id) || [];
-      
-      // Fetch expenses filtered by allowed requests
-      let expensesQuery = supabase
-        .from('petty_cash_expenses')
-        .select('*')
-        .order('expense_date', { ascending: false });
-      
-      // Apply request filter for non-admin users
-      if (userRole !== 'super admin' && userRole !== 'admin' && allowedRequestIds.length > 0) {
-        expensesQuery = expensesQuery.in('request_id', allowedRequestIds);
-      }
-      
-      const { data: expensesData, error } = await expensesQuery;
+      setRequests(filteredRequests);
 
-      if (error) throw error;
+      const allowedRequestIds = new Set(filteredRequests.map(r => r.id));
 
-      const formattedExpenses = [];
-      for (const expense of expensesData || []) {
-        const { data: requestData } = await supabase
-          .from('petty_cash_requests')
-          .select(`
-            request_number,
-            branch_code,
-            branches(nama_branch)
-          `)
-          .eq('id', expense.request_id)
-          .single();
-        
-        const { data: categoryData } = await supabase
-          .from('categories')
-          .select('category_name')
-          .eq('id_category', expense.category_id)
-          .single();
-        
-        const { data: userData } = await supabase
-          .from('users')
-          .select('nama_lengkap')
-          .eq('id_user', expense.created_by)
-          .single();
-        
-        const { data: settlementData } = await supabase
-          .from('petty_cash_settlements')
-          .select('status')
-          .eq('request_id', expense.request_id)
-          .single();
-        
-        formattedExpenses.push({
-          id: expense.id,
-          request_id: expense.request_id,
-          category_id: expense.category_id,
-          expense_date: expense.expense_date,
-          description: expense.description,
-          amount: expense.amount,
-          qty: expense.qty,
-          harga: expense.harga,
-          receipt_number: expense.receipt_number,
-          vendor_name: expense.vendor_name,
-          notes: expense.notes,
-          created_by: expense.created_by,
-          created_at: expense.created_at,
-          request_number: requestData?.request_number || `REQ-${expense.request_id}`,
-          category_name: categoryData?.category_name || `Category ${expense.category_id}`,
-          created_by_name: userData?.nama_lengkap || `User ${expense.created_by}`,
-          branch_name: (requestData?.branches as any)?.nama_branch || 'Unknown Branch',
-          settlement_status: settlementData?.status || 'no_settlement',
-          product_id: expense.product_id,
-          barang_masuk_id: expense.barang_masuk_id
+      // ✅ MAP EXPENSES WITH LOOKUPS (NO LOOPS!)
+      const formattedExpenses = (expensesResult.data || [])
+        .filter(expense => userRole === 'super admin' || userRole === 'admin' || allowedRequestIds.has(expense.request_id))
+        .map(expense => {
+          const request = requestsMap.get(expense.request_id);
+          return {
+            ...expense,
+            request_number: request?.request_number || `REQ-${expense.request_id}`,
+            category_name: categoriesMap.get(expense.category_id) || `Category ${expense.category_id}`,
+            created_by_name: usersMap.get(expense.created_by) || `User ${expense.created_by}`,
+            branch_name: (request?.branches as any)?.nama_branch || 'Unknown Branch',
+            settlement_status: settlementsMap.get(expense.request_id) || 'no_settlement'
+          };
         });
-      }
 
       setExpenses(formattedExpenses);
     } catch (error) {
@@ -351,11 +300,17 @@ function PettyCashExpensesContent() {
     fetchExpenses();
   }, []);
 
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   const filteredExpenses = expenses.filter(expense => {
     const matchesSearch = 
-      expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      expense.vendor_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      expense.request_number?.toLowerCase().includes(searchTerm.toLowerCase());
+      expense.description.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      expense.vendor_name?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      expense.request_number?.toLowerCase().includes(debouncedSearch.toLowerCase());
     
     const matchesCategory = categoryFilter === 'all' || expense.category_id.toString() === categoryFilter;
     
@@ -416,6 +371,10 @@ function PettyCashExpensesContent() {
 
     return totalAvailable - totalExpensesUpToNow;
   };
+
+  // Pagination
+  const totalPages = Math.ceil(filteredExpenses.length / pageSize);
+  const paginatedExpenses = filteredExpenses.slice((page - 1) * pageSize, page * pageSize);
 
   const stats = {
     total: expenses.length,
@@ -639,7 +598,7 @@ function PettyCashExpensesContent() {
         
         {/* Mobile View - Cards */}
         <div className="md:hidden">
-          {filteredExpenses.map((expense) => {
+          {paginatedExpenses.map((expense) => {
             const runningBalance = calculateRunningBalance(expense);
             
             return (
@@ -787,7 +746,7 @@ function PettyCashExpensesContent() {
               </tr>
             </thead>
             <tbody>
-              {filteredExpenses.map((expense) => {
+              {paginatedExpenses.map((expense) => {
                 const runningBalance = calculateRunningBalance(expense);
                 
                 return (
@@ -891,7 +850,7 @@ function PettyCashExpensesContent() {
           </table>
         </div>
 
-        {filteredExpenses.length === 0 && (
+        {paginatedExpenses.length === 0 && filteredExpenses.length === 0 && (
           <div className="text-center py-12">
             <div className="text-4xl mb-4">💰</div>
             <h3 className="text-lg font-medium">Tidak ada pengeluaran ditemukan</h3>
@@ -910,6 +869,51 @@ function PettyCashExpensesContent() {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-between items-center bg-white p-4 rounded-lg border">
+          <div className="text-sm text-gray-600">
+            Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, filteredExpenses.length)} of {filteredExpenses.length} entries
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-4 py-2 text-sm bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <div className="hidden md:flex gap-2">
+              {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                const pageNum = i + 1;
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setPage(pageNum)}
+                    className={`px-3 py-2 text-sm rounded ${
+                      page === pageNum ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+              {totalPages > 5 && <span className="px-2 py-2 text-sm">...</span>}
+            </div>
+            <span className="md:hidden px-3 py-2 text-sm bg-gray-50 rounded">
+              {page} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="px-4 py-2 text-sm bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Summary Footer */}
       <div className="bg-white p-4 rounded-lg border">
