@@ -57,8 +57,10 @@ export default function FinishPO() {
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl)
       // Unlock PO when leaving page
-      const poIdNum = parseInt(poId || '0')
-      if (poIdNum) unlockPO(poIdNum)
+      if (poId) {
+        const poIdNum = parseInt(poId)
+        if (!isNaN(poIdNum)) unlockPO(poIdNum)
+      }
     }
   }, [])
 
@@ -68,9 +70,22 @@ export default function FinishPO() {
     // Check if PO is locked
     const lockStatus = await checkPOLock(poId)
     if (lockStatus.isLocked) {
-      alert(`PO sedang diproses oleh ${lockStatus.lockedBy}. Silakan coba lagi nanti.`)
-      window.location.href = '/purchaseorder'
-      return
+      const shouldForceUnlock = confirm(
+        `PO sedang diproses oleh ${lockStatus.lockedBy}.\n\nKlik OK untuk force unlock (hanya admin), atau Cancel untuk kembali.`
+      )
+      
+      if (shouldForceUnlock) {
+        const { forceUnlockPO } = await import('@/src/utils/poLock')
+        const result = await forceUnlockPO(poId, user.id_user)
+        if (!result.success) {
+          alert(result.message)
+          window.location.href = '/purchaseorder'
+          return
+        }
+      } else {
+        window.location.href = '/purchaseorder'
+        return
+      }
     }
     
     // Lock the PO
@@ -252,15 +267,24 @@ export default function FinishPO() {
       
       // Upload photo if provided
       if (formData.foto_barang) {
-        const fileExt = formData.foto_barang.name.split('.').pop()
-        fileName = `${poData.po_number}_${Date.now()}.${fileExt}`
-        
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('po-photos')
-          .upload(fileName, formData.foto_barang)
+        try {
+          const fileExt = formData.foto_barang.name.split('.').pop()
+          fileName = `${poData.po_number}_${Date.now()}.${fileExt}`
+          
+          const { error: uploadError } = await supabase.storage
+            .from('po-photos')
+            .upload(fileName, formData.foto_barang, {
+              cacheControl: '3600',
+              upsert: true
+            })
 
-        if (uploadError) {
-          throw new Error(`Gagal upload foto: ${uploadError.message}`)
+          if (uploadError) {
+            console.error('Upload error details:', uploadError)
+            throw new Error(`Gagal upload foto: ${uploadError.message}`)
+          }
+        } catch (err) {
+          console.error('Upload exception:', err)
+          throw new Error(`Gagal upload foto: ${err instanceof Error ? err.message : 'Network error'}`)
         }
       }
 

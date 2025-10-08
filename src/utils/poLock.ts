@@ -48,12 +48,41 @@ export const unlockPO = async (poId: number): Promise<void> => {
 export const checkPOLock = async (poId: number): Promise<{ isLocked: boolean, lockedBy?: string }> => {
   const { data } = await supabase
     .from('purchase_orders')
-    .select('is_locked, locked_by_name')
+    .select('is_locked, locked_by_name, locked_at')
     .eq('id', poId)
     .single()
+
+  // Auto-unlock if locked for more than 30 minutes
+  if (data?.is_locked && data.locked_at) {
+    const lockedTime = new Date(data.locked_at).getTime()
+    const now = new Date().getTime()
+    const diffMinutes = (now - lockedTime) / (1000 * 60)
+    
+    if (diffMinutes > 30) {
+      await unlockPO(poId)
+      return { isLocked: false }
+    }
+  }
 
   return {
     isLocked: data?.is_locked || false,
     lockedBy: data?.locked_by_name
+  }
+}
+
+export const forceUnlockPO = async (poId: number, userId: number): Promise<{ success: boolean, message: string }> => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    const userRole = user.role
+    
+    // Only admin/super admin can force unlock
+    if (userRole !== 'admin' && userRole !== 'super admin') {
+      return { success: false, message: 'Hanya admin yang bisa force unlock' }
+    }
+    
+    await unlockPO(poId)
+    return { success: true, message: 'PO berhasil di-unlock' }
+  } catch (error) {
+    return { success: false, message: 'Gagal unlock PO' }
   }
 }
