@@ -76,6 +76,8 @@ function ProduksiDetailPageContent() {
 
   // Handle URL parameters from Analysis page
   useEffect(() => {
+    if (!searchParams) return;
+    
     const date = searchParams.get('date');
     const branch = searchParams.get('branch');
     const product = searchParams.get('product');
@@ -526,7 +528,7 @@ function ProduksiDetailPageContent() {
             >
               <option value="">{userRole === 'super admin' || userRole === 'admin' ? 'All Branches' : 'All My Branches'}</option>
               {branches.map(branch => (
-                <option key={branch.kode_branch} value={branch.kode_branch}>{branch.nama_branch}</option>
+                <option key={branch.kode_branch} value={branch.nama_branch}>{branch.nama_branch}</option>
               ))}
             </select>
           </div>
