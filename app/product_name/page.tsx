@@ -242,7 +242,7 @@ export default function ProductPage() {
         // Clean form data - only send valid table fields
         const updateData = {
           product_name: form.product_name,
-          sub_category: form.sub_category,
+          sub_category: form.sub_category ? form.sub_category.toUpperCase() : null,
           unit_kecil: form.unit_kecil,
           satuan_kecil: form.satuan_kecil ? parseFloat(form.satuan_kecil) : null,
           unit_besar: form.unit_besar,
@@ -264,7 +264,7 @@ export default function ProductPage() {
         // Clean form data for insert
         const insertData = {
           product_name: form.product_name,
-          sub_category: form.sub_category,
+          sub_category: form.sub_category ? form.sub_category.toUpperCase() : null,
           unit_kecil: form.unit_kecil,
           satuan_kecil: form.satuan_kecil ? parseFloat(form.satuan_kecil) : null,
           unit_besar: form.unit_besar,

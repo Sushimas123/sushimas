@@ -559,6 +559,9 @@ export default function AnalysisPage() {
       const toleranceRange = `${toleranceMin.toFixed(1)} ~ ${toleranceMax.toFixed(1)}`;
       const status = Math.abs(selisih) <= toleranceValue ? 'OK' : (selisih < 0 ? 'Kurang' : 'Lebih');
 
+      // Normalize sub_category to uppercase
+      const normalizedSubCategory = (ready.sub_category || '').toUpperCase();
+      
       return {
         id_product: ready.id_product,
         ready_no: ready.ready_no || `${index + 1}`,
@@ -571,7 +574,7 @@ export default function AnalysisPage() {
         barang_masuk: barangMasuk,
         waste,
         total_barang: totalBarang,
-        sub_category: ready.sub_category || '',
+        sub_category: normalizedSubCategory,
         keluar_form: keluarForm,
         hasil_esb: hasilESB,
         selisih,

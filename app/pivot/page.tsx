@@ -439,6 +439,7 @@ export default function PivotPage() {
       const toleranceMax = toleranceValue;
       const toleranceRange = `${toleranceMin.toFixed(1)} ~ ${toleranceMax.toFixed(1)}`;
       const status = Math.abs(selisih) <= toleranceValue ? 'OK' : (selisih < 0 ? 'Kurang' : 'Lebih');
+      const normalizedSubCategory = (ready.sub_category || '').toUpperCase();
 
       return {
         id_product: ready.id_product,
@@ -452,7 +453,7 @@ export default function PivotPage() {
         barang_masuk: 0,
         waste: ready.waste || 0,
         total_barang: (ready.ready || 0) + (warehouseItem?.running_total || warehouseItem?.total_gudang || 0),
-        sub_category: product?.sub_category || 'Unknown',
+        sub_category: normalizedSubCategory|| 'Unknown',
         keluar_form: keluarForm,
         hasil_esb: hasilESB,
         selisih,
