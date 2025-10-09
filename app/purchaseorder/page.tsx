@@ -326,69 +326,82 @@ function PurchaseOrderPageContent() {
 
       if (error) throw error
       
-      // Get supplier, branch names and items separately
-      const transformedData = await Promise.all(
-        (poData || []).map(async (po: any) => {
-          // Get supplier name
-          const { data: supplier } = await supabase
-            .from('suppliers')
-            .select('nama_supplier')
-            .eq('id_supplier', po.supplier_id)
-            .single()
-
-          // Get branch name
-          const { data: branch } = await supabase
-            .from('branches')
-            .select('nama_branch')
-            .eq('id_branch', po.cabang_id)
-            .single()
-
-          // Get PO items with actual prices
-          const { data: items } = await supabase
-            .from('po_items')
-            .select('qty, product_id, actual_price, received_qty, harga')
-            .eq('po_id', po.id)
-
-          // Get product names and calculate total price
-          let totalHarga = 0
-          const poItems = await Promise.all(
-            (items || []).map(async (item) => {
-              const { data: product } = await supabase
-                .from('nama_product')
-                .select('product_name, harga')
-                .eq('id_product', item.product_id)
-                .single()
-
-              // Use actual price if available (from barang_sampai), otherwise use PO price (item.harga), fallback to master price
-              const priceToUse = item.actual_price || item.harga || product?.harga || 0
-              // Use received quantity if available, otherwise use original quantity
-              const qtyToUse = item.received_qty || item.qty
-              
-              const itemTotal = priceToUse * qtyToUse
-              totalHarga += itemTotal
-
-              return {
-                product_name: product?.product_name || 'Unknown Product',
-                qty: item.received_qty || item.qty
-              }
-            })
+      // Optimized: Get all related data in bulk to avoid N+1 queries
+      const poIds = (poData || []).map(po => po.id)
+      const supplierIds = [...new Set((poData || []).map(po => po.supplier_id))]
+      const branchIds = [...new Set((poData || []).map(po => po.cabang_id))]
+      
+      // Bulk fetch suppliers
+      const { data: suppliers } = await supabase
+        .from('suppliers')
+        .select('id_supplier, nama_supplier')
+        .in('id_supplier', supplierIds)
+      
+      // Bulk fetch branches
+      const { data: branches } = await supabase
+        .from('branches')
+        .select('id_branch, nama_branch')
+        .in('id_branch', branchIds)
+      
+      // Bulk fetch PO items with product info using JOIN
+      const { data: poItemsWithProducts } = await supabase
+        .from('po_items')
+        .select(`
+          po_id,
+          qty,
+          actual_price,
+          received_qty,
+          harga,
+          nama_product!inner(
+            product_name,
+            harga
           )
-
+        `)
+        .in('po_id', poIds)
+      
+      // Create lookup maps for O(1) access
+      const supplierMap = new Map(suppliers?.map(s => [s.id_supplier, s.nama_supplier]) || [])
+      const branchMap = new Map(branches?.map(b => [b.id_branch, b.nama_branch]) || [])
+      const itemsMap = new Map<number, any[]>()
+      
+      // Group items by PO ID
+      poItemsWithProducts?.forEach(item => {
+        if (!itemsMap.has(item.po_id)) {
+          itemsMap.set(item.po_id, [])
+        }
+        itemsMap.get(item.po_id)?.push(item)
+      })
+      
+      // Transform data efficiently
+      const transformedData = (poData || []).map((po: any) => {
+        const items = itemsMap.get(po.id) || []
+        let totalHarga = 0
+        
+        const poItems = items.map(item => {
+          const priceToUse = item.actual_price || item.harga || (item.nama_product as any)?.harga || 0
+          const qtyToUse = item.received_qty || item.qty
+          totalHarga += priceToUse * qtyToUse
+          
           return {
-            id: po.id,
-            po_number: po.po_number,
-            status: po.status,
-            priority: po.priority,
-            supplier_name: supplier?.nama_supplier || 'Unknown',
-            branch_name: branch?.nama_branch || 'Unknown',
-            created_at: po.created_at,
-            created_by_name: 'System',
-            tanggal_barang_sampai: po.tanggal_barang_sampai,
-            total_harga: totalHarga,
-            items: poItems
+            product_name: (item.nama_product as any)?.product_name || 'Unknown Product',
+            qty: item.received_qty || item.qty
           }
         })
-      )
+        
+        return {
+          id: po.id,
+          po_number: po.po_number,
+          status: po.status,
+          priority: po.priority,
+          supplier_name: supplierMap.get(po.supplier_id) || 'Unknown',
+          branch_name: branchMap.get(po.cabang_id) || 'Unknown',
+          created_at: po.created_at,
+          created_by_name: 'System',
+          tanggal_barang_sampai: po.tanggal_barang_sampai,
+          total_harga: totalHarga,
+          items: poItems
+        }
+      })
       
       setPurchaseOrders(transformedData)
     } catch (error) {
@@ -597,67 +610,62 @@ function PurchaseOrderPageContent() {
       const { data: poData, error } = await query
       if (error) throw error
 
+      // Optimized export: bulk fetch related data
+      const poIds = (poData || []).map(po => po.id)
+      const supplierIds = [...new Set((poData || []).map(po => po.supplier_id))]
+      const branchIds = [...new Set((poData || []).map(po => po.cabang_id))]
+      
+      // Bulk fetch all related data
+      const [suppliersResult, branchesResult, itemsResult] = await Promise.all([
+        supabase.from('suppliers').select('id_supplier, nama_supplier').in('id_supplier', supplierIds),
+        supabase.from('branches').select('id_branch, nama_branch').in('id_branch', branchIds),
+        supabase.from('po_items').select(`
+          po_id, qty, actual_price, received_qty, harga,
+          nama_product!inner(product_name, harga)
+        `).in('po_id', poIds)
+      ])
+      
+      // Create lookup maps
+      const supplierMap = new Map(suppliersResult.data?.map(s => [s.id_supplier, s.nama_supplier]) || [])
+      const branchMap = new Map(branchesResult.data?.map(b => [b.id_branch, b.nama_branch]) || [])
+      const itemsMap = new Map<number, any[]>()
+      
+      itemsResult.data?.forEach(item => {
+        if (!itemsMap.has(item.po_id)) {
+          itemsMap.set(item.po_id, [])
+        }
+        itemsMap.get(item.po_id)?.push(item)
+      })
+      
       // Transform data for export
-      const exportData = await Promise.all(
-        (poData || []).map(async (po: any) => {
-          // Get supplier name
-          const { data: supplier } = await supabase
-            .from('suppliers')
-            .select('nama_supplier')
-            .eq('id_supplier', po.supplier_id)
-            .single()
-
-          // Get branch name
-          const { data: branch } = await supabase
-            .from('branches')
-            .select('nama_branch')
-            .eq('id_branch', po.cabang_id)
-            .single()
-
-          // Get PO items with actual prices
-          const { data: items } = await supabase
-            .from('po_items')
-            .select('qty, product_id, actual_price, received_qty, harga')
-            .eq('po_id', po.id)
-
-          // Get product names and calculate total
-          let totalHarga = 0
-          const itemNames = []
-          const quantities = []
+      const exportData = (poData || []).map((po: any) => {
+        const items = itemsMap.get(po.id) || []
+        let totalHarga = 0
+        const itemNames: string[] = []
+        const quantities: number[] = []
+        
+        items.forEach(item => {
+          const priceToUse = item.actual_price || item.harga || (item.nama_product as any)?.harga || 0
+          const qtyToUse = item.received_qty || item.qty
+          totalHarga += priceToUse * qtyToUse
           
-          for (const item of items || []) {
-            const { data: product } = await supabase
-              .from('nama_product')
-              .select('product_name, harga')
-              .eq('id_product', item.product_id)
-              .single()
-
-            // Use actual price if available (from barang_sampai), otherwise use PO price (item.harga), fallback to master price
-            const priceToUse = item.actual_price || item.harga || product?.harga || 0
-            // Use received quantity if available, otherwise use original quantity
-            const qtyToUse = item.received_qty || item.qty
-            
-            const itemTotal = priceToUse * qtyToUse
-            totalHarga += itemTotal
-            
-            itemNames.push(product?.product_name || 'Unknown')
-            quantities.push(item.received_qty || item.qty)
-          }
-
-          return {
-            'PO Number': po.po_number,
-            'Status': po.status,
-            'Priority': po.priority || 'biasa',
-            'Supplier': supplier?.nama_supplier || 'Unknown',
-            'Branch': branch?.nama_branch || 'Unknown',
-            'Items': itemNames.join(', '),
-            'Quantities': quantities.join(', '),
-            'Total Amount': totalHarga,
-            'Created Date': new Date(po.created_at).toLocaleDateString('id-ID'),
-            'Arrival Date': po.tanggal_barang_sampai ? new Date(po.tanggal_barang_sampai).toLocaleDateString('id-ID') : '-'
-          }
+          itemNames.push((item.nama_product as any)?.product_name || 'Unknown')
+          quantities.push(item.received_qty || item.qty)
         })
-      )
+        
+        return {
+          'PO Number': po.po_number,
+          'Status': po.status,
+          'Priority': po.priority || 'biasa',
+          'Supplier': supplierMap.get(po.supplier_id) || 'Unknown',
+          'Branch': branchMap.get(po.cabang_id) || 'Unknown',
+          'Items': itemNames.join(', '),
+          'Quantities': quantities.join(', '),
+          'Total Amount': totalHarga,
+          'Created Date': new Date(po.created_at).toLocaleDateString('id-ID'),
+          'Arrival Date': po.tanggal_barang_sampai ? new Date(po.tanggal_barang_sampai).toLocaleDateString('id-ID') : '-'
+        }
+      })
 
       // Create and download Excel file
       const ws = XLSX.utils.json_to_sheet(exportData)
