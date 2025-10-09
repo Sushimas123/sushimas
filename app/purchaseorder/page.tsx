@@ -326,64 +326,56 @@ function PurchaseOrderPageContent() {
 
       if (error) throw error
       
-      // Optimized: Get all related data in bulk to avoid N+1 queries
+      // Bulk fetch all related data to avoid N+1 queries
       const poIds = (poData || []).map(po => po.id)
       const supplierIds = [...new Set((poData || []).map(po => po.supplier_id))]
       const branchIds = [...new Set((poData || []).map(po => po.cabang_id))]
       
-      // Bulk fetch suppliers
-      const { data: suppliers } = await supabase
-        .from('suppliers')
-        .select('id_supplier, nama_supplier')
-        .in('id_supplier', supplierIds)
+      // Parallel bulk queries
+      const [suppliersResult, branchesResult, itemsResult] = await Promise.all([
+        supplierIds.length > 0 ? supabase.from('suppliers').select('id_supplier, nama_supplier').in('id_supplier', supplierIds) : { data: [] },
+        branchIds.length > 0 ? supabase.from('branches').select('id_branch, nama_branch').in('id_branch', branchIds) : { data: [] },
+        poIds.length > 0 ? supabase.from('po_items').select('po_id, qty, product_id, actual_price, received_qty, harga').in('po_id', poIds) : { data: [] }
+      ])
       
-      // Bulk fetch branches
-      const { data: branches } = await supabase
-        .from('branches')
-        .select('id_branch, nama_branch')
-        .in('id_branch', branchIds)
+      const suppliers = suppliersResult.data || []
+      const branches = branchesResult.data || []
+      const allItems = itemsResult.data || []
       
-      // Bulk fetch PO items with product info using JOIN
-      const { data: poItemsWithProducts } = await supabase
-        .from('po_items')
-        .select(`
-          po_id,
-          qty,
-          actual_price,
-          received_qty,
-          harga,
-          nama_product!inner(
-            product_name,
-            harga
-          )
-        `)
-        .in('po_id', poIds)
+      // Get unique product IDs and bulk fetch products
+      const productIds = [...new Set(allItems.map(item => item.product_id))]
+      const { data: products } = productIds.length > 0 
+        ? await supabase.from('nama_product').select('id_product, product_name, harga').in('id_product', productIds)
+        : { data: [] }
       
-      // Create lookup maps for O(1) access
-      const supplierMap = new Map(suppliers?.map(s => [s.id_supplier, s.nama_supplier]) || [])
-      const branchMap = new Map(branches?.map(b => [b.id_branch, b.nama_branch]) || [])
+      // Create lookup maps
+      const supplierMap = new Map(suppliers.map(s => [s.id_supplier, s.nama_supplier]))
+      const branchMap = new Map(branches.map(b => [b.id_branch, b.nama_branch]))
+      const productMap = new Map((products || []).map(p => [p.id_product, p]))
       const itemsMap = new Map<number, any[]>()
       
       // Group items by PO ID
-      poItemsWithProducts?.forEach(item => {
+      allItems.forEach(item => {
         if (!itemsMap.has(item.po_id)) {
           itemsMap.set(item.po_id, [])
         }
         itemsMap.get(item.po_id)?.push(item)
       })
       
-      // Transform data efficiently
+      // Transform data
       const transformedData = (poData || []).map((po: any) => {
         const items = itemsMap.get(po.id) || []
         let totalHarga = 0
         
         const poItems = items.map(item => {
-          const priceToUse = item.actual_price || item.harga || (item.nama_product as any)?.harga || 0
+          const product = productMap.get(item.product_id)
+          const priceToUse = item.actual_price || item.harga || product?.harga || 0
           const qtyToUse = item.received_qty || item.qty
+          
           totalHarga += priceToUse * qtyToUse
           
           return {
-            product_name: (item.nama_product as any)?.product_name || 'Unknown Product',
+            product_name: product?.product_name || 'Unknown Product',
             qty: item.received_qty || item.qty
           }
         })
