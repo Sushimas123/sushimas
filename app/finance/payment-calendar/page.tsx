@@ -43,84 +43,132 @@ const useScheduledPayments = (statusFilter: string) => {
 
       if (fetchError) throw fetchError
       
-      // Process data dengan optimasi
-      const correctedData = await Promise.all(
-        (financeData || []).map(async (item: any) => {
-          // Get items data sekaligus
-          const [{ data: items }, { data: payments }, { data: poData }, { data: approvalData }] = await Promise.all([
-            supabase.from('po_items').select('qty, harga, total, actual_price, received_qty, product_id').eq('po_id', item.id),
-            supabase.from('po_payments').select('payment_amount, payment_date').eq('po_id', item.id),
-            supabase.from('purchase_orders').select('bulk_payment_ref, total_tagih').eq('id', item.id).single(),
-            supabase.from('purchase_orders').select('approval_status, approved_at').eq('id', item.id).single()
-          ])
-
-          // Calculate corrected total
-          let correctedTotal = 0
-          if (items) {
-            // Pre-fetch product prices untuk efisiensi
-            const productIds = items.map(item => item.product_id).filter(Boolean)
-            const { data: products } = productIds.length > 0 
-              ? await supabase.from('nama_product').select('id_product, harga').in('id_product', productIds)
-              : { data: [] }
-
-            for (const poItem of items) {
-              if (poItem.actual_price && poItem.received_qty) {
-                correctedTotal += poItem.received_qty * poItem.actual_price
-              } else if (poItem.harga) {
-                correctedTotal += poItem.qty * poItem.harga
-              } else if (poItem.product_id) {
-                const product = products?.find(p => p.id_product === poItem.product_id)
-                correctedTotal += poItem.qty * (product?.harga || 0)
-              }
-            }
-          }
-
-          const totalPaid = payments?.reduce((sum, payment) => sum + payment.payment_amount, 0) || 0
-          const totalTagih = poData?.total_tagih || 0
-          
-          // Calculate amounts
-          const basisAmount = totalTagih > 0 ? totalTagih : correctedTotal
-          let calculatedStatus
-          let displayTotalPaid = totalPaid
-          let sisaBayar = basisAmount - totalPaid
-          
-          if (poData?.bulk_payment_ref) {
-            calculatedStatus = 'paid'
-            displayTotalPaid = basisAmount
-            sisaBayar = 0
-          } else {
-            calculatedStatus = totalPaid === 0 ? 'unpaid' : totalPaid >= basisAmount ? 'paid' : 'partial'
-          }
-          
-          // Determine status
-          let status = 'need_submit'
-          if (calculatedStatus === 'paid') {
-            status = 'paid'
-          } else if (item.tanggal_barang_sampai && approvalData?.approval_status === 'pending') {
-            status = 'need_approve'
-          } else if (item.tanggal_barang_sampai && approvalData?.approval_status === 'approved' && calculatedStatus === 'unpaid') {
-            status = 'need_payment'
-          } else if (item.tanggal_barang_sampai && calculatedStatus === 'unpaid') {
-            status = 'need_submit'
-          } else if (item.tanggal_barang_sampai && calculatedStatus === 'partial') {
-            status = 'need_payment'
-          } else if (!item.tanggal_barang_sampai) {
-            status = 'need_approve'
-          }
-          
-          return {
-            ...item,
-            total_po: correctedTotal,
-            total_paid: displayTotalPaid,
-            sisa_bayar: sisaBayar,
-            status_payment: calculatedStatus,
-            status,
-            total_tagih: totalTagih,
-            approval_status: approvalData?.approval_status,
-            approved_at: approvalData?.approved_at
+      // Optimized: Get all related data in bulk to avoid N+1 queries
+      const poIds = (financeData || []).map(item => item.id)
+      
+      // Early return if no data
+      if (poIds.length === 0) {
+        setAllPayments([])
+        setPayments([])
+        return
+      }
+      
+      // Bulk fetch all related data in parallel
+      const [poItemsResult, paymentsResult, poDataResult] = await Promise.all([
+        supabase
+          .from('po_items')
+          .select(`
+            po_id,
+            qty,
+            harga,
+            actual_price,
+            received_qty,
+            product_id,
+            nama_product!inner(
+              harga
+            )
+          `)
+          .in('po_id', poIds),
+        supabase
+          .from('po_payments')
+          .select('po_id, payment_amount, payment_date')
+          .in('po_id', poIds),
+        supabase
+          .from('purchase_orders')
+          .select('id, bulk_payment_ref, total_tagih, approval_status, approved_at')
+          .in('id', poIds)
+      ])
+      
+      // Create lookup maps for O(1) access
+      const itemsMap = new Map<number, any[]>()
+      const paymentsMap = new Map<number, any[]>()
+      const poDataMap = new Map<number, any>()
+      
+      // Group items by PO ID
+      poItemsResult.data?.forEach(item => {
+        if (!itemsMap.has(item.po_id)) {
+          itemsMap.set(item.po_id, [])
+        }
+        itemsMap.get(item.po_id)?.push(item)
+      })
+      
+      // Group payments by PO ID
+      paymentsResult.data?.forEach(payment => {
+        if (!paymentsMap.has(payment.po_id)) {
+          paymentsMap.set(payment.po_id, [])
+        }
+        paymentsMap.get(payment.po_id)?.push(payment)
+      })
+      
+      // Create PO data map
+      poDataResult.data?.forEach(po => {
+        poDataMap.set(po.id, po)
+      })
+      
+      // Transform data efficiently
+      const correctedData = (financeData || []).map((item: any) => {
+        const items = itemsMap.get(item.id) || []
+        const payments = paymentsMap.get(item.id) || []
+        const poData = poDataMap.get(item.id)
+        
+        // Calculate corrected total
+        let correctedTotal = 0
+        items.forEach(poItem => {
+          if (poItem.actual_price && poItem.received_qty) {
+            correctedTotal += poItem.received_qty * poItem.actual_price
+          } else if (poItem.harga) {
+            correctedTotal += poItem.qty * poItem.harga
+          } else if (poItem.product_id) {
+            const productHarga = (poItem.nama_product as any)?.harga || 0
+            correctedTotal += poItem.qty * productHarga
           }
         })
-      )
+        
+        const totalPaid = payments.reduce((sum, payment) => sum + payment.payment_amount, 0)
+        const totalTagih = poData?.total_tagih || 0
+        
+        // Calculate amounts
+        const basisAmount = totalTagih > 0 ? totalTagih : correctedTotal
+        let calculatedStatus
+        let displayTotalPaid = totalPaid
+        let sisaBayar = basisAmount - totalPaid
+        
+        if (poData?.bulk_payment_ref) {
+          calculatedStatus = 'paid'
+          displayTotalPaid = basisAmount
+          sisaBayar = 0
+        } else {
+          calculatedStatus = totalPaid === 0 ? 'unpaid' : totalPaid >= basisAmount ? 'paid' : 'partial'
+        }
+        
+        // Determine status
+        let status = 'need_submit'
+        if (calculatedStatus === 'paid') {
+          status = 'paid'
+        } else if (item.tanggal_barang_sampai && poData?.approval_status === 'pending') {
+          status = 'need_approve'
+        } else if (item.tanggal_barang_sampai && poData?.approval_status === 'approved' && calculatedStatus === 'unpaid') {
+          status = 'need_payment'
+        } else if (item.tanggal_barang_sampai && calculatedStatus === 'unpaid') {
+          status = 'need_submit'
+        } else if (item.tanggal_barang_sampai && calculatedStatus === 'partial') {
+          status = 'need_payment'
+        } else if (!item.tanggal_barang_sampai) {
+          status = 'need_approve'
+        }
+        
+        return {
+          ...item,
+          total_po: correctedTotal,
+          total_paid: displayTotalPaid,
+          sisa_bayar: sisaBayar,
+          status_payment: calculatedStatus,
+          status,
+          total_tagih: totalTagih,
+          approval_status: poData?.approval_status,
+          approved_at: poData?.approved_at
+        }
+      })
       
       // Filter data yang sudah sampai
       const goodsArrivedData = correctedData.filter((item: any) => item.tanggal_barang_sampai)

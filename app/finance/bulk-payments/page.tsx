@@ -59,36 +59,50 @@ export default function BulkPaymentsPage() {
       
       if (bulkError) throw bulkError
       
-      // Get related POs for each bulk payment
-      const formattedData = await Promise.all(
-        (bulkPaymentsData || []).map(async (bulkPayment) => {
-          const { data: relatedPOs } = await supabase
-            .from('purchase_orders')
-            .select('id, po_number, total_tagih, supplier_id')
-            .eq('bulk_payment_ref', bulkPayment.bulk_reference)
-          
-          // Get supplier names for each PO
-          const formattedPOs = await Promise.all(
-            (relatedPOs || []).map(async (po) => {
-              const { data: supplier } = await supabase
-                .from('suppliers')
-                .select('nama_supplier')
-                .eq('id_supplier', po.supplier_id)
-                .single()
-              
-              return {
-                ...po,
-                nama_supplier: supplier?.nama_supplier || 'Unknown Supplier'
-              }
-            })
+      // Early return if no data
+      if (!bulkPaymentsData || bulkPaymentsData.length === 0) {
+        setBulkPayments([])
+        return
+      }
+      
+      // Optimized: Get all related data in bulk to avoid N+1 queries
+      const bulkReferences = (bulkPaymentsData || []).map(bp => bp.bulk_reference)
+      
+      // Bulk fetch all POs with supplier info using JOIN
+      const { data: allPOsWithSuppliers } = await supabase
+        .from('purchase_orders')
+        .select(`
+          id,
+          po_number,
+          total_tagih,
+          supplier_id,
+          bulk_payment_ref,
+          suppliers!inner(
+            nama_supplier
           )
-          
-          return {
-            ...bulkPayment,
-            purchase_orders: formattedPOs
-          }
+        `)
+        .in('bulk_payment_ref', bulkReferences)
+      
+      // Group POs by bulk_payment_ref for O(1) lookup
+      const posMap = new Map<string, any[]>()
+      allPOsWithSuppliers?.forEach(po => {
+        if (!posMap.has(po.bulk_payment_ref)) {
+          posMap.set(po.bulk_payment_ref, [])
+        }
+        posMap.get(po.bulk_payment_ref)?.push({
+          id: po.id,
+          po_number: po.po_number,
+          total_tagih: po.total_tagih,
+          supplier_id: po.supplier_id,
+          nama_supplier: (po.suppliers as any)?.nama_supplier || 'Unknown Supplier'
         })
-      )
+      })
+      
+      // Transform data efficiently
+      const formattedData = (bulkPaymentsData || []).map(bulkPayment => ({
+        ...bulkPayment,
+        purchase_orders: posMap.get(bulkPayment.bulk_reference) || []
+      }))
       
       setBulkPayments(formattedData)
     } catch (error) {

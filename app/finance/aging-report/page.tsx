@@ -61,56 +61,84 @@ export default function AgingReport() {
 
       if (error) throw error
       
-      // Recalculate totals and filter only unpaid/partial
-      const correctedData = await Promise.all(
-        (financeData || []).map(async (item: any) => {
-          // Check for bulk payment reference
-          const { data: poData } = await supabase
-            .from('purchase_orders')
-            .select('bulk_payment_ref')
-            .eq('id', item.id)
-            .single()
-
-          // If has bulk payment reference, consider it paid
-          if (poData?.bulk_payment_ref) {
-            return null // Skip this item as it's paid via bulk payment
-          }
-
-          const { data: items } = await supabase
-            .from('po_items')
-            .select('qty, actual_price, received_qty, product_id')
-            .eq('po_id', item.id)
-
-          let correctedTotal = 0
-          for (const poItem of items || []) {
-            if (poItem.actual_price && poItem.received_qty) {
-              correctedTotal += poItem.received_qty * poItem.actual_price
-            } else {
-              const { data: product } = await supabase
-                .from('nama_product')
-                .select('harga')
-                .eq('id_product', poItem.product_id)
-                .single()
-              correctedTotal += poItem.qty * (product?.harga || 0)
-            }
-          }
-
-          const sisaBayar = correctedTotal - item.total_paid
-          
-          // Skip if fully paid
-          if (sisaBayar <= 0) {
-            return null
-          }
-
-          return {
-            ...item,
-            total_po: correctedTotal,
-            sisa_bayar: sisaBayar,
-            outstanding: sisaBayar,
-            aging_bucket: getAgingBucket(item.days_overdue)
+      // Early return if no data
+      if (!financeData || financeData.length === 0) {
+        setData([])
+        return
+      }
+      
+      // Optimized: Get all related data in bulk to avoid N+1 queries
+      const poIds = (financeData || []).map(item => item.id)
+      
+      // Bulk fetch all related data
+      const [poDataResult, poItemsResult] = await Promise.all([
+        supabase
+          .from('purchase_orders')
+          .select('id, bulk_payment_ref')
+          .in('id', poIds),
+        supabase
+          .from('po_items')
+          .select(`
+            po_id,
+            qty,
+            actual_price,
+            received_qty,
+            product_id,
+            nama_product!inner(
+              harga
+            )
+          `)
+          .in('po_id', poIds)
+      ])
+      
+      // Create lookup maps for O(1) access
+      const poMap = new Map(poDataResult.data?.map(po => [po.id, po]) || [])
+      const itemsMap = new Map<number, any[]>()
+      
+      // Group items by PO ID
+      poItemsResult.data?.forEach(item => {
+        if (!itemsMap.has(item.po_id)) {
+          itemsMap.set(item.po_id, [])
+        }
+        itemsMap.get(item.po_id)?.push(item)
+      })
+      
+      // Transform data efficiently
+      const correctedData = (financeData || []).map((item: any) => {
+        const poData = poMap.get(item.id)
+        
+        // If has bulk payment reference, consider it paid
+        if (poData?.bulk_payment_ref) {
+          return null // Skip this item as it's paid via bulk payment
+        }
+        
+        const items = itemsMap.get(item.id) || []
+        let correctedTotal = 0
+        
+        items.forEach(poItem => {
+          if (poItem.actual_price && poItem.received_qty) {
+            correctedTotal += poItem.received_qty * poItem.actual_price
+          } else {
+            const productHarga = (poItem.nama_product as any)?.harga || 0
+            correctedTotal += poItem.qty * productHarga
           }
         })
-      )
+        
+        const sisaBayar = correctedTotal - item.total_paid
+        
+        // Skip if fully paid
+        if (sisaBayar <= 0) {
+          return null
+        }
+        
+        return {
+          ...item,
+          total_po: correctedTotal,
+          sisa_bayar: sisaBayar,
+          outstanding: sisaBayar,
+          aging_bucket: getAgingBucket(item.days_overdue)
+        }
+      })
       
       // Filter out null items (paid POs) and items with no outstanding balance
       const filteredData = correctedData.filter(item => item !== null && item.outstanding > 0)
