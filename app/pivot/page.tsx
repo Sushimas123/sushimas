@@ -205,7 +205,7 @@ export default function PivotPage() {
       }
 
       const bufferDate = new Date(dateRange.startDate);
-      bufferDate.setDate(bufferDate.getDate() - 7);
+      bufferDate.setDate(bufferDate.getDate() - 30);
       const bufferDateStr = bufferDate.toISOString().split('T')[0];
 
       let readyQuery = supabase
@@ -242,11 +242,23 @@ export default function PivotPage() {
       
       const uniqueProductIds = [...new Set(readyData?.map(r => r.id_product) || [])];
       
-      const { data: warehouseData } = await supabase
-        .from('gudang_final_view')
-        .select('*')
-        .gte('tanggal', bufferDateStr)
-        .in('id_product', uniqueProductIds);
+      // Fetch warehouse data dengan pagination
+      let warehouseData: any[] = [];
+      let whFrom = 0;
+      const whBatch = 1000;
+      while (true) {
+        const { data: whBatchData, error } = await supabase
+          .from('gudang_final_view')
+          .select('*')
+          .gte('tanggal', bufferDateStr)
+          .in('id_product', uniqueProductIds)
+          .range(whFrom, whFrom + whBatch - 1);
+        if (error) break;
+        if (!whBatchData || whBatchData.length === 0) break;
+        warehouseData = warehouseData.concat(whBatchData);
+        if (whBatchData.length < whBatch) break;
+        whFrom += whBatch;
+      }
       
       // Fetch ESB data dengan pagination untuk menghindari limit 1000
       let allEsbData: any[] = [];
@@ -278,12 +290,24 @@ export default function PivotPage() {
         .lte('tanggal_input', dateRange.endDate)
         .in('id_product', uniqueProductIds);
       
-      const { data: productionDetailData } = await supabase
-        .from('produksi_detail')
-        .select('item_id, tanggal_input, total_pakai, branch')
-        .gte('tanggal_input', bufferDateStr)
-        .lte('tanggal_input', dateRange.endDate)
-        .in('item_id', uniqueProductIds);
+      // Fetch produksi_detail data dengan pagination
+      let productionDetailData: any[] = [];
+      let pdFrom = 0;
+      const pdBatch = 1000;
+      while (true) {
+        const { data: pdBatchData, error } = await supabase
+          .from('produksi_detail')
+          .select('item_id, tanggal_input, total_pakai, branch')
+          .gte('tanggal_input', bufferDateStr)
+          .lte('tanggal_input', dateRange.endDate)
+          .in('item_id', uniqueProductIds)
+          .range(pdFrom, pdFrom + pdBatch - 1);
+        if (error) break;
+        if (!pdBatchData || pdBatchData.length === 0) break;
+        productionDetailData = productionDetailData.concat(pdBatchData);
+        if (pdBatchData.length < pdBatch) break;
+        pdFrom += pdBatch;
+      }
 
       // Process data menggunakan logika yang sama dengan analysis page
       const allAnalysisData = processAnalysisData(
@@ -337,6 +361,17 @@ export default function PivotPage() {
     }
   };
 
+  const norm = (s?: string) => (s || '').trim().toLowerCase();
+  
+  const pickLatestOnOrBefore = (items: any[], date: string) => {
+    return items
+      .filter(w => {
+        const d = w.tanggal ? w.tanggal.split('T')[0] : null;
+        return d && d <= date;
+      })
+      .sort((a, b) => new Date(b.tanggal || '1900-01-01').getTime() - new Date(a.tanggal || '1900-01-01').getTime())[0] || null;
+  };
+
   const processAnalysisData = (readyStock: any[], products: any[], warehouse: any[], esb: any[], production: any[], branches: any[], productionDetail: any[]): AnalysisData[] => {
     const productMap = new Map(products.map(p => [p.id_product, p]));
     const branchMap = new Map(branches.map(b => [b.id_branch, b]));
@@ -351,7 +386,7 @@ export default function PivotPage() {
     
     const esbMap = new Map();
     esb.forEach(e => {
-      const key = `${e.sales_date}-${e.product_id}-${e.branch?.trim()}`;
+      const key = `${e.sales_date}-${e.product_id}-${norm(e.branch)}`;
       esbMap.set(key, e);
     });
     
@@ -368,22 +403,11 @@ export default function PivotPage() {
       
       const warehouseKey = `${ready.id_product}-${branch?.kode_branch}`;
       const warehouseItems = warehouseMap.get(warehouseKey) || [];
-      const filteredWarehouseItems = warehouseItems.filter((w: any) => {
-        const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
-        return warehouseDate <= ready.tanggal_input;
-      });
-      
-      const warehouseItem = filteredWarehouseItems.length > 0 
-        ? filteredWarehouseItems.reduce((latest: any, current: any) => {
-            const latestTimestamp = latest.tanggal || '1900-01-01T00:00:00.000Z';
-            const currentTimestamp = current.tanggal || '1900-01-01T00:00:00.000Z';
-            return currentTimestamp > latestTimestamp ? current : latest;
-          })
-        : null;
+      const warehouseItem = pickLatestOnOrBefore(warehouseItems, ready.tanggal_input);
       
       const readyDate = String(ready.tanggal_input).slice(0, 10);
-      const readyBranch = branch?.nama_branch?.trim() || "";
-      const esbKey = `${readyDate}-${ready.id_product}-${readyBranch}`;
+      const readyBranchNorm = norm(branch?.nama_branch);
+      const esbKey = `${readyDate}-${ready.id_product}-${readyBranchNorm}`;
       const esbItem = esbMap.get(esbKey);
       const hasilESB = esbItem ? Number(esbItem.qty_total) : 0;
       
@@ -401,7 +425,7 @@ export default function PivotPage() {
         .filter((pd: any) => {
           return pd.item_id === ready.id_product && 
                  pd.tanggal_input === ready.tanggal_input &&
-                 pd.branch === expectedBranchName;
+                 (pd.branch || '').trim() === (expectedBranchName || '').trim();
         })
         .reduce((sum: number, pd: any) => sum + (pd.total_pakai || 0), 0);
       
@@ -456,19 +480,12 @@ export default function PivotPage() {
     );
     
     const previousWarehouseItems = warehouse.filter(w => {
-      const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
+      const d = w.tanggal ? w.tanggal.split('T')[0] : null;
       return w.id_product === currentReady.id_product &&
-             warehouseDate <= previousDayStr &&
+             d && d <= previousDayStr &&
              w.cabang === branch?.kode_branch;
     });
-    
-    const previousWarehouseItem = previousWarehouseItems.length > 0 
-      ? previousWarehouseItems.reduce((latest, current) => {
-          const latestTimestamp = latest.tanggal || '1900-01-01T00:00:00.000Z';
-          const currentTimestamp = current.tanggal || '1900-01-01T00:00:00.000Z';
-          return currentTimestamp > latestTimestamp ? current : latest;
-        })
-      : null;
+    const previousWarehouseItem = pickLatestOnOrBefore(previousWarehouseItems, previousDayStr);
     
     const stokKemarin = (previousReady?.ready || 0) + (previousWarehouseItem?.running_total || previousWarehouseItem?.total_gudang || 0);
     
@@ -482,19 +499,12 @@ export default function PivotPage() {
       .reduce((sum, w) => sum + (w.jumlah_masuk || 0), 0);
     
     const currentWarehouseItems = warehouse.filter(w => {
-      const warehouseDate = w.tanggal ? w.tanggal.split('T')[0] : null;
+      const d = w.tanggal ? w.tanggal.split('T')[0] : null;
       return w.id_product === currentReady.id_product &&
-             warehouseDate <= currentReady.tanggal_input &&
+             d && d <= currentReady.tanggal_input &&
              w.cabang === branch?.kode_branch;
     });
-    
-    const currentWarehouseItem = currentWarehouseItems.length > 0 
-      ? currentWarehouseItems.reduce((latest, current) => {
-          const latestTimestamp = latest.tanggal || '1900-01-01T00:00:00.000Z';
-          const currentTimestamp = current.tanggal || '1900-01-01T00:00:00.000Z';
-          return currentTimestamp > latestTimestamp ? current : latest;
-        })
-      : null;
+    const currentWarehouseItem = pickLatestOnOrBefore(currentWarehouseItems, currentReady.tanggal_input);
     
     const stokHariIni = (currentReady.ready || 0) + (currentWarehouseItem?.running_total || currentWarehouseItem?.total_gudang || 0);
     const waste = currentReady.waste || 0;
