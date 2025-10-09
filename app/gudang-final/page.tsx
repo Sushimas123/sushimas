@@ -55,6 +55,7 @@ interface Product {
   product_name: string;
   category: string;
   sub_category?: string;
+  suppliers?: { nama_supplier: string };
 }
 
 function GudangFinalContent() {
@@ -251,9 +252,16 @@ function GudangFinalContent() {
 
   const fetchProducts = async () => {
     try {
+      // Fetch products with supplier info
       const { data, error } = await supabase
         .from('nama_product')
-        .select('id_product, product_name, category, sub_category')
+        .select(`
+          id_product, 
+          product_name, 
+          category, 
+          sub_category,
+          suppliers(nama_supplier)
+        `)
         .eq('is_active', true)
         .order('product_name');
       
@@ -501,7 +509,8 @@ function GudangFinalContent() {
   };
 
   const filteredProducts = products.filter(p => 
-    p.product_name.toLowerCase().includes(productSearch.toLowerCase())
+    p.product_name.toLowerCase().includes(productSearch.toLowerCase()) ||
+    (p.suppliers?.nama_supplier && p.suppliers.nama_supplier.toLowerCase().includes(productSearch.toLowerCase()))
   );
 
   const handleSort = (key: string) => {
@@ -835,9 +844,12 @@ function GudangFinalContent() {
                         <div
                           key={product.id_product}
                           onClick={() => handleProductSelect(product)}
-                          className="px-2 py-1 hover:bg-gray-100 cursor-pointer text-xs"
+                          className="px-2 py-1 hover:bg-gray-100 cursor-pointer text-xs border-b border-gray-100 last:border-b-0"
                         >
-                          {product.product_name}
+                          <div className="font-medium text-gray-900">{product.product_name}</div>
+                          {product.suppliers?.nama_supplier && (
+                            <div className="text-xs text-blue-600 mt-0.5">Supplier: {product.suppliers.nama_supplier}</div>
+                          )}
                         </div>
                       ))
                     ) : (

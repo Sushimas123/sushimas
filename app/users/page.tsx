@@ -108,20 +108,17 @@ function UsersPageContent() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  // Get columns based on permissions
+  // Get columns based on permissions - OPTIMIZED
   useEffect(() => {
     const loadPermittedColumns = async () => {
       if (users.length > 0) {
         const allColumns = ['email', 'nama_lengkap', 'no_telp', 'role', 'branches', 'created_at', 'is_active']
-        const permitted = []
         
-        for (const col of allColumns) {
-          const hasPermission = await canViewColumn(userRole, 'users', col)
-          if (hasPermission) {
-            permitted.push(col)
-          }
-        }
+        // ✅ BATCH PERMISSION CHECK: Semua sekaligus
+        const permissionPromises = allColumns.map(col => canViewColumn(userRole, 'users', col))
+        const permissions = await Promise.all(permissionPromises)
         
+        const permitted = allColumns.filter((_, index) => permissions[index])
         setPermittedColumns(permitted)
       }
     }
@@ -147,60 +144,45 @@ function UsersPageContent() {
     try {
       setLoading(true);
       
-      // ✅ QUERY OPTIMAL: Ambil user + branches sekaligus
-      let query = supabase
-        .from('users')
-        .select(`
-          *,
-          user_branches(kode_branch)
-        `);
+      // ✅ OPTIMASI: Query sederhana tanpa JOIN
+      let query = supabase.from('users').select('*');
       
-      // Filter status
       if (statusFilter === 'active') {
         query = query.eq('is_active', true);
       } else if (statusFilter === 'inactive') {
         query = query.eq('is_active', false);
       }
       
-      let { data: usersData, error } = await query.order('nama_lengkap');
-      
-      // Fallback: Jika JOIN query gagal, coba query users saja
-      if (error && error.message?.includes('user_branches')) {
-        console.warn('JOIN query failed, trying simple users query:', error.message);
-        
-        let simpleQuery = supabase.from('users').select('*');
-        
-        if (statusFilter === 'active') {
-          simpleQuery = simpleQuery.eq('is_active', true);
-        } else if (statusFilter === 'inactive') {
-          simpleQuery = simpleQuery.eq('is_active', false);
-        }
-        
-        const simpleResult = await simpleQuery.order('nama_lengkap');
-        usersData = simpleResult.data;
-        error = simpleResult.error;
-      }
+      const { data: usersData, error } = await query.order('nama_lengkap');
 
-      if (error) {
-        console.error('Supabase error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-        throw error;
-      }
-
+      if (error) throw error;
       if (!usersData) {
-        console.warn('No users data returned from query');
         setUsers([]);
         return;
       }
 
-      // ✅ TRANSFORMASI SEDERHANA: Tidak perlu mapping complex
+      // ✅ BULK FETCH: Ambil semua user branches sekaligus
+      const userIds = usersData.map(u => u.id_user);
+      const { data: userBranches } = userIds.length > 0 
+        ? await supabase
+            .from('user_branches')
+            .select('id_user, kode_branch')
+            .in('id_user', userIds)
+        : { data: [] };
+
+      // ✅ MAP LOOKUP: O(1) performance
+      const branchesMap = new Map<number, string[]>();
+      (userBranches || []).forEach(ub => {
+        if (!branchesMap.has(ub.id_user)) {
+          branchesMap.set(ub.id_user, []);
+        }
+        branchesMap.get(ub.id_user)?.push(ub.kode_branch);
+      });
+
+      // ✅ SIMPLE TRANSFORM: Minimal processing
       const usersWithBranches = usersData.map(user => ({
         ...user,
-        branches: user.user_branches ? user.user_branches.map((ub: any) => ub.kode_branch) : []
+        branches: branchesMap.get(user.id_user) || []
       }));
 
       setUsers(usersWithBranches);
