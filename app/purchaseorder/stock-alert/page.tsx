@@ -39,6 +39,7 @@ interface POItem {
   qty: number;
   notes: string;
   selected: boolean;
+  harga?: number;
 }
 
 function StockAlertPOPage() {
@@ -220,12 +221,13 @@ function StockAlertPOPage() {
   };
 
   const initializePOItems = async () => {
-    // Get product supplier information
+    // Get product supplier information with price
     const { data: productSuppliers, error } = await supabase
       .from('nama_product')
       .select(`
         id_product,
         supplier_id,
+        harga,
         suppliers!inner(
           id_supplier,
           nama_supplier
@@ -246,7 +248,8 @@ function StockAlertPOPage() {
         supplier_name: (productSupplier?.suppliers as any)?.nama_supplier || suppliers[0]?.nama_supplier || '',
         qty: alert.reorder_point,
         notes: `Stock Alert - ${alert.urgency_level}`,
-        selected: false
+        selected: false,
+        harga: productSupplier?.harga || 0
       };
     });
     setPOItems(items);
@@ -459,6 +462,7 @@ function StockAlertPOPage() {
                     po_id BIGINT NOT NULL REFERENCES purchase_orders(id),
                     product_id BIGINT NOT NULL REFERENCES nama_product(id_product),
                     qty NUMERIC NOT NULL,
+                    harga NUMERIC DEFAULT 0,
                     keterangan TEXT,
                     created_at TIMESTAMPTZ DEFAULT NOW()
                   );
@@ -472,6 +476,7 @@ function StockAlertPOPage() {
               po_id: createdPO.id,
               product_id: item.alert.id_product,
               qty: item.qty,
+              harga: item.harga || 0,
               keterangan: item.notes
             }));
 
