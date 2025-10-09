@@ -242,18 +242,37 @@ export default function AnalysisPage() {
       bufferDate.setDate(bufferDate.getDate() - 30);
       const bufferDateStr = bufferDate.toISOString().split('T')[0];
 
+      // Get user branch filter first
+      const userBranchFilter = await getBranchFilter();
+      let allowedBranchIds: number[] = [];
+      
+      if (userBranchFilter && userBranchFilter.length > 0) {
+        const { data: branchData } = await supabase
+          .from('branches')
+          .select('id_branch, kode_branch')
+          .in('kode_branch', userBranchFilter);
+        allowedBranchIds = branchData?.map(b => b.id_branch) || [];
+      }
+      
       // Fetch ready data with batching
       let readyData: any[] = [];
       let readyFrom = 0;
       const readyBatchSize = 1000;
       
       while (true) {
-        const { data: readyBatch, error: readyError } = await supabase
+        let query = supabase
           .from('ready')
           .select('*')
           .gte('tanggal_input', bufferDateStr)
           .lte('tanggal_input', dateRange.endDate)
-          .order('tanggal_input', { ascending: false })
+          .order('tanggal_input', { ascending: false });
+        
+        // Apply branch filter if user has restrictions
+        if (allowedBranchIds.length > 0) {
+          query = query.in('id_branch', allowedBranchIds);
+        }
+        
+        const { data: readyBatch, error: readyError } = await query
           .range(readyFrom, readyFrom + readyBatchSize - 1);
         
         if (readyError) {
@@ -340,12 +359,26 @@ export default function AnalysisPage() {
         .lte('tanggal_input', dateRange.endDate)
         .in('id_product', uniqueProductIds);
       
-      const { data: productionDetailData } = await supabase
-        .from('produksi_detail')
-        .select('item_id, tanggal_input, total_pakai, branch')
-        .gte('tanggal_input', bufferDateStr)
-        .lte('tanggal_input', dateRange.endDate)
-        .in('item_id', uniqueProductIds);
+      // Fetch production detail data with batching
+      let productionDetailData: any[] = [];
+      let pdFrom = 0;
+      const pdBatchSize = 1000;
+      
+      while (true) {
+        const { data: pdBatch } = await supabase
+          .from('produksi_detail')
+          .select('production_no, item_id, tanggal_input, total_pakai, branch')
+          .gte('tanggal_input', bufferDateStr)
+          .lte('tanggal_input', dateRange.endDate)
+          .range(pdFrom, pdFrom + pdBatchSize - 1);
+        
+        if (!pdBatch || pdBatch.length === 0) break;
+        
+        productionDetailData = [...productionDetailData, ...pdBatch];
+        
+        if (pdBatch.length < pdBatchSize) break;
+        pdFrom += pdBatchSize;
+      }
 
       if (!readyData || readyData.length === 0) {
         showToast('No ready data found. Please add some data in Ready Stock first.', 'error');
@@ -366,23 +399,9 @@ export default function AnalysisPage() {
       );
       
       // Filter for display (remove buffer data)
-      let filteredAnalysisData = allAnalysisData.filter(item => {
+      const filteredAnalysisData = allAnalysisData.filter(item => {
         return item.tanggal >= dateRange.startDate && item.tanggal <= dateRange.endDate;
       });
-      
-      // Apply branch filter for display only - calculations already done with full data
-      const userBranchFilter = await getBranchFilter();
-      if (userBranchFilter && userBranchFilter.length > 0) {
-        const { data: branchData } = await supabase
-          .from('branches')
-          .select('nama_branch, kode_branch')
-          .in('kode_branch', userBranchFilter);
-        
-        const allowedBranchNames = branchData?.map(b => b.nama_branch) || [];
-        filteredAnalysisData = filteredAnalysisData.filter(item => 
-          allowedBranchNames.includes(item.cabang)
-        );
-      }
 
       setData(filteredAnalysisData);
     } catch (error) {
@@ -429,11 +448,20 @@ export default function AnalysisPage() {
     });
     
     // Group production detail data by product, date, and branch
+    // Remove duplicates by unique combination
     const productionDetailMap = new Map();
+    const seenRecords = new Set();
+    
+
+    
     productionDetail.forEach(pd => {
-      const key = `${pd.item_id}-${pd.tanggal_input}-${pd.branch}`;
-      if (!productionDetailMap.has(key)) productionDetailMap.set(key, []);
-      productionDetailMap.get(key).push(pd);
+      const uniqueKey = `${pd.production_no}-${pd.item_id}-${pd.tanggal_input}-${pd.branch}`;
+      if (!seenRecords.has(uniqueKey)) {
+        seenRecords.add(uniqueKey);
+        const key = `${pd.item_id}-${pd.tanggal_input}-${pd.branch}`;
+        if (!productionDetailMap.has(key)) productionDetailMap.set(key, []);
+        productionDetailMap.get(key).push(pd);
+      }
     });
     
     return readyStock.map((ready, index) => {
@@ -500,13 +528,17 @@ export default function AnalysisPage() {
       
       const expectedBranchName = branchCodeToNameMap.get(branch?.kode_branch || '') || branch?.nama_branch;
       
-      const totalProduction = productionDetail
-        .filter((pd: any) => {
-          return pd.item_id === ready.id_product && 
-                 pd.tanggal_input === ready.tanggal_input &&
-                 pd.branch === expectedBranchName;
-        })
-        .reduce((sum: number, pd: any) => sum + (pd.total_pakai || 0), 0);
+      const filteredPD = productionDetail.filter((pd: any) => {
+        const pdBranch = (pd.branch || '').trim();
+        const expBranch = (expectedBranchName || '').trim();
+        return pd.item_id === ready.id_product && 
+               pd.tanggal_input === ready.tanggal_input &&
+               pdBranch === expBranch;
+      });
+      
+
+      
+      const totalProduction = filteredPD.reduce((sum: number, pd: any) => sum + (pd.total_pakai || 0), 0);
       
       const sumifTotal = productionItem?.total_konversi || 0;
       
@@ -874,7 +906,7 @@ export default function AnalysisPage() {
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-gray-200 text-sm text-gray-600">
-            Showing {paginatedData.length} of {filteredAndSortedData.length} records
+            Menampilkan {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedData.length)} dari {filteredAndSortedData.length} records
             {loading && <span className="ml-4 text-orange-600">⏳ Loading...</span>}
             {sortConfig && (
               <span className="ml-4 text-blue-600">

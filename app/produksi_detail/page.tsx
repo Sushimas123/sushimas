@@ -163,12 +163,11 @@ function ProduksiDetailPageContent() {
 
   const fetchDetails = async () => {
     try {
-      // Fetch limited data to prevent memory leak
+      // Fetch all data without limit
       let query = supabase
         .from('produksi_detail')
         .select('*')
         .order('tanggal_input', { ascending: false })
-        .limit(5000); // Reasonable limit to prevent memory issues
       
       // Filter by user's allowed branches for non-admin users
       if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranches.length > 0) {
@@ -608,34 +607,48 @@ function ProduksiDetailPageContent() {
           </div>
         </div>
 
-        {totalPages > 1 && (
-          <div className="bg-white p-3 rounded-lg shadow mt-3">
-            <div className="flex justify-between items-center">
-              <p className="text-sm text-gray-600">
-                Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, filteredAndSortedDetails.length)} of {filteredAndSortedDetails.length} records
-              </p>
-              <div className="flex gap-2">
+        <div className="bg-white p-3 rounded-lg shadow mt-3">
+          <div className="flex justify-between items-center">
+            <p className="text-sm text-gray-600">
+              Menampilkan {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedDetails.length)} dari {filteredAndSortedDetails.length} records
+            </p>
+            {totalPages > 1 && (
+              <div className="flex gap-1">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(1)}
+                  className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
+                >
+                  First
+                </button>
                 <button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(currentPage - 1)}
-                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded disabled:opacity-50 hover:bg-gray-200 text-sm"
+                  className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
                 >
-                  Previous
+                  Prev
                 </button>
-                <span className="px-3 py-1 text-sm bg-blue-50 rounded">
+                <span className="px-3 py-1 border rounded text-sm bg-blue-50">
                   Page {currentPage} of {totalPages}
                 </span>
                 <button
                   disabled={currentPage === totalPages}
                   onClick={() => setCurrentPage(currentPage + 1)}
-                  className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50 hover:bg-blue-700 text-sm"
+                  className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
                 >
                   Next
                 </button>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(totalPages)}
+                  className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
+                >
+                  Last
+                </button>
               </div>
-            </div>
+            )}
           </div>
-        )}
+        </div>
         </div>
   );
 }
