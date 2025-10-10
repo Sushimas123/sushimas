@@ -297,18 +297,21 @@ function CreateExpenseContent() {
         return priceHistory.actual_price;
       }
       
-      // 2. Fallback to latest actual price from barang_masuk
+      // 2. Fallback to latest price from po_items (actual_price or harga)
       const { data: latestPrice } = await supabase
-        .from('barang_masuk')
-        .select('actual_price')
+        .from('po_items')
+        .select('actual_price, harga')
         .eq('product_id', productId)
-        .not('actual_price', 'is', null)
-        .order('tanggal_masuk', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(1)
         .single();
       
       if (latestPrice?.actual_price) {
         return latestPrice.actual_price;
+      }
+      
+      if (latestPrice?.harga) {
+        return latestPrice.harga;
       }
       
       // 3. Final fallback to master price from nama_product
