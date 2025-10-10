@@ -1396,4 +1396,4 @@ export default function ProductPage() {
       </PageAccessControl>
     </Layout>
   )
-}
+} 
