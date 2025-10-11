@@ -506,7 +506,13 @@ export default function SuratJalanPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
   const [exportLoading, setExportLoading] = useState<number | null>(null)
-  const itemsPerPage = 20
+  const [sortBy, setSortBy] = useState<string>('created_at')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [filterBranch, setFilterBranch] = useState<string>('')
+  const [filterDateFrom, setFilterDateFrom] = useState<string>('')
+  const [filterDateTo, setFilterDateTo] = useState<string>('')
+  const itemsPerPage = 10
+
 
   const [form, setForm] = useState({
     tanggal: new Date().toISOString().split('T')[0],
@@ -528,7 +534,7 @@ export default function SuratJalanPage() {
 
   useEffect(() => {
     fetchSuratJalans()
-  }, [currentPage])
+  }, [currentPage, sortBy, sortOrder, filterBranch, filterDateFrom, filterDateTo])
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
@@ -570,7 +576,7 @@ export default function SuratJalanPage() {
       setLoading(true)
       
       // Check if table exists first
-      const { count, error: countError } = await supabase
+      const { error: countError } = await supabase
         .from('surat_jalan')
         .select('*', { count: 'exact', head: true })
       
@@ -580,20 +586,36 @@ export default function SuratJalanPage() {
         return
       }
       
-      setTotalCount(count || 0)
-      
       const from = (currentPage - 1) * itemsPerPage
       const to = from + itemsPerPage - 1
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('surat_jalan')
         .select(`
           *,
           branches(nama_branch),
           users!created_by(nama_lengkap)
-        `)
-        .order('created_at', { ascending: false })
+        `, { count: 'exact' })
+      
+      if (filterBranch) {
+        query = query.eq('cabang_tujuan_id', filterBranch)
+      }
+      
+      if (filterDateFrom) {
+        query = query.gte('tanggal', filterDateFrom)
+      }
+      
+      if (filterDateTo) {
+        query = query.lte('tanggal', filterDateTo)
+      }
+      
+      const { data, error, count } = await query
+        .order(sortBy, { ascending: sortOrder === 'asc' })
         .range(from, to)
+      
+      if (count !== null) {
+        setTotalCount(count)
+      }
       
       if (error) throw error
       
@@ -745,6 +767,16 @@ export default function SuratJalanPage() {
     }
   }
 
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(column)
+      setSortOrder('asc')
+    }
+    setCurrentPage(1)
+  }
+
   const resetForm = () => {
     setForm({
       tanggal: new Date().toISOString().split('T')[0],
@@ -777,18 +809,116 @@ export default function SuratJalanPage() {
             </button>
           </div>
 
+          <div className="bg-white rounded-lg shadow mb-4 p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Filter Cabang
+                </label>
+                <select
+                  value={filterBranch}
+                  onChange={(e) => {
+                    setFilterBranch(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Semua Cabang</option>
+                  {branches.map(branch => (
+                    <option key={branch.id_branch} value={branch.id_branch}>
+                      {branch.nama_branch}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tanggal Dari
+                </label>
+                <input
+                  type="date"
+                  value={filterDateFrom}
+                  onChange={(e) => {
+                    setFilterDateFrom(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tanggal Sampai
+                </label>
+                <input
+                  type="date"
+                  value={filterDateTo}
+                  onChange={(e) => {
+                    setFilterDateTo(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+            {(filterBranch || filterDateFrom || filterDateTo) && (
+              <div className="mt-3">
+                <button
+                  onClick={() => {
+                    setFilterBranch('')
+                    setFilterDateFrom('')
+                    setFilterDateTo('')
+                    setCurrentPage(1)
+                  }}
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  Reset Filter
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="bg-white rounded-lg shadow">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">No Surat Jalan</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cabang Tujuan</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Driver</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created By</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Updated At</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('no_surat_jalan')}>
+                      <div className="flex items-center gap-1">
+                        No Surat Jalan
+                        {sortBy === 'no_surat_jalan' && (sortOrder === 'asc' ? '↑' : '↓')}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal')}>
+                      <div className="flex items-center gap-1">
+                        Tanggal
+                        {sortBy === 'tanggal' && (sortOrder === 'asc' ? '↑' : '↓')}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('cabang_tujuan_id')}>
+                      <div className="flex items-center gap-1">
+                        Cabang Tujuan
+                        {sortBy === 'cabang_tujuan_id' && (sortOrder === 'asc' ? '↑' : '↓')}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('driver')}>
+                      <div className="flex items-center gap-1">
+                        Driver
+                        {sortBy === 'driver' && (sortOrder === 'asc' ? '↑' : '↓')}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('created_by')}>
+                      <div className="flex items-center gap-1">
+                        Created By
+                        {sortBy === 'created_by' && (sortOrder === 'asc' ? '↑' : '↓')}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('updated_at')}>
+                      <div className="flex items-center gap-1">
+                        Updated At
+                        {sortBy === 'updated_at' && (sortOrder === 'asc' ? '↑' : '↓')}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
