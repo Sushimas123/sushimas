@@ -111,18 +111,43 @@ const useScheduledPayments = (statusFilter: string) => {
         const payments = paymentsMap.get(item.id) || []
         const poData = poDataMap.get(item.id)
         
-        // Calculate corrected total
+        // Calculate corrected total - Fixed untuk handle null values
         let correctedTotal = 0
         items.forEach(poItem => {
-          if (poItem.actual_price && poItem.received_qty) {
-            correctedTotal += poItem.received_qty * poItem.actual_price
-          } else if (poItem.harga) {
-            correctedTotal += poItem.qty * poItem.harga
-          } else if (poItem.product_id) {
-            const productHarga = (poItem.nama_product as any)?.harga || 0
-            correctedTotal += poItem.qty * productHarga
+          const actualPrice = poItem.actual_price || 0
+          const originalPrice = poItem.harga || 0
+          const receivedQty = poItem.received_qty || 0
+          const originalQty = poItem.qty || 0
+          const productHarga = (poItem.nama_product as any)?.harga || 0
+          
+          if (actualPrice > 0 && receivedQty > 0) {
+            correctedTotal += receivedQty * actualPrice
+          } else if (originalPrice > 0 && originalQty > 0) {
+            correctedTotal += originalQty * originalPrice
+          } else if (productHarga > 0 && originalQty > 0) {
+            correctedTotal += originalQty * productHarga
           }
         })
+        
+        // Fallback: jika correctedTotal masih 0, gunakan total dari finance_dashboard_view
+        if (correctedTotal === 0 && item.total_po) {
+          correctedTotal = item.total_po
+        }
+        
+        // Debug logging untuk troubleshoot
+        if (correctedTotal === 0) {
+          console.log(`Payment Calendar - PO ${item.po_number} has 0 total:`, {
+            itemsCount: items.length,
+            items: items.map(i => ({
+              actual_price: i.actual_price,
+              harga: i.harga,
+              received_qty: i.received_qty,
+              qty: i.qty,
+              product_harga: (i.nama_product as any)?.harga
+            })),
+            originalTotal: item.total_po
+          })
+        }
         
         const totalPaid = payments.reduce((sum, payment) => sum + payment.payment_amount, 0)
         const totalTagih = poData?.total_tagih || 0
