@@ -1097,16 +1097,8 @@ export default function SuratJalanPage() {
                   </div>
 
                   <div className="bg-gray-50 p-3 rounded">
-                    <div className="flex justify-between items-center mb-3">
+                    <div className="mb-3">
                       <h3 className="text-base font-semibold text-gray-800">Daftar Barang</h3>
-                      <button
-                        type="button"
-                        onClick={addItem}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700"
-                      >
-                        <Plus className="h-3 w-3" />
-                        Tambah
-                      </button>
                     </div>
                     
                     {form.items.map((item, index) => (
@@ -1185,6 +1177,17 @@ export default function SuratJalanPage() {
                         </div>
                       </div>
                     ))}
+                    
+                    <div className="flex justify-center mt-3">
+                      <button
+                        type="button"
+                        onClick={addItem}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Tambah
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex justify-end gap-4 pt-6 border-t border-gray-200">
