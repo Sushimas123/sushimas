@@ -257,8 +257,8 @@ export default function FinancePurchaseOrders() {
     return data.filter(item => {
       const matchesSearch = debouncedSearch === '' || 
         item.po_number.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        item.nama_supplier.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        item.nama_branch.toLowerCase().includes(debouncedSearch.toLowerCase())
+        (item.nama_supplier || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        (item.nama_branch || '').toLowerCase().includes(debouncedSearch.toLowerCase())
       
       return matchesSearch
     })
@@ -424,8 +424,8 @@ export default function FinancePurchaseOrders() {
 
   const allFilteredData = data.filter(item => {
     const matchesSearch = item.po_number.toLowerCase().includes(search.toLowerCase()) ||
-                         item.nama_supplier.toLowerCase().includes(search.toLowerCase()) ||
-                         item.nama_branch.toLowerCase().includes(search.toLowerCase())
+                         (item.nama_supplier || '').toLowerCase().includes(search.toLowerCase()) ||
+                         (item.nama_branch || '').toLowerCase().includes(search.toLowerCase())
     return matchesSearch
   }).sort((a, b) => {
     if (!sortField) return 0
