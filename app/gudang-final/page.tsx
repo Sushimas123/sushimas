@@ -44,6 +44,7 @@ interface Gudang {
   updated_at?: string;
   product_name?: string;
   branch_name?: string;
+  supplier_name?: string;
   is_locked?: boolean;
   locked_by_so?: string;
   locked_date?: string;
@@ -55,7 +56,7 @@ interface Product {
   product_name: string;
   category: string;
   sub_category?: string;
-  suppliers?: { nama_supplier: string };
+  suppliers?: { nama_supplier: string }[];
 }
 
 function GudangFinalContent() {
@@ -133,7 +134,7 @@ function GudangFinalContent() {
       
       // Fetch related data
       const [productsData, branchesData, stockSettingsData] = await Promise.all([
-        supabase.from('nama_product').select('id_product, product_name'),
+        supabase.from('nama_product').select('id_product, product_name, supplier_id, suppliers!supplier_id(nama_supplier)'),
         supabase.from('branches').select('kode_branch, nama_branch'),
         supabase.from('product_branch_settings').select(`
           id_product,
@@ -142,13 +143,22 @@ function GudangFinalContent() {
         `)
       ]);
       
+      console.log('Products with suppliers:', productsData.data?.slice(0, 3));
+      
       const productMap = new Map(productsData.data?.map(p => [p.id_product, p.product_name]) || []);
+      const supplierMap = new Map(productsData.data?.map(p => {
+        const supplierName = (p.suppliers as any)?.nama_supplier || '';
+        return [p.id_product, supplierName];
+      }) || []);
       const branchMap = new Map(branchesData.data?.map(b => [b.kode_branch, b.nama_branch]) || []);
       const stockSettingsMap = new Map(stockSettingsData.data?.map(s => [`${s.id_product}-${(s.branches as any).kode_branch}`, s.safety_stock]) || []);
+      
+      console.log('Supplier map sample:', Array.from(supplierMap.entries()).slice(0, 5));
       
       let gudangWithNames = allGudangData.map((item: any) => ({
         ...item,
         product_name: productMap.get(item.id_product) || item.product_name || '',
+        supplier_name: supplierMap.get(item.id_product) || '',
         branch_name: branchMap.get(item.cabang) || item.branch_name || item.cabang,
         minimum_stock: stockSettingsMap.get(`${item.id_product}-${item.cabang}`) || 0
       }));
@@ -260,7 +270,7 @@ function GudangFinalContent() {
           product_name, 
           category, 
           sub_category,
-          suppliers(nama_supplier)
+          suppliers!supplier_id(nama_supplier)
         `)
         .eq('is_active', true)
         .order('product_name');
@@ -510,7 +520,7 @@ function GudangFinalContent() {
 
   const filteredProducts = products.filter(p => 
     p.product_name.toLowerCase().includes(productSearch.toLowerCase()) ||
-    (p.suppliers?.nama_supplier && p.suppliers.nama_supplier.toLowerCase().includes(productSearch.toLowerCase()))
+    ((p.suppliers as any)?.nama_supplier && (p.suppliers as any).nama_supplier.toLowerCase().includes(productSearch.toLowerCase()))
   );
 
   const handleSort = (key: string) => {
@@ -525,6 +535,7 @@ function GudangFinalContent() {
     let filtered = gudang.filter(item => {
       const matchesSearch = (item.order_no || '').toString().includes(searchTerm) ||
         (item.product_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.supplier_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (item.nama_pengambil_barang || '').toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesDate = !dateFilter || item.tanggal.includes(dateFilter);
@@ -847,8 +858,8 @@ function GudangFinalContent() {
                           className="px-2 py-1 hover:bg-gray-100 cursor-pointer text-xs border-b border-gray-100 last:border-b-0"
                         >
                           <div className="font-medium text-gray-900">{product.product_name}</div>
-                          {product.suppliers?.nama_supplier && (
-                            <div className="text-xs text-blue-600 mt-0.5">Supplier: {product.suppliers.nama_supplier}</div>
+                          {(product.suppliers as any)?.nama_supplier && (
+                            <div className="text-xs text-blue-600 mt-0.5">Supplier: {(product.suppliers as any).nama_supplier}</div>
                           )}
                         </div>
                       ))
@@ -950,6 +961,9 @@ function GudangFinalContent() {
                 <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('product_name')}>
                   Product {sortConfig?.key === 'product_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
+                <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('supplier_name')}>
+                  Supplier {sortConfig?.key === 'supplier_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                </th>
                 <th className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jumlah_masuk')}>
                   In {sortConfig?.key === 'jumlah_masuk' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
@@ -977,7 +991,7 @@ function GudangFinalContent() {
             <tbody className="divide-y divide-gray-200">
               {paginatedGudang.length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="px-1 py-2 text-center text-gray-500 text-xs">
+                  <td colSpan={15} className="px-1 py-2 text-center text-gray-500 text-xs">
                     No data found
                   </td>
                 </tr>
@@ -1007,6 +1021,7 @@ function GudangFinalContent() {
                     <td className="px-1 py-1">{new Date(item.tanggal).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}</td>
                     <td className="px-1 py-1">{item.branch_name}</td>
                     <td className="px-1 py-1">{sanitizeText(item.product_name)}</td>
+                    <td className="px-1 py-1 text-xs text-gray-600">{sanitizeText(item.supplier_name)}</td>
                     <td className="px-1 py-1 text-green-600">{item.jumlah_masuk}</td>
                     <td className="px-1 py-1 text-red-600">{item.jumlah_keluar}</td>
                     <td className="px-1 py-1 font-medium">{item.running_total || item.total_gudang || 0}</td>
