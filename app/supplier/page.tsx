@@ -46,6 +46,9 @@ export default function SuppliersPage() {
   const [addLoading, setAddLoading] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [products, setProducts] = useState<{id_product: number, product_name: string}[]>([]);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
 
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
@@ -74,11 +77,39 @@ export default function SuppliersPage() {
     }
   }, []);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.relative')) {
+        setShowProductDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // const supabase = createClient(); // removed - using imported supabase
 
   useEffect(() => {
     fetchSuppliers();
+    fetchProducts();
   }, []);
+
+  const fetchProducts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('nama_product')
+        .select('id_product, product_name')
+        .eq('is_active', true)
+        .order('product_name');
+      
+      if (error) throw error;
+      setProducts(data || []);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    }
+  };
 
   const fetchSuppliers = async () => {
     try {
@@ -151,6 +182,7 @@ export default function SuppliersPage() {
         nama_barang: '',
         merk: ''
       });
+      setProductSearch('');
       setShowAddForm(false);
       setEditingId(null);
       await fetchSuppliers();
@@ -408,14 +440,42 @@ export default function SuppliersPage() {
                 className="border px-2 py-1 rounded-md text-xs w-full"
                 placeholder="Created By"
               />
-              <input
-                type="text"
-                name="nama_barang"
-                value={formData.nama_barang}
-                onChange={handleInputChange}
-                className="border px-2 py-1 rounded-md text-xs w-full"
-                placeholder="Nama Barang"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={productSearch || formData.nama_barang}
+                  onChange={(e) => {
+                    setProductSearch(e.target.value);
+                    setShowProductDropdown(true);
+                  }}
+                  onFocus={() => setShowProductDropdown(true)}
+                  className="border px-2 py-1 rounded-md text-xs w-full"
+                  placeholder="Cari Nama Barang"
+                />
+                {showProductDropdown && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-40 overflow-y-auto">
+                    {products
+                      .filter(p => p.product_name.toLowerCase().includes((productSearch || formData.nama_barang).toLowerCase()))
+                      .map(product => (
+                        <div
+                          key={product.id_product}
+                          onClick={() => {
+                            setFormData(prev => ({ ...prev, nama_barang: product.product_name }));
+                            setProductSearch(product.product_name);
+                            setShowProductDropdown(false);
+                          }}
+                          className="px-2 py-1 hover:bg-gray-100 cursor-pointer text-xs border-b last:border-b-0"
+                        >
+                          {product.product_name}
+                        </div>
+                      ))
+                    }
+                    {products.filter(p => p.product_name.toLowerCase().includes((productSearch || formData.nama_barang).toLowerCase())).length === 0 && (
+                      <div className="px-2 py-1 text-xs text-gray-500">Produk tidak ditemukan</div>
+                    )}
+                  </div>
+                )}
+              </div>
               <input
                 type="text"
                 name="merk"
@@ -450,6 +510,7 @@ export default function SuppliersPage() {
                     nama_barang: '',
                     merk: ''
                   });
+                  setProductSearch('');
                 }}
                 className="bg-gray-600 text-white px-3 py-1 rounded-md hover:bg-gray-700 text-xs"
               >
@@ -631,6 +692,7 @@ export default function SuppliersPage() {
                                 merk: supplier.merk || ''
                               });
                               setEditingId(supplier.id_supplier);
+                              setProductSearch(supplier.nama_barang || '');
                               setShowAddForm(true);
                             }}
                             className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
@@ -715,6 +777,7 @@ export default function SuppliersPage() {
                                     merk: item.merk || ''
                                   });
                                   setEditingId(item.id_supplier);
+                                  setProductSearch(item.nama_barang || '');
                                   setShowAddForm(true);
                                 }}
                                 className="text-blue-600 hover:text-blue-800 p-0.5 rounded"
