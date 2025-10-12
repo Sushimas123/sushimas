@@ -43,6 +43,14 @@ interface Product {
   id_product: number;
   product_name: string;
   category: string;
+  merk?: string;
+  supplier_id?: number;
+}
+
+interface Supplier {
+  id_supplier: number;
+  nama_supplier: string;
+  nama_barang?: string;
 }
 
 function CreateExpenseContent() {
@@ -52,6 +60,9 @@ function CreateExpenseContent() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [searchProduct, setSearchProduct] = useState('');
+  const [productSuppliers, setProductSuppliers] = useState<{product: Product, suppliers: Supplier[]}[]>([]);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   
   const [formData, setFormData] = useState<FormData>({
@@ -72,6 +83,14 @@ function CreateExpenseContent() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (searchProduct.length >= 2) {
+      searchProductsWithSuppliers();
+    } else {
+      setProductSuppliers([]);
+    }
+  }, [searchProduct, products, suppliers]);
 
   const fetchData = async () => {
     try {
@@ -165,15 +184,24 @@ function CreateExpenseContent() {
       if (categoryError) throw categoryError;
       setCategories(categoryData || []);
 
-      // Fetch products for vendor names
+      // Fetch products
       const { data: productData, error: productError } = await supabase
         .from('nama_product')
-        .select('id_product, product_name, category')
+        .select('*')
         .eq('is_active', true)
         .order('product_name');
 
       if (productError) throw productError;
       setProducts(productData || []);
+
+      // Fetch suppliers
+      const { data: supplierData, error: supplierError } = await supabase
+        .from('suppliers')
+        .select('id_supplier, nama_supplier, nama_barang')
+        .order('nama_supplier');
+
+      if (supplierError) throw supplierError;
+      setSuppliers(supplierData || []);
 
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -328,30 +356,68 @@ function CreateExpenseContent() {
     }
   };
 
-  const handleVendorChange = async (vendorName: string) => {
-    setFormData(prev => ({ ...prev, vendor_name: vendorName }));
-    
-    // Auto-fill category and price based on selected product
-    if (vendorName) {
-      const selectedProduct = products.find(p => p.product_name === vendorName);
-      if (selectedProduct) {
-        // Find matching category by name
-        const matchingCategory = categories.find(c => 
-          c.category_name.toLowerCase() === selectedProduct.category.toLowerCase()
+  const searchProductsWithSuppliers = () => {
+    const filteredProducts = products.filter(product =>
+      product.product_name.toLowerCase().includes(searchProduct.toLowerCase())
+    );
+
+    const productsWithSuppliers = filteredProducts.map(product => {
+      // Method 1: Find suppliers that have this product in their nama_barang
+      let matchingSuppliers = suppliers.filter(supplier => 
+        supplier.nama_barang && 
+        supplier.nama_barang.toLowerCase().includes(product.product_name.toLowerCase())
+      );
+      
+      // Method 2: If no suppliers found, use supplier_id from product
+      if (matchingSuppliers.length === 0 && product.supplier_id) {
+        const directSupplier = suppliers.find(supplier => 
+          supplier.id_supplier === product.supplier_id
         );
-        
-        // Get latest price
-        const latestPrice = await getLatestPrice(selectedProduct.id_product);
-        
-        setFormData(prev => ({ 
-          ...prev, 
-          category_id: matchingCategory?.id_category.toString() || '',
-          harga: latestPrice.toString(),
-          amount: (parseFloat(prev.qty) * latestPrice).toString(),
-          product_id: selectedProduct.id_product.toString()
-        }));
+        if (directSupplier) {
+          matchingSuppliers = [directSupplier];
+        }
       }
-    }
+      
+      // Method 3: If still no suppliers, show first 3 suppliers as fallback
+      if (matchingSuppliers.length === 0) {
+        matchingSuppliers = suppliers.slice(0, 3);
+      }
+      
+      // Get unique suppliers
+      const filteredUniqueSuppliers = matchingSuppliers.filter((supplier, index, self) => 
+        index === self.findIndex(s => s.nama_supplier.toLowerCase() === supplier.nama_supplier.toLowerCase())
+      );
+
+      return {
+        product,
+        suppliers: filteredUniqueSuppliers
+      };
+    });
+
+    setProductSuppliers(productsWithSuppliers);
+  };
+
+  const addProductToExpense = async (product: Product, supplier: Supplier) => {
+    // Find matching category by name
+    const matchingCategory = categories.find(c => 
+      c.category_name.toLowerCase() === product.category.toLowerCase()
+    );
+    
+    // Get latest price
+    const latestPrice = await getLatestPrice(product.id_product);
+    
+    setFormData(prev => ({ 
+      ...prev, 
+      vendor_name: `${product.product_name} - ${supplier.nama_supplier}`,
+      category_id: matchingCategory?.id_category.toString() || '',
+      harga: latestPrice.toString(),
+      amount: (parseFloat(prev.qty) * latestPrice).toString(),
+      product_id: product.id_product.toString()
+    }));
+    
+    // Clear search
+    setSearchProduct('');
+    setProductSuppliers([]);
     
     if (errors.vendor_name) {
       setErrors(prev => ({ ...prev, vendor_name: '' }));
@@ -462,23 +528,55 @@ function CreateExpenseContent() {
 
               </div>
               <div>
-                    <label className="block text-xs font-medium mb-1">
-                      Nama Barang
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.vendor_name}
-                      onChange={(e) => handleVendorChange(e.target.value)}
-                      className="w-full border rounded px-2 py-1.5 text-sm border-gray-300"
-                      placeholder="Ketik nama vendor..."
-                      list="vendor-list"
-                    />
-                    <datalist id="vendor-list">
-                      {products.map(product => (
-                        <option key={product.id_product} value={product.product_name} />
+                <label className="block text-xs font-medium mb-1">
+                  Nama Barang
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={searchProduct}
+                    onChange={(e) => setSearchProduct(e.target.value)}
+                    className="w-full border rounded px-2 py-1.5 text-sm border-gray-300"
+                    placeholder="Cari nama produk..."
+                  />
+                  
+                  {productSuppliers.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 max-h-40 overflow-y-auto border border-gray-200 rounded bg-white shadow-lg">
+                      {productSuppliers.map((item, index) => (
+                        <div key={index} className="p-2 border-b border-gray-100 last:border-b-0">
+                          <div className="font-medium text-gray-900 mb-0.5 text-xs">
+                            {item.product.product_name}
+                          </div>
+                          <div className="text-xs text-gray-500 mb-0.5">
+                            {item.product.merk || 'No Brand'}
+                          </div>
+                          <div className="text-xs text-gray-600 mb-1">
+                            {item.suppliers.length} supplier
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {item.suppliers.map((supplier) => (
+                              <button
+                                key={supplier.id_supplier}
+                                type="button"
+                                onClick={() => addProductToExpense(item.product, supplier)}
+                                className="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs hover:bg-blue-200"
+                              >
+                                {supplier.nama_supplier}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       ))}
-                    </datalist>
+                    </div>
+                  )}
+                </div>
+                
+                {formData.vendor_name && (
+                  <div className="mt-1 p-2 bg-green-50 border border-green-200 rounded text-xs">
+                    <span className="text-green-800">✓ Dipilih: {formData.vendor_name}</span>
                   </div>
+                )}
+              </div>
 
               <div className="grid grid-cols-2 gap-3 mt-3">
 
