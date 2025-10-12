@@ -80,8 +80,13 @@ function PettyCashRequestsContent() {
         .order('created_at', { ascending: false });
       
       // Apply branch filter for non-admin users
-      if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranchCodes.length > 0) {
-        requestsQuery = requestsQuery.in('branch_code', allowedBranchCodes);
+      if (userRole !== 'super admin' && userRole !== 'admin') {
+        if (allowedBranchCodes.length > 0) {
+          requestsQuery = requestsQuery.in('branch_code', allowedBranchCodes);
+        } else {
+          // If user has no branch assignments, return empty result
+          requestsQuery = requestsQuery.eq('branch_code', 'NONEXISTENT_BRANCH');
+        }
       }
       
       const { data: requestsData, error: requestsError } = await requestsQuery;

@@ -265,8 +265,13 @@ function PettyCashExpensesContent() {
 
       // ✅ FILTER REQUESTS BY BRANCH
       let filteredRequests = requestsResult.data || [];
-      if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranchCodes.length > 0) {
-        filteredRequests = filteredRequests.filter(r => allowedBranchCodes.includes(r.branch_code));
+      if (userRole !== 'super admin' && userRole !== 'admin') {
+        if (allowedBranchCodes.length > 0) {
+          filteredRequests = filteredRequests.filter(r => allowedBranchCodes.includes(r.branch_code));
+        } else {
+          // If user has no branch assignments, return empty result
+          filteredRequests = [];
+        }
       }
       setRequests(filteredRequests);
 
