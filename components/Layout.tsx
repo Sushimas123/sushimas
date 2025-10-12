@@ -144,6 +144,7 @@ export default function Layout({ children }: LayoutProps) {
         { name: "Aging Report", href: AppRoutes.FINANCE_AGING_REPORT, icon: AlertTriangle, pageName: 'aging-report' },
         { name: "Jatuh Tempo", href: "/finance/aging-pivot", icon: SquareSigma, pageName: 'aging-report' },
         { name: "Payment Recap", href: "/finance/payment-calendar", icon: Calendar, pageName: 'finance' },
+        { name: "Outstanding Matrix", href: AppRoutes.FINANCE_OUTSTANDING_MATRIX, icon: SquareSigma, pageName: 'outstanding-matrix' },
       ]
     },
     {

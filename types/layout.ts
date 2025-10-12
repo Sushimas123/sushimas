@@ -52,4 +52,5 @@ export enum AppRoutes {
   STOCK_ALERT = '/purchaseorder/stock-alert',
   FINANCE_PURCHASE_ORDERS = '/finance/purchase-orders',
   FINANCE_AGING_REPORT = '/finance/aging-report',
+  FINANCE_OUTSTANDING_MATRIX = '/finance/outstanding-matrix',
 }

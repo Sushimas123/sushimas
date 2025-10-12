@@ -98,6 +98,7 @@ export default function PermissionsDBPage() {
         'purchaseorder', 'ready', 'recipes', 'stock_opname_batch', 'supplier',
         'transfer-barang', 'users', 'stock-alert', 'finance', 'aging-report',
         'aging-pivot', 'bulk-payments', 'barang_masuk', 'pettycash', 'surat-jalan',
+        'outstanding-matrix',
         // Add missing pages here:
         'finance-purchase-orders', 'finance-aging-pivot', 'finance-aging-report',
         'finance-bulk-payments', 'purchaseorder-barang-masuk', 'purchaseorder-received-preview',
@@ -164,6 +165,7 @@ export default function PermissionsDBPage() {
         'product_name', 'product_settings', 'produksi', 'produksi_detail',
         'purchaseorder', 'ready', 'recipes', 'stock_opname_batch', 'supplier',
         'transfer-barang', 'users', 'stock-alert', 'barang_masuk', 'pettycash', 'surat-jalan',
+        'outstanding-matrix',
         // Add missing pages here:
         'finance-purchase-orders', 'finance-aging-pivot', 'finance-aging-report',
         'finance-bulk-payments', 'purchaseorder-barang-masuk', 'purchaseorder-received-preview',
