@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/src/lib/supabaseClient';
 import { Plus, Edit2, Trash2, Clock, DollarSign, AlertTriangle } from 'lucide-react';
 import Layout from '../../components/Layout';
@@ -61,7 +61,7 @@ export default function PaymentTermsPage() {
     fetchPaymentTerms();
   }, []);
 
-  const fetchPaymentTerms = async () => {
+  const fetchPaymentTerms = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('payment_terms')
@@ -75,7 +75,7 @@ export default function PaymentTermsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,9 +84,38 @@ export default function PaymentTermsPage() {
       const userData = localStorage.getItem('user');
       const currentUser = userData ? JSON.parse(userData) : null;
       
+      // Process payment_dates - convert string to array or null
+      let paymentDatesArray = null;
+      if (formData.calculation_type === 'fixed_dates' && formData.payment_dates.trim()) {
+        paymentDatesArray = formData.payment_dates.split(',').map(d => {
+          const num = parseInt(d.trim());
+          return isNaN(num) ? null : num;
+        }).filter(d => d !== null);
+      }
+      
+      // Process payment_day_of_week - convert string to number or null
+      let paymentDayOfWeek = null;
+      if (formData.calculation_type === 'weekly' && formData.payment_day_of_week.trim()) {
+        paymentDayOfWeek = parseInt(formData.payment_day_of_week);
+        if (isNaN(paymentDayOfWeek)) paymentDayOfWeek = null;
+      }
+      
       const submitData = {
-        ...formData,
+        term_name: formData.term_name,
+        days: formData.days,
+        calculation_type: formData.calculation_type,
+        payment_dates: paymentDatesArray,
+        payment_day_of_week: paymentDayOfWeek,
+        early_payment_discount: formData.early_payment_discount,
+        early_payment_days: formData.early_payment_days,
+        late_payment_penalty: formData.late_payment_penalty,
+        grace_period_days: formData.grace_period_days,
+        minimum_order_amount: formData.minimum_order_amount,
         maximum_order_amount: formData.maximum_order_amount ? parseFloat(formData.maximum_order_amount) : null,
+        requires_guarantee: formData.requires_guarantee,
+        guarantee_type: formData.guarantee_type || null,
+        description: formData.description || null,
+        is_active: true,
         created_by: currentUser?.id_user
       };
 
@@ -109,9 +138,10 @@ export default function PaymentTermsPage() {
 
       resetForm();
       fetchPaymentTerms();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving payment term:', error);
-      alert('Gagal menyimpan payment term');
+      console.error('Error details:', error.message, error.details, error.hint);
+      alert(`Gagal menyimpan payment term: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -175,18 +205,22 @@ export default function PaymentTermsPage() {
     }
   };
 
-  const filteredTerms = paymentTerms.filter(term =>
-    term.term_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    term.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredTerms = useMemo(() => {
+    if (!searchTerm) return paymentTerms;
+    const search = searchTerm.toLowerCase();
+    return paymentTerms.filter(term =>
+      term.term_name.toLowerCase().includes(search) ||
+      term.description?.toLowerCase().includes(search)
+    );
+  }, [paymentTerms, searchTerm]);
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = useCallback((amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
       currency: 'IDR',
       minimumFractionDigits: 0
     }).format(amount);
-  };
+  }, []);
 
   if (loading) {
     return (
