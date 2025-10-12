@@ -53,4 +53,5 @@ export enum AppRoutes {
   FINANCE_PURCHASE_ORDERS = '/finance/purchase-orders',
   FINANCE_AGING_REPORT = '/finance/aging-report',
   FINANCE_OUTSTANDING_MATRIX = '/finance/outstanding-matrix',
+  PAYMENT_TERMS = '/payment-terms',
 }

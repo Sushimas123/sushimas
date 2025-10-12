@@ -26,7 +26,7 @@ interface Supplier {
   nomor_rekening: string | null;
   bank_penerima: string | null;
   nama_penerima: string | null;
-  termin_tempo: number;
+  id_payment_term: number | null;
   estimasi_pengiriman: number;
   divisi: string | null;
   created_by: string | null;
@@ -34,6 +34,7 @@ interface Supplier {
   merk: string | null;
   created_at: string;
   updated_at: string;
+  payment_terms?: { term_name: string };
 }
 
 export default function SuppliersPage() {
@@ -49,9 +50,10 @@ export default function SuppliersPage() {
   const [products, setProducts] = useState<{id_product: number, product_name: string}[]>([]);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [productSearch, setProductSearch] = useState('');
+  const [paymentTerms, setPaymentTerms] = useState<{id_payment_term: number, term_name: string}[]>([]);
 
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(10);
+  const [pageSize] = useState(30);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'group'>('table');
   const [formData, setFormData] = useState({
@@ -59,10 +61,9 @@ export default function SuppliersPage() {
     nomor_rekening: '',
     bank_penerima: '',
     nama_penerima: '',
-    termin_tempo: 0,
+    id_payment_term: null as number | null,
     estimasi_pengiriman: 1,
     divisi: '',
-    created_by: '',
     nama_barang: '',
     merk: ''
   });
@@ -94,6 +95,7 @@ export default function SuppliersPage() {
   useEffect(() => {
     fetchSuppliers();
     fetchProducts();
+    fetchPaymentTerms();
   }, []);
 
   const fetchProducts = async () => {
@@ -111,6 +113,21 @@ export default function SuppliersPage() {
     }
   };
 
+  const fetchPaymentTerms = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('payment_terms')
+        .select('id_payment_term, term_name')
+        .eq('is_active', true)
+        .order('term_name');
+      
+      if (error) throw error;
+      setPaymentTerms(data || []);
+    } catch (error) {
+      console.error('Error fetching payment terms:', error);
+    }
+  };
+
   const fetchSuppliers = async () => {
     try {
       const { data, error } = await supabase
@@ -122,7 +139,17 @@ export default function SuppliersPage() {
         throw error;
       }
 
-      setSuppliers(data || []);
+      // Fetch payment terms separately and join in memory
+      const { data: paymentTermsData } = await supabase
+        .from('payment_terms')
+        .select('id_payment_term, term_name');
+
+      const suppliersWithTerms = (data || []).map(supplier => ({
+        ...supplier,
+        payment_terms: paymentTermsData?.find(pt => pt.id_payment_term === supplier.id_payment_term) || null
+      }));
+
+      setSuppliers(suppliersWithTerms);
     } catch (error) {
       console.error('Error fetching suppliers:', error);
     } finally {
@@ -151,11 +178,20 @@ export default function SuppliersPage() {
 
     setAddLoading(true);
     try {
+      const userData = localStorage.getItem('user');
+      const currentUser = userData ? JSON.parse(userData) : null;
+      
+      const submitData = {
+        ...formData,
+        created_by: currentUser?.id_user || null
+      };
+
       if (editingId) {
-        // Update existing supplier
+        // Update existing supplier (don't update created_by)
+        const { created_by, ...updateData } = submitData;
         const { error } = await supabase
           .from('suppliers')
-          .update(formData)
+          .update(updateData)
           .eq('id_supplier', editingId);
 
         if (error) throw error;
@@ -164,7 +200,7 @@ export default function SuppliersPage() {
         // Add new supplier
         const { error } = await supabase
           .from('suppliers')
-          .insert([formData]);
+          .insert([submitData]);
 
         if (error) throw error;
         alert('Supplier berhasil ditambahkan!');
@@ -175,10 +211,9 @@ export default function SuppliersPage() {
         nomor_rekening: '',
         bank_penerima: '',
         nama_penerima: '',
-        termin_tempo: 0,
+        id_payment_term: null,
         estimasi_pengiriman: 1,
         divisi: '',
-        created_by: '',
         nama_barang: '',
         merk: ''
       });
@@ -194,11 +229,12 @@ export default function SuppliersPage() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'termin_tempo' || name === 'estimasi_pengiriman' ? parseInt(value) || 0 : value
+      [name]: name === 'estimasi_pengiriman' ? parseInt(value) || 0 : 
+              name === 'id_payment_term' ? (value ? parseInt(value) : null) : value
     }));
   };
 
@@ -225,10 +261,9 @@ export default function SuppliersPage() {
         nomor_rekening: row.nomor_rekening?.toString().trim() || null,
         bank_penerima: row.bank_penerima?.toString().trim() || null,
         nama_penerima: row.nama_penerima?.toString().trim() || null,
-        termin_tempo: parseInt(row.termin_tempo) || 0,
+        id_payment_term: parseInt(row.id_payment_term) || null,
         estimasi_pengiriman: parseInt(row.estimasi_pengiriman) || 1,
         divisi: row.divisi?.toString().trim() || null,
-        created_by: row.created_by?.toString().trim() || null,
         nama_barang: row.nama_barang?.toString().trim() || null,
         merk: row.merk?.toString().trim() || null
       })).filter((item: any) => item.nama_supplier);
@@ -405,15 +440,19 @@ export default function SuppliersPage() {
                 className="border px-2 py-1 rounded-md text-xs w-full"
                 placeholder="Nama Penerima"
               />
-              <input
-                type="number"
-                name="termin_tempo"
-                value={formData.termin_tempo || ''}
+              <select
+                name="id_payment_term"
+                value={formData.id_payment_term || ''}
                 onChange={handleInputChange}
-                min="0"
                 className="border px-2 py-1 rounded-md text-xs w-full"
-                placeholder="Termin Tempo"
-              />
+              >
+                <option value="">Pilih Payment Term</option>
+                {paymentTerms.map(term => (
+                  <option key={term.id_payment_term} value={term.id_payment_term}>
+                    {term.term_name}
+                  </option>
+                ))}
+              </select>
               <input
                 type="number"
                 name="estimasi_pengiriman"
@@ -432,14 +471,7 @@ export default function SuppliersPage() {
                 className="border px-2 py-1 rounded-md text-xs w-full"
                 placeholder="Divisi"
               />
-              <input
-                type="text"
-                name="created_by"
-                value={formData.created_by}
-                onChange={handleInputChange}
-                className="border px-2 py-1 rounded-md text-xs w-full"
-                placeholder="Created By"
-              />
+
               <div className="relative">
                 <input
                   type="text"
@@ -503,10 +535,9 @@ export default function SuppliersPage() {
                     nomor_rekening: '',
                     bank_penerima: '',
                     nama_penerima: '',
-                    termin_tempo: 0,
+                    id_payment_term: null,
                     estimasi_pengiriman: 1,
                     divisi: '',
-                    created_by: '',
                     nama_barang: '',
                     merk: ''
                   });
@@ -625,14 +656,8 @@ export default function SuppliersPage() {
                 <th className="px-1 py-1 text-left font-medium text-gray-700">Rekening</th>
                 <th className="px-1 py-1 text-left font-medium text-gray-700">Bank</th>
                 <th className="px-1 py-1 text-left font-medium text-gray-700">Penerima</th>
-                <th 
-                  className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200"
-                  onClick={() => handleSort('termin_tempo')}
-                >
-                  <div className="flex items-center gap-1">
-                    Tempo
-                    <ArrowUpDown size={8} />
-                  </div>
+                <th className="px-1 py-1 text-left font-medium text-gray-700">
+                  Payment Term
                 </th>
                 <th 
                   className="px-1 py-1 text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-200"
@@ -671,7 +696,7 @@ export default function SuppliersPage() {
                     <td className="px-1 py-1 text-gray-600">{toTitleCase(supplier.nomor_rekening) || '-'}</td>
                     <td className="px-1 py-1 text-gray-600">{toTitleCase(supplier.bank_penerima) || '-'}</td>
                     <td className="px-1 py-1 text-gray-600">{toTitleCase(supplier.nama_penerima) || '-'}</td>
-                    <td className="px-1 py-1 text-gray-600">{supplier.termin_tempo} hari</td>
+                    <td className="px-1 py-1 text-gray-600">{supplier.payment_terms?.term_name || '-'}</td>
                     <td className="px-1 py-1 text-gray-600">{supplier.estimasi_pengiriman} hari</td>
                     <td className="px-1 py-1 text-gray-600">{toTitleCase(supplier.divisi) || '-'}</td>
                     <td className="px-1 py-1">
@@ -684,10 +709,9 @@ export default function SuppliersPage() {
                                 nomor_rekening: supplier.nomor_rekening || '',
                                 bank_penerima: supplier.bank_penerima || '',
                                 nama_penerima: supplier.nama_penerima || '',
-                                termin_tempo: supplier.termin_tempo,
+                                id_payment_term: supplier.id_payment_term,
                                 estimasi_pengiriman: supplier.estimasi_pengiriman,
                                 divisi: supplier.divisi || '',
-                                created_by: supplier.created_by || '',
                                 nama_barang: supplier.nama_barang || '',
                                 merk: supplier.merk || ''
                               });
@@ -741,7 +765,7 @@ export default function SuppliersPage() {
                     <div>
                       <h3 className="text-sm font-bold">{toTitleCase(supplierName)}</h3>
                       <div className="text-xs opacity-90">
-                        {toTitleCase(group.supplier_info.bank_penerima) || 'No bank'} • {group.supplier_info.termin_tempo} hari
+                        {toTitleCase(group.supplier_info.bank_penerima) || 'No bank'} • {group.supplier_info.payment_terms?.term_name || 'No payment term'}
                       </div>
                     </div>
                     <div className="text-xs">
@@ -769,10 +793,9 @@ export default function SuppliersPage() {
                                     nomor_rekening: item.nomor_rekening || '',
                                     bank_penerima: item.bank_penerima || '',
                                     nama_penerima: item.nama_penerima || '',
-                                    termin_tempo: item.termin_tempo,
+                                    id_payment_term: item.id_payment_term,
                                     estimasi_pengiriman: item.estimasi_pengiriman,
                                     divisi: item.divisi || '',
-                                    created_by: item.created_by || '',
                                     nama_barang: item.nama_barang || '',
                                     merk: item.merk || ''
                                   });

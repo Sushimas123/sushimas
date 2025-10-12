@@ -8,6 +8,7 @@ import PageAccessControl from '../../../components/PageAccessControl'
 import PaymentModal from './PaymentModal'
 import BulkPaymentModal from './BulkPaymentModal'
 import { TableSkeleton, MobileCardSkeleton, StatsSkeleton } from '../../../components/SkeletonLoader'
+import { calculatePODueDate, updatePODueDate, getPOPaymentTermDisplay } from '@/src/utils/purchaseOrderPaymentTerms'
 
 // Debounce hook for search optimization
 const useDebounce = (value: string, delay: number) => {
@@ -295,12 +296,13 @@ export default function FinancePurchaseOrders() {
       const poIds = financeData.map(item => item.id)
       const poNumbers = financeData.map(item => item.po_number)
       
-      const [itemsData, paymentsData, poDetailsData, barangMasukData, bulkPaymentsData] = await Promise.all([
+      const [itemsData, paymentsData, poDetailsData, barangMasukData, bulkPaymentsData, paymentTermsData] = await Promise.all([
         supabase.from('po_items').select('po_id, qty, harga, actual_price, received_qty, product_id').in('po_id', poIds),
         supabase.from('po_payments').select('po_id, payment_amount, payment_date, payment_via, payment_method, reference_number, status').in('po_id', poIds).order('payment_date', { ascending: false }),
-        supabase.from('purchase_orders').select('id, bulk_payment_ref, total_tagih, keterangan, approval_photo, approval_status, approved_at').in('id', poIds),
+        supabase.from('purchase_orders').select('id, bulk_payment_ref, total_tagih, keterangan, approval_photo, approval_status, approved_at, id_payment_term').in('id', poIds),
         supabase.from('barang_masuk').select('no_po, invoice_number').in('no_po', poNumbers),
-        supabase.from('bulk_payments').select('*')
+        supabase.from('bulk_payments').select('*'),
+        supabase.from('payment_terms').select('id_payment_term, term_name, calculation_type, days')
       ])
 
       // Group data by po_id
@@ -327,6 +329,10 @@ export default function FinancePurchaseOrders() {
       // Create bulk payments map
       const bulkPaymentsMap: Record<string, any> = {}
       bulkPaymentsData.data?.forEach(bp => { bulkPaymentsMap[bp.bulk_reference] = bp })
+
+      // Create payment terms map
+      const paymentTermsMap: Record<number, any> = {}
+      paymentTermsData.data?.forEach(pt => { paymentTermsMap[pt.id_payment_term] = pt })
 
       // Process data dengan perhitungan KAMU (tidak berubah)
       const correctedData = financeData.map((item: any) => {
@@ -374,6 +380,9 @@ export default function FinancePurchaseOrders() {
         // Get payment info from bulk payment if exists, otherwise from latest payment
         const bulkPayment = poData?.bulk_payment_ref ? bulkPaymentsMap[poData.bulk_payment_ref] : null
         
+        // Get payment term info
+        const paymentTerm = poData?.id_payment_term ? paymentTermsMap[poData.id_payment_term] : null
+        
         return {
           ...item,
           total_po: correctedTotal,
@@ -392,7 +401,9 @@ export default function FinancePurchaseOrders() {
           approval_photo: poData?.approval_photo || null,
           approval_status: poData?.approval_status || null,
           approved_at: poData?.approved_at || null,
-          bulk_payment_ref: poData?.bulk_payment_ref || null
+          bulk_payment_ref: poData?.bulk_payment_ref || null,
+          payment_term_name: paymentTerm?.term_name || null,
+          payment_term_type: paymentTerm?.calculation_type || null
         }
       }).filter(item => item !== null)
 
@@ -550,7 +561,7 @@ export default function FinancePurchaseOrders() {
         'CABANG': item.nama_branch,
         'Barang Sampai': (item as any).tanggal_barang_sampai ? formatDate((item as any).tanggal_barang_sampai) : '',
         'PO Status': (item as any).po_status || '',
-        'Termin': `${(item as any).termin_days || 30} hari`,
+        'Payment Term': (item as any).payment_term_name || `${(item as any).termin_days || 30} hari`,
         'Jatuh Tempo': item.tanggal_jatuh_tempo ? formatDate(item.tanggal_jatuh_tempo) : 'Menunggu barang sampai',
         'Total PO': item.total_po,
         'Total Tagihan': (item as any).total_tagih || 0,
@@ -2247,7 +2258,7 @@ export default function FinancePurchaseOrders() {
                     <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tagihan</th>
                     <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Invoice</th>
                     <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_jatuh_tempo')}>J.Tempo</th>
-                    <th className="w-12 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Termin</th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Payment Term</th>
                     <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_paid')}>Dibayar</th>
                     <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('sisa_bayar')}>Sisa</th>
                     <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('dibayar_tanggal')}>Release</th>
@@ -2369,7 +2380,7 @@ export default function FinancePurchaseOrders() {
                             )}
                           </td>
                           <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
-                            {(item as any).termin_days || 30}d
+                            {(item as any).payment_term_name || `${(item as any).termin_days || 30}d`}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                             {formatCurrency(item.total_paid)}

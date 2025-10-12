@@ -171,6 +171,7 @@ export default function Layout({ children }: LayoutProps) {
         { name: "Categories", href: AppRoutes.CATEGORIES, icon: PencilRuler, pageName: 'categories' },
         { name: "Recipes", href: AppRoutes.RECIPES, icon: BookOpen, pageName: 'recipes' },
         { name: "Supplier", href: AppRoutes.SUPPLIER, icon: Truck, pageName: 'supplier' },
+        { name: "Payment Terms", href: AppRoutes.PAYMENT_TERMS, icon: ScrollText, pageName: 'payment-terms' },
         { name: "Branches", href: AppRoutes.BRANCHES, icon: MapPinHouse, pageName: 'branches' },
         { name: "Users", href: AppRoutes.USERS, icon: Users, pageName: 'users' },
         { name: "Assets", href: "/assets", icon: Package, pageName: 'assets' },
