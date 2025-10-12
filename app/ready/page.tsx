@@ -1474,9 +1474,10 @@ function ReadyPageContent() {
         </div>
 
         {/* Data Table */}
-        <div className="overflow-x-auto bg-white rounded-lg shadow">
+        <div className="bg-white rounded-lg shadow">
+          <div className="max-h-[70vh] overflow-auto">
             <table className="w-full text-xs border border-gray-200">
-            <thead className="bg-gray-100 text-gray-700">
+            <thead className="bg-gray-100 text-gray-700 sticky top-0 z-20">
               <tr>
                 <th className="border px-2 py-1 text-center font-medium">
                   <input
@@ -1583,6 +1584,7 @@ function ReadyPageContent() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
         {/* Pagination */}
         <div className="flex justify-between items-center mt-4">

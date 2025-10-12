@@ -726,9 +726,10 @@ function PettyCashExpensesContent() {
         </div>
 
         {/* Desktop View - Table */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
+        <div className="hidden md:block">
+          <div className="max-h-[70vh] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 sticky top-0 z-20">
               <tr>
                 <th className="text-left py-3 px-4">Tgl</th>
                 <th className="text-left py-3 px-4">Kode Modal</th>
@@ -848,6 +849,7 @@ function PettyCashExpensesContent() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
 
         {paginatedExpenses.length === 0 && filteredExpenses.length === 0 && (

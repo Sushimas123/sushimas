@@ -543,9 +543,9 @@ function PettyCashRequestsContent() {
           </div>
         ) : (
           /* Desktop Table */
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 sticky top-0 z-20">
                 <tr>
                   <th className="text-left py-3 px-4">Request Info</th>
                   <th className="text-left py-3 px-4">Branch</th>

@@ -910,9 +910,9 @@ function GudangFinalContent() {
       )}
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="max-h-[70vh] overflow-auto">
           <table className="w-full text-xs">
-            <thead className="bg-gray-100">
+            <thead className="bg-gray-100 sticky top-0 z-20">
               <tr>
                 <th className="px-1 py-1 text-center font-medium text-gray-700">
                   <input
