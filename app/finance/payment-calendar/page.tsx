@@ -335,12 +335,18 @@ const MobilePaymentCard = ({ payment, onAction }: {
 const MobileFilters = ({ 
   statusFilter, 
   setStatusFilter, 
+  branchFilter,
+  setBranchFilter,
+  branches,
   statusCounts,
   isOpen,
   onClose 
 }: {
   statusFilter: string;
   setStatusFilter: (filter: string) => void;
+  branchFilter: string;
+  setBranchFilter: (filter: string) => void;
+  branches: string[];
   statusCounts: any;
   isOpen: boolean;
   onClose: () => void;
@@ -351,38 +357,78 @@ const MobileFilters = ({
     <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-end">
       <div className="bg-white w-full rounded-t-2xl p-4 max-h-[70vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Filter Status</h3>
+          <h3 className="text-lg font-semibold">Filters</h3>
           <button onClick={onClose} className="p-1">
             <X size={20} />
           </button>
         </div>
         
-        <div className="space-y-2">
-          {[
-            { key: 'all', label: 'All Status', color: 'gray' },
-            { key: 'need_submit', label: 'Need Submit', color: 'pink' },
-            { key: 'need_approve', label: 'Need Approve', color: 'purple' },
-            { key: 'need_payment', label: 'Need Payment', color: 'blue' },
-            { key: 'paid', label: 'Paid', color: 'green' }
-          ].map(({ key, label, color }) => (
-            <button
-              key={key}
-              onClick={() => {
-                setStatusFilter(key)
-                onClose()
-              }}
-              className={`w-full text-left p-3 rounded-lg ${
-                statusFilter === key 
-                  ? `bg-${color}-100 text-${color}-800 border-${color}-200 border-2`
-                  : 'bg-gray-50 text-gray-700'
-              }`}
-            >
-              <div className="flex justify-between items-center">
-                <span>{label}</span>
-                <span className="text-sm opacity-75">({statusCounts[key]})</span>
-              </div>
-            </button>
-          ))}
+        <div className="space-y-4">
+          <div>
+            <h4 className="font-medium mb-2">Status</h4>
+            <div className="space-y-2">
+              {[
+                { key: 'all', label: 'All Status', color: 'gray' },
+                { key: 'need_submit', label: 'Need Submit', color: 'pink' },
+                { key: 'need_approve', label: 'Need Approve', color: 'purple' },
+                { key: 'need_payment', label: 'Need Payment', color: 'blue' },
+                { key: 'paid', label: 'Paid', color: 'green' }
+              ].map(({ key, label, color }) => (
+                <button
+                  key={key}
+                  onClick={() => setStatusFilter(key)}
+                  className={`w-full text-left p-3 rounded-lg ${
+                    statusFilter === key 
+                      ? `bg-${color}-100 text-${color}-800 border-${color}-200 border-2`
+                      : 'bg-gray-50 text-gray-700'
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <span>{label}</span>
+                    <span className="text-sm opacity-75">({statusCounts[key]})</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          <div>
+            <h4 className="font-medium mb-2">Branch</h4>
+            <div className="space-y-2">
+              <button
+                onClick={() => setBranchFilter('all')}
+                className={`w-full text-left p-3 rounded-lg ${
+                  branchFilter === 'all' 
+                    ? 'bg-blue-100 text-blue-800 border-blue-200 border-2'
+                    : 'bg-gray-50 text-gray-700'
+                }`}
+              >
+                All Branches
+              </button>
+              {branches.map(branch => (
+                <button
+                  key={branch}
+                  onClick={() => setBranchFilter(branch)}
+                  className={`w-full text-left p-3 rounded-lg ${
+                    branchFilter === branch 
+                      ? 'bg-blue-100 text-blue-800 border-blue-200 border-2'
+                      : 'bg-gray-50 text-gray-700'
+                  }`}
+                >
+                  {branch}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        <div className="mt-4 pt-4 border-t">
+          <button
+            onClick={onClose}
+            className="w-full bg-blue-600 text-white py-2 rounded-lg"
+          >
+            Apply Filters
+          </button>
         </div>
       </div>
     </div>
@@ -391,6 +437,7 @@ const MobileFilters = ({
 
 export default function PaymentCalendar() {
   const [statusFilter, setStatusFilter] = useState('all')
+  const [branchFilter, setBranchFilter] = useState('all')
   const [selectedPO, setSelectedPO] = useState<ScheduledPayment | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [sortField, setSortField] = useState<string>('')
@@ -400,7 +447,13 @@ export default function PaymentCalendar() {
   const [isMobile, setIsMobile] = useState(false)
   const itemsPerPage = 20
 
-  const { payments, allPayments, loading, error, refetch } = useScheduledPayments(statusFilter)
+  const { payments: allFilteredPayments, allPayments, loading, error, refetch } = useScheduledPayments(statusFilter)
+  
+  // Apply branch filter
+  const payments = useMemo(() => {
+    if (branchFilter === 'all') return allFilteredPayments
+    return allFilteredPayments.filter(p => p.nama_branch === branchFilter)
+  }, [allFilteredPayments, branchFilter])
 
   // Detect mobile screen
   useEffect(() => {
@@ -409,6 +462,12 @@ export default function PaymentCalendar() {
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
+
+  // Get unique branches for filter
+  const branches = useMemo(() => {
+    const uniqueBranches = [...new Set(allPayments.map(p => p.nama_branch))].filter(Boolean).sort()
+    return uniqueBranches
+  }, [allPayments])
 
   // Optimized calculations dengan useMemo
   const { todayPayments, upcomingPayments, overduePayments, totalScheduled, totalToday, statusCounts } = useMemo(() => {
@@ -564,34 +623,74 @@ export default function PaymentCalendar() {
               className="w-full mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg flex items-center justify-center gap-2"
             >
               <Filter size={16} />
-              Filter Status ({statusCounts[statusFilter as keyof typeof statusCounts]})
+              Filters ({statusCounts[statusFilter as keyof typeof statusCounts]}{branchFilter !== 'all' ? `, ${branchFilter}` : ''})
             </button>
           )}
 
           {/* Desktop Filters */}
           {!isMobile && (
             <div className="bg-white p-4 rounded-lg shadow border mb-6">
-              <div className="flex gap-2 flex-wrap">
-                {Object.entries(statusCounts).map(([key, count]) => (
-                  <button
-                    key={key}
-                    onClick={() => {
-                      setStatusFilter(key)
-                      setCurrentPage(1)
-                    }}
-                    className={`px-4 py-2 rounded-md text-sm font-medium ${
-                      statusFilter === key 
-                        ? key === 'all' ? 'bg-gray-800 text-white' 
-                          : key === 'need_submit' ? 'bg-pink-600 text-white'
-                          : key === 'need_approve' ? 'bg-purple-600 text-white'
-                          : key === 'need_payment' ? 'bg-blue-600 text-white'
-                          : 'bg-green-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {key.replace('_', ' ').toUpperCase()} ({count})
-                  </button>
-                ))}
+              <div className="flex gap-6 items-start">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                  <div className="flex gap-2 flex-wrap">
+                    {Object.entries(statusCounts).map(([key, count]) => (
+                      <button
+                        key={key}
+                        onClick={() => {
+                          setStatusFilter(key)
+                          setCurrentPage(1)
+                        }}
+                        className={`px-3 py-1.5 rounded-md text-sm font-medium ${
+                          statusFilter === key 
+                            ? key === 'all' ? 'bg-gray-800 text-white' 
+                              : key === 'need_submit' ? 'bg-pink-600 text-white'
+                              : key === 'need_approve' ? 'bg-purple-600 text-white'
+                              : key === 'need_payment' ? 'bg-blue-600 text-white'
+                              : 'bg-green-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {key.replace('_', ' ').toUpperCase()} ({count})
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Branch</label>
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => {
+                        setBranchFilter('all')
+                        setCurrentPage(1)
+                      }}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium ${
+                        branchFilter === 'all' 
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      All Branches
+                    </button>
+                    {branches.map(branch => (
+                      <button
+                        key={branch}
+                        onClick={() => {
+                          setBranchFilter(branch)
+                          setCurrentPage(1)
+                        }}
+                        className={`px-3 py-1.5 rounded-md text-sm font-medium ${
+                          branchFilter === branch 
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {branch}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -844,6 +943,9 @@ export default function PaymentCalendar() {
         <MobileFilters
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
+          branchFilter={branchFilter}
+          setBranchFilter={setBranchFilter}
+          branches={branches}
           statusCounts={statusCounts}
           isOpen={mobileFiltersOpen}
           onClose={() => setMobileFiltersOpen(false)}
