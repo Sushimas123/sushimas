@@ -703,9 +703,9 @@ export default function BarangMasukPage() {
               {/* Desktop Table */}
               {!isMobile ? (
                 <div className="bg-white rounded-lg shadow overflow-hidden">
-                  <div className="overflow-x-auto">
+                  <div className="max-h-[70vh] overflow-auto">
                     <table className="w-full text-xs">
-                      <thead className="bg-gray-50 sticky top-0">
+                      <thead className="bg-gray-50 sticky top-0 z-20">
                         <tr>
                           <th className="px-2 py-2 text-left font-medium text-gray-700">Tanggal</th>
                           <th className="px-2 py-2 text-left font-medium text-gray-700">PO Number</th>

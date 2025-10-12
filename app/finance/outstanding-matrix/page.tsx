@@ -444,18 +444,18 @@ export default function OutstandingMatrix() {
 
           {/* Matrix Table */}
           <div className="bg-white rounded-lg shadow border overflow-hidden">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[70vh]">
               <table className="min-w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 sticky top-0 z-20">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky left-0 bg-gray-50 z-10">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky left-0 bg-gray-50 z-30">
                       Kategori
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky left-32 bg-gray-50 z-10">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky left-32 bg-gray-50 z-30">
                       Sub Kategori / Product
                     </th>
                     {branches.map(branch => (
-                      <th key={branch} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      <th key={branch} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase bg-gray-50">
                         {branch}
                       </th>
                     ))}

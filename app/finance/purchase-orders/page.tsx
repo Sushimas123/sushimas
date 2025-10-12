@@ -2217,9 +2217,9 @@ export default function FinancePurchaseOrders() {
 
           {/* Desktop Table View */}
           <div className="hidden md:block bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[70vh]">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50 sticky top-0 z-10">
+                <thead className="bg-gray-50 sticky top-0 z-20">
                   <tr>
                     <th className="w-6 px-1 py-2 sticky left-0 bg-gray-50 z-20">
                       <input
