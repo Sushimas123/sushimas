@@ -1125,14 +1125,15 @@ export default function ProductPage() {
 
           {/* Desktop Table dengan ref untuk scroll */}
           {!isMobile && (
-            <div 
-              ref={tableContainerRef}
-              className="bg-white rounded-lg shadow-lg overflow-hidden max-h-[calc(100vh-200px)] overflow-y-auto"
-            >
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                    <tr>
+                <div 
+                  ref={tableContainerRef}
+                  className="max-h-[70vh] overflow-y-auto"
+                >
+                  <table className="w-full text-sm">
+                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 sticky top-0 z-20">
+                      <tr>
                       {[
                         { key: "id_product", label: "ID", width: "w-16" },
                         { key: "product_name", label: "Product Name", width: "min-w-48" },
@@ -1282,8 +1283,9 @@ export default function ProductPage() {
                         </tr>
                       ))
                     )}
-                  </tbody>
-                </table>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}

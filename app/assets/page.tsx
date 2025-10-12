@@ -755,8 +755,9 @@ export default function AssetsPage() {
           {/* Desktop Assets Table */}
           <div className="hidden lg:block bg-white rounded-lg shadow overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
+              <div className="max-h-[70vh] overflow-y-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 sticky top-0 z-20">
                   <tr>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Photo</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Asset Info</th>
@@ -887,8 +888,9 @@ export default function AssetsPage() {
                       </td>
                     </tr>
                   ))}
-                </tbody>
-              </table>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
