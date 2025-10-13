@@ -29,7 +29,7 @@ const fetchRequestDetail = async (id: string) => {
     .from('petty_cash_requests')
     .select(`
       *,
-      users(id_user, nama_lengkap),
+      requested_by_user:users!petty_cash_requests_requested_by_fkey(id_user, nama_lengkap),
       branches(kode_branch, nama_branch)
     `)
     .eq('id', parseInt(id))
@@ -39,7 +39,7 @@ const fetchRequestDetail = async (id: string) => {
   
   return {
     ...data,
-    user_name: data.users?.nama_lengkap || null,
+    user_name: data.requested_by_user?.nama_lengkap || null,
     branch_name: data.branches?.nama_branch || data.branch_code
   };
 };

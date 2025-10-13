@@ -1050,7 +1050,7 @@ function PettyCashDashboardContent() {
       {/* Summary Table */}
       <div className="bg-white rounded-lg border">
         <div className="p-6 border-b">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">Summary Report ({data.summaries.length})</h2>
             <div className="flex gap-3">
               <select 
@@ -1079,6 +1079,68 @@ function PettyCashDashboardContent() {
                 <option value="completed">Completed</option>
               </select>
             </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setSummaryStatusFilter('all')}
+              className={`px-3 py-1 rounded text-sm font-medium ${
+                summaryStatusFilter === 'all' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setSummaryStatusFilter('pending')}
+              className={`px-3 py-1 rounded text-sm font-medium ${
+                summaryStatusFilter === 'pending' 
+                  ? 'bg-yellow-600 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Pending
+            </button>
+            <button
+              onClick={() => setSummaryStatusFilter('approved')}
+              className={`px-3 py-1 rounded text-sm font-medium ${
+                summaryStatusFilter === 'approved' 
+                  ? 'bg-green-600 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Approved
+            </button>
+            <button
+              onClick={() => setSummaryStatusFilter('disbursed')}
+              className={`px-3 py-1 rounded text-sm font-medium ${
+                summaryStatusFilter === 'disbursed' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Disbursed
+            </button>
+            <button
+              onClick={() => setSummaryStatusFilter('completed')}
+              className={`px-3 py-1 rounded text-sm font-medium ${
+                summaryStatusFilter === 'completed' 
+                  ? 'bg-purple-600 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Completed
+            </button>
+            <button
+              onClick={() => setSummaryStatusFilter('rejected')}
+              className={`px-3 py-1 rounded text-sm font-medium ${
+                summaryStatusFilter === 'rejected' 
+                  ? 'bg-red-600 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Rejected
+            </button>
           </div>
         </div>
         <div className="overflow-x-auto">
