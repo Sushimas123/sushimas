@@ -26,6 +26,7 @@ interface Supplier {
   nomor_rekening: string | null;
   bank_penerima: string | null;
   nama_penerima: string | null;
+  termin_tempo: number;
   id_payment_term: number | null;
   estimasi_pengiriman: number;
   divisi: string | null;
@@ -34,6 +35,7 @@ interface Supplier {
   merk: string | null;
   created_at: string;
   updated_at: string;
+  updated_by: number | null;
   payment_terms?: { term_name: string };
 }
 
@@ -136,6 +138,7 @@ export default function SuppliersPage() {
         .order('nama_supplier');
 
       if (error) {
+        console.error('Supabase error:', error);
         throw error;
       }
 
