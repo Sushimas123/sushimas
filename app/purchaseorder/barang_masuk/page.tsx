@@ -606,11 +606,6 @@ export default function BarangMasukPage() {
         // Note: barang_masuk table may not have updated_at/updated_by columns
         // This step is optional for audit trail
         
-        if (updateBmError) {
-          console.warn('Gagal update barang_masuk timestamp:', updateBmError)
-          // Continue, this is not critical
-        }
-        
         // ALL OPERATIONS SUCCESSFUL
         console.log('🎉 All atomic operations completed successfully')
         
