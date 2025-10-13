@@ -54,8 +54,19 @@ export default function FinishPO() {
       window.location.href = '/purchaseorder'
     }
     
+    // Handle page unload/refresh
+    const handleBeforeUnload = () => {
+      if (poId) {
+        const poIdNum = parseInt(poId)
+        if (!isNaN(poIdNum)) unlockPO(poIdNum)
+      }
+    }
+    
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
       // Unlock PO when leaving page
       if (poId) {
         const poIdNum = parseInt(poId)
@@ -664,13 +675,20 @@ export default function FinishPO() {
             </div>
 
             <div className="flex justify-between pt-4">
-              <a 
-                href="/purchaseorder" 
+              <button 
+                type="button"
+                onClick={async () => {
+                  // Unlock PO before leaving
+                  if (poData?.id) {
+                    await unlockPO(poData.id)
+                  }
+                  window.location.href = '/purchaseorder'
+                }}
                 className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
               >
                 <ArrowLeft size={16} />
                 Kembali
-              </a>
+              </button>
               <button 
                 type="submit"
                 disabled={submitting}

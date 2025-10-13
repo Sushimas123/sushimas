@@ -1,6 +1,57 @@
 import { supabase } from '@/src/lib/supabaseClient'
 
-export const lockPO = async (poId: number, userId: number, userName: string): Promise<{ success: boolean, message: string }> => {
+// Hook for managing PO locks with auto cleanup
+export const usePOLock = () => {
+  const lockPO = async (poId: number, userId: number, userName: string) => {
+    const result = await lockPOUtil(poId, userId, userName);
+    if (result.success) {
+      // Setup auto cleanup on page unload
+      const handleBeforeUnload = () => unlockPO(poId);
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      
+      // Store cleanup function for manual cleanup
+      (window as any).__poCleanup = () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+        unlockPO(poId);
+      };
+    }
+    return result;
+  };
+  
+  const cleanup = () => {
+    if ((window as any).__poCleanup) {
+      (window as any).__poCleanup();
+      delete (window as any).__poCleanup;
+    }
+  };
+  
+  return { lockPO, unlockPO, checkPOLock, forceUnlockPO, cleanup };
+};
+
+// Utility to check multiple PO locks at once
+export const checkMultiplePOLocks = async (poIds: number[]): Promise<{[key: number]: { isLocked: boolean, lockedBy?: string }}> => {
+  const results: {[key: number]: { isLocked: boolean, lockedBy?: string }} = {};
+  
+  for (const poId of poIds) {
+    results[poId] = await checkPOLock(poId);
+  }
+  
+  return results;
+};
+
+// Auto lock PO when selected (for dropdowns/selects)
+export const handlePOSelection = async (poId: number, currentUserId: number, currentUserName: string, onLockFailed?: (message: string) => void) => {
+  const lockResult = await lockPOUtil(poId, currentUserId, currentUserName);
+  
+  if (!lockResult.success && onLockFailed) {
+    onLockFailed(lockResult.message);
+    return false;
+  }
+  
+  return lockResult.success;
+};
+
+const lockPOUtil = async (poId: number, userId: number, userName: string): Promise<{ success: boolean, message: string }> => {
   try {
     // Check if already locked
     const { data: po } = await supabase
@@ -70,7 +121,7 @@ export const checkPOLock = async (poId: number): Promise<{ isLocked: boolean, lo
   }
 }
 
-export const forceUnlockPO = async (poId: number, userId: number): Promise<{ success: boolean, message: string }> => {
+export const forceUnlockPO = async (poId: number): Promise<{ success: boolean, message: string }> => {
   try {
     const user = JSON.parse(localStorage.getItem('user') || '{}')
     const userRole = user.role
@@ -86,3 +137,6 @@ export const forceUnlockPO = async (poId: number, userId: number): Promise<{ suc
     return { success: false, message: 'Gagal unlock PO' }
   }
 }
+
+// Legacy export for backward compatibility
+export const lockPO = lockPOUtil;

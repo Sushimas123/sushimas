@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/components/Layout';
 import PageAccessControl from '@/components/PageAccessControl';
 import { supabase } from '@/src/lib/supabaseClient';
+import { lockRequest, unlockRequest, checkRequestLock, forceUnlockRequest } from '@/src/utils/requestLock';
 
 interface FormData {
   request_id: string;
@@ -64,6 +65,8 @@ function CreateExpenseContent() {
   const [searchProduct, setSearchProduct] = useState('');
   const [productSuppliers, setProductSuppliers] = useState<{product: Product, suppliers: Supplier[]}[]>([]);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [lockedRequests, setLockedRequests] = useState<Set<number>>(new Set());
+  const [lockMessages, setLockMessages] = useState<{[key: number]: string}>({});
   
   const [formData, setFormData] = useState<FormData>({
     request_id: '',
@@ -82,7 +85,26 @@ function CreateExpenseContent() {
 
   useEffect(() => {
     fetchData();
+    
+    // Cleanup function to unlock request when component unmounts
+    return () => {
+      if (formData.request_id) {
+        unlockRequest(parseInt(formData.request_id));
+      }
+    };
   }, []);
+  
+  // Handle page unload/refresh
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (formData.request_id) {
+        await unlockRequest(parseInt(formData.request_id));
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [formData.request_id]);
 
   useEffect(() => {
     if (searchProduct.length >= 2) {
@@ -142,9 +164,12 @@ function CreateExpenseContent() {
         
       if (branchError) throw branchError;
 
-      console.log('Raw request data:', requestData);
+      // Get all expenses to calculate remaining balance
+      const { data: expensesData } = await supabase
+        .from('petty_cash_expenses')
+        .select('request_id, amount');
 
-      // Filter out requests that already have settlements
+      // Filter out requests that already have settlements and calculate remaining balance
       const availableRequests = [];
       for (const request of requestData || []) {
         const { data: existingSettlement } = await supabase
@@ -154,18 +179,42 @@ function CreateExpenseContent() {
           .single();
 
         if (!existingSettlement) {
-          availableRequests.push(request);
+          // Calculate total expenses for this request
+          const totalExpenses = expensesData?.filter(e => e.request_id === request.id)
+            .reduce((sum, e) => sum + e.amount, 0) || 0;
+          
+          const totalAvailable = request.amount + (request.carried_balance || 0);
+          const remainingBalance = totalAvailable - totalExpenses;
+          
+          // Only include requests with remaining balance > 0
+          if (remainingBalance > 0) {
+            availableRequests.push({
+              ...request,
+              totalAvailable,
+              totalExpenses,
+              remainingBalance
+            });
+          }
         }
       }
       
-      console.log('Available requests after filtering:', availableRequests);
-      // Transform the data to match our interface with total available amount
-      const transformedRequests = availableRequests.map(request => {
-        const totalAvailable = request.amount + (request.carried_balance || 0);
+      // Check lock status for each request
+      const requestsWithLockStatus = [];
+      for (const request of availableRequests) {
+        const lockStatus = await checkRequestLock(request.id);
+        if (lockStatus.isLocked) {
+          setLockedRequests(prev => new Set([...prev, request.id]));
+          setLockMessages(prev => ({ ...prev, [request.id]: `Sedang diproses oleh ${lockStatus.lockedBy}` }));
+        }
+        requestsWithLockStatus.push(request);
+      }
+      
+      // Transform the data to match our interface
+      const transformedRequests = requestsWithLockStatus.map(request => {
         const branch = branchData?.find(b => b.kode_branch === request.branch_code);
         return {
           ...request,
-          amount: totalAvailable, // Show total available instead of just amount
+          amount: request.remainingBalance, // Show remaining balance
           branches: branch ? [{ nama_branch: branch.nama_branch }] : undefined
         };
       });
@@ -226,10 +275,14 @@ function CreateExpenseContent() {
       newErrors.expense_date = 'Tanggal expense harus diisi';
     }
 
-
-
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
       newErrors.amount = 'Masukkan jumlah yang valid';
+    } else if (formData.request_id) {
+      // Check if expense amount exceeds remaining balance
+      const selectedRequest = requests.find(r => r.id.toString() === formData.request_id);
+      if (selectedRequest && parseFloat(formData.amount) > selectedRequest.amount) {
+        newErrors.amount = `Jumlah melebihi sisa saldo (${formatCurrency(selectedRequest.amount)})`;
+      }
     }
 
     setErrors(newErrors);
@@ -270,26 +323,34 @@ function CreateExpenseContent() {
         receiptImageUrl = uploadData.path;
       }
 
-      const { data, error } = await supabase
-        .from('petty_cash_expenses')
-        .insert({
-          request_id: parseInt(formData.request_id),
-          category_id: parseInt(formData.category_id),
-          expense_date: formData.expense_date,
-          description: formData.description.trim() || '',
-          amount: parseFloat(formData.amount),
-          qty: parseFloat(formData.qty),
-          harga: parseFloat(formData.harga),
-          receipt_number: formData.receipt_number.trim() || null,
-          vendor_name: formData.vendor_name.trim() || null,
-          notes: formData.notes.trim() || null,
-          receipt_image_url: receiptImageUrl,
-          created_by: currentUser.id_user,
-          product_id: formData.product_id ? parseInt(formData.product_id) : null
-        })
-        .select();
+      // Use database transaction to prevent race condition
+      const { data, error } = await supabase.rpc('create_expense_with_balance_check', {
+        p_request_id: parseInt(formData.request_id),
+        p_category_id: parseInt(formData.category_id),
+        p_expense_date: formData.expense_date,
+        p_description: formData.description.trim() || '',
+        p_amount: parseFloat(formData.amount),
+        p_qty: parseFloat(formData.qty),
+        p_harga: parseFloat(formData.harga),
+        p_receipt_number: formData.receipt_number.trim() || null,
+        p_vendor_name: formData.vendor_name.trim() || null,
+        p_notes: formData.notes.trim() || null,
+        p_receipt_image_url: receiptImageUrl,
+        p_created_by: currentUser.id_user,
+        p_product_id: formData.product_id ? parseInt(formData.product_id) : null
+      });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('insufficient_balance')) {
+          throw new Error('Saldo tidak mencukupi. Mungkin ada expense lain yang dibuat bersamaan.');
+        }
+        throw error;
+      }
+      
+      // Unlock the request after successful expense creation
+      if (formData.request_id) {
+        await unlockRequest(parseInt(formData.request_id));
+      }
       
       alert('Expense berhasil dibuat!');
       router.push('/pettycash/expenses');
@@ -301,11 +362,48 @@ function CreateExpenseContent() {
     }
   };
 
-  const handleInputChange = (field: keyof FormData, value: string | File | null) => {
+  const handleInputChange = async (field: keyof FormData, value: string | File | null) => {
+    // Handle request selection with locking
+    if (field === 'request_id' && value) {
+      const requestId = parseInt(value as string);
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      
+      // Check if request is locked
+      if (lockedRequests.has(requestId)) {
+        alert(lockMessages[requestId] || 'Request sedang diproses oleh user lain');
+        return;
+      }
+      
+      // Try to lock the request
+      const lockResult = await lockRequest(requestId, user.id_user, user.nama_lengkap);
+      if (!lockResult.success) {
+        alert(lockResult.message);
+        return;
+      }
+      
+      // Unlock previous request if any
+      if (formData.request_id) {
+        await unlockRequest(parseInt(formData.request_id));
+        setLockedRequests(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(parseInt(formData.request_id));
+          return newSet;
+        });
+      }
+      
+      // Mark new request as locked
+      setLockedRequests(prev => new Set([...prev, requestId]));
+    }
+    
     setFormData(prev => ({ ...prev, [field]: value }));
     
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+    
+    // When request changes, clear amount error to re-validate
+    if (field === 'request_id' && errors.amount) {
+      setErrors(prev => ({ ...prev, amount: '' }));
     }
   };
 
@@ -427,21 +525,33 @@ function CreateExpenseContent() {
   const handleQtyChange = (qty: string) => {
     const qtyNum = parseFloat(qty) || 0;
     const hargaNum = parseFloat(formData.harga) || 0;
+    const newAmount = (qtyNum * hargaNum).toString();
     setFormData(prev => ({ 
       ...prev, 
       qty,
-      amount: (qtyNum * hargaNum).toString()
+      amount: newAmount
     }));
+    
+    // Clear amount error when user changes qty
+    if (errors.amount) {
+      setErrors(prev => ({ ...prev, amount: '' }));
+    }
   };
 
   const handleHargaChange = (harga: string) => {
     const qtyNum = parseFloat(formData.qty) || 0;
     const hargaNum = parseFloat(harga) || 0;
+    const newAmount = (qtyNum * hargaNum).toString();
     setFormData(prev => ({ 
       ...prev, 
       harga,
-      amount: (qtyNum * hargaNum).toString()
+      amount: newAmount
     }));
+    
+    // Clear amount error when user changes price
+    if (errors.amount) {
+      setErrors(prev => ({ ...prev, amount: '' }));
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -504,13 +614,22 @@ function CreateExpenseContent() {
                     required
                   >
                     <option value="">Pilih Request</option>
-                    {requests.map(request => (
-                      <option key={request.id} value={request.id}>
-                        {request.request_number} - {formatCurrency(request.amount)}
-                      </option>
-                    ))}
+                    {requests.map(request => {
+                      const isLocked = lockedRequests.has(request.id) && formData.request_id !== request.id.toString();
+                      return (
+                        <option key={request.id} value={request.id} disabled={isLocked}>
+                          {request.request_number} - Sisa: {formatCurrency(request.amount)}
+                          {isLocked ? ' (Sedang diproses)' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                   {errors.request_id && <p className="text-red-500 text-xs mt-1">{errors.request_id}</p>}
+                  {formData.request_id && lockMessages[parseInt(formData.request_id)] && (
+                    <p className="text-yellow-600 text-xs mt-1">
+                      🔒 {lockMessages[parseInt(formData.request_id)]}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1">
@@ -644,10 +763,18 @@ function CreateExpenseContent() {
                     readOnly
                   />
                   {errors.amount && <p className="text-red-500 text-xs mt-1">{errors.amount}</p>}
-                  {formData.amount && !errors.amount && (
-                    <p className="text-green-600 text-xs mt-1">
-                      💰 {formatCurrency(parseFloat(formData.amount) || 0)}
-                    </p>
+                  {formData.amount && !errors.amount && formData.request_id && (
+                    <div className="text-xs mt-1">
+                      <p className="text-green-600">
+                        💰 {formatCurrency(parseFloat(formData.amount) || 0)}
+                      </p>
+                      <p className="text-gray-500">
+                        Sisa setelah expense: {formatCurrency(
+                          (requests.find(r => r.id.toString() === formData.request_id)?.amount || 0) - 
+                          (parseFloat(formData.amount) || 0)
+                        )}
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>
@@ -724,6 +851,15 @@ function CreateExpenseContent() {
 
           {/* Summary */}
           <div className="space-y-4">
+            {formData.request_id && lockedRequests.has(parseInt(formData.request_id)) && (
+              <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
+                <div className="flex items-center gap-2 text-yellow-800">
+                  <span className="text-sm">🔒</span>
+                  <span className="text-xs font-medium">Request ini sedang Anda proses</span>
+                </div>
+              </div>
+            )}
+            
             <div className="bg-white p-4 rounded-lg border">
               <h2 className="text-sm font-semibold mb-3">Ringkasan</h2>
               
@@ -737,6 +873,15 @@ function CreateExpenseContent() {
                     }
                   </span>
                 </div>
+                
+                {formData.request_id && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Sisa Saldo:</span>
+                    <span className="font-bold text-green-600">
+                      {formatCurrency(requests.find(r => r.id.toString() === formData.request_id)?.amount || 0)}
+                    </span>
+                  </div>
+                )}
                 
                 <div className="flex justify-between">
                   <span className="text-gray-600">Cabang:</span>
@@ -769,11 +914,26 @@ function CreateExpenseContent() {
                 </div>
                 
                 <div className="flex justify-between border-t pt-2">
-                  <span className="text-gray-600">Total:</span>
+                  <span className="text-gray-600">Total Expense:</span>
                   <span className="font-bold text-green-600">
                     {formData.amount ? formatCurrency(parseFloat(formData.amount)) : 'Rp 0'}
                   </span>
                 </div>
+                
+                {formData.request_id && formData.amount && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Sisa Setelah:</span>
+                    <span className={`font-medium ${
+                      (requests.find(r => r.id.toString() === formData.request_id)?.amount || 0) - 
+                      (parseFloat(formData.amount) || 0) >= 0 ? 'text-blue-600' : 'text-red-600'
+                    }`}>
+                      {formatCurrency(
+                        (requests.find(r => r.id.toString() === formData.request_id)?.amount || 0) - 
+                        (parseFloat(formData.amount) || 0)
+                      )}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -783,6 +943,12 @@ function CreateExpenseContent() {
         <div className="flex justify-end gap-3 pt-4">
           <a
             href="/pettycash/expenses"
+            onClick={async () => {
+              // Unlock request when canceling
+              if (formData.request_id) {
+                await unlockRequest(parseInt(formData.request_id));
+              }
+            }}
             className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
           >
             Batal
@@ -794,6 +960,30 @@ function CreateExpenseContent() {
           >
             {loading ? 'Menyimpan...' : 'Simpan Expense'}
           </button>
+          
+          {formData.request_id && lockedRequests.has(parseInt(formData.request_id)) && (
+            <button
+              type="button"
+              onClick={async () => {
+                const user = JSON.parse(localStorage.getItem('user') || '{}');
+                if (user.role === 'admin' || user.role === 'super admin') {
+                  const result = await forceUnlockRequest(parseInt(formData.request_id));
+                  if (result.success) {
+                    setLockedRequests(prev => {
+                      const newSet = new Set(prev);
+                      newSet.delete(parseInt(formData.request_id));
+                      return newSet;
+                    });
+                    setFormData(prev => ({ ...prev, request_id: '' }));
+                    alert('Request berhasil di-unlock');
+                  }
+                }
+              }}
+              className="px-3 py-2 text-red-600 border border-red-300 rounded-lg hover:bg-red-50 text-sm"
+            >
+              🔓 Force Unlock
+            </button>
+          )}
         </div>
       </form>
     </div>
