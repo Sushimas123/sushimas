@@ -315,13 +315,20 @@ export default function FinishPO() {
               .eq('id_product', poItem.product_id)
               .single()
 
+            // Helper function to safely parse numeric values
+            const parseNumeric = (value: any) => {
+              if (value === null || value === undefined || value === '') return null
+              const parsed = parseFloat(value.toString())
+              return isNaN(parsed) ? null : parsed
+            }
+
             barangMasukInserts.push({
               tanggal: formData.tanggal_barang_sampai,
               id_barang: poItem.product_id,
               jumlah: parseFloat(receivedData.qty.toString()),
               qty_po: poItem.qty,
-              unit_kecil: productDetails?.unit_kecil || null,
-              unit_besar: productDetails?.unit_besar || null,
+              unit_kecil: parseNumeric(productDetails?.unit_kecil),
+              unit_besar: parseNumeric(productDetails?.unit_besar),
               satuan_kecil: productDetails?.satuan_kecil || null,
               satuan_besar: productDetails?.satuan_besar || null,
               harga: receivedData.harga,
@@ -349,17 +356,23 @@ export default function FinishPO() {
       }
 
       console.log('Prepared barang_masuk data:', barangMasukInserts)
+      console.log('Number of items to insert:', barangMasukInserts.length)
 
       // STEP 2: Execute atomic transaction
       try {
         // 2A: Insert to barang_masuk FIRST (most critical)
-        const { error: barangMasukError } = await supabase
+        console.log('🔄 Attempting to insert barang_masuk data...')
+        const { data: insertedData, error: barangMasukError } = await supabase
           .from('barang_masuk')
           .insert(barangMasukInserts)
+          .select()
+        
+        console.log('Insert result - data:', insertedData, 'error:', barangMasukError)
 
         if (barangMasukError) {
           console.error('Barang Masuk Insert Error:', barangMasukError)
-          throw new Error(`Gagal menyimpan data barang masuk: ${barangMasukError.message}`)
+          const errorMessage = barangMasukError.message || JSON.stringify(barangMasukError) || 'Unknown database error'
+          throw new Error(`Gagal menyimpan data barang masuk: ${errorMessage}`)
         }
 
         console.log('✅ Barang masuk data inserted successfully')
@@ -397,7 +410,8 @@ export default function FinishPO() {
             .eq('no_po', poData.po_number)
             .eq('invoice_number', formData.invoice_number)
           
-          throw new Error(`Gagal update status PO: ${updateError.message}`)
+          const errorMessage = updateError.message || JSON.stringify(updateError) || 'Unknown database error'
+          throw new Error(`Gagal update status PO: ${errorMessage}`)
         }
 
         console.log('✅ PO status updated successfully')

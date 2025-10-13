@@ -464,7 +464,7 @@ export default function BarangMasukPage() {
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}')
       
-      // 1. Data Validation
+      // 1. PRE-VALIDATION
       if (!user.id_user) {
         throw new Error('User ID tidak ditemukan')
       }
@@ -496,44 +496,44 @@ export default function BarangMasukPage() {
         .eq('source_reference', item.no_po)
         .eq('jumlah_masuk', item.jumlah)
         .eq('tanggal', item.tanggal)
-        .eq('nama_pengambil_barang', user.nama_lengkap || 'System')
       
       if (existingEntry && existingEntry.length > 0) {
         throw new Error('Data ini sudah pernah dimasukkan ke gudang!')
       }
-      
-      // 2. Prepare data for atomic transaction
-      const { data: currentStock } = await supabase
-        .from('gudang')
-        .select('total_gudang')
-        .eq('id_product', item.id_barang)
-        .eq('cabang', branchCode)
-        .order('tanggal', { ascending: false })
-        .limit(1)
-      
-      const previousStock = currentStock?.[0]?.total_gudang || 0
-      const newTotalStock = previousStock + item.jumlah
-      
-      const gudangData = {
-        tanggal: item.tanggal,
-        id_product: item.id_barang,
-        jumlah_masuk: item.jumlah,
-        jumlah_keluar: 0,
-        total_gudang: newTotalStock,
-        nama_pengambil_barang: user.nama_lengkap || 'System',
-        cabang: branchCode,
-        source_type: 'PO',
-        source_reference: item.no_po,
-        created_by: user.id_user
-      }
-      
-      // 3. Atomic Transaction Pattern
-      let gudangInsertResult = null
+
+      // 2. ATOMIC TRANSACTION - PREPARE ALL DATA FIRST
+      let gudangInsertId: number | null = null
       let shouldUpdatePOStatus = false
-      let poUpdateResult = null
+      let allPOItems: any[] = []
       
       try {
-        // Step 1: Insert to gudang table (critical operation)
+        // Step 1: Get current stock for calculation
+        const { data: currentStock } = await supabase
+          .from('gudang')
+          .select('total_gudang')
+          .eq('id_product', item.id_barang)
+          .eq('cabang', branchCode)
+          .order('tanggal', { ascending: false })
+          .limit(1)
+        
+        const previousStock = currentStock?.[0]?.total_gudang || 0
+        const newTotalStock = previousStock + item.jumlah
+        
+        // Step 2: Prepare gudang data
+        const gudangData = {
+          tanggal: item.tanggal,
+          id_product: item.id_barang,
+          jumlah_masuk: item.jumlah,
+          jumlah_keluar: 0,
+          total_gudang: newTotalStock,
+          nama_pengambil_barang: user.nama_lengkap || 'System',
+          cabang: branchCode,
+          source_type: 'PO',
+          source_reference: item.no_po,
+          created_by: user.id_user
+        }
+        
+        // Step 3: INSERT TO GUDANG (Critical Operation 1)
         const { data: insertedGudang, error: gudangError } = await supabase
           .from('gudang')
           .insert(gudangData)
@@ -544,22 +544,26 @@ export default function BarangMasukPage() {
           throw new Error(`Gagal insert ke gudang: ${gudangError.message}`)
         }
         
-        gudangInsertResult = insertedGudang
+        gudangInsertId = insertedGudang.id
+        console.log('✅ Gudang entry created:', gudangInsertId)
         
-        // Step 2: Check if all items from this PO are now in gudang
+        // Step 4: Check if we need to update PO status
         if (item.po_id && item.no_po !== '-') {
-          const { data: allPoItems, error: poItemsError } = await supabase
+          // Get all items for this PO
+          const { data: poItems, error: poItemsError } = await supabase
             .from('barang_masuk')
-            .select('id, id_barang')
+            .select('id, id_barang, jumlah')
             .eq('no_po', item.no_po)
           
           if (poItemsError) {
             throw new Error(`Gagal mengecek PO items: ${poItemsError.message}`)
           }
           
-          if (allPoItems && allPoItems.length > 0) {
-            // Check if all items are now in gudang
-            const gudangCheckPromises = allPoItems.map(async (poItem) => {
+          allPOItems = poItems || []
+          
+          if (allPOItems.length > 0) {
+            // Check if ALL items from this PO are now in gudang
+            const gudangCheckPromises = allPOItems.map(async (poItem) => {
               const { data: gudangEntry } = await supabase
                 .from('gudang')
                 .select('order_no')
@@ -571,17 +575,21 @@ export default function BarangMasukPage() {
               return !!gudangEntry
             })
             
-            const allInGudang = await Promise.all(gudangCheckPromises)
-            shouldUpdatePOStatus = allInGudang.every(inGudang => inGudang)
+            const allInGudangResults = await Promise.all(gudangCheckPromises)
+            shouldUpdatePOStatus = allInGudangResults.every(inGudang => inGudang)
             
-            // Step 3: Update PO status if all items are in gudang
+            console.log('PO Status Check:', {
+              totalItems: allPOItems.length,
+              inGudang: allInGudangResults.filter(Boolean).length,
+              shouldUpdate: shouldUpdatePOStatus
+            })
+            
+            // Step 5: UPDATE PO STATUS (Critical Operation 2 - FINAL STEP)
             if (shouldUpdatePOStatus) {
               const { error: poUpdateError } = await supabase
                 .from('purchase_orders')
                 .update({ 
-                  status: 'Di Gudang',
-                  updated_at: new Date().toISOString(),
-                  updated_by: user.id_user
+                  status: 'Di Gudang'
                 })
                 .eq('id', item.po_id)
               
@@ -589,58 +597,78 @@ export default function BarangMasukPage() {
                 throw new Error(`Gagal update status PO: ${poUpdateError.message}`)
               }
               
-              poUpdateResult = true
+              console.log('✅ PO status updated to "Di Gudang"')
             }
           }
         }
         
-        // All operations successful
-        alert('Barang berhasil dimasukkan ke gudang!')
-        fetchBarangMasuk() // Refresh data
+        // Step 6: UPDATE BARANG_MASUK STATUS (Mark as processed)
+        // Note: barang_masuk table may not have updated_at/updated_by columns
+        // This step is optional for audit trail
+        
+        if (updateBmError) {
+          console.warn('Gagal update barang_masuk timestamp:', updateBmError)
+          // Continue, this is not critical
+        }
+        
+        // ALL OPERATIONS SUCCESSFUL
+        console.log('🎉 All atomic operations completed successfully')
+        
+        // Show success message
+        let successMessage = `✅ Barang "${item.product_name}" berhasil dimasukkan ke gudang!`
+        if (shouldUpdatePOStatus) {
+          successMessage += `\n\nStatus PO ${item.no_po} telah diupdate menjadi "Di Gudang".`
+        }
+        alert(successMessage)
+        
+        // Refresh data
+        fetchBarangMasuk()
         
       } catch (transactionError) {
-        // 4. Rollback Mechanism
-        console.error('Transaction failed, attempting rollback:', transactionError)
+        // 3. ROLLBACK MECHANISM
+        console.error('❌ Transaction failed, attempting rollback:', transactionError)
+        
+        let rollbackMessages = []
         
         // Rollback gudang insert if it was successful
-        if (gudangInsertResult) {
+        if (gudangInsertId) {
           try {
-            await supabase
+            const { error: deleteError } = await supabase
               .from('gudang')
               .delete()
-              .eq('id', gudangInsertResult.id)
-            console.log('Rollback: Gudang entry deleted')
+              .eq('id', gudangInsertId)
+            
+            if (!deleteError) {
+              rollbackMessages.push('Gudang entry deleted')
+              console.log('↩️ Rollback: Gudang entry deleted')
+            } else {
+              rollbackMessages.push('Gagal delete gudang entry')
+              console.error('Rollback failed for gudang:', deleteError)
+            }
           } catch (rollbackError) {
-            console.error('Rollback failed for gudang:', rollbackError)
+            rollbackMessages.push('Error saat rollback gudang')
+            console.error('Rollback error for gudang:', rollbackError)
           }
         }
         
-        // Rollback PO status update if it was successful
-        if (poUpdateResult && item.po_id) {
-          try {
-            await supabase
-              .from('purchase_orders')
-              .update({ 
-                status: 'Barang sampai',
-                updated_at: new Date().toISOString(),
-                updated_by: user.id_user
-              })
-              .eq('id', item.po_id)
-            console.log('Rollback: PO status reverted')
-          } catch (rollbackError) {
-            console.error('Rollback failed for PO status:', rollbackError)
-          }
-        }
+        // Note: We don't rollback PO status because it was the final step
+        // If we failed before updating PO status, no need to rollback
         
-        throw transactionError
+        // Compose error message with rollback info
+        const errorMessage = transactionError instanceof Error ? transactionError.message : 'Unknown error'
+        const rollbackInfo = rollbackMessages.length > 0 
+          ? `\n\nRollback actions: ${rollbackMessages.join(', ')}`
+          : ''
+        
+        throw new Error(`Gagal memasukkan barang ke gudang: ${errorMessage}${rollbackInfo}`)
       }
       
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      console.error('handleMasukGudang error:', error)
-      alert(`Gagal memasukkan barang ke gudang: ${errorMessage}`)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      console.error('❌ handleMasukGudang error:', error)
+      alert(`❌ ${errorMessage}`)
     } finally {
-      // Remove from processing
+      // Remove from processing regardless of outcome
       setProcessingItems(prev => {
         const newSet = new Set(prev)
         newSet.delete(item.id)
