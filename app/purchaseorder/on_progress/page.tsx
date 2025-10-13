@@ -200,21 +200,24 @@ function OnProgressPO() {
           .single()
 
         // Get payment terms if available
-        let supplierWithTerms = supplierData
-        if (supplierData?.id_payment_term) {
-          const { data: paymentTerm } = await supabase
-            .from('payment_terms')
-            .select('term_name, days')
-            .eq('id_payment_term', supplierData.id_payment_term)
-            .single()
+        if (supplierData) {
+          let supplierWithTerms: Supplier = supplierData as Supplier
           
-          supplierWithTerms = {
-            ...supplierData,
-            payment_terms: paymentTerm
+          if (supplierData.id_payment_term) {
+            const { data: paymentTerm } = await supabase
+              .from('payment_terms')
+              .select('term_name, days')
+              .eq('id_payment_term', supplierData.id_payment_term)
+              .single()
+            
+            supplierWithTerms = {
+              ...supplierData,
+              payment_terms: paymentTerm || undefined
+            } as Supplier
           }
-        }
 
-        setSupplier(supplierWithTerms)
+          setSupplier(supplierWithTerms)
+        }
 
         // Fetch users from the same branch
         if (branchData?.kode_branch) {
@@ -332,23 +335,18 @@ function OnProgressPO() {
     }
 
     // Format WhatsApp message
-    const message = `*PURCHASE ORDER - ${poData.po_number}*
+    const message = `*ORDERAN SUSHIMAS*
 
-📋 *INFORMASI PO*
 • Nomor PO: ${poData.po_number}
 • Tanggal: ${new Date(poData.po_date).toLocaleDateString('id-ID')}
-• Prioritas: ${poData.priority.toUpperCase()}
-• Termin: ${supplier?.payment_terms ? `${supplier.payment_terms.term_name} (${supplier.payment_terms.days} hari)` : `${poData.termin_days} hari`}
 
-🏢 *DARI*
+*DARI*
 • Cabang: ${branch.nama_branch}
-• Alamat: ${branch.alamat || '-'}
 • PIC: ${branch.pic || '-'}
 
-👥 *KEPADA*
-• Supplier: ${supplier?.nama_supplier || 'Supplier'}
+*KEPADA* : ${supplier?.nama_supplier || 'Supplier'}
 
-📦 *DETAIL ITEM*
+*DETAIL ITEM*
 ${poItems.map((item, index) => 
   `${index + 1}. ${item.product_name} (${item.merk || '-'})
    Qty: ${item.qty} ${item.unit_besar}
@@ -1162,7 +1160,10 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
                     <p>({createdByUser?.nama_lengkap || 'User'})</p>
                   </td>
                   <td style={{ width: '50%', textAlign: 'center', verticalAlign: 'top' }}>
-                    <p style={{ fontWeight: 'bold', marginBottom: '60px' }}>Disetujui Oleh</p>
+                    <p style={{ fontWeight: 'bold', marginBottom: '10px' }}>Disetujui Oleh</p>
+                    <div style={{ marginBottom: '5px', width: '200px', margin: '0 auto', height: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <img src="/signatures/andi.png" alt="Signature" style={{ width: '150px', height: '40px', objectFit: 'contain' }} />
+                    </div>
                     <div style={{ borderBottom: '1px solid #000', marginBottom: '5px', width: '200px', margin: '0 auto' }}></div>
                     <p>(Andi)</p>
                   </td>
