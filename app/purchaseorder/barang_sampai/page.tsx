@@ -299,50 +299,119 @@ export default function FinishPO() {
         }
       }
 
-      // Update PO status and arrival date
-      const { error: updateError } = await supabase
-        .from('purchase_orders')
-        .update({
-          status: 'Barang sampai',
-          tanggal_barang_sampai: formData.tanggal_barang_sampai
-        })
-        .eq('id', poData.id)
-
-      if (updateError) {
-        throw new Error(`Gagal update PO: ${updateError.message}`)
-      }
-
-      // Save received items to barang_masuk table and update prices
+      // STEP 1: Prepare all data for atomic transaction
       const user = JSON.parse(localStorage.getItem('user') || '{}')
+      const barangMasukInserts = []
+      const poItemUpdates = []
       
       for (const [itemId, receivedData] of Object.entries(receivedItems)) {
-        // Only save items that were actually received
         if (receivedData.status !== 'not_received' && receivedData.qty > 0) {
           const poItem = poData.items?.find(item => item.id === parseInt(itemId))
           if (poItem) {
-            // Get current product details
+            // Get product details
             const { data: productDetails } = await supabase
               .from('nama_product')
               .select('unit_kecil, unit_besar, satuan_kecil, satuan_besar, harga')
               .eq('id_product', poItem.product_id)
               .single()
 
-            // Update po_items with actual received price (don't update master price)
-            const { error: poItemUpdateError } = await supabase
-              .from('po_items')
-              .update({ 
-                actual_price: receivedData.harga,
-                received_qty: receivedData.qty
-              })
-              .eq('id', parseInt(itemId))
-            
-            console.log(`Updated PO item ${itemId} with actual_price: ${receivedData.harga}, received_qty: ${receivedData.qty}`)
-            
-            if (poItemUpdateError) {
-              console.error(`Error updating PO item ${itemId}:`, poItemUpdateError)
-            }
-            
-            // Record price difference in po_price_history if there's a difference
+            barangMasukInserts.push({
+              tanggal: formData.tanggal_barang_sampai,
+              id_barang: poItem.product_id,
+              jumlah: parseFloat(receivedData.qty.toString()),
+              qty_po: poItem.qty,
+              unit_kecil: productDetails?.unit_kecil || null,
+              unit_besar: productDetails?.unit_besar || null,
+              satuan_kecil: productDetails?.satuan_kecil || null,
+              satuan_besar: productDetails?.satuan_besar || null,
+              harga: receivedData.harga,
+              harga_po: poItem.harga,
+              id_supplier: poData.supplier_id,
+              id_branch: poData.cabang_id,
+              no_po: poData.po_number,
+              invoice_number: formData.invoice_number,
+              keterangan: `${formData.keterangan || ''} - Status: ${receivedData.status}`.trim(),
+              created_by: user.id_user || null
+            })
+
+            poItemUpdates.push({
+              id: parseInt(itemId),
+              actual_price: receivedData.harga,
+              received_qty: receivedData.qty
+            })
+          }
+        }
+      }
+
+      // VALIDATE: Ensure we have data to save
+      if (barangMasukInserts.length === 0) {
+        throw new Error('Tidak ada item yang akan disimpan ke barang_masuk')
+      }
+
+      console.log('Prepared barang_masuk data:', barangMasukInserts)
+
+      // STEP 2: Execute atomic transaction
+      try {
+        // 2A: Insert to barang_masuk FIRST (most critical)
+        const { error: barangMasukError } = await supabase
+          .from('barang_masuk')
+          .insert(barangMasukInserts)
+
+        if (barangMasukError) {
+          console.error('Barang Masuk Insert Error:', barangMasukError)
+          throw new Error(`Gagal menyimpan data barang masuk: ${barangMasukError.message}`)
+        }
+
+        console.log('✅ Barang masuk data inserted successfully')
+
+        // 2B: Update PO items (secondary)
+        for (const update of poItemUpdates) {
+          const { error: updateError } = await supabase
+            .from('po_items')
+            .update({ 
+              actual_price: update.actual_price,
+              received_qty: update.received_qty
+            })
+            .eq('id', update.id)
+          
+          if (updateError) {
+            console.warn(`Failed to update PO item ${update.id}:`, updateError)
+          }
+        }
+
+        // 2C: Update PO status LAST (after all data is saved)
+        const { error: updateError } = await supabase
+          .from('purchase_orders')
+          .update({
+            status: 'Barang sampai',
+            tanggal_barang_sampai: formData.tanggal_barang_sampai
+          })
+          .eq('id', poData.id)
+
+        if (updateError) {
+          // If PO update fails, try to rollback barang_masuk
+          console.error('PO Update Error:', updateError)
+          await supabase
+            .from('barang_masuk')
+            .delete()
+            .eq('no_po', poData.po_number)
+            .eq('invoice_number', formData.invoice_number)
+          
+          throw new Error(`Gagal update status PO: ${updateError.message}`)
+        }
+
+        console.log('✅ PO status updated successfully')
+
+      } catch (transactionError) {
+        console.error('Transaction failed:', transactionError)
+        throw transactionError
+      }
+
+      // STEP 3: Handle price differences (optional, non-critical)
+      for (const [itemId, receivedData] of Object.entries(receivedItems)) {
+        if (receivedData.status !== 'not_received' && receivedData.qty > 0) {
+          const poItem = poData.items?.find(item => item.id === parseInt(itemId))
+          if (poItem) {
             const originalPrice = poItem.harga || 0
             if (Math.abs(receivedData.harga - originalPrice) > 0.01) {
               const { error: historyError } = await supabase
@@ -355,7 +424,6 @@ export default function FinishPO() {
                   actual_price: receivedData.harga,
                   price_difference: receivedData.harga - originalPrice,
                   percentage_difference: originalPrice > 0 ? ((receivedData.harga - originalPrice) / originalPrice) * 100 : 0,
-                  master_price_at_time: productDetails?.harga || 0,
                   received_date: formData.tanggal_barang_sampai,
                   invoice_number: formData.invoice_number,
                   notes: `Price difference recorded for ${poItem.product_name}`,
@@ -363,90 +431,57 @@ export default function FinishPO() {
                 })
               
               if (historyError) {
-                console.error(`Error saving PO price history for ${poItem.product_name}:`, historyError)
+                console.warn(`Failed to save price history for ${poItem.product_name}:`, historyError)
               }
-            }
-            
-            // Only update master price if this is significantly different and user confirms
-            const currentPrice = productDetails?.harga || 0
-            const actualPrice = receivedData.harga
-            
-            const threshold = currentPrice > 0 ? currentPrice * 0.1 : 1000 // 10% or Rp 1000 if price is 0
-            if (Math.abs(actualPrice - currentPrice) > threshold) {
-              const shouldUpdateMaster = confirm(
-                `Harga aktual ${poItem.product_name} (${new Intl.NumberFormat('id-ID', {style: 'currency', currency: 'IDR'}).format(actualPrice)}) berbeda signifikan dari harga master (${new Intl.NumberFormat('id-ID', {style: 'currency', currency: 'IDR'}).format(currentPrice)}).\n\nApakah ingin mengupdate harga master? Ini akan mempengaruhi PO lain yang belum selesai.`
-              )
-              
-              if (shouldUpdateMaster) {
-                const { error: priceUpdateError } = await supabase
-                  .from('nama_product')
-                  .update({ harga: actualPrice })
-                  .eq('id_product', poItem.product_id)
-                
-                if (!priceUpdateError) {
-                  // Add to price history
-                  const { error: priceHistoryError } = await supabase
-                    .from('price_history')
-                    .insert({
-                      product_id: poItem.product_id,
-                      old_price: currentPrice,
-                      new_price: actualPrice,
-                      price_change: actualPrice - currentPrice,
-                      change_percentage: currentPrice > 0 ? ((actualPrice - currentPrice) / currentPrice) * 100 : 0,
-                      change_reason: 'po_completion',
-                      po_number: poData.po_number,
-                      notes: `Price updated from PO completion. Invoice: ${formData.invoice_number}`,
-                      created_by: user.id_user || null
-                    })
-                  
-                  if (priceHistoryError) {
-                    console.error(`Error saving price history for ${poItem.product_name}:`, priceHistoryError)
-                  }
-                }
-              }
-            }
-
-            const { error: barangMasukError } = await supabase
-              .from('barang_masuk')
-              .insert({
-                tanggal: formData.tanggal_barang_sampai,
-                id_barang: poItem.product_id,
-                jumlah: parseFloat(receivedData.qty.toString()),
-                qty_po: poItem.qty, // Original PO quantity
-                unit_kecil: productDetails?.satuan_kecil || null,
-                unit_besar: productDetails?.satuan_besar || null,
-                satuan_kecil: productDetails?.unit_kecil || null,
-                satuan_besar: productDetails?.unit_besar || null,
-                harga: receivedData.harga,
-                harga_po: poItem.harga, // Store original PO price
-                id_supplier: poData.supplier_id,
-                id_branch: poData.cabang_id,
-                no_po: poData.po_number,
-                invoice_number: formData.invoice_number,
-                keterangan: `${formData.keterangan || ''} - Status: ${receivedData.status}`.trim(),
-                created_by: user.id_user || null
-              })
-
-            if (barangMasukError) {
-              console.error(`Error saving barang masuk for item ${itemId}:`, barangMasukError)
             }
           }
         }
       }
 
-      // Unlock PO after successful submission
+      // STEP 4: Unlock PO and redirect
       await unlockPO(poData.id)
       
-      alert('Data barang sampai berhasil disimpan ke barang masuk!')
+      alert('✅ Data barang sampai berhasil disimpan ke barang masuk!')
       window.location.href = '/purchaseorder/barang_masuk'
+
     } catch (error) {
       console.error('Error saving:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      alert(`Gagal menyimpan data: ${errorMessage}`)
+      alert(`❌ Gagal menyimpan data: ${errorMessage}`)
     } finally {
       setSubmitting(false)
     }
   }
+
+  // Add data validation check
+  const checkExistingData = async () => {
+    if (!poData) return
+    
+    const { data: existingBM } = await supabase
+      .from('barang_masuk')
+      .select('id, invoice_number')
+      .eq('no_po', poData.po_number)
+      .limit(1)
+    
+    if (existingBM && existingBM.length > 0) {
+      const shouldContinue = confirm(
+        `⚠️ PO ini sudah memiliki data barang masuk dengan invoice: ${existingBM[0].invoice_number}\n\nApakah ingin melanjutkan? Data lama akan ditimpa.`
+      )
+      if (!shouldContinue) {
+        window.location.href = '/purchaseorder'
+        return
+      }
+    }
+  }
+
+  // Check existing data when PO data is loaded
+  useEffect(() => {
+    if (poData && !loading) {
+      checkExistingData()
+    }
+  }, [poData, loading])
+
+
 
   if (loading) {
     return (
