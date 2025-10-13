@@ -13,10 +13,12 @@ interface Supplier {
   bank_penerima?: string
   nama_penerima?: string
   termin_tempo?: number
+  id_payment_term?: number
   estimasi_pengiriman?: number
   divisi?: string
   nama_barang?: string
   merk?: string
+  payment_terms?: { term_name: string; days: number }
 }
 
 interface Branch {
@@ -156,7 +158,20 @@ function EditPurchaseOrder() {
         .select('*')
         .order('nama_branch')
 
-      const allSuppliers = suppliersData || []
+      // Get payment terms data
+      const { data: paymentTermsData } = await supabase
+        .from('payment_terms')
+        .select('id_payment_term, term_name, days')
+
+      // Add payment terms to suppliers
+      const allSuppliers = (suppliersData || []).map(supplier => {
+        const paymentTerm = paymentTermsData?.find(pt => pt.id_payment_term === supplier.id_payment_term)
+        return {
+          ...supplier,
+          payment_terms: paymentTerm || undefined
+        }
+      })
+
       const uniqueSuppliers = allSuppliers.filter((supplier, index, self) => 
         index === self.findIndex(s => s.nama_supplier.toLowerCase() === supplier.nama_supplier.toLowerCase())
       )
@@ -362,10 +377,13 @@ function EditPurchaseOrder() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tempo (Hari)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Payment Term</label>
               <input
-                type="number"
-                value={formData.termin_days}
+                type="text"
+                value={selectedSupplier?.payment_terms ? 
+                  `${selectedSupplier.payment_terms.term_name} (${selectedSupplier.payment_terms.days} hari)` : 
+                  `${formData.termin_days} hari`
+                }
                 className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 text-gray-600"
                 disabled
                 readOnly

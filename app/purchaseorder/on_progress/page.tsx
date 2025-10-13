@@ -460,132 +460,9 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
     }))
   }
 
-  const exportToPDF = async () => {
-    if (!poData) {
-      alert('Data PO tidak tersedia')
-      return
-    }
-    
-    const element = document.getElementById('po-content')
-    if (!element) {
-      alert('Konten PDF tidak ditemukan')
-      return
-    }
 
-    try {
-      // Dynamic import html2pdf
-      const html2pdf = (await import('html2pdf.js')).default
-      
-      // Buat elemen sementara untuk konten PDF
-      const tempElement = element.cloneNode(true) as HTMLElement
-      
-      // Optimasi untuk PDF
-      tempElement.style.width = '210mm'
-      tempElement.style.padding = '15mm'
-      tempElement.style.fontSize = '12pt'
-      tempElement.style.position = 'static'
-      tempElement.style.visibility = 'visible'
-      
-      const opt = {
-        margin: 10,
-        filename: `PO-${poData.po_number}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2,
-          useCORS: true,
-          logging: false
-        },
-        jsPDF: { 
-          unit: 'mm', 
-          format: 'a4', 
-          orientation: 'portrait' 
-        }
-      }
 
-      html2pdf().set(opt).from(tempElement).save()
-    } catch (error) {
-      console.error('Error loading html2pdf:', error)
-      alert('Gagal memuat library PDF')
-    }
-  }
 
-  const exportPDFToWhatsApp = async () => {
-    if (!poData) {
-      alert('Data PO tidak tersedia')
-      return
-    }
-    
-    const element = document.getElementById('po-content')
-    if (!element) {
-      alert('Konten PDF tidak ditemukan')
-      return
-    }
-
-    try {
-      // Dynamic import html2pdf
-      const html2pdf = (await import('html2pdf.js')).default
-      
-      const tempElement = element.cloneNode(true) as HTMLElement
-      tempElement.style.width = '210mm'
-      tempElement.style.padding = '15mm'
-      tempElement.style.fontSize = '12pt'
-      tempElement.style.position = 'static'
-      tempElement.style.visibility = 'visible'
-      
-      const opt = {
-        margin: 10,
-        filename: `PO-${poData.po_number}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2,
-          useCORS: true,
-          logging: false
-        },
-        jsPDF: { 
-          unit: 'mm', 
-          format: 'a4', 
-          orientation: 'portrait' 
-        }
-      }
-
-      // Generate and download PDF
-      await html2pdf().set(opt).from(tempElement).save()
-      
-      // Create WhatsApp message
-      const message = `Halo, berikut adalah Purchase Order ${poData.po_number}. File PDF sudah didownload, silakan attach file PDF tersebut ke chat ini.`
-      
-      // Clean and format phone number
-      let cleanPhone = whatsappNumber.replace(/[^0-9]/g, '')
-      
-      // Add country code if not present
-      if (!cleanPhone.startsWith('62')) {
-        if (cleanPhone.startsWith('0')) {
-          cleanPhone = '62' + cleanPhone.substring(1)
-        } else {
-          cleanPhone = '62' + cleanPhone
-        }
-      }
-
-      // Validate phone number
-      if (cleanPhone.length < 10 || cleanPhone.length > 15) {
-        alert('Format nomor WhatsApp tidak valid')
-        return
-      }
-      
-      const encodedMessage = encodeURIComponent(message)
-      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`
-      
-      // Open WhatsApp after a short delay to allow PDF download
-      setTimeout(() => {
-        window.open(whatsappUrl, '_blank')
-      }, 1000)
-      
-      alert('PDF berhasil didownload dan WhatsApp akan terbuka. Silakan attach file PDF yang sudah didownload ke chat WhatsApp.')
-    } catch (error) {
-      console.error('Error generating PDF for WhatsApp:', error)
-      alert('Gagal membuat PDF untuk WhatsApp')
-    }
-  }
 
   const handlePrint = () => {
     const printContent = document.getElementById('po-content')
@@ -784,14 +661,7 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
             <Printer size={16} />
             <span className="hidden md:inline">Cetak</span>
           </button>
-          <button 
-            onClick={exportToPDF}
-            className="bg-blue-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm md:text-base"
-          >
-            <Download size={16} />
-            <span className="hidden md:inline">Export PDF</span>
-            <span className="md:hidden">PDF</span>
-          </button>
+
           {/* WhatsApp Export Button */}
           <button 
             onClick={handleExportWhatsApp}
@@ -801,16 +671,7 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
             <span className="hidden md:inline">Export WhatsApp</span>
             <span className="md:hidden">WA</span>
           </button>
-          {/* PDF to WhatsApp Button */}
-          <button 
-            onClick={exportPDFToWhatsApp}
-            className="bg-purple-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm md:text-base"
-          >
-            <Download size={16} />
-            <MessageCircle size={14} className="-ml-1" />
-            <span className="hidden md:inline">PDF ke WA</span>
-            <span className="md:hidden">PDF WA</span>
-          </button>
+
         </div>
       </div>
 
