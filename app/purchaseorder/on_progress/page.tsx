@@ -58,7 +58,9 @@ interface Supplier {
   telp?: string
   email?: string
   termin_tempo?: number
+  id_payment_term?: number
   whatsapp?: string
+  payment_terms?: { term_name: string; days: number }
 }
 
 function OnProgressPO() {
@@ -185,14 +187,34 @@ function OnProgressPO() {
           })
         }
 
-        // Fetch supplier data
+        // Fetch supplier data with payment terms
         const { data: supplierData } = await supabase
           .from('suppliers')
-          .select('id_supplier, nama_supplier')
+          .select(`
+            id_supplier, 
+            nama_supplier, 
+            termin_tempo, 
+            id_payment_term
+          `)
           .eq('id_supplier', po.supplier_id)
           .single()
 
-        setSupplier(supplierData)
+        // Get payment terms if available
+        let supplierWithTerms = supplierData
+        if (supplierData?.id_payment_term) {
+          const { data: paymentTerm } = await supabase
+            .from('payment_terms')
+            .select('term_name, days')
+            .eq('id_payment_term', supplierData.id_payment_term)
+            .single()
+          
+          supplierWithTerms = {
+            ...supplierData,
+            payment_terms: paymentTerm
+          }
+        }
+
+        setSupplier(supplierWithTerms)
 
         // Fetch users from the same branch
         if (branchData?.kode_branch) {
@@ -316,7 +338,7 @@ function OnProgressPO() {
 • Nomor PO: ${poData.po_number}
 • Tanggal: ${new Date(poData.po_date).toLocaleDateString('id-ID')}
 • Prioritas: ${poData.priority.toUpperCase()}
-• Termin: ${poData.termin_days} hari
+• Termin: ${supplier?.payment_terms ? `${supplier.payment_terms.term_name} (${supplier.payment_terms.days} hari)` : `${poData.termin_days} hari`}
 
 🏢 *DARI*
 • Cabang: ${branch.nama_branch}
@@ -823,7 +845,12 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
               </div>
               <div>
                 <label className="block text-xs md:text-sm font-medium text-gray-500">Termin Pembayaran</label>
-                <p className="text-gray-700 text-sm md:text-base">{poData.termin_days} hari</p>
+                <p className="text-gray-700 text-sm md:text-base">
+                  {supplier?.payment_terms ? 
+                    `${supplier.payment_terms.term_name} (${supplier.payment_terms.days} hari)` : 
+                    `${poData.termin_days} hari`
+                  }
+                </p>
               </div>
               <div>
                 <label className="block text-xs md:text-sm font-medium text-gray-500">Dibuat Oleh</label>
@@ -1074,7 +1101,12 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
                 </tr>
                 <tr>
                   <td style={{ padding: '5px', border: '1px solid #000', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Termin Pembayaran</td>
-                  <td style={{ padding: '5px', border: '1px solid #000' }}>{poData.termin_days} hari</td>
+                  <td style={{ padding: '5px', border: '1px solid #000' }}>
+                    {supplier?.payment_terms ? 
+                      `${supplier.payment_terms.term_name} (${supplier.payment_terms.days} hari)` : 
+                      `${poData.termin_days} hari`
+                    }
+                  </td>
                   <td style={{ padding: '5px', border: '1px solid #000', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Status</td>
                   <td style={{ padding: '5px', border: '1px solid #000' }}>{poData.status}</td>
                 </tr>
