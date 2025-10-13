@@ -87,7 +87,7 @@ export default function FinishPO() {
       
       if (shouldForceUnlock) {
         const { forceUnlockPO } = await import('@/src/utils/poLock')
-        const result = await forceUnlockPO(poId, user.id_user)
+        const result = await forceUnlockPO(poId)
         if (!result.success) {
           alert(result.message)
           window.location.href = '/purchaseorder'
