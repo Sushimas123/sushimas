@@ -36,12 +36,12 @@ export default function EditAssetPage() {
   });
 
   useEffect(() => {
-    if (params.id) {
+    if (params?.id) {
       fetchCategories();
       fetchBranches();
       fetchAsset(params.id as string);
     }
-  }, [params.id]);
+  }, [params?.id]);
 
   const fetchCategories = async () => {
     const { data } = await supabase

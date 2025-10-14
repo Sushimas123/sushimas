@@ -29,10 +29,10 @@ export default function TransferPrintPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (params.id) {
+    if (params?.id) {
       fetchTransferDetail(parseInt(params.id as string))
     }
-  }, [params.id])
+  }, [params?.id])
 
   const fetchTransferDetail = async (id: number) => {
     try {

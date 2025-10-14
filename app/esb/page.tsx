@@ -72,9 +72,9 @@ function ESBPageContent() {
 
   // Handle URL parameters from Analysis page
   useEffect(() => {
-    const date = searchParams.get('date')
-    const branch = searchParams.get('branch')
-    const product = searchParams.get('product')
+    const date = searchParams?.get('date')
+    const branch = searchParams?.get('branch')
+    const product = searchParams?.get('product')
     
     if (date || branch || product) {
       if (date) setTanggal(date)
