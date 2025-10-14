@@ -79,9 +79,8 @@ export default function OutstandingMatrix() {
       const productIds = [...new Set(itemsData.data?.map(item => item.product_id).filter(Boolean) || [])]
       const supplierIds = [...new Set(financeData.map(item => item.supplier_id).filter(Boolean))]
 
-      const [productsData, suppliersData] = await Promise.all([
-        productIds.length > 0 ? supabase.from('nama_product').select('id_product, product_name, category, sub_category').in('id_product', productIds) : { data: [] },
-        supplierIds.length > 0 ? supabase.from('suppliers').select('id_supplier, kategori, sub_kategori').in('id_supplier', supplierIds) : { data: [] }
+      const [productsData] = await Promise.all([
+        productIds.length > 0 ? supabase.from('nama_product').select('id_product, product_name, category, sub_category').in('id_product', productIds) : { data: [] },        
       ])
 
       // Create lookup maps
@@ -108,9 +107,8 @@ export default function OutstandingMatrix() {
       })
       
       const suppliersMap: Record<number, any> = {}
-      suppliersData?.data?.forEach(supplier => { 
-        suppliersMap[supplier.id_supplier] = supplier 
-      })
+      // Note: suppliersData is not fetched in this component
+      // Categories will be determined from product data or fallback to 'Uncategorized'
 
       // Process data
       const processedData = financeData.map((item: any) => {
@@ -128,15 +126,9 @@ export default function OutstandingMatrix() {
           if (productData?.sub_category) subCategories.add(productData.sub_category)
         })
         
-        // Fallback to supplier category if no product category found
-        let kategori = categories.size > 0 ? Array.from(categories)[0] : null
-        let subKategori = subCategories.size > 0 ? Array.from(subCategories)[0] : null
-        
-        if (!kategori) {
-          const supplierData = suppliersMap[item.supplier_id]
-          kategori = supplierData?.kategori || 'Uncategorized'
-          subKategori = supplierData?.sub_kategori || 'General'
-        }
+        // Use product categories or fallback to default
+        let kategori = categories.size > 0 ? Array.from(categories)[0] : 'Uncategorized'
+        let subKategori = subCategories.size > 0 ? Array.from(subCategories)[0] : 'General'
 
         // Calculate corrected total
         let correctedTotal = 0
