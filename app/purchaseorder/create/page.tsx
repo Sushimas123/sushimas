@@ -13,6 +13,7 @@ interface Supplier {
   bank_penerima?: string
   nama_penerima?: string
   termin_tempo?: number
+  id_payment_term?: number
   estimasi_pengiriman?: number
   divisi?: string
   nama_barang?: string
@@ -281,7 +282,7 @@ function CreatePurchaseOrder() {
     try {
       const { data: suppliersData } = await supabase
         .from('suppliers')
-        .select('id_supplier, nama_supplier, nomor_rekening, bank_penerima, nama_penerima, termin_tempo, estimasi_pengiriman, divisi, nama_barang, merk')
+        .select('id_supplier, nama_supplier, nomor_rekening, bank_penerima, nama_penerima, termin_tempo, id_payment_term, estimasi_pengiriman, divisi, nama_barang, merk')
         .order('nama_supplier')
 
       const allSuppliers = suppliersData || []
@@ -498,10 +499,16 @@ function CreatePurchaseOrder() {
           supplier_id: supplier.id_supplier,
           status: 'Pending',
           priority: formData.priority,
-          termin_days: supplier.termin_tempo || 30
+          termin_days: supplier.termin_tempo || 30,
+          id_payment_term: supplier.id_payment_term || null
         }
 
         console.log('Inserting PO data:', poInsertData)
+        console.log('Supplier payment term info:', {
+          supplier_name: supplier.nama_supplier,
+          termin_tempo: supplier.termin_tempo,
+          id_payment_term: supplier.id_payment_term
+        })
         
         const { data: poData, error: poError } = await supabase.from('purchase_orders')
           .insert(poInsertData)
