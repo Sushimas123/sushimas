@@ -68,24 +68,25 @@ export default function BulkPaymentsPage() {
       // Optimized: Get all related data in bulk to avoid N+1 queries
       const bulkReferences = (bulkPaymentsData || []).map(bp => bp.bulk_reference)
       
-      // Bulk fetch all POs with supplier info using JOIN
-      const { data: allPOsWithSuppliers } = await supabase
+      // Bulk fetch all POs (without JOIN due to missing foreign key)
+      const { data: allPOs } = await supabase
         .from('purchase_orders')
-        .select(`
-          id,
-          po_number,
-          total_tagih,
-          supplier_id,
-          bulk_payment_ref,
-          suppliers!inner(
-            nama_supplier
-          )
-        `)
+        .select('id, po_number, total_tagih, supplier_id, bulk_payment_ref')
         .in('bulk_payment_ref', bulkReferences)
+      
+      // Get unique supplier IDs and fetch supplier data separately
+      const supplierIds = [...new Set(allPOs?.map(po => po.supplier_id) || [])]
+      const { data: suppliers } = await supabase
+        .from('suppliers')
+        .select('id_supplier, nama_supplier')
+        .in('id_supplier', supplierIds)
+      
+      // Create supplier lookup map
+      const supplierMap = new Map(suppliers?.map(s => [s.id_supplier, s.nama_supplier]) || [])
       
       // Group POs by bulk_payment_ref for O(1) lookup
       const posMap = new Map<string, any[]>()
-      allPOsWithSuppliers?.forEach(po => {
+      allPOs?.forEach(po => {
         if (!posMap.has(po.bulk_payment_ref)) {
           posMap.set(po.bulk_payment_ref, [])
         }
@@ -94,7 +95,7 @@ export default function BulkPaymentsPage() {
           po_number: po.po_number,
           total_tagih: po.total_tagih,
           supplier_id: po.supplier_id,
-          nama_supplier: (po.suppliers as any)?.nama_supplier || 'Unknown Supplier'
+          nama_supplier: supplierMap.get(po.supplier_id) || 'Unknown Supplier'
         })
       })
       
