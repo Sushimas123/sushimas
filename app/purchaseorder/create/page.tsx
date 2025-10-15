@@ -362,7 +362,7 @@ function CreatePurchaseOrder() {
         .select('actual_price')
         .eq('product_id', productId)
         .not('actual_price', 'is', null)
-        .order('received_date', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(1)
         .single()
       
@@ -370,18 +370,21 @@ function CreatePurchaseOrder() {
         return priceHistory.actual_price
       }
       
-      // 2. Fallback to latest actual price from barang_masuk
+      // 2. Fallback to latest price from barang_masuk
       const { data: latestPrice } = await supabase
         .from('barang_masuk')
-        .select('actual_price')
-        .eq('product_id', productId)
-        .not('actual_price', 'is', null)
-        .order('tanggal_masuk', { ascending: false })
+        .select('harga_po, harga')
+        .eq('id_barang', productId)
+        .order('tanggal', { ascending: false })
         .limit(1)
         .single()
       
-      if (latestPrice?.actual_price) {
-        return latestPrice.actual_price
+      if (latestPrice?.harga_po) {
+        return latestPrice.harga_po
+      }
+      
+      if (latestPrice?.harga) {
+        return latestPrice.harga
       }
       
       // 3. Final fallback to master price from nama_product
