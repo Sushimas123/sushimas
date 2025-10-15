@@ -71,7 +71,7 @@ export default function FinancePurchaseOrders() {
   const [sortField, setSortField] = useState<string>('')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 20
+  const itemsPerPage = 30
   const [notesState, setNotesState] = useState<Record<number, string>>({})
   const [selectedPOs, setSelectedPOs] = useState<number[]>([])
   const [showBulkPaymentModal, setShowBulkPaymentModal] = useState(false)
