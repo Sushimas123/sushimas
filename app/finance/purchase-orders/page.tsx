@@ -341,15 +341,36 @@ export default function FinancePurchaseOrders() {
         const poData = poDetailsMap[item.id]
         const invoiceNumber = invoiceMap[item.po_number]
 
-        // Hitung correctedTotal (logic kamu)
+        // Debug data items
+        console.log('Items data for PO', item.po_number, ':', items)
+        items.forEach((poItem, index) => {
+          console.log(`Item ${index}:`, {
+            actual_price: poItem.actual_price,
+            received_qty: poItem.received_qty,
+            harga: poItem.harga,
+            qty: poItem.qty
+          })
+        })
+
+        // Hitung correctedTotal dengan logic yang diperbaiki
         let correctedTotal = 0
         for (const poItem of items) {
-          if (poItem.actual_price && poItem.received_qty) {
-            correctedTotal += poItem.received_qty * poItem.actual_price
-          } else if (poItem.harga) {
-            correctedTotal += poItem.qty * poItem.harga
+          // Gunakan harga aktual jika ada, otherwise harga PO
+          const effectivePrice = poItem.actual_price || poItem.harga || 0
+          // Gunakan qty diterima jika ada, otherwise qty PO
+          const effectiveQty = poItem.received_qty || poItem.qty || 0
+          
+          if (effectivePrice > 0 && effectiveQty > 0) {
+            correctedTotal += effectivePrice * effectiveQty
           }
         }
+
+        // Jika masih 0, coba gunakan nilai dari database
+        if (correctedTotal === 0) {
+          correctedTotal = item.total_po || 0
+        }
+        
+        console.log('Final correctedTotal for', item.po_number, ':', correctedTotal)
 
         // Calculate payments (logic kamu)
         const totalPaid = payments.reduce((sum, p) => sum + p.payment_amount, 0)
