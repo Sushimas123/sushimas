@@ -341,20 +341,14 @@ export default function FinancePurchaseOrders() {
         const poData = poDetailsMap[item.id]
         const invoiceNumber = invoiceMap[item.po_number]
 
-        // Hitung correctedTotal dengan logic yang diperbaiki
+        // Hitung correctedTotal (logic kamu)
         let correctedTotal = 0
         for (const poItem of items) {
-          const effectivePrice = poItem.actual_price || poItem.harga || 0
-          const effectiveQty = poItem.received_qty || poItem.qty || 0
-          
-          if (effectivePrice > 0 && effectiveQty > 0) {
-            correctedTotal += effectivePrice * effectiveQty
+          if (poItem.actual_price && poItem.received_qty) {
+            correctedTotal += poItem.received_qty * poItem.actual_price
+          } else if (poItem.harga) {
+            correctedTotal += poItem.qty * poItem.harga
           }
-        }
-
-        // Fallback ke database value jika masih 0
-        if (correctedTotal === 0) {
-          correctedTotal = item.total_po || 0
         }
 
         // Calculate payments (logic kamu)
@@ -2889,4 +2883,3 @@ export default function FinancePurchaseOrders() {
     </Layout>
   )
 }
-
