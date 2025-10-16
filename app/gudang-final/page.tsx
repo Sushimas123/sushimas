@@ -855,7 +855,7 @@ function GudangFinalContent() {
                         <div
                           key={product.id_product}
                           onClick={() => handleProductSelect(product)}
-                          className="px-2 py-1 hover:bg-gray-100 cursor-pointer text-xs border-b border-gray-100 last:border-b-0"
+                          className="px-2 py-100 hover:bg-gray-100 cursor-pointer text-xs border-b border-gray-100 last:border-b-0"
                         >
                           <div className="font-medium text-gray-900">{product.product_name}</div>
                           {(product.suppliers as any)?.nama_supplier && (
