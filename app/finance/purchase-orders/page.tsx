@@ -27,6 +27,133 @@ const useDebounce = (value: string, delay: number) => {
   return debouncedValue
 }
 
+// Modal Component untuk Reject
+const RejectModal = ({ po, onClose, onSuccess }: { 
+  po: FinanceData, 
+  onClose: () => void, 
+  onSuccess: () => void 
+}) => {
+  const [notes, setNotes] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleReject = async () => {
+    if (!notes.trim()) {
+      alert('Harap masukkan alasan penolakan')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const { error } = await supabase
+        .from('purchase_orders')
+        .update({ 
+          approval_status: 'rejected',
+          rejected_at: new Date().toISOString(),
+          rejection_notes: notes.trim()
+        })
+        .eq('id', po.id)
+
+      if (error) throw error
+      
+      onSuccess()
+      onClose()
+    } catch (error) {
+      console.error('Error rejecting approval:', error)
+      alert('Gagal menolak approval')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <h3 className="text-lg font-semibold mb-4">Tolak Approval PO</h3>
+        
+        <div className="mb-4">
+          <p className="text-sm text-gray-600 mb-2">PO: <strong>{po.po_number}</strong></p>
+          <p className="text-sm text-gray-600">Supplier: <strong>{po.nama_supplier}</strong></p>
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Alasan Penolakan *
+          </label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Masukkan alasan penolakan..."
+            rows={4}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+          />
+        </div>
+
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-sm"
+            disabled={loading}
+          >
+            Batal
+          </button>
+          <button
+            onClick={handleReject}
+            disabled={loading || !notes.trim()}
+            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 text-sm"
+          >
+            {loading ? 'Memproses...' : 'Tolak Approval'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Modal Component untuk melihat Rejection Notes
+const ViewRejectionNotesModal = ({ po, onClose }: { 
+  po: FinanceData, 
+  onClose: () => void 
+}) => {
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <h3 className="text-lg font-semibold mb-4 text-red-600">Catatan Penolakan</h3>
+        
+        <div className="mb-4">
+          <p className="text-sm text-gray-600 mb-2">PO: <strong>{po.po_number}</strong></p>
+          <p className="text-sm text-gray-600 mb-2">Supplier: <strong>{po.nama_supplier}</strong></p>
+          <p className="text-sm text-gray-600">Ditolak: <strong>{po.rejected_at ? formatDate(po.rejected_at) : '-'}</strong></p>
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Alasan Penolakan:
+          </label>
+          <div className="bg-red-50 border border-red-200 rounded-md p-3">
+            <p className="text-sm text-red-800">{po.rejection_notes || 'Tidak ada catatan'}</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm"
+          >
+            Tutup
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 interface FinanceData {
   id: number
@@ -43,6 +170,9 @@ interface FinanceData {
   tanggal_jatuh_tempo: string
   last_payment_date: string
   total_tagih: number
+  rejection_notes?: string
+  rejected_at?: string
+  rejected_by?: string
 }
 
 interface BulkPayment {
@@ -77,6 +207,15 @@ export default function FinancePurchaseOrders() {
   const [showBulkPaymentModal, setShowBulkPaymentModal] = useState(false)
   const [bulkPayments, setBulkPayments] = useState<BulkPayment[]>([])
   const [showBulkPaymentDetails, setShowBulkPaymentDetails] = useState<BulkPayment | null>(null)
+  
+  // Reject modal states
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [rejectPO, setRejectPO] = useState<FinanceData | null>(null)
+  const [rejectNotes, setRejectNotes] = useState('')
+  
+  // View rejection notes modal states
+  const [showViewRejectionModal, setShowViewRejectionModal] = useState(false)
+  const [viewRejectionPO, setViewRejectionPO] = useState<FinanceData | null>(null)
   
   // Mobile states
   const [isMobileView, setIsMobileView] = useState(false)
@@ -299,7 +438,7 @@ export default function FinancePurchaseOrders() {
       const [itemsData, paymentsData, poDetailsData, barangMasukData, bulkPaymentsData, paymentTermsData] = await Promise.all([
         supabase.from('po_items').select('po_id, qty, harga, actual_price, received_qty, product_id').in('po_id', poIds),
         supabase.from('po_payments').select('po_id, payment_amount, payment_date, payment_via, payment_method, reference_number, status').in('po_id', poIds).order('payment_date', { ascending: false }),
-        supabase.from('purchase_orders').select('id, bulk_payment_ref, total_tagih, keterangan, approval_photo, approval_status, approved_at, id_payment_term').in('id', poIds),
+        supabase.from('purchase_orders').select('id, bulk_payment_ref, total_tagih, keterangan, approval_photo, approval_status, approved_at, rejected_at, rejection_notes, id_payment_term').in('id', poIds),
         supabase.from('barang_masuk').select('no_po, invoice_number').in('no_po', poNumbers),
         supabase.from('bulk_payments').select('*'),
         supabase.from('payment_terms').select('id_payment_term, term_name, calculation_type, days')
@@ -401,6 +540,8 @@ export default function FinancePurchaseOrders() {
           approval_photo: poData?.approval_photo || null,
           approval_status: poData?.approval_status || null,
           approved_at: poData?.approved_at || null,
+          rejected_at: poData?.rejected_at || null,
+          rejection_notes: poData?.rejection_notes || null,
           bulk_payment_ref: poData?.bulk_payment_ref || null,
           payment_term_name: paymentTerm?.term_name || null,
           payment_term_type: paymentTerm?.calculation_type || null
@@ -672,6 +813,17 @@ export default function FinancePurchaseOrders() {
                 Wait for Approval
               </div>
             )}
+            {(item as any).approval_status === 'rejected' && (
+              <div className="text-xs text-red-600 mt-1 flex items-center">
+                <X className="h-3 w-3 mr-1" />
+                Rejected {(item as any).rejected_at ? `- ${formatDate((item as any).rejected_at)}` : ''}
+                {(item as any).rejection_notes && (
+                  <span className="ml-1" title={(item as any).rejection_notes}>
+                    (Ada catatan)
+                  </span>
+                )}
+              </div>
+            )}
             {item.is_overdue && item.status_payment !== 'paid' && (
               <div className="text-xs text-red-600 mt-1 flex items-center">
                 <AlertTriangle className="h-3 w-3 mr-1" />
@@ -711,29 +863,43 @@ export default function FinancePurchaseOrders() {
                 <FileText className="h-3 w-3" />
               </a>
               {(item as any).approval_status === 'pending' && (
-                <button
-                  onClick={async () => {
-                    try {
-                      const { error } = await supabase
-                        .from('purchase_orders')
-                        .update({ 
-                          approval_status: 'approved',
-                          approved_at: new Date().toISOString()
-                        })
-                        .eq('id', item.id)
-                      if (error) throw error
-                      fetchFinanceData()
-                    } catch (error) {
-                      console.error('Error approving:', error)
-                    }
-                  }}
-                  className="inline-flex items-center p-1 border border-transparent rounded-md text-white bg-purple-600 hover:bg-purple-700"
-                  title="Approve"
-                >
-                  <CheckCircle className="h-3 w-3" />
-                </button>
-              )}
-              {(item as any).approval_status === 'approved' && (
+                <>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const { error } = await supabase
+                          .from('purchase_orders')
+                          .update({ 
+                            approval_status: 'approved',
+                            approved_at: new Date().toISOString(),
+                            rejection_notes: null,
+                            rejected_at: null
+                          })
+                          .eq('id', item.id)
+                        if (error) throw error
+                        fetchFinanceData()
+                      } catch (error) {
+                        console.error('Error approving:', error)
+                      }
+                    }}
+                    className="inline-flex items-center p-1 border border-transparent rounded-md text-white bg-purple-600 hover:bg-purple-700"
+                    title="Approve"
+                  >
+                    <CheckCircle className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setRejectPO(item)
+                      setShowRejectModal(true)
+                    }}
+                    className="inline-flex items-center p-1 border border-transparent rounded-md text-white bg-red-600 hover:bg-red-700"
+                    title="Reject"
+                  >
+                    <AlertCircle className="h-3 w-3" />
+                  </button>
+                </>
+              )
+            }(item as any).approval_status === 'approved' && (
                 <button
                   onClick={async () => {
                     try {
@@ -755,7 +921,7 @@ export default function FinancePurchaseOrders() {
                 >
                   <X className="h-3 w-3" />
                 </button>
-              )}
+              )
               {item.sisa_bayar > 0 && !(item as any).bulk_payment_ref && (
                 <button
                   onClick={() => {
@@ -1008,28 +1174,43 @@ export default function FinancePurchaseOrders() {
               Submit
             </a>
             {(item as any).approval_status === 'pending' && (
-              <button
-                onClick={async () => {
-                  try {
-                    const { error } = await supabase
-                      .from('purchase_orders')
-                      .update({ 
-                        approval_status: 'approved',
-                        approved_at: new Date().toISOString()
-                      })
-                      .eq('id', item.id)
-                    if (error) throw error
-                    fetchFinanceData()
+              <>
+                <button
+                  onClick={async () => {
+                    try {
+                      const { error } = await supabase
+                        .from('purchase_orders')
+                        .update({ 
+                          approval_status: 'approved',
+                          approved_at: new Date().toISOString(),
+                          rejection_notes: null,
+                          rejected_at: null
+                        })
+                        .eq('id', item.id)
+                      if (error) throw error
+                      fetchFinanceData()
+                      setSelectedMobileItem(null)
+                    } catch (error) {
+                      console.error('Error approving:', error)
+                    }
+                  }}
+                  className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
+                >
+                  <CheckCircle className="h-4 w-4 mr-1" />
+                  Approve
+                </button>
+                <button
+                  onClick={() => {
+                    setRejectPO(item)
+                    setShowRejectModal(true)
                     setSelectedMobileItem(null)
-                  } catch (error) {
-                    console.error('Error approving:', error)
-                  }
-                }}
-                className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
-              >
-                <CheckCircle className="h-4 w-4 mr-1" />
-                Approve
-              </button>
+                  }}
+                  className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+                >
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  Reject
+                </button>
+              </>
             )}
             {(item as any).approval_status === 'approved' && (
               <button
@@ -1427,6 +1608,19 @@ export default function FinancePurchaseOrders() {
                     >
                       Approved
                     </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, approvalStatus: 'rejected'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                        filters.approvalStatus === 'rejected' 
+                          ? 'bg-red-600 text-white border-red-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Rejected
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1609,7 +1803,9 @@ export default function FinancePurchaseOrders() {
                             .from('purchase_orders')
                             .update({ 
                               approval_status: 'approved',
-                              approved_at: new Date().toISOString()
+                              approved_at: new Date().toISOString(),
+                              rejection_notes: null,
+                              rejected_at: null
                             })
                             .eq('id', poId)
                         )
@@ -1625,6 +1821,40 @@ export default function FinancePurchaseOrders() {
                     disabled={!data.filter(item => selectedPOs.includes(item.id)).some(item => (item as any).approval_status === 'pending')}
                   >
                     <span className="hidden sm:inline">Bulk </span>Approve
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const notes = prompt('Masukkan alasan penolakan untuk semua PO yang dipilih:')
+                        if (notes === null) return // User cancelled
+                        
+                        if (!notes.trim()) {
+                          alert('Harap masukkan alasan penolakan')
+                          return
+                        }
+
+                        const updatePromises = selectedPOs.map(poId => 
+                          supabase
+                            .from('purchase_orders')
+                            .update({ 
+                              approval_status: 'rejected',
+                              rejected_at: new Date().toISOString(),
+                              rejection_notes: notes.trim()
+                            })
+                            .eq('id', poId)
+                        )
+                        await Promise.all(updatePromises)
+                        fetchFinanceData()
+                        alert(`${selectedPOs.length} PO berhasil ditolak`)
+                      } catch (error) {
+                        console.error('Error bulk rejecting:', error)
+                        alert('Gagal melakukan bulk rejection')
+                      }
+                    }}
+                    className="flex-1 sm:flex-none px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-xs sm:text-sm"
+                    disabled={!data.filter(item => selectedPOs.includes(item.id)).some(item => (item as any).approval_status === 'pending')}
+                  >
+                    <span className="hidden sm:inline">Bulk </span>Reject
                   </button>
                   <button
                     onClick={() => setShowBulkPaymentModal(true)}
@@ -1833,6 +2063,19 @@ export default function FinancePurchaseOrders() {
                     >
                       Approved
                     </button>
+                    <button
+                      onClick={() => {
+                        setFilters({...filters, approvalStatus: 'rejected'})
+                        setCurrentPage(1)
+                      }}
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                        filters.approvalStatus === 'rejected' 
+                          ? 'bg-red-600 text-white border-red-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Rejected
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1950,6 +2193,7 @@ export default function FinancePurchaseOrders() {
                       <option value="">Semua</option>
                       <option value="pending">Pending</option>
                       <option value="approved">Approved</option>
+                      <option value="rejected">Rejected</option>
                     </select>
                   </div>
                 </div>
@@ -2166,26 +2410,39 @@ export default function FinancePurchaseOrders() {
                       Submit
                     </a>
                     {(item as any).approval_status === 'pending' && (
-                      <button
-                        onClick={async () => {
-                          try {
-                            const { error } = await supabase
-                              .from('purchase_orders')
-                              .update({ 
-                                approval_status: 'approved',
-                                approved_at: new Date().toISOString()
-                              })
-                              .eq('id', item.id)
-                            if (error) throw error
-                            fetchFinanceData()
-                          } catch (error) {
-                            console.error('Error approving:', error)
-                          }
-                        }}
-                        className="flex-1 text-center px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700"
-                      >
-                        Approve
-                      </button>
+                      <>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const { error } = await supabase
+                                .from('purchase_orders')
+                                .update({ 
+                                  approval_status: 'approved',
+                                  approved_at: new Date().toISOString(),
+                                  rejection_notes: null,
+                                  rejected_at: null
+                                })
+                                .eq('id', item.id)
+                              if (error) throw error
+                              fetchFinanceData()
+                            } catch (error) {
+                              console.error('Error approving:', error)
+                            }
+                          }}
+                          className="flex-1 text-center px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => {
+                            setRejectPO(item)
+                            setShowRejectModal(true)
+                          }}
+                          className="flex-1 text-center px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                        >
+                          Reject
+                        </button>
+                      </>
                     )}
                     {(item as any).approval_status === 'approved' && (
                       <button
@@ -2409,6 +2666,23 @@ export default function FinancePurchaseOrders() {
                                 Wait for Approval
                               </div>
                             )}
+                            {(item as any).approval_status === 'rejected' && (
+                              <div className="text-xs text-red-600 mt-1 flex items-center">
+                                <X className="h-3 w-3 mr-1" />
+                                Rejected {(item as any).rejected_at ? `- ${formatDate((item as any).rejected_at)}` : ''}
+                                {(item as any).rejection_notes && (
+                                  <button 
+                                    onClick={() => {
+                                      setViewRejectionPO(item)
+                                      setShowViewRejectionModal(true)
+                                    }}
+                                    className="ml-1 text-blue-600 hover:text-blue-800 underline"
+                                  >
+                                    (Ada catatan)
+                                  </button>
+                                )}
+                              </div>
+                            )}
                             {item.is_overdue && item.status_payment !== 'paid' && (
                               <div className="text-xs text-red-600 mt-1 flex items-center">
                                 <AlertTriangle className="h-3 w-3 mr-1" />
@@ -2484,27 +2758,41 @@ export default function FinancePurchaseOrders() {
                                 <FileText className="h-3 w-3" />
                               </a>
                               {(item as any).approval_status === 'pending' && (
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      const { error } = await supabase
-                                        .from('purchase_orders')
-                                        .update({ 
-                                          approval_status: 'approved',
-                                          approved_at: new Date().toISOString()
-                                        })
-                                        .eq('id', item.id)
-                                      if (error) throw error
-                                      fetchFinanceData()
-                                    } catch (error) {
-                                      console.error('Error approving:', error)
-                                    }
-                                  }}
-                                  className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-                                  title="Approve"
-                                >
-                                  <CheckCircle className="h-3 w-3" />
-                                </button>
+                                <>
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        const { error } = await supabase
+                                          .from('purchase_orders')
+                                          .update({ 
+                                            approval_status: 'approved',
+                                            approved_at: new Date().toISOString(),
+                                            rejection_notes: null,
+                                            rejected_at: null
+                                          })
+                                          .eq('id', item.id)
+                                        if (error) throw error
+                                        fetchFinanceData()
+                                      } catch (error) {
+                                        console.error('Error approving:', error)
+                                      }
+                                    }}
+                                    className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                                    title="Approve"
+                                  >
+                                    <CheckCircle className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setRejectPO(item)
+                                      setShowRejectModal(true)
+                                    }}
+                                    className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                    title="Reject"
+                                  >
+                                    <AlertCircle className="h-3 w-3" />
+                                  </button>
+                                </>
                               )}
                               {(item as any).approval_status === 'approved' && (
                                 <button
@@ -2668,6 +2956,14 @@ export default function FinancePurchaseOrders() {
                                     <p className="text-sm text-gray-500">Belum ada foto approval</p>
                                   )}
                                 </div>
+                                
+                                {/* Rejection Notes */}
+                                {(item as any).approval_status === 'rejected' && (item as any).rejection_notes && (
+                                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
+                                    <p className="text-xs font-medium text-red-800">Alasan Penolakan:</p>
+                                    <p className="text-xs text-red-700 mt-1">{(item as any).rejection_notes}</p>
+                                  </div>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -2876,6 +3172,32 @@ export default function FinancePurchaseOrders() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Reject Modal */}
+        {showRejectModal && rejectPO && (
+          <RejectModal
+            po={rejectPO}
+            onClose={() => {
+              setShowRejectModal(false)
+              setRejectPO(null)
+              setRejectNotes('')
+            }}
+            onSuccess={() => {
+              fetchFinanceData()
+            }}
+          />
+        )}
+
+        {/* View Rejection Notes Modal */}
+        {showViewRejectionModal && viewRejectionPO && (
+          <ViewRejectionNotesModal
+            po={viewRejectionPO}
+            onClose={() => {
+              setShowViewRejectionModal(false)
+              setViewRejectionPO(null)
+            }}
+          />
         )}
 
 

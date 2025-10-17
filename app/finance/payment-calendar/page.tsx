@@ -22,6 +22,8 @@ interface ScheduledPayment {
   status: string
   approval_status: string
   approved_at: string
+  rejected_at?: string
+  rejection_notes?: string
 }
 
 // Custom hook untuk fetch data
@@ -75,7 +77,7 @@ const useScheduledPayments = (statusFilter: string) => {
           .in('po_id', poIds),
         supabase
           .from('purchase_orders')
-          .select('id, bulk_payment_ref, total_tagih, approval_status, approved_at')
+          .select('id, bulk_payment_ref, total_tagih, approval_status, approved_at, rejected_at, rejection_notes')
           .in('id', poIds)
       ])
       
@@ -170,6 +172,8 @@ const useScheduledPayments = (statusFilter: string) => {
         let status = 'need_submit'
         if (calculatedStatus === 'paid') {
           status = 'paid'
+        } else if (poData?.approval_status === 'rejected') {
+          status = 'rejected'
         } else if (item.tanggal_barang_sampai && poData?.approval_status === 'pending') {
           status = 'need_approve'
         } else if (item.tanggal_barang_sampai && poData?.approval_status === 'approved' && calculatedStatus === 'unpaid') {
@@ -191,7 +195,9 @@ const useScheduledPayments = (statusFilter: string) => {
           status,
           total_tagih: totalTagih,
           approval_status: poData?.approval_status,
-          approved_at: poData?.approved_at
+          approved_at: poData?.approved_at,
+          rejected_at: poData?.rejected_at,
+          rejection_notes: poData?.rejection_notes
         }
       })
       
@@ -234,6 +240,7 @@ const MobilePaymentCard = ({ payment, onAction }: {
       case 'need_approve': return 'bg-purple-100 text-purple-800 border-purple-200'
       case 'need_payment': return 'bg-blue-100 text-blue-800 border-blue-200'
       case 'paid': return 'bg-green-100 text-green-800 border-green-200'
+      case 'rejected': return 'bg-red-100 text-red-800 border-red-200'
       case 'cancelled': return 'bg-red-100 text-red-800 border-red-200'
       default: return 'bg-gray-100 text-gray-800 border-gray-200'
     }
@@ -277,7 +284,16 @@ const MobilePaymentCard = ({ payment, onAction }: {
       </div>
 
       <div className="text-xs text-gray-500 mb-3">
-        Due: {payment.tanggal_jatuh_tempo ? new Date(payment.tanggal_jatuh_tempo).toLocaleDateString('id-ID') : 'TBD'}
+        {payment.status === 'rejected' ? (
+          <div>
+            <div>Rejected: {payment.rejected_at ? new Date(payment.rejected_at).toLocaleDateString('id-ID') : 'N/A'}</div>
+            {payment.rejection_notes && (
+              <div className="text-red-600 mt-1">Reason: {payment.rejection_notes}</div>
+            )}
+          </div>
+        ) : (
+          <div>Due: {payment.tanggal_jatuh_tempo ? new Date(payment.tanggal_jatuh_tempo).toLocaleDateString('id-ID') : 'TBD'}</div>
+        )}
       </div>
 
       {expanded && (
@@ -322,6 +338,14 @@ const MobilePaymentCard = ({ payment, onAction }: {
                 className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
               >
                 Pay
+              </button>
+            )}
+            {payment.status === 'rejected' && (payment as any).rejection_notes && (
+              <button
+                onClick={() => alert((payment as any).rejection_notes)}
+                className="flex-1 px-3 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+              >
+                View Notes
               </button>
             )}
           </div>
@@ -372,7 +396,8 @@ const MobileFilters = ({
                 { key: 'need_submit', label: 'Need Submit', color: 'pink' },
                 { key: 'need_approve', label: 'Need Approve', color: 'purple' },
                 { key: 'need_payment', label: 'Need Payment', color: 'blue' },
-                { key: 'paid', label: 'Paid', color: 'green' }
+                { key: 'paid', label: 'Paid', color: 'green' },
+                { key: 'rejected', label: 'Rejected', color: 'red' }
               ].map(({ key, label, color }) => (
                 <button
                   key={key}
@@ -486,6 +511,7 @@ export default function PaymentCalendar() {
       need_approve: allPayments.filter(p => p.status === 'need_approve').length,
       need_payment: allPayments.filter(p => p.status === 'need_payment').length,
       paid: allPayments.filter(p => p.status === 'paid').length,
+      rejected: allPayments.filter(p => p.status === 'rejected').length,
     }
 
     return { todayPayments, upcomingPayments, overduePayments, totalScheduled, totalToday, statusCounts }
@@ -647,7 +673,8 @@ export default function PaymentCalendar() {
                               : key === 'need_submit' ? 'bg-pink-600 text-white'
                               : key === 'need_approve' ? 'bg-purple-600 text-white'
                               : key === 'need_payment' ? 'bg-blue-600 text-white'
-                              : 'bg-green-600 text-white'
+                              : key === 'paid' ? 'bg-green-600 text-white'
+                              : 'bg-red-600 text-white'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                         }`}
                       >
@@ -721,6 +748,7 @@ export default function PaymentCalendar() {
                           payment.status === 'need_submit' ? 'text-pink-600' :
                           payment.status === 'need_approve' ? 'text-purple-600' :
                           payment.status === 'need_payment' ? 'text-blue-600' :
+                          payment.status === 'rejected' ? 'text-red-600' :
                           'text-green-600'
                         }`}>
                           {payment.status.toUpperCase()}
@@ -745,6 +773,14 @@ export default function PaymentCalendar() {
                             >
                               {payment.status === 'need_approve' ? 'Approve' : 'Pay'}
                             </button>
+                          )}
+                          {payment.status === 'rejected' && (
+                            <div className="text-xs text-red-600">
+                              <div>Rejected: {payment.rejected_at ? new Date(payment.rejected_at).toLocaleDateString('id-ID') : 'N/A'}</div>
+                              {payment.rejection_notes && (
+                                <div className="mt-1">Reason: {payment.rejection_notes}</div>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -811,7 +847,16 @@ export default function PaymentCalendar() {
                       return (
                         <tr key={payment.id} className={isOverdue ? 'bg-red-50' : ''}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {payment.tanggal_jatuh_tempo ? new Date(payment.tanggal_jatuh_tempo).toLocaleDateString('id-ID') : 'TBD'}
+                            {payment.status === 'rejected' ? (
+                              <div>
+                                <div className="text-red-600">Rejected</div>
+                                <div className="text-xs text-gray-500">
+                                  {payment.rejected_at ? new Date(payment.rejected_at).toLocaleDateString('id-ID') : 'N/A'}
+                                </div>
+                              </div>
+                            ) : (
+                              payment.tanggal_jatuh_tempo ? new Date(payment.tanggal_jatuh_tempo).toLocaleDateString('id-ID') : 'TBD'
+                            )}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-900">
                             <div>
@@ -840,6 +885,7 @@ export default function PaymentCalendar() {
                               payment.status === 'need_submit' ? 'bg-pink-100 text-pink-800' :
                               payment.status === 'need_approve' ? 'bg-purple-100 text-purple-800' :
                               payment.status === 'need_payment' ? 'bg-blue-100 text-blue-800' :
+                              payment.status === 'rejected' ? 'bg-red-100 text-red-800' :
                               'bg-green-100 text-green-800'
                             }`}>
                               {payment.status.toUpperCase()}
@@ -865,6 +911,14 @@ export default function PaymentCalendar() {
                                   }`}
                                 >
                                   {payment.status === 'need_approve' ? 'Approve' : 'Pay'}
+                                </button>
+                              )}
+                              {payment.status === 'rejected' && (payment as any).rejection_notes && (
+                                <button
+                                  onClick={() => alert((payment as any).rejection_notes)}
+                                  className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+                                >
+                                  View Notes
                                 </button>
                               )}
                             </div>
