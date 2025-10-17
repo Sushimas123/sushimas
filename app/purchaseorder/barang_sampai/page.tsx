@@ -438,6 +438,7 @@ export default function FinishPO() {
                   actual_price: receivedData.harga,
                   price_difference: receivedData.harga - originalPrice,
                   percentage_difference: originalPrice > 0 ? ((receivedData.harga - originalPrice) / originalPrice) * 100 : 0,
+                  master_price_at_time: originalPrice, 
                   received_date: formData.tanggal_barang_sampai,
                   invoice_number: formData.invoice_number,
                   notes: `Price difference recorded for ${poItem.product_name}`,
