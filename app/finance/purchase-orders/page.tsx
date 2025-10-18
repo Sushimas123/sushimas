@@ -1971,6 +1971,7 @@ export default function FinancePurchaseOrders() {
                       try {
                         // Get current user
                         const { data: { user } } = await supabase.auth.getUser()
+                        if (!user) throw new Error('User not authenticated')
                         
                         // Get user ID from users table using email
                         const { data: userData, error: userError } = await supabase
