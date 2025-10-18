@@ -120,8 +120,16 @@ export default function AgingPivotReport() {
         return dateA.getTime() - dateB.getTime()
       })
       
+      // Filter suppliers that have amounts in the filtered date range
+      let filteredData = Array.from(pivotMap.values())
+      if (dateFilter.from || dateFilter.to) {
+        filteredData = filteredData.filter(supplier => {
+          return sortedDueDates.some(date => supplier.due_dates[date] > 0)
+        })
+      }
+      
       setDueDates(sortedDueDates)
-      setData(Array.from(pivotMap.values()))
+      setData(filteredData)
     } catch (error) {
       console.error('Error fetching aging pivot data:', error)
     } finally {
@@ -268,8 +276,6 @@ export default function AgingPivotReport() {
                       {showNotes ? 'Notes' : 'Cabang'}
                     </span>
                   </label>
-                </div>
-              </div>
               <div className="flex items-center gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
@@ -308,7 +314,9 @@ export default function AgingPivotReport() {
                 </div>
               </div>
             </div>
-          </div>
+          </div>                </div>
+              </div>
+
 
           <div className="bg-white rounded-lg shadow border overflow-hidden">
             <div className="overflow-x-auto">
