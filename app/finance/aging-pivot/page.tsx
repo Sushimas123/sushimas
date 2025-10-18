@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { Download, ChevronDown, ChevronRight } from 'lucide-react'
+import { Download, ChevronDown, ChevronRight, Menu, X, Filter } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 import * as XLSX from 'xlsx'
@@ -35,24 +35,43 @@ export default function AgingPivotReport() {
   })
   const [sortField, setSortField] = useState<'date' | 'supplier' | 'branch' | 'notes' | 'approval' | 'total'>('total')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [supplierFilter, setSupplierFilter] = useState('')
+  
+  // Get unique suppliers from the data
+  const availableSuppliers = React.useMemo(() => {
+    const suppliers = [...new Set(data
+      .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
+      .map(item => item.supplier.toLowerCase()))]
+    return suppliers.sort().map(s => s.charAt(0).toUpperCase() + s.slice(1))
+  }, [data, dueDates])
+  const [isMobile, setIsMobile] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<'pivot' | 'summary'>('pivot')
 
   useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
     fetchAgingPivotData()
+    
+    return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
   const fetchAgingPivotData = async () => {
     try {
       setLoading(true)
       
-      // Build query dengan filter tanggal jika ada
       let query = supabase
         .from('finance_dashboard_view')
         .select('*')
         .neq('status_payment', 'paid')
-        .not('tanggal_barang_sampai', 'is', null)  // Only show items where goods have arrived
+        .not('tanggal_barang_sampai', 'is', null)
         .order('nama_branch', { ascending: true })
 
-      // Apply date filter jika ada
       if (dateFilter.from) {
         query = query.gte('tanggal_jatuh_tempo', dateFilter.from)
       }
@@ -64,11 +83,9 @@ export default function AgingPivotReport() {
 
       if (error) throw error
 
-      // Get semua supplier IDs dan PO IDs untuk fetch yang lebih efisien
       const supplierIds = [...new Set(financeData?.map(item => item.supplier_id).filter(Boolean))]
       const poIds = [...new Set(financeData?.map(item => item.id).filter(Boolean))]
       
-      // Fetch supplier info dan approval status sekaligus
       const [suppliersResult, approvalResult] = await Promise.all([
         supabase
           .from('suppliers')
@@ -100,10 +117,8 @@ export default function AgingPivotReport() {
         const supplierInfo = suppliersMap.get(item.supplier_id)
         const approvalStatus = approvalMap.get(item.id)
 
-        // Gunakan sisa_bayar dari database view
         const outstanding = item.sisa_bayar
         
-        // Skip jika sudah paid atau outstanding <= 0 atau bulk payment
         if (item.status_payment === 'paid' || outstanding <= 0 || item.bulk_payment_ref) continue
 
         const defaultNotes = item.nama_branch === 'Sushimas Harapan Indah' ? 'Rek CV' : 'REK PT'
@@ -133,7 +148,6 @@ export default function AgingPivotReport() {
         pivotItem.total += outstanding
       }
 
-      // Sort due dates
       const sortedDueDates = Array.from(dueDateSet).sort((a, b) => {
         const dateA = new Date(a.split('/').reverse().join('-'))
         const dateB = new Date(b.split('/').reverse().join('-'))
@@ -155,6 +169,17 @@ export default function AgingPivotReport() {
       currency: 'IDR',
       minimumFractionDigits: 0
     }).format(amount)
+  }
+
+  const formatCurrencyShort = (amount: number) => {
+    if (amount >= 1000000000) {
+      return `Rp ${(amount / 1000000000).toFixed(1)}M`
+    } else if (amount >= 1000000) {
+      return `Rp ${(amount / 1000000).toFixed(1)}Jt`
+    } else if (amount >= 1000) {
+      return `Rp ${(amount / 1000).toFixed(1)}K`
+    }
+    return `Rp ${amount}`
   }
 
   const exportToExcel = () => {
@@ -232,6 +257,323 @@ export default function AgingPivotReport() {
     }))
   }
 
+  // Mobile Components
+  const MobilePivotView = () => (
+    <div className="space-y-4">
+      {Object.entries(branchGroups).map(([groupKey, suppliers]) => (
+        <div key={groupKey} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          {/* Group Header */}
+          <div 
+            className="bg-blue-50 p-4 border-b border-blue-100 cursor-pointer"
+            onClick={() => toggleBranch(groupKey)}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {expandedBranches[groupKey] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                <div>
+                  <div className="font-semibold text-gray-900 text-sm">{groupKey}</div>
+                  <div className="text-xs text-gray-600">
+                    {suppliers.length} supplier{suppliers.length > 1 ? 's' : ''}
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="font-bold text-blue-700 text-sm">
+                  {formatCurrencyShort(suppliers.reduce((sum, s) => sum + s.total, 0))}
+                </div>
+                <div className="text-xs text-gray-500">Total</div>
+              </div>
+            </div>
+            
+            {/* Date Summary */}
+            <div className="mt-2 flex flex-wrap gap-1">
+              {dueDates.slice(0, 3).map(date => {
+                const branchDateTotal = suppliers.reduce((sum, s) => sum + (s.due_dates[date] || 0), 0)
+                if (branchDateTotal > 0) {
+                  return (
+                    <div key={date} className="bg-white px-2 py-1 rounded text-xs border">
+                      <div className="text-gray-600">{date}</div>
+                      <div className="font-semibold">{formatCurrencyShort(branchDateTotal)}</div>
+                    </div>
+                  )
+                }
+                return null
+              })}
+              {dueDates.length > 3 && (
+                <div className="bg-gray-100 px-2 py-1 rounded text-xs">
+                  +{dueDates.length - 3} more
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Supplier Details */}
+          {expandedBranches[groupKey] && suppliers.map((supplier, index) => (
+            <div key={index} className="p-4 border-b border-gray-100 last:border-b-0 bg-gray-50">
+              <div className="flex justify-between items-start mb-2">
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-900 text-sm mb-1">{supplier.supplier}</div>
+                  {!showNotes && (
+                    <div className="text-xs text-gray-600 mb-1">{supplier.notes}</div>
+                  )}
+                  {showNotes && supplier.branch !== groupKey && (
+                    <div className="text-xs text-gray-600 mb-1">{supplier.branch}</div>
+                  )}
+                  <div className={`text-xs px-2 py-1 rounded-full inline-block ${
+                    supplier.approval_status === 'approved' ? 'bg-green-100 text-green-800' :
+                    supplier.approval_status === 'rejected' ? 'bg-red-100 text-red-800' :
+                    'bg-orange-100 text-orange-800'
+                  }`}>
+                    {supplier.approval_status || 'pending'}
+                  </div>
+                </div>
+                <div className="text-right ml-2">
+                  <div className="font-bold text-gray-900 text-sm">
+                    {formatCurrencyShort(supplier.total)}
+                  </div>
+                  <div className="text-xs text-gray-500">Total</div>
+                </div>
+              </div>
+              
+              {/* Bank Info */}
+              {supplier.supplier_bank_info && (
+                <div className="bg-white p-2 rounded border text-xs mt-2">
+                  <div className="font-semibold text-gray-700">{supplier.supplier_bank_info.nama_penerima}</div>
+                  <div className="text-gray-600">{supplier.supplier_bank_info.bank_penerima}</div>
+                  <div className="text-gray-600">{supplier.supplier_bank_info.nomor_rekening}</div>
+                </div>
+              )}
+              
+              {/* Due Dates */}
+              <div className="mt-2 space-y-1">
+                {dueDates.map(date => {
+                  const amount = supplier.due_dates[date] || 0
+                  if (amount > 0) {
+                    return (
+                      <div key={date} className="flex justify-between items-center text-xs">
+                        <span className="text-gray-600">{date}</span>
+                        <span className="font-semibold">{formatCurrencyShort(amount)}</span>
+                      </div>
+                    )
+                  }
+                  return null
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+      
+      {/* Grand Total */}
+      <div className="bg-gray-200 p-4 rounded-lg">
+        <div className="flex justify-between items-center">
+          <div className="font-bold text-gray-900">Grand Total</div>
+          <div className="text-right">
+            <div className="font-bold text-lg text-gray-900">{formatCurrencyShort(grandTotal)}</div>
+            <div className="text-sm text-gray-700">{formatCurrency(grandTotal)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  const MobileSummaryView = () => {
+    const filteredSuppliers = data
+      .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
+      .sort((a, b) => {
+        const aVal = sortField === 'date' ? dueDates.filter(date => a.due_dates[date] > 0)[0] || '' :
+                    sortField === 'supplier' ? a.supplier : 
+                    sortField === 'branch' ? a.branch : 
+                    sortField === 'notes' ? (a.notes || '') :
+                    sortField === 'approval' ? (a.approval_status || 'pending') :
+                    dueDates.reduce((sum, date) => sum + (a.due_dates[date] || 0), 0)
+        const bVal = sortField === 'date' ? dueDates.filter(date => b.due_dates[date] > 0)[0] || '' :
+                    sortField === 'supplier' ? b.supplier : 
+                    sortField === 'branch' ? b.branch : 
+                    sortField === 'notes' ? (b.notes || '') :
+                    sortField === 'approval' ? (b.approval_status || 'pending') :
+                    dueDates.reduce((sum, date) => sum + (b.due_dates[date] || 0), 0)
+        
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+          return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+        }
+        return sortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number)
+      })
+
+    return (
+      <div className="space-y-4">
+        {/* Sort Controls */}
+        <div className="bg-white p-3 rounded-lg border">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Urutkan berdasarkan:</label>
+          <select 
+            value={sortField}
+            onChange={(e) => setSortField(e.target.value as any)}
+            className="w-full p-2 border border-gray-300 rounded-md text-sm"
+          >
+            <option value="total">Total Outstanding</option>
+            <option value="supplier">Nama Supplier</option>
+            <option value="branch">Cabang</option>
+            <option value="date">Tanggal Jatuh Tempo</option>
+            <option value="notes">Notes</option>
+            <option value="approval">Status Approval</option>
+          </select>
+          <div className="mt-2">
+            <label className="inline-flex items-center">
+              <input
+                type="checkbox"
+                checked={sortDirection === 'desc'}
+                onChange={(e) => setSortDirection(e.target.checked ? 'desc' : 'asc')}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="ml-2 text-sm text-gray-700">Urutan menurun</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Supplier List */}
+        {filteredSuppliers.map((supplier, index) => (
+          <div key={index} className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex-1">
+                <div className="font-semibold text-gray-900 text-sm mb-1">{supplier.supplier}</div>
+                <div className="text-xs text-gray-600 mb-1">{supplier.branch}</div>
+                <div className="text-xs text-gray-600 mb-2">{supplier.notes || '-'}</div>
+                <div className={`text-xs px-2 py-1 rounded-full inline-block ${
+                  supplier.approval_status === 'approved' ? 'bg-green-100 text-green-800' :
+                  supplier.approval_status === 'rejected' ? 'bg-red-100 text-red-800' :
+                  'bg-orange-100 text-orange-800'
+                }`}>
+                  {supplier.approval_status || 'pending'}
+                </div>
+              </div>
+              <div className="text-right ml-2">
+                <div className="font-bold text-gray-900">
+                  {formatCurrencyShort(dueDates.reduce((sum, date) => sum + (supplier.due_dates[date] || 0), 0))}
+                </div>
+                <div className="text-xs text-gray-500">Total</div>
+              </div>
+            </div>
+            
+            {/* Bank Info */}
+            {supplier.supplier_bank_info && (
+              <div className="bg-gray-50 p-2 rounded border text-xs mb-3">
+                <div className="font-semibold text-gray-700">{supplier.supplier_bank_info.nama_penerima}</div>
+                <div className="text-gray-600">{supplier.supplier_bank_info.bank_penerima}</div>
+                <div className="text-gray-600">{supplier.supplier_bank_info.nomor_rekening}</div>
+              </div>
+            )}
+            
+            {/* Due Dates */}
+            <div className="space-y-1">
+              <div className="text-xs font-medium text-gray-700 mb-1">Tanggal Jatuh Tempo:</div>
+              {dueDates.filter(date => supplier.due_dates[date] > 0).map(date => (
+                <div key={date} className="flex justify-between items-center text-xs bg-blue-50 px-2 py-1 rounded">
+                  <span className="text-gray-600">{date}</span>
+                  <span className="font-semibold">{formatCurrencyShort(supplier.due_dates[date])}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        
+        {/* Summary Total */}
+        <div className="bg-gray-200 p-4 rounded-lg">
+          <div className="flex justify-between items-center">
+            <div className="font-bold text-gray-900">Total Summary</div>
+            <div className="text-right">
+              <div className="font-bold text-lg text-gray-900">
+                {formatCurrencyShort(filteredSuppliers.reduce((sum, supplier) => 
+                  sum + dueDates.reduce((dateSum, date) => dateSum + (supplier.due_dates[date] || 0), 0), 0)
+                )}
+              </div>
+              <div className="text-sm text-gray-700">
+                {filteredSuppliers.length} supplier{filteredSuppliers.length !== 1 ? 's' : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const MobileFilters = () => (
+    <div className="bg-white p-4 rounded-lg border border-gray-200 mb-4">
+      <div className="space-y-4">
+        {/* Toggle Switch */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-gray-700">Tampilkan berdasarkan:</span>
+          <label className="flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showNotes}
+              onChange={(e) => {
+                const checked = e.target.checked
+                setShowNotes(checked)
+                localStorage.setItem('aging-pivot-show-notes', checked.toString())
+              }}
+              className="sr-only"
+            />
+            <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              showNotes ? 'bg-blue-600' : 'bg-gray-200'
+            }`}>
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                showNotes ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </div>
+            <span className="ml-2 text-sm text-gray-700">
+              {showNotes ? 'Notes' : 'Cabang'}
+            </span>
+          </label>
+        </div>
+
+        {/* Date Filters */}
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
+            <input
+              type="date"
+              value={dateFilter.from}
+              onChange={(e) => setDateFilter({...dateFilter, from: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
+            <input
+              type="date"
+              value={dateFilter.to}
+              onChange={(e) => setDateFilter({...dateFilter, to: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-2 pt-2">
+          <button
+            onClick={() => {
+              fetchAgingPivotData()
+              setMobileFilterOpen(false)
+            }}
+            className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm font-medium"
+          >
+            Terapkan Filter
+          </button>
+          <button
+            onClick={() => {
+              setDateFilter({ from: '', to: '' })
+              fetchAgingPivotData()
+              setMobileFilterOpen(false)
+            }}
+            className="flex-1 border border-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-50 text-sm font-medium"
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
   if (loading) {
     return (
       <Layout>
@@ -242,6 +584,127 @@ export default function AgingPivotReport() {
     )
   }
 
+  if (isMobile) {
+    return (
+      <Layout>
+        <PageAccessControl pageName="aging-report">
+          <div className="p-4 pb-20">
+            {/* Header */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                    className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm"
+                  >
+                    {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+                  </button>
+                  <div>
+                    <h1 className="text-xl font-bold text-gray-900">Aging Report</h1>
+                    <p className="text-gray-600 text-sm">Laporan aging berdasarkan tanggal jatuh tempo</p>
+                  </div>
+                </div>
+                <button
+                  onClick={exportToExcel}
+                  className="bg-green-600 text-white p-2 rounded-lg hover:bg-green-700"
+                >
+                  <Download size={18} />
+                </button>
+              </div>
+
+              {/* Mobile Menu */}
+              {mobileMenuOpen && (
+                <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4 shadow-lg">
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => {
+                        setActiveTab('pivot')
+                        setMobileMenuOpen(false)
+                      }}
+                      className={`w-full text-left px-4 py-2 rounded-lg ${
+                        activeTab === 'pivot' ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-700'
+                      }`}
+                    >
+                      📊 Tampilan Pivot
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('summary')
+                        setMobileMenuOpen(false)
+                      }}
+                      className={`w-full text-left px-4 py-2 rounded-lg ${
+                        activeTab === 'summary' ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-700'
+                      }`}
+                    >
+                      📋 Rekapan Supplier
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMobileFilterOpen(true)
+                        setMobileMenuOpen(false)
+                      }}
+                      className="w-full text-left px-4 py-2 rounded-lg text-gray-700 flex items-center gap-2"
+                    >
+                      <Filter size={16} />
+                      Filter Data
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Filter Panel */}
+              {mobileFilterOpen && <MobileFilters />}
+
+              {/* Tab Indicators */}
+              <div className="flex border-b border-gray-200 mb-4">
+                <button
+                  onClick={() => setActiveTab('pivot')}
+                  className={`flex-1 py-2 text-center font-medium text-sm ${
+                    activeTab === 'pivot'
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : 'text-gray-500'
+                  }`}
+                >
+                  Pivot
+                </button>
+                <button
+                  onClick={() => setActiveTab('summary')}
+                  className={`flex-1 py-2 text-center font-medium text-sm ${
+                    activeTab === 'summary'
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : 'text-gray-500'
+                  }`}
+                >
+                  Summary
+                </button>
+              </div>
+
+              {/* Quick Filter Button */}
+              {!mobileFilterOpen && (
+                <button
+                  onClick={() => setMobileFilterOpen(true)}
+                  className="w-full bg-white border border-gray-200 rounded-lg p-3 mb-4 flex items-center justify-center gap-2 text-gray-700 font-medium"
+                >
+                  <Filter size={16} />
+                  Filter Data
+                  {(dateFilter.from || dateFilter.to) && (
+                    <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs">
+                      Active
+                    </span>
+                  )}
+                </button>
+              )}
+            </div>
+
+            {/* Content */}
+            {activeTab === 'pivot' ? <MobilePivotView /> : <MobileSummaryView />}
+          </div>
+        </PageAccessControl>
+      </Layout>
+    )
+  }
+
+  // Desktop View (original code remains the same)
   return (
     <Layout>
       <PageAccessControl pageName="aging-report">
@@ -440,6 +903,18 @@ export default function AgingPivotReport() {
                 <div className="mt-2 text-xs text-gray-500">
                   Tanggal jatuh tempo: {dueDates.join(', ')}
                 </div>
+                <div className="mt-3">
+                  <select
+                    value={supplierFilter}
+                    onChange={(e) => setSupplierFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm w-64"
+                  >
+                    <option value="">Semua Supplier</option>
+                    {availableSuppliers.map(supplier => (
+                      <option key={supplier} value={supplier}>{supplier}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -529,6 +1004,10 @@ export default function AgingPivotReport() {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {data
                       .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
+                      .filter(supplier => 
+                        supplierFilter === '' || 
+                        supplier.supplier.toLowerCase() === supplierFilter.toLowerCase()
+                      )
                       .sort((a, b) => {
                         const aVal = sortField === 'date' ? dueDates.filter(date => a.due_dates[date] > 0)[0] || '' :
                                     sortField === 'supplier' ? a.supplier : 
@@ -588,6 +1067,10 @@ export default function AgingPivotReport() {
                       <td className="px-4 py-3 text-sm font-bold text-gray-900 text-right">
                         {formatCurrency(data
                           .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
+                          .filter(supplier => 
+                            supplierFilter === '' || 
+                            supplier.supplier.toLowerCase() === supplierFilter.toLowerCase()
+                          )
                           .reduce((sum, supplier) => sum + dueDates.reduce((dateSum, date) => dateSum + (supplier.due_dates[date] || 0), 0), 0)
                         )}
                       </td>
