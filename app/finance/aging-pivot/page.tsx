@@ -36,6 +36,7 @@ export default function AgingPivotReport() {
   const [sortField, setSortField] = useState<'date' | 'supplier' | 'branch' | 'notes' | 'approval' | 'total'>('total')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [supplierFilter, setSupplierFilter] = useState('')
+  const [notesFilter, setNotesFilter] = useState('')
   
   // Get unique suppliers from the data
   const availableSuppliers = React.useMemo(() => {
@@ -43,6 +44,14 @@ export default function AgingPivotReport() {
       .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
       .map(item => item.supplier.toLowerCase()))]
     return suppliers.sort().map(s => s.charAt(0).toUpperCase() + s.slice(1))
+  }, [data, dueDates])
+  
+  // Get unique notes from the data
+  const availableNotes = React.useMemo(() => {
+    const notes = [...new Set(data
+      .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
+      .map(item => item.notes || 'Unknown'))]
+    return notes.sort()
   }, [data, dueDates])
   const [isMobile, setIsMobile] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -903,7 +912,7 @@ export default function AgingPivotReport() {
                 <div className="mt-2 text-xs text-gray-500">
                   Tanggal jatuh tempo: {dueDates.join(', ')}
                 </div>
-                <div className="mt-3">
+                <div className="mt-3 flex gap-3">
                   <select
                     value={supplierFilter}
                     onChange={(e) => setSupplierFilter(e.target.value)}
@@ -912,6 +921,16 @@ export default function AgingPivotReport() {
                     <option value="">Semua Supplier</option>
                     {availableSuppliers.map(supplier => (
                       <option key={supplier} value={supplier}>{supplier}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={notesFilter}
+                    onChange={(e) => setNotesFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm w-32"
+                  >
+                    <option value="">Semua Notes</option>
+                    {availableNotes.map(note => (
+                      <option key={note} value={note}>{note}</option>
                     ))}
                   </select>
                 </div>
@@ -1005,8 +1024,8 @@ export default function AgingPivotReport() {
                     {data
                       .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
                       .filter(supplier => 
-                        supplierFilter === '' || 
-                        supplier.supplier.toLowerCase() === supplierFilter.toLowerCase()
+                        (supplierFilter === '' || supplier.supplier.toLowerCase() === supplierFilter.toLowerCase()) &&
+                        (notesFilter === '' || (supplier.notes || 'Unknown') === notesFilter)
                       )
                       .sort((a, b) => {
                         const aVal = sortField === 'date' ? dueDates.filter(date => a.due_dates[date] > 0)[0] || '' :
@@ -1068,8 +1087,8 @@ export default function AgingPivotReport() {
                         {formatCurrency(data
                           .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
                           .filter(supplier => 
-                            supplierFilter === '' || 
-                            supplier.supplier.toLowerCase() === supplierFilter.toLowerCase()
+                            (supplierFilter === '' || supplier.supplier.toLowerCase() === supplierFilter.toLowerCase()) &&
+                            (notesFilter === '' || (supplier.notes || 'Unknown') === notesFilter)
                           )
                           .reduce((sum, supplier) => sum + dueDates.reduce((dateSum, date) => dateSum + (supplier.due_dates[date] || 0), 0), 0)
                         )}
