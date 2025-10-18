@@ -55,31 +55,40 @@ const useScheduledPayments = (statusFilter: string) => {
         return
       }
       
-      // Bulk fetch all related data in parallel
-      const [poItemsResult, paymentsResult, poDataResult] = await Promise.all([
-        supabase
-          .from('po_items')
-          .select(`
-            po_id,
-            qty,
-            harga,
-            actual_price,
-            received_qty,
-            product_id,
-            nama_product!inner(
-              harga
-            )
-          `)
-          .in('po_id', poIds),
-        supabase
-          .from('po_payments')
-          .select('po_id, payment_amount, payment_date')
-          .in('po_id', poIds),
-        supabase
-          .from('purchase_orders')
-          .select('id, bulk_payment_ref, total_tagih, approval_status, approved_at, rejected_at, rejection_notes')
-          .in('id', poIds)
+      // Split poIds into chunks to avoid Supabase limit
+      const chunkSize = 100
+      const poIdChunks = []
+      for (let i = 0; i < poIds.length; i += chunkSize) {
+        poIdChunks.push(poIds.slice(i, i + chunkSize))
+      }
+      
+      // Bulk fetch all related data in parallel with chunking
+      const [poItemsResults, paymentsResults, poDataResults] = await Promise.all([
+        Promise.all(poIdChunks.map(chunk => 
+          supabase
+            .from('po_items')
+            .select('po_id, qty, harga, actual_price, received_qty, product_id')
+            .in('po_id', chunk)
+        )),
+        Promise.all(poIdChunks.map(chunk => 
+          supabase
+            .from('po_payments')
+            .select('po_id, payment_amount, payment_date, status')
+            .in('po_id', chunk)
+            .eq('status', 'completed')
+        )),
+        Promise.all(poIdChunks.map(chunk => 
+          supabase
+            .from('purchase_orders')
+            .select('id, bulk_payment_ref, total_tagih, approval_status, approved_at, rejected_at, rejection_notes')
+            .in('id', chunk)
+        ))
       ])
+      
+      // Combine chunked results
+      const poItemsResult = { data: poItemsResults.flatMap(r => r.data || []) }
+      const paymentsResult = { data: paymentsResults.flatMap(r => r.data || []) }
+      const poDataResult = { data: poDataResults.flatMap(r => r.data || []) }
       
       // Create lookup maps for O(1) access
       const itemsMap = new Map<number, any[]>()
@@ -113,49 +122,21 @@ const useScheduledPayments = (statusFilter: string) => {
         const payments = paymentsMap.get(item.id) || []
         const poData = poDataMap.get(item.id)
         
-        // Calculate corrected total - Fixed untuk handle null values
-        let correctedTotal = 0
-        items.forEach(poItem => {
-          const actualPrice = poItem.actual_price || 0
-          const originalPrice = poItem.harga || 0
-          const receivedQty = poItem.received_qty || 0
-          const originalQty = poItem.qty || 0
-          const productHarga = (poItem.nama_product as any)?.harga || 0
-          
-          if (actualPrice > 0 && receivedQty > 0) {
-            correctedTotal += receivedQty * actualPrice
-          } else if (originalPrice > 0 && originalQty > 0) {
-            correctedTotal += originalQty * originalPrice
-          } else if (productHarga > 0 && originalQty > 0) {
-            correctedTotal += originalQty * productHarga
-          }
-        })
+        // Calculate corrected total using original PO price (harga)
+        const correctedTotal = items.reduce((sum, poItem) => {
+          const qty = parseFloat(poItem.qty) || 0
+          const harga = parseFloat(poItem.harga) || 0
+          return sum + (qty * harga)
+        }, 0)
         
-        // Fallback: jika correctedTotal masih 0, gunakan total dari finance_dashboard_view
-        if (correctedTotal === 0 && item.total_po) {
-          correctedTotal = item.total_po
-        }
-        
-        // Debug logging untuk troubleshoot
-        if (correctedTotal === 0) {
-          console.log(`Payment Calendar - PO ${item.po_number} has 0 total:`, {
-            itemsCount: items.length,
-            items: items.map(i => ({
-              actual_price: i.actual_price,
-              harga: i.harga,
-              received_qty: i.received_qty,
-              qty: i.qty,
-              product_harga: (i.nama_product as any)?.harga
-            })),
-            originalTotal: item.total_po
-          })
-        }
+        // Use finance_dashboard_view total if no items or corrected total is 0
+        const finalTotal = correctedTotal > 0 ? correctedTotal : (item.total_po || 0)
         
         const totalPaid = payments.reduce((sum, payment) => sum + payment.payment_amount, 0)
         const totalTagih = poData?.total_tagih || 0
         
         // Calculate amounts
-        const basisAmount = totalTagih > 0 ? totalTagih : correctedTotal
+        const basisAmount = totalTagih > 0 ? totalTagih : finalTotal
         let calculatedStatus
         let displayTotalPaid = totalPaid
         let sisaBayar = basisAmount - totalPaid
@@ -188,7 +169,7 @@ const useScheduledPayments = (statusFilter: string) => {
         
         return {
           ...item,
-          total_po: correctedTotal,
+          total_po: finalTotal,
           total_paid: displayTotalPaid,
           sisa_bayar: sisaBayar,
           status_payment: calculatedStatus,

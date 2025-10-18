@@ -95,27 +95,45 @@ export default function AgingPivotReport() {
       const supplierIds = [...new Set(financeData?.map(item => item.supplier_id).filter(Boolean))]
       const poIds = [...new Set(financeData?.map(item => item.id).filter(Boolean))]
       
-      const [suppliersResult, approvalResult] = await Promise.all([
-        supabase
-          .from('suppliers')
-          .select('id_supplier, nama_penerima, bank_penerima, nomor_rekening')
-          .in('id_supplier', supplierIds),
-        supabase
-          .from('purchase_orders')
-          .select('id, approval_status')
-          .in('id', poIds)
+      // Split into chunks to avoid Supabase limits
+      const chunkSize = 100
+      const supplierChunks = []
+      const poChunks = []
+      
+      for (let i = 0; i < supplierIds.length; i += chunkSize) {
+        supplierChunks.push(supplierIds.slice(i, i + chunkSize))
+      }
+      
+      for (let i = 0; i < poIds.length; i += chunkSize) {
+        poChunks.push(poIds.slice(i, i + chunkSize))
+      }
+      
+      const [suppliersResults, approvalResults] = await Promise.all([
+        Promise.all(supplierChunks.map(chunk => 
+          supabase
+            .from('suppliers')
+            .select('id_supplier, nama_penerima, bank_penerima, nomor_rekening')
+            .in('id_supplier', chunk)
+        )),
+        Promise.all(poChunks.map(chunk => 
+          supabase
+            .from('purchase_orders')
+            .select('id, approval_status')
+            .in('id', chunk)
+        ))
       ])
       
-      const { data: suppliersInfo } = suppliersResult
-      const { data: approvalInfo } = approvalResult
-
+      // Combine chunked results
+      const suppliersInfo = suppliersResults.flatMap(r => r.data || [])
+      const approvalInfo = approvalResults.flatMap(r => r.data || [])
+      
       const suppliersMap = new Map()
-      suppliersInfo?.forEach(supplier => {
+      suppliersInfo.forEach(supplier => {
         suppliersMap.set(supplier.id_supplier, supplier)
       })
       
       const approvalMap = new Map()
-      approvalInfo?.forEach(po => {
+      approvalInfo.forEach(po => {
         approvalMap.set(po.id, po.approval_status)
       })
 
