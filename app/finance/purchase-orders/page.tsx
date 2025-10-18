@@ -905,8 +905,8 @@ export default function FinancePurchaseOrders() {
                     <AlertCircle className="h-3 w-3" />
                   </button>
                 </>
-              )
-            }(item as any).approval_status === 'approved' && (
+              )}
+              {(item as any).approval_status === 'approved' && (
                 <button
                   onClick={async () => {
                     try {
@@ -928,7 +928,7 @@ export default function FinancePurchaseOrders() {
                 >
                   <X className="h-3 w-3" />
                 </button>
-              )
+              )}
               {item.sisa_bayar > 0 && !(item as any).bulk_payment_ref && (
                 <button
                   onClick={() => {
@@ -982,6 +982,26 @@ export default function FinancePurchaseOrders() {
                           </tr>
                         ))}
                       </tbody>
+                      <tfoot className="bg-gray-100 border-t border-gray-300">
+                        <tr>
+                          <td className="px-2 py-1 text-xs font-bold" colSpan={5}>Total PO:</td>
+                          <td className="px-2 py-1 text-right text-xs font-bold">
+                            {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
+                              sum + (parseFloat(poItem.qty) || 0) * (parseFloat(poItem.harga) || 0), 0
+                            ))}
+                          </td>
+                          <td className="px-2 py-1"></td>
+                        </tr>
+                        <tr>
+                          <td className="px-2 py-1 text-xs font-bold" colSpan={5}>Total Aktual:</td>
+                          <td className="px-2 py-1 text-right text-xs font-bold">
+                            {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
+                              sum + (parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
+                            ))}
+                          </td>
+                          <td className="px-2 py-1"></td>
+                        </tr>
+                      </tfoot>
                     </table>
                     {rowDetails[item.id].items.length > 3 && (
                       <p className="text-xs text-gray-500 text-center py-2">
