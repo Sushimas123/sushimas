@@ -36,6 +36,7 @@ function PettyCashExpensesContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [branchFilter, setBranchFilter] = useState('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [settlementFilter, setSettlementFilter] = useState('all');
@@ -319,6 +320,8 @@ function PettyCashExpensesContent() {
     
     const matchesCategory = categoryFilter === 'all' || expense.category_id.toString() === categoryFilter;
     
+    const matchesBranch = branchFilter === 'all' || expense.branch_name === branchFilter;
+    
     const matchesSettlement = settlementFilter === 'all' || expense.settlement_status === settlementFilter;
     
     let matchesDate = true;
@@ -332,7 +335,7 @@ function PettyCashExpensesContent() {
       }
     }
     
-    return matchesSearch && matchesCategory && matchesSettlement && matchesDate;
+    return matchesSearch && matchesCategory && matchesBranch && matchesSettlement && matchesDate;
   });
 
   const formatCurrency = (amount: number) => {
@@ -359,6 +362,10 @@ function PettyCashExpensesContent() {
         name: expense?.category_name || `Category ${id}`
       };
     });
+
+  const branches = Array.from(new Set(expenses.map(e => e.branch_name)))
+    .filter(name => name)
+    .sort();
 
   const calculateRunningBalance = (expense: PettyCashExpense) => {
     const request = requests.find(r => r.id === expense.request_id);
@@ -443,25 +450,7 @@ function PettyCashExpensesContent() {
         </div>
       </div>
 
-      {/* Stats Cards - Grid 2x2 on mobile */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
-          <div className="text-lg md:text-2xl font-bold text-blue-600">{stats.total}</div>
-          <div className="text-xs md:text-sm text-gray-600">Total Pengeluaran</div>
-        </div>
-        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
-          <div className="text-sm md:text-lg font-bold text-green-600">{formatCurrency(stats.totalAmount)}</div>
-          <div className="text-xs md:text-sm text-gray-600">Total Amount</div>
-        </div>
-        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
-          <div className="text-sm md:text-lg font-bold text-purple-600">{formatCurrency(stats.filteredAmount)}</div>
-          <div className="text-xs md:text-sm text-gray-600">Filtered Amount</div>
-        </div>
-        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
-          <div className="text-sm md:text-lg font-bold text-orange-600">{formatCurrency(stats.totalRemaining)}</div>
-          <div className="text-xs md:text-sm text-gray-600">Sisa Modal</div>
-        </div>
-      </div>
+
 
       {/* Search Bar - Always visible */}
       <div className="bg-white p-4 rounded-lg border">
@@ -510,6 +499,22 @@ function PettyCashExpensesContent() {
             </div>
             
             <div>
+              <label className="block text-xs text-gray-600 mb-1">Cabang</label>
+              <select 
+                value={branchFilter} 
+                onChange={(e) => setBranchFilter(e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm"
+              >
+                <option value="all">Semua Cabang</option>
+                {branches.map(branch => (
+                  <option key={branch} value={branch}>
+                    {branch}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
               <label className="block text-xs text-gray-600 mb-1">Status Settlement</label>
               <select 
                 value={settlementFilter} 
@@ -550,7 +555,7 @@ function PettyCashExpensesContent() {
 
       {/* Filters for Desktop */}
       <div className="bg-white p-4 rounded-lg border hidden md:block">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <select 
               value={categoryFilter} 
@@ -561,6 +566,20 @@ function PettyCashExpensesContent() {
               {categories.map(category => (
                 <option key={category.id} value={category.id.toString()}>
                   {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <select 
+              value={branchFilter} 
+              onChange={(e) => setBranchFilter(e.target.value)}
+              className="w-full border rounded px-3 py-2 text-sm"
+            >
+              <option value="all">Semua Cabang</option>
+              {branches.map(branch => (
+                <option key={branch} value={branch}>
+                  {branch}
                 </option>
               ))}
             </select>
@@ -595,217 +614,91 @@ function PettyCashExpensesContent() {
         </div>
       </div>
 
-      {/* Expenses List - Mobile Cards */}
-      <div className="bg-white rounded-lg border">
-        <div className="p-4 md:p-6 border-b">
-          <h2 className="text-lg font-semibold">Daftar Pengeluaran   ({filteredExpenses.length})</h2>
-        </div>
+      {/* Expenses List - Table Only */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4">Daftar Pengeluaran ({filteredExpenses.length})</h2>
         
-        {/* Mobile View - Cards */}
-        <div className="md:hidden">
-          {paginatedExpenses.map((expense) => {
-            const runningBalance = calculateRunningBalance(expense);
-            
-            return (
-              <div key={expense.id} className="border-b p-4 space-y-3">
-                {/* Header */}
-                <div className="flex justify-between items-start">
-                  <div>
-                    <div className="font-medium text-blue-600">{expense.request_number}</div>
-                    <div className="text-sm text-gray-500">{formatDate(expense.expense_date)}</div>
-                  </div>
-                  {getSettlementStatusBadge(expense.settlement_status || 'no_settlement')}
-                </div>
-                
-                {/* Basic Info */}
-                <div>
-                  <div className="font-medium text-sm mb-1">{expense.description}</div>
-                  <div className="text-xs text-gray-600 flex flex-wrap gap-2">
-                    <span>{expense.branch_name}</span>
-                    <span>•</span>
-                    <span>{expense.category_name}</span>
-                  </div>
-                </div>
-                
-                {/* Vendor & Product Info */}
-                {expense.vendor_name && (
-                  <div className="text-sm">
-                    <span className="text-gray-600">Vendor: </span>
-                    {expense.vendor_name}
-                  </div>
-                )}
-                
-                {/* Quantity & Price */}
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <div className="text-gray-600 text-xs">Qty</div>
-                    <div>{expense.qty || (expense.amount && expense.harga ? (expense.amount / expense.harga).toFixed(2) : '-')}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-600 text-xs">Harga Satuan</div>
-                    <div>{expense.harga ? formatCurrency(expense.harga) : (expense.qty && expense.amount ? formatCurrency(expense.amount / expense.qty) : '-')}</div>
-                  </div>
-                </div>
-                
-                {/* Amount & Balance */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-gray-600 text-xs">Total Amount</div>
-                    <div className="font-semibold text-green-600">{formatCurrency(expense.amount)}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-600 text-xs">Running Balance</div>
-                    <div className={`font-semibold ${runningBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {formatCurrency(runningBalance)}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Notes */}
-                {expense.notes && (
-                  <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                    💬 {expense.notes}
-                  </div>
-                )}
-                
-                {/* Receipt */}
-                {expense.receipt_number && (
-                  <div className="text-xs">
-                    <span className="text-gray-600">Receipt: </span>
-                    {expense.receipt_number}
-                  </div>
-                )}
-                
-                {/* Actions */}
-                <div className="flex justify-between pt-2 border-t">
-                  <div className="flex gap-2">
-                    <a
-                      href={`/pettycash/expenses/${expense.id}`}
-                      className="text-gray-600 hover:text-gray-800 p-1 rounded transition-colors"
-                      title="View Detail"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    </a>
-                    
-                    {expense.product_id && expense.qty && !expense.barang_masuk_id && (
-                      <button
-                        onClick={() => handleConvertToBarangMasuk(expense)}
-                        className="text-green-600 hover:text-green-800 p-1 rounded transition-colors"
-                        title="Convert to Barang Masuk"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                        </svg>
-                      </button>
-                    )}
-                    
-                    {expense.barang_masuk_id && (
-                      <a
-                        href={`/purchaseorder/barang_masuk`}
-                        className="text-blue-600 hover:text-blue-800 p-1 rounded transition-colors"
-                        title="View in Barang Masuk"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </a>
-                    )}
-                  </div>
-                  
-                  <button
-                    onClick={() => handleDeleteExpense(expense.id)}
-                    className="text-red-600 hover:text-red-800 p-1 rounded transition-colors"
-                    title="Delete Expense"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Desktop View - Table */}
-        <div className="hidden md:block">
-          <div className="max-h-[70vh] overflow-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 sticky top-0 z-20">
-              <tr>
-                <th className="text-left py-3 px-4">Tgl</th>
-                <th className="text-left py-3 px-4">Kode Modal</th>
-                <th className="text-left py-3 px-4">Cabang</th>
-                <th className="text-left py-3 px-4">Category</th>
-                <th className="text-left py-3 px-4">Description</th>
-                <th className="text-left py-3 px-4">Nama Barang</th>
-                <th className="text-right py-3 px-4">Qty</th>
-                <th className="text-right py-3 px-4">Harga</th>
-                <th className="text-right py-3 px-4">Total</th>
-                <th className="text-right py-3 px-4">Running Balance</th>
-                <th className="text-left py-3 px-4">Settlement Status</th>
-                <th className="text-left py-3 px-4">Receipt</th>
-                <th className="text-center py-3 px-4">Actions</th>
-              </tr>
-            </thead>
+        <div className="max-h-[70vh] overflow-auto">
+          <table className="w-full text-xs border table-fixed">
+            <thead className="bg-gray-50 sticky top-0 z-20">
+            <tr>
+              <th className="text-left py-2 px-2 border-b w-20">Tgl</th>
+              <th className="text-left py-2 px-2 border-b w-24">Kode Modal</th>
+              <th className="text-left py-2 px-2 border-b w-32">Cabang</th>
+              <th className="text-left py-2 px-2 border-b w-20">Category</th>
+              <th className="text-left py-2 px-2 border-b w-32">Description</th>
+              <th className="text-left py-2 px-2 border-b w-24">Nama Barang</th>
+              <th className="text-right py-2 px-2 border-b w-16">Qty</th>
+              <th className="text-right py-2 px-2 border-b w-20">Harga</th>
+              <th className="text-right py-2 px-2 border-b w-20">Total</th>
+              <th className="text-right py-2 px-2 border-b w-24">Running Balance</th>
+              <th className="text-left py-2 px-2 border-b w-20">Settlement</th>
+              <th className="text-left py-2 px-2 border-b w-20">Receipt</th>
+              <th className="text-center py-2 px-2 border-b w-20">Actions</th>
+            </tr>
+          </thead>
             <tbody>
               {paginatedExpenses.map((expense) => {
                 const runningBalance = calculateRunningBalance(expense);
                 
                 return (
                   <tr key={expense.id} className="border-b hover:bg-gray-50">
-                    <td className="py-4 px-4">
-                      <div className="font-medium">{formatDate(expense.expense_date)}</div>
+                    <td className="py-2 px-2">
+                      <div className="text-xs">{formatDate(expense.expense_date)}</div>
                     </td>
-                    <td className="py-4 px-4">
-                      <div className="text-blue-600 font-medium">{expense.request_number}</div>
+                    <td className="py-2 px-2">
+                      <div className="text-blue-600 text-xs truncate" title={expense.request_number}>{expense.request_number}</div>
                     </td>
-                    <td className="py-4 px-4">
-                      <div className="text-green-600 font-medium">{expense.branch_name}</div>
+                    <td className="py-2 px-2">
+                      <div className="text-green-600 text-xs truncate" title={expense.branch_name}>{expense.branch_name}</div>
                     </td>
-                    <td className="py-4 px-4">
-                      <div className="text-purple-600">{expense.category_name}</div>
+                    <td className="py-2 px-2">
+                      <div className="text-purple-600 text-xs truncate" title={expense.category_name}>{expense.category_name}</div>
                     </td>
-                    <td className="py-4 px-4">
-                      <div className="max-w-xs">
-                        <div className="truncate" title={expense.description}>
-                          {expense.description}
-                        </div>
-                        {expense.notes && (
-                          <div className="text-xs text-gray-500 mt-1 truncate" title={expense.notes}>
-                            💬 {expense.notes}
-                          </div>
-                        )}
+                    <td className="py-2 px-2">
+                      <div className="text-xs truncate" title={expense.description}>
+                        {expense.description}
                       </div>
+                      {expense.notes && (
+                        <div className="text-xs text-gray-500 truncate" title={expense.notes}>
+                          💬 {expense.notes}
+                        </div>
+                      )}
                     </td>
-                    <td className="py-4 px-4">
-                      <div>{expense.vendor_name || '-'}</div>
+                    <td className="py-2 px-2">
+                      <div className="text-xs truncate" title={expense.vendor_name || '-'}>{expense.vendor_name || '-'}</div>
                     </td>
-                    <td className="py-4 px-4 text-right">
-                      <div>{expense.qty || (expense.amount && expense.harga ? (expense.amount / expense.harga).toFixed(2) : '-')}</div>
+                    <td className="py-2 px-2 text-right">
+                      <div className="text-xs">{expense.qty || (expense.amount && expense.harga ? (expense.amount / expense.harga).toFixed(2) : '-')}</div>
                     </td>
-                    <td className="py-4 px-4 text-right">
-                      <div>{expense.harga ? formatCurrency(expense.harga) : (expense.qty && expense.amount ? formatCurrency(expense.amount / expense.qty) : '-')}</div>
+                    <td className="py-2 px-2 text-right">
+                      <div className="text-xs">{expense.harga ? formatCurrency(expense.harga) : (expense.qty && expense.amount ? formatCurrency(expense.amount / expense.qty) : '-')}</div>
                     </td>
-                    <td className="py-4 px-4 text-right">
-                      <div className="font-semibold">{formatCurrency(expense.amount)}</div>
+                    <td className="py-2 px-2 text-right">
+                      <div className="font-semibold text-xs">{formatCurrency(expense.amount)}</div>
                     </td>
-                    <td className="py-4 px-4 text-right">
-                      <div className={`font-semibold ${runningBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <td className="py-2 px-2 text-right">
+                      <div className={`font-semibold text-xs ${runningBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {formatCurrency(runningBalance)}
                       </div>
                     </td>
-                    <td className="py-4 px-4">
-                      {getSettlementStatusBadge(expense.settlement_status || 'no_settlement')}
+                    <td className="py-2 px-2">
+                      <span className={`px-1 py-0.5 text-xs rounded-full ${
+                        expense.settlement_status === 'completed' ? 'bg-green-100 text-green-800' :
+                        expense.settlement_status === 'verified' ? 'bg-blue-100 text-blue-800' :
+                        expense.settlement_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {expense.settlement_status === 'completed' ? 'Done' :
+                         expense.settlement_status === 'verified' ? 'Verified' :
+                         expense.settlement_status === 'pending' ? 'Pending' : 'None'}
+                      </span>
                     </td>
-                    <td className="py-4 px-4">
-                      <div className="text-xs">{expense.receipt_number || '-'}</div>
+                    <td className="py-2 px-2">
+                      <div className="text-xs truncate" title={expense.receipt_number || '-'}>{expense.receipt_number || '-'}</div>
                     </td>
-                    <td className="py-4 px-4">
-                      <div className="flex gap-1 justify-center">
+                    <td className="py-2 px-2">
+                      <div className="flex gap-0.5 justify-center">
                         <a
                           href={`/pettycash/expenses/${expense.id}`}
                           className="text-gray-600 hover:text-gray-800 p-1 rounded transition-colors"
@@ -852,9 +745,8 @@ function PettyCashExpensesContent() {
                   </tr>
                 );
               })}
-            </tbody>
-          </table>
-          </div>
+          </tbody>
+        </table>
         </div>
 
         {paginatedExpenses.length === 0 && filteredExpenses.length === 0 && (

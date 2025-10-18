@@ -452,33 +452,7 @@ function PettyCashRequestsContent() {
         </a>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
-        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
-          <div className="text-lg md:text-2xl font-bold text-blue-600">{stats.total}</div>
-          <div className="text-xs md:text-sm text-gray-600">Total</div>
-        </div>
-        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
-          <div className="text-lg md:text-2xl font-bold text-yellow-600">{stats.pending}</div>
-          <div className="text-xs md:text-sm text-gray-600">Pending</div>
-        </div>
-        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
-          <div className="text-lg md:text-2xl font-bold text-green-600">{stats.approved}</div>
-          <div className="text-xs md:text-sm text-gray-600">Approved</div>
-        </div>
-        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
-          <div className="text-lg md:text-2xl font-bold text-blue-600">{stats.disbursed}</div>
-          <div className="text-xs md:text-sm text-gray-600">Disbursed</div>
-        </div>
-        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
-          <div className="text-lg md:text-2xl font-bold text-red-600">{stats.rejected}</div>
-          <div className="text-xs md:text-sm text-gray-600">Rejected</div>
-        </div>
-        <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
-          <div className="text-sm md:text-lg font-bold text-purple-600">{formatCurrency(stats.pendingAmount)}</div>
-          <div className="text-xs md:text-sm text-gray-600">Pending Amount</div>
-        </div>
-      </div>
+      
 
       {/* Search */}
       <div className="bg-white p-4 rounded-lg border">
@@ -489,7 +463,6 @@ function PettyCashRequestsContent() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
-      </div>
 
       {/* Filters */}
       {!isMobile && (
@@ -532,6 +505,7 @@ function PettyCashRequestsContent() {
           </div>
         </div>
       )}
+
 
       {/* Requests List */}
       <div className="bg-white rounded-lg border">
@@ -684,6 +658,7 @@ function PettyCashRequestsContent() {
             </table>
           </div>
         )}
+            </div>
 
         {paginatedRequests.length === 0 && (
           <div className="text-center py-12">
