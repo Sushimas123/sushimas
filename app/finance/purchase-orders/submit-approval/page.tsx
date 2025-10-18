@@ -8,6 +8,7 @@ import PageAccessControl from '../../../../components/PageAccessControl'
 
 export default function SubmitApprovalPage() {
   const [po, setPO] = useState<any>(null)
+  const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [formData, setFormData] = useState({
@@ -52,27 +53,46 @@ export default function SubmitApprovalPage() {
         .eq('id_branch', poData.cabang_id)
         .single()
 
-      // Calculate total_po
-      const { data: items } = await supabase
+      // Get PO items with product details
+      const { data: itemsData } = await supabase
         .from('po_items')
         .select('qty, harga, actual_price, received_qty, product_id')
         .eq('po_id', poId)
 
-      let totalPO = 0
-      for (const item of items || []) {
-        if (item.actual_price && item.received_qty) {
-          totalPO += item.received_qty * item.actual_price
-        } else if (item.harga) {
-          totalPO += item.qty * item.harga
-        } else {
+      // Get product names and calculate totals
+      const itemsWithDetails = await Promise.all(
+        (itemsData || []).map(async (item) => {
           const { data: product } = await supabase
             .from('nama_product')
-            .select('harga')
+            .select('product_name, harga')
             .eq('id_product', item.product_id)
             .single()
-          totalPO += item.qty * (product?.harga || 0)
-        }
-      }
+          
+          const finalPrice = item.actual_price || item.harga || product?.harga || 0
+          const finalQty = item.received_qty || item.qty
+          
+          return {
+            ...item,
+            product_name: product?.product_name || `Product ${item.product_id}`,
+            final_price: finalPrice,
+            final_qty: finalQty,
+            total: finalQty * finalPrice,
+            // Tagih defaults (editable)
+            qty_tagih: item.received_qty || item.qty,
+            harga_tagih: item.actual_price || item.harga || product?.harga || 0
+          }
+        })
+      )
+
+      const totalPO = itemsWithDetails.reduce((sum, item) => sum + item.total, 0)
+      // Calculate total_tagih from items
+      const itemsWithTagih = itemsWithDetails.map(item => ({
+        ...item,
+        total_tagih: item.qty_tagih * item.harga_tagih
+      }))
+      
+      const totalTagih = itemsWithTagih.reduce((sum, item) => sum + item.total_tagih, 0)
+      setItems(itemsWithTagih)
 
       const enrichedData = {
         ...poData,
@@ -83,7 +103,7 @@ export default function SubmitApprovalPage() {
 
       setPO(enrichedData)
       setFormData({
-        total_tagih: totalPO,
+        total_tagih: totalTagih,
         keterangan: enrichedData.keterangan || '',
         photo: null
       })
@@ -146,6 +166,17 @@ export default function SubmitApprovalPage() {
     }
   }
 
+  const updateItemTagih = (index: number, field: 'qty_tagih' | 'harga_tagih', value: number) => {
+    const updatedItems = [...items]
+    updatedItems[index][field] = value
+    updatedItems[index].total_tagih = updatedItems[index].qty_tagih * updatedItems[index].harga_tagih
+    setItems(updatedItems)
+    
+    // Update total_tagih in form
+    const newTotalTagih = updatedItems.reduce((sum, item) => sum + item.total_tagih, 0)
+    setFormData({...formData, total_tagih: newTotalTagih})
+  }
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -167,7 +198,7 @@ export default function SubmitApprovalPage() {
   return (
     <Layout>
       <PageAccessControl pageName="finance">
-        <div className="p-6 max-w-4xl mx-auto">
+        <div className="p-6 max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
@@ -187,10 +218,79 @@ export default function SubmitApprovalPage() {
             </a>
           </div>
 
+          {/* PO Items Detail */}
+          <div className="bg-white rounded-lg shadow border p-6 mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Rincian Items PO</h3>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produk</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Qty PO</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Qty Diterima</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Qty Tagih</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga PO</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga Diterima</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga Tagih</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total PO</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Aktual</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Tagih</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {items.map((item, index) => (
+                    <tr key={index}>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.product_name}</td>
+                      <td className="px-4 py-3 text-sm text-center text-gray-900">{item.qty}</td>
+                      <td className="px-4 py-3 text-sm text-center text-gray-900">{item.received_qty || item.qty}</td>
+                      <td className="px-4 py-3 text-center">
+                        <input
+                          type="number"
+                          value={item.qty_tagih}
+                          onChange={(e) => updateItemTagih(index, 'qty_tagih', parseFloat(e.target.value) || 0)}
+                          className="w-20 px-2 py-1 text-sm border border-gray-300 rounded text-center"
+                          min="0"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(item.harga || 0)}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(item.actual_price || item.harga || 0)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <input
+                          type="number"
+                          value={item.harga_tagih}
+                          onChange={(e) => updateItemTagih(index, 'harga_tagih', parseFloat(e.target.value) || 0)}
+                          className="w-24 px-2 py-1 text-sm border border-gray-300 rounded text-right"
+                          min="0"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(item.qty * (item.harga || 0))}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency((item.received_qty || item.qty) * (item.actual_price || item.harga || 0))}</td>
+                      <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">{formatCurrency(item.total_tagih || 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-gray-100 border-t border-gray-300">
+                  <tr>
+                    <td className="px-4 py-3 text-sm font-bold text-gray-900" colSpan={7}>TOTAL:</td>
+                    <td className="px-4 py-3 text-sm font-bold text-right text-gray-900">
+                      {formatCurrency(items.reduce((sum, item) => sum + (item.qty * (item.harga || 0)), 0))}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-bold text-right text-gray-900">
+                      {formatCurrency(items.reduce((sum, item) => sum + ((item.received_qty || item.qty) * (item.actual_price || item.harga || 0)), 0))}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-bold text-right text-gray-900">
+                      {formatCurrency(items.reduce((sum, item) => sum + (item.total_tagih || 0), 0))}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow border p-6 space-y-6">
             <div className="bg-blue-50 p-4 rounded-md mb-4">
-              <h3 className="text-sm font-medium text-blue-800 mb-2">Informasi PO</h3>
-              <p className="text-sm text-blue-700">Total PO: <span className="font-semibold">{formatCurrency((po as any)?.total_po || 0)}</span></p>
+              <h3 className="text-sm font-medium text-blue-800 mb-2">Informasi</h3>
+              <p className="text-sm text-blue-700">Total Barang Sampai: <span className="font-semibold">{formatCurrency((po as any)?.total_po || 0)}</span></p>
             </div>
             
             <div>
