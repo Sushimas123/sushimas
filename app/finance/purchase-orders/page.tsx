@@ -44,12 +44,16 @@ const RejectModal = ({ po, onClose, onSuccess }: {
 
     setLoading(true)
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser()
+      
       const { error } = await supabase
         .from('purchase_orders')
         .update({ 
           approval_status: 'rejected',
           rejected_at: new Date().toISOString(),
-          rejection_notes: notes.trim()
+          rejection_notes: notes.trim(),
+          rejected_by: user?.id || null
         })
         .eq('id', po.id)
 
@@ -130,7 +134,10 @@ const ViewRejectionNotesModal = ({ po, onClose }: {
         <div className="mb-4">
           <p className="text-sm text-gray-600 mb-2">PO: <strong>{po.po_number}</strong></p>
           <p className="text-sm text-gray-600 mb-2">Supplier: <strong>{po.nama_supplier}</strong></p>
-          <p className="text-sm text-gray-600">Ditolak: <strong>{po.rejected_at ? formatDate(po.rejected_at) : '-'}</strong></p>
+          <p className="text-sm text-gray-600 mb-2">Ditolak: <strong>{po.rejected_at ? formatDate(po.rejected_at) : '-'}</strong></p>
+          {po.rejected_by_name && (
+            <p className="text-sm text-gray-600">Ditolak oleh: <strong>{po.rejected_by_name}</strong></p>
+          )}
         </div>
 
         <div className="mb-4">
@@ -173,6 +180,9 @@ interface FinanceData {
   rejection_notes?: string
   rejected_at?: string
   rejected_by?: string
+  rejected_by_name?: string
+  approved_by?: number
+  approved_by_name?: string
 }
 
 interface BulkPayment {
@@ -446,12 +456,13 @@ export default function FinancePurchaseOrders() {
       
       const itemsData = { data: allItemsData, error: null }
       
-      const [paymentsData, poDetailsData, barangMasukData, bulkPaymentsData, paymentTermsData] = await Promise.all([
+      const [paymentsData, poDetailsData, barangMasukData, bulkPaymentsData, paymentTermsData, usersData] = await Promise.all([
         supabase.from('po_payments').select('po_id, payment_amount, payment_date, payment_via, payment_method, reference_number, status').in('po_id', poIds).order('payment_date', { ascending: false }),
-        supabase.from('purchase_orders').select('id, bulk_payment_ref, total_tagih, keterangan, approval_photo, approval_status, approved_at, rejected_at, rejection_notes, id_payment_term').in('id', poIds),
+        supabase.from('purchase_orders').select('id, bulk_payment_ref, total_tagih, keterangan, approval_photo, approval_status, approved_at, rejected_at, rejection_notes, id_payment_term, approved_by, rejected_by').in('id', poIds),
         supabase.from('barang_masuk').select('no_po, invoice_number').in('no_po', poNumbers),
         supabase.from('bulk_payments').select('*'),
-        supabase.from('payment_terms').select('id_payment_term, term_name, calculation_type, days')
+        supabase.from('payment_terms').select('id_payment_term, term_name, calculation_type, days'),
+        supabase.from('users').select('id_user, nama_lengkap')
       ])
       
 
@@ -484,6 +495,13 @@ export default function FinancePurchaseOrders() {
       // Create payment terms map
       const paymentTermsMap: Record<number, any> = {}
       paymentTermsData.data?.forEach(pt => { paymentTermsMap[pt.id_payment_term] = pt })
+      
+      // Create users map
+      const usersMap: Record<number, any> = {}
+      usersData.data?.forEach(user => { usersMap[user.id_user] = user })
+      
+      console.log('Users map:', usersMap)
+      console.log('Sample PO with approved_by:', poDetailsData.data?.find(po => po.approved_by))
 
       // Process data dengan perhitungan KAMU (tidak berubah)
       const correctedData = financeData.map((item: any) => {
@@ -552,7 +570,11 @@ export default function FinancePurchaseOrders() {
           approval_photo: poData?.approval_photo || null,
           approval_status: poData?.approval_status || null,
           approved_at: poData?.approved_at || null,
+          approved_by: poData?.approved_by || null,
+          approved_by_name: poData?.approved_by ? (usersMap[poData.approved_by]?.nama_lengkap || `User ${poData.approved_by} (not found)`) : null,
           rejected_at: poData?.rejected_at || null,
+          rejected_by: poData?.rejected_by || null,
+          rejected_by_name: null, // Will be populated separately
           rejection_notes: poData?.rejection_notes || null,
           bulk_payment_ref: poData?.bulk_payment_ref || null,
           payment_term_name: paymentTerm?.term_name || null,
@@ -560,6 +582,28 @@ export default function FinancePurchaseOrders() {
         }
       }).filter(item => item !== null)
 
+      // Get rejected_by names for rejected POs
+      const rejectedPOs = correctedData.filter(item => item.rejected_by)
+      if (rejectedPOs.length > 0) {
+        const rejectedByIds = [...new Set(rejectedPOs.map(item => item.rejected_by))]
+        const { data: rejectedUsers } = await supabase
+          .from('users')
+          .select('auth_id, nama_lengkap')
+          .in('auth_id', rejectedByIds)
+        
+        const rejectedUsersMap: Record<string, string> = {}
+        rejectedUsers?.forEach(user => {
+          rejectedUsersMap[user.auth_id] = user.nama_lengkap
+        })
+        
+        // Update rejected_by_name
+        correctedData.forEach(item => {
+          if (item.rejected_by) {
+            item.rejected_by_name = rejectedUsersMap[item.rejected_by] || null
+          }
+        })
+      }
+      
       setData(correctedData)
 
       // Initialize notes
@@ -904,11 +948,25 @@ export default function FinancePurchaseOrders() {
                   <button
                     onClick={async () => {
                       try {
+                        // Get current user from Supabase Auth
+                        const { data: { user } } = await supabase.auth.getUser()
+                        if (!user) throw new Error('User not authenticated')
+                        
+                        // Get user ID from users table using email
+                        const { data: userData, error: userError } = await supabase
+                          .from('users')
+                          .select('id_user')
+                          .eq('email', user.email)
+                          .single()
+                        
+                        if (userError) throw userError
+                        
                         const { error } = await supabase
                           .from('purchase_orders')
                           .update({ 
                             approval_status: 'approved',
                             approved_at: new Date().toISOString(),
+                            approved_by: userData?.id_user || null,
                             rejection_notes: null,
                             rejected_at: null
                           })
@@ -1344,11 +1402,15 @@ export default function FinancePurchaseOrders() {
                 <button
                   onClick={async () => {
                     try {
+                      // Get current user
+                      const { data: { user } } = await supabase.auth.getUser()
+                      
                       const { error } = await supabase
                         .from('purchase_orders')
                         .update({ 
                           approval_status: 'approved',
                           approved_at: new Date().toISOString(),
+                          approved_by: user?.id || null,
                           rejection_notes: null,
                           rejected_at: null
                         })
@@ -1907,12 +1969,25 @@ export default function FinancePurchaseOrders() {
                   <button
                     onClick={async () => {
                       try {
+                        // Get current user
+                        const { data: { user } } = await supabase.auth.getUser()
+                        
+                        // Get user ID from users table using email
+                        const { data: userData, error: userError } = await supabase
+                          .from('users')
+                          .select('id_user')
+                          .eq('email', user.email)
+                          .single()
+                        
+                        if (userError) throw userError
+                        
                         const updatePromises = selectedPOs.map(poId => 
                           supabase
                             .from('purchase_orders')
                             .update({ 
                               approval_status: 'approved',
                               approved_at: new Date().toISOString(),
+                              approved_by: userData?.id_user || null,
                               rejection_notes: null,
                               rejected_at: null
                             })
@@ -1942,13 +2017,18 @@ export default function FinancePurchaseOrders() {
                           return
                         }
 
+                        // Get current user
+                        const { data: { user } } = await supabase.auth.getUser()
+                        if (!user) throw new Error('User not authenticated')
+                        
                         const updatePromises = selectedPOs.map(poId => 
                           supabase
                             .from('purchase_orders')
                             .update({ 
                               approval_status: 'rejected',
                               rejected_at: new Date().toISOString(),
-                              rejection_notes: notes.trim()
+                              rejection_notes: notes.trim(),
+                              rejected_by: user.id
                             })
                             .eq('id', poId)
                         )
@@ -2539,11 +2619,25 @@ export default function FinancePurchaseOrders() {
                         <button
                           onClick={async () => {
                             try {
+                              // Get current user from Supabase Auth
+                              const { data: { user } } = await supabase.auth.getUser()
+                              if (!user) throw new Error('User not authenticated')
+                              
+                              // Get user ID from users table using email
+                              const { data: userData, error: userError } = await supabase
+                                .from('users')
+                                .select('id_user')
+                                .eq('email', user.email)
+                                .single()
+                              
+                              if (userError) throw userError
+                              
                               const { error } = await supabase
                                 .from('purchase_orders')
                                 .update({ 
                                   approval_status: 'approved',
                                   approved_at: new Date().toISOString(),
+                                  approved_by: userData?.id_user || null,
                                   rejection_notes: null,
                                   rejected_at: null
                                 })
@@ -2837,9 +2931,16 @@ export default function FinancePurchaseOrders() {
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                             {(item as any).approved_at ? (
-                              <div className="flex items-center">
-                                <CheckCircle className="h-4 w-4 text-purple-500 mr-1" />
-                                {formatDate((item as any).approved_at)}
+                              <div>
+                                <div className="flex items-center">
+                                  <CheckCircle className="h-4 w-4 text-purple-500 mr-1" />
+                                  {formatDate((item as any).approved_at)}
+                                </div>
+                                {item.approved_by_name && (
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {item.approved_by_name}
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <span className="text-gray-400">-</span>
@@ -2907,11 +3008,25 @@ export default function FinancePurchaseOrders() {
                                   <button
                                     onClick={async () => {
                                       try {
+                                        // Get current user from Supabase Auth
+                                        const { data: { user } } = await supabase.auth.getUser()
+                                        if (!user) throw new Error('User not authenticated')
+                                        
+                                        // Get user ID from users table using email
+                                        const { data: userData, error: userError } = await supabase
+                                          .from('users')
+                                          .select('id_user')
+                                          .eq('email', user.email)
+                                          .single()
+                                        
+                                        if (userError) throw userError
+                                        
                                         const { error } = await supabase
                                           .from('purchase_orders')
                                           .update({ 
                                             approval_status: 'approved',
                                             approved_at: new Date().toISOString(),
+                                            approved_by: userData?.id_user || null,
                                             rejection_notes: null,
                                             rejected_at: null
                                           })
