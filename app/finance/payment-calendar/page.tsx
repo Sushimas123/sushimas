@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { Calendar, Clock, CheckCircle, X, DollarSign, Filter, ChevronDown, ChevronUp } from 'lucide-react'
+import { Calendar, Clock, CheckCircle, X, DollarSign, Filter, ChevronDown, ChevronUp, Search } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 import PaymentModal from '../purchase-orders/PaymentModal'
@@ -463,6 +463,7 @@ const MobileFilters = ({
 export default function PaymentCalendar() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [branchFilter, setBranchFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [selectedPO, setSelectedPO] = useState<ScheduledPayment | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [sortField, setSortField] = useState<string>('')
@@ -474,11 +475,27 @@ export default function PaymentCalendar() {
 
   const { payments: allFilteredPayments, allPayments, loading, error, refetch } = useScheduledPayments(statusFilter)
   
-  // Apply branch filter
+  // Apply branch and search filters
   const payments = useMemo(() => {
-    if (branchFilter === 'all') return allFilteredPayments
-    return allFilteredPayments.filter(p => p.nama_branch === branchFilter)
-  }, [allFilteredPayments, branchFilter])
+    let filtered = allFilteredPayments
+    
+    // Apply branch filter
+    if (branchFilter !== 'all') {
+      filtered = filtered.filter(p => p.nama_branch === branchFilter)
+    }
+    
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      filtered = filtered.filter(p => 
+        p.po_number.toLowerCase().includes(query) ||
+        p.nama_supplier.toLowerCase().includes(query) ||
+        p.nama_branch.toLowerCase().includes(query)
+      )
+    }
+    
+    return filtered
+  }, [allFilteredPayments, branchFilter, searchQuery])
 
   // Detect mobile screen
   useEffect(() => {
@@ -639,6 +656,23 @@ export default function PaymentCalendar() {
             <div className="bg-white p-3 md:p-4 rounded-lg shadow border">
               <p className="text-xs md:text-sm text-gray-600">Overdue</p>
               <p className="text-base md:text-lg font-semibold">{overduePayments.length}</p>
+            </div>
+          </div>
+
+          {/* Search Bar */}
+          <div className="bg-white p-4 rounded-lg shadow border mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <input
+                type="text"
+                placeholder="Search by PO number, supplier, or branch..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setCurrentPage(1)
+                }}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
             </div>
           </div>
 
