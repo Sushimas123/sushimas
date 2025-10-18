@@ -70,8 +70,8 @@ const RejectModal = ({ po, onClose, onSuccess }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+      <div className="bg-white rounded-lg p-4 md:p-6 w-full max-w-md mx-4 md:mx-0">
         <h3 className="text-lg font-semibold mb-4">Tolak Approval PO</h3>
         
         <div className="mb-4">
@@ -127,8 +127,8 @@ const ViewRejectionNotesModal = ({ po, onClose }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+      <div className="bg-white rounded-lg p-4 md:p-6 w-full max-w-md mx-4 md:mx-0">
         <h3 className="text-lg font-semibold mb-4 text-red-600">Catatan Penolakan</h3>
         
         <div className="mb-4">
@@ -1911,6 +1911,32 @@ export default function FinancePurchaseOrders() {
 
           {/* Mobile Filters Panel */}
           {showMobileFilters && <MobileFiltersPanel />}
+
+          {/* Reject Modal - Mobile */}
+          {showRejectModal && rejectPO && (
+            <RejectModal
+              po={rejectPO}
+              onClose={() => {
+                setShowRejectModal(false)
+                setRejectPO(null)
+                setRejectNotes('')
+              }}
+              onSuccess={() => {
+                fetchFinanceData()
+              }}
+            />
+          )}
+
+          {/* View Rejection Notes Modal - Mobile */}
+          {showViewRejectionModal && viewRejectionPO && (
+            <ViewRejectionNotesModal
+              po={viewRejectionPO}
+              onClose={() => {
+                setShowViewRejectionModal(false)
+                setViewRejectionPO(null)
+              }}
+            />
+          )}
 
           {/* Payment Modal */}
           {showPaymentModal && selectedPO && (
