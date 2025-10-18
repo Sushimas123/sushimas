@@ -70,7 +70,7 @@ export default function OutstandingMatrix() {
       const poIds = financeData.map(item => item.id)
       
       const [itemsData, paymentsData, poDetailsData] = await Promise.all([
-        supabase.from('po_items').select('po_id, qty, harga, actual_price, received_qty, product_id').in('po_id', poIds),
+        supabase.from('po_items').select('po_id, qty, harga, actual_price, received_qty, qty_tagih, harga_tagih, product_id').in('po_id', poIds),
         supabase.from('po_payments').select('po_id, payment_amount, status').in('po_id', poIds),
         supabase.from('purchase_orders').select('id, bulk_payment_ref, total_tagih').in('id', poIds)
       ])
@@ -110,6 +110,8 @@ export default function OutstandingMatrix() {
       // Note: suppliersData is not fetched in this component
       // Categories will be determined from product data or fallback to 'Uncategorized'
 
+      // Process data with proper filtering
+      
       // Process data
       const processedData = financeData.map((item: any) => {
         const items = itemsByPO[item.id] || []
@@ -122,36 +124,43 @@ export default function OutstandingMatrix() {
         
         poItems.forEach(poItem => {
           const productData = productsMap[poItem.product_id]
-          if (productData?.category) categories.add(productData.category)
-          if (productData?.sub_category) subCategories.add(productData.sub_category)
+          
+          if (productData?.category && productData.category.trim() !== '') {
+            categories.add(productData.category)
+          }
+          if (productData?.sub_category && productData.sub_category.trim() !== '') {
+            subCategories.add(productData.sub_category)
+          }
         })
         
         // Use product categories or fallback to default
         let kategori = categories.size > 0 ? Array.from(categories)[0] : 'Uncategorized'
         let subKategori = subCategories.size > 0 ? Array.from(subCategories)[0] : 'General'
 
-        // Calculate corrected total
+        // Calculate total using qty_tagih and harga_tagih if available, otherwise fallback
         let correctedTotal = 0
         for (const poItem of items) {
+          const qtyTagih = poItem.qty_tagih || 0
+          const hargaTagih = poItem.harga_tagih || 0
           const actualPrice = poItem.actual_price || 0
           const originalPrice = poItem.harga || 0
           const receivedQty = poItem.received_qty || 0
           const originalQty = poItem.qty || 0
           
-          if (actualPrice > 0 && receivedQty > 0) {
+          // Priority: qty_tagih * harga_tagih > received_qty * actual_price > qty * harga
+          if (qtyTagih > 0 && hargaTagih > 0) {
+            correctedTotal += qtyTagih * hargaTagih
+          } else if (actualPrice > 0 && receivedQty > 0) {
             correctedTotal += receivedQty * actualPrice
           } else if (originalPrice > 0 && originalQty > 0) {
             correctedTotal += originalQty * originalPrice
           }
         }
 
-        if (correctedTotal === 0 && item.total_po) {
-          correctedTotal = item.total_po
-        }
-
         const totalPaid = payments.reduce((sum, p) => sum + p.payment_amount, 0)
         const totalTagih = poData?.total_tagih || 0
-        const basisAmount = totalTagih > 0 ? totalTagih : correctedTotal
+        // Use total_tagih if available, otherwise use calculated corrected total
+        const basisAmount = totalTagih > 0 ? totalTagih : (correctedTotal > 0 ? correctedTotal : item.total_po)
         
         let calculatedStatus = 'unpaid'
         let sisaBayar = basisAmount - totalPaid
@@ -165,11 +174,22 @@ export default function OutstandingMatrix() {
 
         // Get product names from PO items
         const productNames = new Set<string>()
+        const missingProductIds = new Set<number>()
         poItems.forEach(poItem => {
           const productData = productsMap[poItem.product_id]
-          if (productData?.product_name) productNames.add(productData.product_name)
+          if (productData?.product_name) {
+            productNames.add(productData.product_name)
+          } else {
+            missingProductIds.add(poItem.product_id)
+          }
         })
-        const namaProduct = productNames.size > 0 ? Array.from(productNames)[0] : 'Unknown Product'
+        
+        let namaProduct = 'Unknown Product'
+        if (productNames.size > 0) {
+          namaProduct = Array.from(productNames)[0]
+        } else if (missingProductIds.size > 0) {
+          namaProduct = `Missing Product ID: ${Array.from(missingProductIds).join(', ')}`
+        }
 
         return {
           id: item.id,
@@ -182,7 +202,14 @@ export default function OutstandingMatrix() {
           sisa_bayar: sisaBayar,
           status_payment: calculatedStatus
         }
-      }).filter(item => item.status_payment !== 'paid' && item.sisa_bayar > 0)
+      })
+      .filter(item => {
+        // Filter out POs without items and paid items
+        const hasItems = itemsByPO[item.id] && itemsByPO[item.id].length > 0
+        return hasItems && item.status_payment !== 'paid' && item.sisa_bayar > 0
+      })
+
+      // Data processing complete
 
       setData(processedData)
 

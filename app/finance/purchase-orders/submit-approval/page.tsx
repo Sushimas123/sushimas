@@ -155,6 +155,18 @@ export default function SubmitApprovalPage() {
         throw error
       }
       
+      // Update po_items with qty_tagih and harga_tagih
+      for (const item of items) {
+        await supabase
+          .from('po_items')
+          .update({
+            qty_tagih: item.qty_tagih,
+            harga_tagih: item.harga_tagih
+          })
+          .eq('po_id', po.id)
+          .eq('product_id', item.product_id)
+      }
+      
       console.log('Updated record:', data)
       alert('Berhasil submit untuk approval!')
       window.location.href = '/finance/purchase-orders'
