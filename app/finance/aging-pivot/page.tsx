@@ -18,6 +18,7 @@ interface AgingPivotData {
   due_dates: { [key: string]: number }
   total: number
   notes?: string
+  approval_status?: string
 }
 
 export default function AgingPivotReport() {
@@ -32,6 +33,8 @@ export default function AgingPivotReport() {
     }
     return false
   })
+  const [sortField, setSortField] = useState<'date' | 'supplier' | 'branch' | 'notes' | 'approval' | 'total'>('total')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
 
   useEffect(() => {
     fetchAgingPivotData()
@@ -61,18 +64,33 @@ export default function AgingPivotReport() {
 
       if (error) throw error
 
-      // Get semua supplier IDs untuk fetch yang lebih efisien
+      // Get semua supplier IDs dan PO IDs untuk fetch yang lebih efisien
       const supplierIds = [...new Set(financeData?.map(item => item.supplier_id).filter(Boolean))]
+      const poIds = [...new Set(financeData?.map(item => item.id).filter(Boolean))]
       
-      // Fetch supplier info sekaligus
-      const { data: suppliersInfo } = await supabase
-        .from('suppliers')
-        .select('id_supplier, nama_penerima, bank_penerima, nomor_rekening')
-        .in('id_supplier', supplierIds)
+      // Fetch supplier info dan approval status sekaligus
+      const [suppliersResult, approvalResult] = await Promise.all([
+        supabase
+          .from('suppliers')
+          .select('id_supplier, nama_penerima, bank_penerima, nomor_rekening')
+          .in('id_supplier', supplierIds),
+        supabase
+          .from('purchase_orders')
+          .select('id, approval_status')
+          .in('id', poIds)
+      ])
+      
+      const { data: suppliersInfo } = suppliersResult
+      const { data: approvalInfo } = approvalResult
 
       const suppliersMap = new Map()
       suppliersInfo?.forEach(supplier => {
         suppliersMap.set(supplier.id_supplier, supplier)
+      })
+      
+      const approvalMap = new Map()
+      approvalInfo?.forEach(po => {
+        approvalMap.set(po.id, po.approval_status)
       })
 
       const pivotMap = new Map<string, AgingPivotData>()
@@ -80,6 +98,7 @@ export default function AgingPivotReport() {
 
       for (const item of financeData || []) {
         const supplierInfo = suppliersMap.get(item.supplier_id)
+        const approvalStatus = approvalMap.get(item.id)
 
         // Gunakan sisa_bayar dari database view
         const outstanding = item.sisa_bayar
@@ -101,7 +120,8 @@ export default function AgingPivotReport() {
             supplier_bank_info: supplierInfo || undefined,
             due_dates: {},
             total: 0,
-            notes: finalNotes
+            notes: finalNotes,
+            approval_status: approvalStatus
           })
         }
         
@@ -120,16 +140,8 @@ export default function AgingPivotReport() {
         return dateA.getTime() - dateB.getTime()
       })
       
-      // Filter suppliers that have amounts in the filtered date range
-      let filteredData = Array.from(pivotMap.values())
-      if (dateFilter.from || dateFilter.to) {
-        filteredData = filteredData.filter(supplier => {
-          return sortedDueDates.some(date => supplier.due_dates[date] > 0)
-        })
-      }
-      
       setDueDates(sortedDueDates)
-      setData(filteredData)
+      setData(Array.from(pivotMap.values()))
     } catch (error) {
       console.error('Error fetching aging pivot data:', error)
     } finally {
@@ -414,6 +426,178 @@ export default function AgingPivotReport() {
               </table>
             </div>
           </div>
+
+          {/* Summary Section - Suppliers with Outstanding in Filtered Date Range */}
+          {(dateFilter.from || dateFilter.to) && (
+            <div className="mt-6 bg-white rounded-lg shadow border overflow-hidden">
+              <div className="px-4 py-3 bg-gray-50 border-b">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Rekapan Supplier dengan Tagihan ({dateFilter.from && dateFilter.to ? `${dateFilter.from} s/d ${dateFilter.to}` : dateFilter.from || dateFilter.to})
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Daftar supplier yang memiliki outstanding di periode yang difilter
+                </p>
+                <div className="mt-2 text-xs text-gray-500">
+                  Tanggal jatuh tempo: {dueDates.join(', ')}
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th 
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                        onClick={() => {
+                          if (sortField === 'date') {
+                            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+                          } else {
+                            setSortField('date')
+                            setSortDirection('asc')
+                          }
+                        }}
+                      >
+                        Tanggal Jatuh Tempo {sortField === 'date' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th 
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                        onClick={() => {
+                          if (sortField === 'supplier') {
+                            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+                          } else {
+                            setSortField('supplier')
+                            setSortDirection('asc')
+                          }
+                        }}
+                      >
+                        Supplier {sortField === 'supplier' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th 
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                        onClick={() => {
+                          if (sortField === 'branch') {
+                            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+                          } else {
+                            setSortField('branch')
+                            setSortDirection('asc')
+                          }
+                        }}
+                      >
+                        Cabang {sortField === 'branch' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th 
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                        onClick={() => {
+                          if (sortField === 'notes') {
+                            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+                          } else {
+                            setSortField('notes')
+                            setSortDirection('asc')
+                          }
+                        }}
+                      >
+                        Notes {sortField === 'notes' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th 
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                        onClick={() => {
+                          if (sortField === 'approval') {
+                            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+                          } else {
+                            setSortField('approval')
+                            setSortDirection('asc')
+                          }
+                        }}
+                      >
+                        Approval Status {sortField === 'approval' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th 
+                        className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                        onClick={() => {
+                          if (sortField === 'total') {
+                            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+                          } else {
+                            setSortField('total')
+                            setSortDirection('desc')
+                          }
+                        }}
+                      >
+                        Total Outstanding {sortField === 'total' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bank Info</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {data
+                      .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
+                      .sort((a, b) => {
+                        const aVal = sortField === 'date' ? dueDates.filter(date => a.due_dates[date] > 0)[0] || '' :
+                                    sortField === 'supplier' ? a.supplier : 
+                                    sortField === 'branch' ? a.branch : 
+                                    sortField === 'notes' ? (a.notes || '') :
+                                    sortField === 'approval' ? (a.approval_status || 'pending') :
+                                    dueDates.reduce((sum, date) => sum + (a.due_dates[date] || 0), 0)
+                        const bVal = sortField === 'date' ? dueDates.filter(date => b.due_dates[date] > 0)[0] || '' :
+                                    sortField === 'supplier' ? b.supplier : 
+                                    sortField === 'branch' ? b.branch : 
+                                    sortField === 'notes' ? (b.notes || '') :
+                                    sortField === 'approval' ? (b.approval_status || 'pending') :
+                                    dueDates.reduce((sum, date) => sum + (b.due_dates[date] || 0), 0)
+                        
+                        if (typeof aVal === 'string' && typeof bVal === 'string') {
+                          return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+                        }
+                        return sortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number)
+                      })
+                      .map((supplier, index) => (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-700">
+                            {dueDates.filter(date => supplier.due_dates[date] > 0).join(', ')}
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{supplier.supplier}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{supplier.branch}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{supplier.notes || '-'}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={`font-medium ${
+                              supplier.approval_status === 'approved' ? 'text-green-600' :
+                              supplier.approval_status === 'rejected' ? 'text-red-600' :
+                              'text-orange-600'
+                            }`}>
+                              {supplier.approval_status || 'pending'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">
+                            {formatCurrency(dueDates.reduce((sum, date) => sum + (supplier.due_dates[date] || 0), 0))}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-700">
+                            {supplier.supplier_bank_info ? (
+                              <div>
+                                <div className="font-medium">{supplier.supplier_bank_info.nama_penerima}</div>
+                                <div className="text-xs text-gray-500">
+                                  {supplier.supplier_bank_info.bank_penerima} - {supplier.supplier_bank_info.nomor_rekening}
+                                </div>
+                              </div>
+                            ) : '-'}
+                          </td>
+                        </tr>
+                      ))
+                    }
+                  </tbody>
+                  <tfoot className="bg-gray-100">
+                    <tr>
+                      <td colSpan={5} className="px-4 py-3 text-sm font-bold text-gray-900">Total</td>
+                      <td className="px-4 py-3 text-sm font-bold text-gray-900 text-right">
+                        {formatCurrency(data
+                          .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
+                          .reduce((sum, supplier) => sum + dueDates.reduce((dateSum, date) => dateSum + (supplier.due_dates[date] || 0), 0), 0)
+                        )}
+                      </td>
+                      <td className="px-4 py-3"></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </PageAccessControl>
     </Layout>
