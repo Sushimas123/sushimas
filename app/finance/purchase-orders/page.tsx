@@ -1044,6 +1044,31 @@ export default function FinancePurchaseOrders() {
                 )}
               </div>
 
+              {/* Approval Photo */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Foto Approval
+                </h3>
+                {(item as any).approval_photo ? (
+                  <div className="bg-white rounded border border-gray-200 overflow-hidden">
+                    <img 
+                      src={`${supabase.storage.from('po-photos').getPublicUrl((item as any).approval_photo).data.publicUrl}`}
+                      alt="Approval Photo"
+                      className="w-full h-32 object-cover cursor-pointer hover:opacity-80"
+                      onClick={() => window.open(`${supabase.storage.from('po-photos').getPublicUrl((item as any).approval_photo).data.publicUrl}`, '_blank')}
+                    />
+                    <div className="p-2 text-xs text-gray-500">
+                      <p>Status: {(item as any).approval_status || 'pending'}</p>
+                      <p>Total Tagih: {formatCurrency((item as any).total_tagih || 0)}</p>
+                      {(item as any).keterangan && <p>Keterangan: {(item as any).keterangan}</p>}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">Belum ada foto approval</p>
+                )}
+              </div>
+
               {/* View More Button */}
               <button
                 onClick={() => setSelectedMobileItem(item)}
