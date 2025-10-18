@@ -183,6 +183,7 @@ interface FinanceData {
   rejected_by_name?: string
   approved_by?: number
   approved_by_name?: string
+  invoice_number?: string
 }
 
 interface BulkPayment {
@@ -459,11 +460,13 @@ export default function FinancePurchaseOrders() {
       const [paymentsData, poDetailsData, barangMasukData, bulkPaymentsData, paymentTermsData, usersData] = await Promise.all([
         supabase.from('po_payments').select('po_id, payment_amount, payment_date, payment_via, payment_method, reference_number, status').in('po_id', poIds).order('payment_date', { ascending: false }),
         supabase.from('purchase_orders').select('id, bulk_payment_ref, total_tagih, keterangan, approval_photo, approval_status, approved_at, rejected_at, rejection_notes, id_payment_term, approved_by, rejected_by').in('id', poIds),
-        supabase.from('barang_masuk').select('no_po, invoice_number').in('no_po', poNumbers),
+        supabase.from('barang_masuk').select('no_po, invoice_number').in('no_po', poNumbers).not('invoice_number', 'is', null),
         supabase.from('bulk_payments').select('*'),
         supabase.from('payment_terms').select('id_payment_term, term_name, calculation_type, days'),
         supabase.from('users').select('id_user, nama_lengkap')
       ])
+      
+
       
 
 
@@ -486,7 +489,14 @@ export default function FinancePurchaseOrders() {
       poDetailsData.data?.forEach(po => { poDetailsMap[po.id] = po })
 
       const invoiceMap: Record<string, string> = {}
-      barangMasukData.data?.forEach(bm => { invoiceMap[bm.no_po] = bm.invoice_number })
+      barangMasukData.data?.forEach(bm => { 
+        if (bm.invoice_number && bm.invoice_number.trim()) {
+          // Always use the latest invoice (overwrite if exists)
+          invoiceMap[bm.no_po] = bm.invoice_number 
+        }
+      })
+      
+
 
       // Create bulk payments map
       const bulkPaymentsMap: Record<string, any> = {}
@@ -500,8 +510,7 @@ export default function FinancePurchaseOrders() {
       const usersMap: Record<number, any> = {}
       usersData.data?.forEach(user => { usersMap[user.id_user] = user })
       
-      console.log('Users map:', usersMap)
-      console.log('Sample PO with approved_by:', poDetailsData.data?.find(po => po.approved_by))
+
 
       // Process data dengan perhitungan KAMU (tidak berubah)
       const correctedData = financeData.map((item: any) => {
@@ -564,7 +573,7 @@ export default function FinancePurchaseOrders() {
           payment_via: bulkPayment?.payment_via || latestPayment?.payment_via || null,
           payment_method: bulkPayment?.payment_method || latestPayment?.payment_method || null,
           payment_reference: poData?.bulk_payment_ref || latestPayment?.reference_number || null,
-          invoice_number: invoiceNumber,
+          invoice_number: invoiceNumber || '',
           total_tagih: totalTagih,
           keterangan: poData?.keterangan || '',
           approval_photo: poData?.approval_photo || null,
@@ -2893,7 +2902,11 @@ export default function FinancePurchaseOrders() {
                             {formatCurrency((item as any).total_tagih || 0)}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).invoice_number || <span className="text-gray-400">-</span>}
+                            {item.invoice_number && item.invoice_number.trim() ? (
+                              <span className="font-medium text-blue-600">{item.invoice_number}</span>
+                            ) : (
+                              <span className="text-gray-400 italic">Belum ada</span>
+                            )}
                           </td>
                           <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
                             {item.tanggal_jatuh_tempo ? (

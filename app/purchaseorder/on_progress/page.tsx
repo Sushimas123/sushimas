@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
 import { CheckCircle, XCircle, Package, Building2, Calendar, User, FileText, Download, ArrowLeft, Printer, Clock, AlertCircle, Edit, Save, X, MessageCircle } from 'lucide-react'
 import Layout from '../../../components/Layout'
@@ -104,33 +104,31 @@ function OnProgressPO() {
           .select('*, harga, total, actual_price, unit_besar')
           .eq('po_id', poId)
 
-        // Get product details and stock data for each item
-        const itemsWithStock = await Promise.all(
-          (items || []).map(async (item) => {
-            // Get product details including price and unit_besar
-            const { data: product } = await supabase
-              .from('nama_product')
-              .select('product_name, merk, harga, unit_besar')
-              .eq('id_product', item.product_id)
-              .single()
+        // Batch fetch all product details to avoid N+1
+        const productIds = [...new Set((items || []).map(item => item.product_id))]
+        const { data: products } = await supabase
+          .from('nama_product')
+          .select('id_product, product_name, merk, harga, unit_besar')
+          .in('id_product', productIds)
+        
+        const productMap = new Map((products || []).map(p => [p.id_product, p]))
+        
+        // Process items with batched product data
+        const itemsWithStock = (items || []).map(item => {
+          const product = productMap.get(item.product_id)
+          const finalPrice = item.actual_price || item.harga || product?.harga || 0
+          const finalTotal = item.total || (finalPrice * item.qty)
 
-            // No stock data needed for PO preview
-
-            // Use actual_price first, then harga from po_items, then fallback to product price
-            const finalPrice = item.actual_price || item.harga || product?.harga || 0
-            const finalTotal = item.total || (finalPrice * item.qty)
-
-            return {
-              ...item,
-              product_name: product?.product_name || 'Unknown Product',
-              merk: product?.merk || '',
-              unit_besar: item.unit_besar || product?.unit_besar || 'pcs',
-              stock_qty: 0,
-              harga: finalPrice,
-              total: finalTotal
-            }
-          })
-        )
+          return {
+            ...item,
+            product_name: product?.product_name || 'Unknown Product',
+            merk: product?.merk || '',
+            unit_besar: item.unit_besar || product?.unit_besar || 'pcs',
+            stock_qty: 0,
+            harga: finalPrice,
+            total: finalTotal
+          }
+        })
 
         setPOItems(itemsWithStock)
 
@@ -141,50 +139,34 @@ function OnProgressPO() {
           .eq('id_branch', po.cabang_id)
           .single()
 
-        // Fetch PIC name from users table
-        let picName = 'PIC Tidak Ditemukan'
-        if (branchData?.pic_id) {
-          const { data: userData } = await supabase
+        // Batch fetch all user data to avoid N+1
+        const userIds = [branchData?.pic_id, branchData?.created_by, branchData?.updated_by].filter(Boolean)
+        let userMap = new Map()
+        
+        if (userIds.length > 0) {
+          const { data: users } = await supabase
             .from('users')
-            .select('nama_lengkap')
-            .eq('id_user', branchData.pic_id)
-            .single()
+            .select('id_user, nama_lengkap')
+            .in('id_user', userIds)
           
-          picName = userData?.nama_lengkap || 'PIC Tidak Ditemukan'
+          userMap = new Map((users || []).map(u => [u.id_user, u]))
         }
-
-        // Setelah mengambil data branch, tambahkan query untuk mendapatkan informasi created_by dan updated_by
+        
+        // Process branch data with batched user data
         if (branchData) {
-          let createdByName = 'System'
-          let updatedByName = 'System'
+          const picUser = userMap.get(branchData.pic_id)
+          const createdByUser = userMap.get(branchData.created_by)
+          const updatedByUser = userMap.get(branchData.updated_by)
           
-          // Get created_by name
-          if (branchData.created_by) {
-            const { data: createdByUser } = await supabase
-              .from('users')
-              .select('nama_lengkap')
-              .eq('id_user', branchData.created_by)
-              .single()
-            createdByName = createdByUser?.nama_lengkap || 'System'
-          }
-          
-          // Get updated_by name
-          if (branchData.updated_by) {
-            const { data: updatedByUser } = await supabase
-              .from('users')
-              .select('nama_lengkap')
-              .eq('id_user', branchData.updated_by)
-              .single()
-            updatedByName = updatedByUser?.nama_lengkap || 'System'
-          }
-          
-          // Set branch data dengan semua informasi
           setBranch({ 
             ...branchData, 
-            pic: picName,
-            created_by_name: createdByName,
-            updated_by_name: updatedByName
+            pic: picUser?.nama_lengkap || 'PIC Tidak Ditemukan',
+            created_by_name: createdByUser?.nama_lengkap || 'System',
+            updated_by_name: updatedByUser?.nama_lengkap || 'System'
           })
+          
+          // Set PIC cabang sebagai user yang membuat PO
+          setCreatedByUser({ nama_lengkap: picUser?.nama_lengkap || 'PIC Tidak Ditemukan' })
         }
 
         // Fetch supplier data with payment terms
@@ -250,8 +232,7 @@ function OnProgressPO() {
           }
         }
 
-        // Set PIC cabang sebagai user yang membuat PO
-        setCreatedByUser({ nama_lengkap: picName })
+
       }
     } catch (error) {
       console.error('Error fetching PO data:', error)
@@ -260,7 +241,7 @@ function OnProgressPO() {
     }
   }
 
-  const handleApprove = async () => {
+  const handleApprove = useCallback(async () => {
     if (!poData) {
       alert('Data PO tidak tersedia')
       return
@@ -268,9 +249,9 @@ function OnProgressPO() {
 
     setIsApprovalMode(true)
     setShowWhatsAppModal(true)
-  }
+  }, [poData])
 
-  const handleExportWhatsApp = () => {
+  const handleExportWhatsApp = useCallback(() => {
     if (!poData) {
       alert('Data PO tidak tersedia')
       return
@@ -278,7 +259,7 @@ function OnProgressPO() {
 
     setIsApprovalMode(false)
     setShowWhatsAppModal(true)
-  }
+  }, [poData])
 
   const handleFinalApprove = async () => {
     if (!poData || !selectedUser) {
@@ -446,7 +427,7 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
     }
   }
 
-  const handleItemChange = (itemId: number, field: string, value: number) => {
+  const handleItemChange = useCallback((itemId: number, field: string, value: number) => {
     setPOItems(prev => prev.map(item => {
       if (item.id === itemId) {
         const updatedItem = { ...item, [field]: value }
@@ -458,7 +439,7 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
       }
       return item
     }))
-  }
+  }, [])
 
 
 
@@ -496,8 +477,9 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
     }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
+  const statusColor = useMemo(() => {
+    if (!poData) return 'bg-gray-100 text-gray-800'
+    switch (poData.status) {
       case 'Pending': return 'bg-yellow-100 text-yellow-800'
       case 'Sedang diproses': return 'bg-blue-100 text-blue-800'
       case 'Dibatalkan': return 'bg-red-100 text-red-800'
@@ -505,16 +487,17 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
       case 'Sampai Sebagian': return 'bg-green-100 text-green-800'
       default: return 'bg-gray-100 text-gray-800'
     }
-  }
+  }, [poData?.status])
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
+  const priorityColor = useMemo(() => {
+    if (!poData) return 'bg-gray-100 text-gray-800'
+    switch (poData.priority) {
       case 'tinggi': return 'bg-red-100 text-red-800'
       case 'sedang': return 'bg-orange-100 text-orange-800'
       case 'biasa': return 'bg-green-100 text-green-800'
       default: return 'bg-gray-100 text-gray-800'
     }
-  }
+  }, [poData?.priority])
 
   if (loading) {
     return (
@@ -684,10 +667,10 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 md:mb-6">
               <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-2 md:mb-0">Informasi Purchase Order</h2>
               <div className="flex gap-2">
-                <span className={`px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-medium ${getStatusColor(poData.status)}`}>
+                <span className={`px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-medium ${statusColor}`}>
                   {poData.status}
                 </span>
-                <span className={`px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-medium ${getPriorityColor(poData.priority)}`}>
+                <span className={`px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-medium ${priorityColor}`}>
                   {poData.priority.toUpperCase()}
                 </span>
               </div>

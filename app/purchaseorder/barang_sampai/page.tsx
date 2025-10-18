@@ -120,7 +120,7 @@ export default function FinishPO() {
 
   const fetchPOData = async (poId: number) => {
     try {
-      console.log('Fetching PO data for ID:', poId)
+
       
       const { data: po, error: poError } = await supabase
         .from('purchase_orders')
@@ -137,7 +137,7 @@ export default function FinishPO() {
         throw new Error('PO tidak ditemukan')
       }
 
-      console.log('PO data:', po)
+
       
       // Load existing invoice number if PO already has arrival date
       if (po.tanggal_barang_sampai) {
@@ -192,7 +192,7 @@ export default function FinishPO() {
         .select('*')
         .eq('po_id', poId)
 
-      console.log('PO items:', items)
+
 
       // Get product names and use PO item prices
       const poItems = await Promise.all(
@@ -211,7 +211,7 @@ export default function FinishPO() {
         })
       )
 
-      console.log('Final PO items with products:', poItems)
+
 
       setPOData({
         ...po,
@@ -468,19 +468,18 @@ export default function FinishPO() {
         throw new Error('Tidak ada item yang akan disimpan ke barang_masuk')
       }
 
-      console.log('Prepared barang_masuk data:', barangMasukInserts)
-      console.log('Number of items to insert:', barangMasukInserts.length)
+
 
       // STEP 2: Execute atomic transaction
       try {
         // 2A: Insert to barang_masuk FIRST (most critical)
-        console.log('🔄 Attempting to insert barang_masuk data...')
+
         const { data: insertedData, error: barangMasukError } = await supabase
           .from('barang_masuk')
           .insert(barangMasukInserts)
           .select()
         
-        console.log('Insert result - data:', insertedData, 'error:', barangMasukError)
+
 
         if (barangMasukError) {
           console.error('Barang Masuk Insert Error:', barangMasukError)
@@ -488,7 +487,7 @@ export default function FinishPO() {
           throw new Error(`Gagal menyimpan data barang masuk: ${errorMessage}`)
         }
 
-        console.log('✅ Barang masuk data inserted successfully')
+
 
         // 2B: Update PO items (secondary)
         for (const update of poItemUpdates) {
@@ -530,7 +529,7 @@ export default function FinishPO() {
           throw new Error(`Gagal update status PO: ${errorMessage}`)
         }
 
-        console.log('✅ PO status updated successfully')
+
 
       } catch (transactionError) {
         console.error('Transaction failed:', transactionError)
