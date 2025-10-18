@@ -20,6 +20,8 @@ interface PurchaseOrder {
   created_at: string
   created_by_name: string
   tanggal_barang_sampai?: string
+  received_by_name?: string
+  received_at?: string
   total_harga: number
   items: Array<{product_name: string, qty: number}>
 }
@@ -286,7 +288,7 @@ function PurchaseOrderPageContent() {
 
       let query = supabase
         .from('purchase_orders')
-        .select('*')
+        .select('*, received_by_name, received_at')
         .order('created_at', { ascending: false })
         .range(from, to)
 
@@ -389,6 +391,8 @@ function PurchaseOrderPageContent() {
           created_at: po.created_at,
           created_by_name: 'System',
           tanggal_barang_sampai: po.tanggal_barang_sampai,
+          received_by_name: po.received_by_name,
+          received_at: po.received_at,
           total_harga: totalHarga,
           items: poItems
         }
@@ -585,7 +589,7 @@ function PurchaseOrderPageContent() {
       // Fetch all purchase orders without pagination for export
       let query = supabase
         .from('purchase_orders')
-        .select('*')
+        .select('*, received_by_name, received_at')
         .order('created_at', { ascending: false })
 
       // Apply current filters
@@ -1181,9 +1185,16 @@ function PurchaseOrderPageContent() {
                           </td>
                           <td className="px-2 py-2">
                             {po.tanggal_barang_sampai ? (
-                              <div className="flex items-center text-xs text-gray-900">
-                                <Calendar size={12} className="mr-1 text-green-400" />
-                                <span>{formatDate(po.tanggal_barang_sampai)}</span>
+                              <div>
+                                <div className="flex items-center text-xs text-gray-900">
+                                  <Calendar size={12} className="mr-1 text-green-400" />
+                                  <span>{formatDate(po.tanggal_barang_sampai)}</span>
+                                </div>
+                                {po.received_by_name && (
+                                  <div className="text-xs text-green-600 mt-1">
+                                    Diterima: {po.received_by_name}
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <span className="text-gray-400 text-xs">-</span>
@@ -1319,9 +1330,16 @@ function PurchaseOrderPageContent() {
                           <div>
                             <div className="text-sm font-medium text-gray-700 mb-1">Tanggal Barang Sampai:</div>
                             {po.tanggal_barang_sampai ? (
-                              <div className="flex items-center text-sm text-gray-900">
-                                <Calendar size={14} className="mr-1 text-green-400" />
-                                {formatDate(po.tanggal_barang_sampai)}
+                              <div>
+                                <div className="flex items-center text-sm text-gray-900">
+                                  <Calendar size={14} className="mr-1 text-green-400" />
+                                  {formatDate(po.tanggal_barang_sampai)}
+                                </div>
+                                {po.received_by_name && (
+                                  <div className="text-sm text-green-600 mt-1">
+                                    Diterima oleh: {po.received_by_name}
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <span className="text-gray-400 text-sm">-</span>

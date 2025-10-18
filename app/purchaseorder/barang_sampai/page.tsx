@@ -18,6 +18,9 @@ interface POData {
   branch_name?: string
   total_harga?: number
   items?: POItem[]
+  received_by?: number
+  received_by_name?: string
+  received_at?: string
 }
 
 interface POItem {
@@ -36,10 +39,11 @@ export default function FinishPO() {
   const [formData, setFormData] = useState({
     tanggal_barang_sampai: new Date().toISOString().split('T')[0],
     invoice_number: '',
-    foto_barang: null as File | null,
+    foto_barang: [] as File[],
     keterangan: ''
   })
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewUrls, setPreviewUrls] = useState<string[]>([])
+  const MAX_PHOTOS = 5
 
   const [receivedItems, setReceivedItems] = useState<Record<number, {qty: number, harga: number, status: 'received' | 'partial' | 'not_received'}>>({})
 
@@ -65,7 +69,7 @@ export default function FinishPO() {
     window.addEventListener('beforeunload', handleBeforeUnload)
     
     return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl)
+      previewUrls.forEach(url => URL.revokeObjectURL(url))
       window.removeEventListener('beforeunload', handleBeforeUnload)
       // Unlock PO when leaving page
       if (poId) {
@@ -116,7 +120,7 @@ export default function FinishPO() {
       
       const { data: po, error: poError } = await supabase
         .from('purchase_orders')
-        .select('*')
+        .select('*, received_by, received_by_name, received_at')
         .eq('id', poId)
         .single()
 
@@ -148,16 +152,19 @@ export default function FinishPO() {
           }))
         }
         
-        // Load existing photo if exists
+        // Load existing photos if exist
         const { data: files } = await supabase.storage
           .from('po-photos')
           .list('', { search: po.po_number })
         
         if (files && files.length > 0) {
-          const { data } = supabase.storage
-            .from('po-photos')
-            .getPublicUrl(files[0].name)
-          setPreviewUrl(data.publicUrl)
+          const urls = files.map(file => {
+            const { data } = supabase.storage
+              .from('po-photos')
+              .getPublicUrl(file.name)
+            return data.publicUrl
+          })
+          setPreviewUrls(urls)
         }
       }
 
@@ -229,22 +236,47 @@ export default function FinishPO() {
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
+    const files = Array.from(e.target.files || [])
+    
+    if (formData.foto_barang.length + files.length > MAX_PHOTOS) {
+      alert(`Maksimal ${MAX_PHOTOS} foto`)
+      return
+    }
+    
+    const validFiles: File[] = []
+    const newUrls: string[] = []
+    
+    for (const file of files) {
       if (!file.type.startsWith('image/')) {
-        alert('File harus berupa gambar')
-        return
+        alert(`File ${file.name} harus berupa gambar`)
+        continue
       }
       
       if (file.size > 5 * 1024 * 1024) {
-        alert('Ukuran file maksimal 5MB')
-        return
+        alert(`File ${file.name} maksimal 5MB`)
+        continue
       }
       
-      const url = URL.createObjectURL(file)
-      setPreviewUrl(url)
-      setFormData(prev => ({ ...prev, foto_barang: file }))
+      validFiles.push(file)
+      newUrls.push(URL.createObjectURL(file))
     }
+    
+    if (validFiles.length > 0) {
+      setFormData(prev => ({ 
+        ...prev, 
+        foto_barang: [...prev.foto_barang, ...validFiles] 
+      }))
+      setPreviewUrls(prev => [...prev, ...newUrls])
+    }
+  }
+  
+  const removePhoto = (index: number) => {
+    URL.revokeObjectURL(previewUrls[index])
+    setPreviewUrls(prev => prev.filter((_, i) => i !== index))
+    setFormData(prev => ({ 
+      ...prev, 
+      foto_barang: prev.foto_barang.filter((_, i) => i !== index) 
+    }))
   }
 
   const handleReceivedItemChange = (itemId: number, field: 'qty' | 'harga' | 'status', value: number | string) => {
@@ -270,28 +302,33 @@ export default function FinishPO() {
         throw new Error('Invoice number harus diisi')
       }
 
-      if (!formData.foto_barang && !previewUrl) {
-        throw new Error('Foto barang sampai harus diupload')
+      if (formData.foto_barang.length === 0 && previewUrls.length === 0) {
+        throw new Error('Minimal 1 foto barang sampai harus diupload')
       }
 
-      let fileName = null
+      const uploadedFileNames: string[] = []
       
-      // Upload photo if provided
-      if (formData.foto_barang) {
+      // Upload multiple photos if provided
+      if (formData.foto_barang.length > 0) {
         try {
-          const fileExt = formData.foto_barang.name.split('.').pop()
-          fileName = `${poData.po_number}_${Date.now()}.${fileExt}`
-          
-          const { error: uploadError } = await supabase.storage
-            .from('po-photos')
-            .upload(fileName, formData.foto_barang, {
-              cacheControl: '3600',
-              upsert: true
-            })
+          for (let i = 0; i < formData.foto_barang.length; i++) {
+            const file = formData.foto_barang[i]
+            const fileExt = file.name.split('.').pop()
+            const fileName = `${poData.po_number}_${i + 1}_${Date.now()}.${fileExt}`
+            
+            const { error: uploadError } = await supabase.storage
+              .from('po-photos')
+              .upload(fileName, file, {
+                cacheControl: '3600',
+                upsert: true
+              })
 
-          if (uploadError) {
-            console.error('Upload error details:', uploadError)
-            throw new Error(`Gagal upload foto: ${uploadError.message}`)
+            if (uploadError) {
+              console.error('Upload error details:', uploadError)
+              throw new Error(`Gagal upload foto ${i + 1}: ${uploadError.message}`)
+            }
+            
+            uploadedFileNames.push(fileName)
           }
         } catch (err) {
           console.error('Upload exception:', err)
@@ -397,7 +434,10 @@ export default function FinishPO() {
           .from('purchase_orders')
           .update({
             status: 'Barang sampai',
-            tanggal_barang_sampai: formData.tanggal_barang_sampai
+            tanggal_barang_sampai: formData.tanggal_barang_sampai,
+            received_by: user.id_user,
+            received_by_name: user.nama_lengkap || user.username,
+            received_at: new Date().toISOString()
           })
           .eq('id', poData.id)
 
@@ -542,8 +582,8 @@ export default function FinishPO() {
             </div>
           </div>
 
-          <div className="bg-blue-50 rounded-lg p-1">
-            <div className="grid grid-cols-2 md:grid-cols-2 gap-2 text-sm">
+          <div className="bg-blue-50 rounded-lg p-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
               <div>
                 <span className="text-gray-600">Nomor PO:</span>
                 <p className="font-medium">{poData.po_number}</p>
@@ -560,11 +600,26 @@ export default function FinishPO() {
                 <span className="text-gray-600">Status:</span>
                 <p className="font-medium text-blue-600">{poData.status}</p>
               </div>
+              <div>
+                <span className="text-gray-600">Supplier:</span>
+                <p className="font-medium">{poData.supplier_name}</p>
+              </div>
+              {poData.received_by_name && (
+                <div>
+                  <span className="text-gray-600">Diterima oleh:</span>
+                  <p className="font-medium text-green-600">{poData.received_by_name}</p>
+                  {poData.received_at && (
+                    <p className="text-xs text-gray-500">
+                      {new Date(poData.received_at).toLocaleString('id-ID')}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Tanggal Barang Sampai *
@@ -592,49 +647,58 @@ export default function FinishPO() {
                 />
               </div>
 
-              <div>
+              <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Foto NOTA !!!!! *
+                  Foto NOTA ({formData.foto_barang.length}/{MAX_PHOTOS}) *
                 </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                    id="foto-upload"
-                  />
-                  {previewUrl ? (
-                    <div className="space-y-2">
-                      <img 
-                        src={previewUrl} 
-                        alt="Preview" 
-                        className="w-32 h-32 object-cover rounded-lg mx-auto"
+                <div className="space-y-4">
+                  {/* Upload Area */}
+                  {formData.foto_barang.length < MAX_PHOTOS && (
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleFileChange}
+                        className="hidden"
+                        id="foto-upload"
                       />
-                      <p className="text-sm text-center text-gray-600">{formData.foto_barang?.name}</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (previewUrl) URL.revokeObjectURL(previewUrl)
-                          setPreviewUrl(null)
-                          setFormData(prev => ({ ...prev, foto_barang: null }))
-                        }}
-                        className="text-red-600 text-sm hover:underline block mx-auto"
+                      <label
+                        htmlFor="foto-upload"
+                        className="cursor-pointer flex flex-col items-center space-y-2"
                       >
-                        Hapus foto
-                      </button>
+                        <Camera className="text-gray-400" size={32} />
+                        <span className="text-sm text-gray-600">Klik untuk upload foto</span>
+                        <span className="text-xs text-gray-500">
+                          Format: JPG, PNG (Max 5MB per foto, Max {MAX_PHOTOS} foto)
+                        </span>
+                      </label>
                     </div>
-                  ) : (
-                    <label
-                      htmlFor="foto-upload"
-                      className="cursor-pointer flex flex-col items-center space-y-2"
-                    >
-                      <Camera className="text-gray-400" size={32} />
-                      <span className="text-sm text-gray-600">Klik untuk upload foto</span>
-                      <span className="text-xs text-gray-500">
-                        Format: JPG, PNG (Max 5MB)
-                      </span>
-                    </label>
+                  )}
+                  
+                  {/* Photo Previews */}
+                  {previewUrls.length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {previewUrls.map((url, index) => (
+                        <div key={index} className="relative">
+                          <img 
+                            src={url} 
+                            alt={`Preview ${index + 1}`} 
+                            className="w-full h-24 object-cover rounded-lg"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removePhoto(index)}
+                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                          >
+                            ×
+                          </button>
+                          <p className="text-xs text-center text-gray-600 mt-1 truncate">
+                            {formData.foto_barang[index]?.name || `Foto ${index + 1}`}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
