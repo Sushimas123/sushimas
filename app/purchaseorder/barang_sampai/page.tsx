@@ -40,10 +40,13 @@ export default function FinishPO() {
     tanggal_barang_sampai: new Date().toISOString().split('T')[0],
     invoice_number: '',
     foto_barang: [] as File[],
+    foto_product: [] as File[],
     keterangan: ''
   })
   const [previewUrls, setPreviewUrls] = useState<string[]>([])
-  const MAX_PHOTOS = 5
+  const [productPreviewUrls, setProductPreviewUrls] = useState<string[]>([])
+  const MAX_PHOTOS = 1
+  const MAX_PRODUCT_PHOTOS = 5
 
   const [receivedItems, setReceivedItems] = useState<Record<number, {qty: number, harga: number, status: 'received' | 'partial' | 'not_received'}>>({})
 
@@ -70,6 +73,7 @@ export default function FinishPO() {
     
     return () => {
       previewUrls.forEach(url => URL.revokeObjectURL(url))
+      productPreviewUrls.forEach(url => URL.revokeObjectURL(url))
       window.removeEventListener('beforeunload', handleBeforeUnload)
       // Unlock PO when leaving page
       if (poId) {
@@ -279,6 +283,50 @@ export default function FinishPO() {
     }))
   }
 
+  const handleProductFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    
+    if (formData.foto_product.length + files.length > MAX_PRODUCT_PHOTOS) {
+      alert(`Maksimal ${MAX_PRODUCT_PHOTOS} foto`)
+      return
+    }
+    
+    const validFiles: File[] = []
+    const newUrls: string[] = []
+    
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        alert(`File ${file.name} harus berupa gambar`)
+        continue
+      }
+      
+      if (file.size > 5 * 1024 * 1024) {
+        alert(`File ${file.name} maksimal 5MB`)
+        continue
+      }
+      
+      validFiles.push(file)
+      newUrls.push(URL.createObjectURL(file))
+    }
+    
+    if (validFiles.length > 0) {
+      setFormData(prev => ({ 
+        ...prev, 
+        foto_product: [...prev.foto_product, ...validFiles] 
+      }))
+      setProductPreviewUrls(prev => [...prev, ...newUrls])
+    }
+  }
+  
+  const removeProductPhoto = (index: number) => {
+    URL.revokeObjectURL(productPreviewUrls[index])
+    setProductPreviewUrls(prev => prev.filter((_, i) => i !== index))
+    setFormData(prev => ({ 
+      ...prev, 
+      foto_product: prev.foto_product.filter((_, i) => i !== index) 
+    }))
+  }
+
   const handleReceivedItemChange = (itemId: number, field: 'qty' | 'harga' | 'status', value: number | string) => {
     setReceivedItems(prev => ({
       ...prev,
@@ -308,13 +356,13 @@ export default function FinishPO() {
 
       const uploadedFileNames: string[] = []
       
-      // Upload multiple photos if provided
+      // Upload nota photos if provided
       if (formData.foto_barang.length > 0) {
         try {
           for (let i = 0; i < formData.foto_barang.length; i++) {
             const file = formData.foto_barang[i]
             const fileExt = file.name.split('.').pop()
-            const fileName = `${poData.po_number}_${i + 1}_${Date.now()}.${fileExt}`
+            const fileName = `${poData.po_number}_nota_${i + 1}_${Date.now()}.${fileExt}`
             
             const { error: uploadError } = await supabase.storage
               .from('po-photos')
@@ -325,14 +373,42 @@ export default function FinishPO() {
 
             if (uploadError) {
               console.error('Upload error details:', uploadError)
-              throw new Error(`Gagal upload foto ${i + 1}: ${uploadError.message}`)
+              throw new Error(`Gagal upload foto nota ${i + 1}: ${uploadError.message}`)
             }
             
             uploadedFileNames.push(fileName)
           }
         } catch (err) {
           console.error('Upload exception:', err)
-          throw new Error(`Gagal upload foto: ${err instanceof Error ? err.message : 'Network error'}`)
+          throw new Error(`Gagal upload foto nota: ${err instanceof Error ? err.message : 'Network error'}`)
+        }
+      }
+
+      // Upload product photos if provided
+      if (formData.foto_product.length > 0) {
+        try {
+          for (let i = 0; i < formData.foto_product.length; i++) {
+            const file = formData.foto_product[i]
+            const fileExt = file.name.split('.').pop()
+            const fileName = `${poData.po_number}_product_${i + 1}_${Date.now()}.${fileExt}`
+            
+            const { error: uploadError } = await supabase.storage
+              .from('po-photos')
+              .upload(fileName, file, {
+                cacheControl: '3600',
+                upsert: true
+              })
+
+            if (uploadError) {
+              console.error('Upload error details:', uploadError)
+              throw new Error(`Gagal upload foto product ${i + 1}: ${uploadError.message}`)
+            }
+            
+            uploadedFileNames.push(fileName)
+          }
+        } catch (err) {
+          console.error('Upload exception:', err)
+          throw new Error(`Gagal upload foto product: ${err instanceof Error ? err.message : 'Network error'}`)
         }
       }
 
@@ -647,7 +723,7 @@ export default function FinishPO() {
                 />
               </div>
 
-              <div className="col-span-2">
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Foto NOTA ({formData.foto_barang.length}/{MAX_PHOTOS}) *
                 </label>
@@ -695,6 +771,62 @@ export default function FinishPO() {
                           </button>
                           <p className="text-xs text-center text-gray-600 mt-1 truncate">
                             {formData.foto_barang[index]?.name || `Foto ${index + 1}`}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Foto Product ({formData.foto_product.length}/{MAX_PRODUCT_PHOTOS})
+                </label>
+                <div className="space-y-4">
+                  {/* Upload Area */}
+                  {formData.foto_product.length < MAX_PRODUCT_PHOTOS && (
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleProductFileChange}
+                        className="hidden"
+                        id="foto-product-upload"
+                      />
+                      <label
+                        htmlFor="foto-product-upload"
+                        className="cursor-pointer flex flex-col items-center space-y-2"
+                      >
+                        <Camera className="text-gray-400" size={32} />
+                        <span className="text-sm text-gray-600">Klik untuk upload foto</span>
+                        <span className="text-xs text-gray-500">
+                          Format: JPG, PNG (Max 5MB per foto, Max {MAX_PRODUCT_PHOTOS} foto)
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                  
+                  {/* Photo Previews */}
+                  {productPreviewUrls.length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {productPreviewUrls.map((url, index) => (
+                        <div key={index} className="relative">
+                          <img 
+                            src={url} 
+                            alt={`Product Preview ${index + 1}`} 
+                            className="w-full h-24 object-cover rounded-lg"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeProductPhoto(index)}
+                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                          >
+                            ×
+                          </button>
+                          <p className="text-xs text-center text-gray-600 mt-1 truncate">
+                            {formData.foto_product[index]?.name || `Product ${index + 1}`}
                           </p>
                         </div>
                       ))}
