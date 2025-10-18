@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
 import { DollarSign, FileText, AlertTriangle, TrendingUp, Search, Plus, Filter, X, ChevronDown, ChevronRight, Calendar, Building, User, CreditCard, Clock, CheckCircle, AlertCircle, Edit, ChevronUp, Download, LinkIcon, Receipt } from 'lucide-react'
 import Layout from '../../../components/Layout'
@@ -221,6 +221,11 @@ export default function FinancePurchaseOrders() {
   const [isMobileView, setIsMobileView] = useState(false)
   const [selectedMobileItem, setSelectedMobileItem] = useState<FinanceData | null>(null)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [showImageModal, setShowImageModal] = useState<string | null>(null)
+  
+  // Scroll sync refs
+  const topScrollRef = useRef<HTMLDivElement>(null)
+  const tableScrollRef = useRef<HTMLDivElement>(null)
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -643,6 +648,31 @@ export default function FinancePurchaseOrders() {
     }).format(amount)
   }
 
+  // Approval Photo Thumbnail Component
+  const ApprovalPhotoThumbnail = ({ po }: { po: any }) => {
+    if (!po.approval_photo) {
+      return <span className="text-gray-400 text-xs">-</span>
+    }
+
+    const imageUrl = `${supabase.storage.from('po-photos').getPublicUrl(po.approval_photo).data.publicUrl}`
+
+    return (
+      <div 
+        className="cursor-pointer hover:opacity-80 transition-opacity"
+        onClick={() => setShowImageModal(po.id.toString())}
+      >
+        <img 
+          src={imageUrl}
+          alt="Approval"
+          className="w-12 h-12 object-cover rounded border border-gray-300"
+        />
+        <div className="text-xs text-gray-500 mt-1 text-center">
+          📷 View
+        </div>
+      </div>
+    )
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('id-ID', {
       day: '2-digit',
@@ -1044,7 +1074,7 @@ export default function FinancePurchaseOrders() {
                 )}
               </div>
 
-              {/* Approval Photo */}
+              {/* Foto Approval */}
               <div>
                 <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
                   <FileText className="h-4 w-4 mr-2" />
@@ -1066,6 +1096,74 @@ export default function FinancePurchaseOrders() {
                   </div>
                 ) : (
                   <p className="text-sm text-gray-500">Belum ada foto approval</p>
+                )}
+              </div>
+
+              {/* Rincian Items PO */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Rincian Items PO
+                </h3>
+                {rowDetails[item.id]?.items?.length > 0 ? (
+                  <div className="bg-white rounded border border-gray-200 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-xs">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-2 py-1 text-left font-medium text-gray-500">Produk</th>
+                            <th className="px-2 py-1 text-center font-medium text-gray-500">Qty PO</th>
+                            <th className="px-2 py-1 text-center font-medium text-gray-500">Qty Diterima</th>
+                            <th className="px-2 py-1 text-center font-medium text-gray-500">Qty Tagih</th>
+                            <th className="px-2 py-1 text-right font-medium text-gray-500">Harga PO</th>
+                            <th className="px-2 py-1 text-right font-medium text-gray-500">Harga Diterima</th>
+                            <th className="px-2 py-1 text-right font-medium text-gray-500">Harga Tagih</th>
+                            <th className="px-2 py-1 text-right font-medium text-gray-500">Total PO</th>
+                            <th className="px-2 py-1 text-right font-medium text-gray-500">Total Aktual</th>
+                            <th className="px-2 py-1 text-right font-medium text-gray-500">Total Tagih</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {rowDetails[item.id].items.map((poItem: any) => (
+                            <tr key={poItem.id}>
+                              <td className="px-2 py-1 font-medium">{poItem.product_name || `Product ${poItem.product_id}`}</td>
+                              <td className="px-2 py-1 text-center">{poItem.qty}</td>
+                              <td className="px-2 py-1 text-center">{poItem.received_qty || poItem.qty}</td>
+                              <td className="px-2 py-1 text-center">{poItem.received_qty || poItem.qty}</td>
+                              <td className="px-2 py-1 text-right">{formatCurrency(poItem.harga || 0)}</td>
+                              <td className="px-2 py-1 text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
+                              <td className="px-2 py-1 text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
+                              <td className="px-2 py-1 text-right font-medium">{formatCurrency((poItem.qty) * (poItem.harga || 0))}</td>
+                              <td className="px-2 py-1 text-right font-medium">{formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}</td>
+                              <td className="px-2 py-1 text-right font-medium">{formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="bg-gray-100 border-t border-gray-300">
+                          <tr>
+                            <td className="px-2 py-1 text-xs font-bold" colSpan={7}>TOTAL:</td>
+                            <td className="px-2 py-1 text-right text-xs font-bold">
+                              {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
+                                sum + (parseFloat(poItem.qty) || 0) * (parseFloat(poItem.harga) || 0), 0
+                              ))}
+                            </td>
+                            <td className="px-2 py-1 text-right text-xs font-bold">
+                              {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
+                                sum + (parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
+                              ))}
+                            </td>
+                            <td className="px-2 py-1 text-right text-xs font-bold">
+                              {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
+                                sum + (parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
+                              ))}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">Tidak ada item</p>
                 )}
               </div>
 
@@ -1791,64 +1889,7 @@ export default function FinancePurchaseOrders() {
     <Layout>
       <PageAccessControl pageName="finance">
         <div className="p-3 md:p-6 bg-gray-50 min-h-screen">
-          {/* Summary Cards - Mobile Optimized */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-2 md:gap-3 mb-4 md:mb-6">
-            <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
-              <div className="flex items-center">
-                <div className="ml-3">
-                  <p className="text-xs text-gray-600">Total PO</p>
-                  <p className="text-sm font-semibold">{formatCurrency(summary.totalPO)}</p>
-                  <p className="text-xs text-gray-500">{summary.totalOrders} orders</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
-              <div className="flex items-center">                
-                <div className="ml-3">
-                  <p className="text-xs text-gray-600">Sudah Dibayar</p>
-                  <p className="text-sm font-semibold">{formatCurrency(summary.totalPaid)}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
-              <div className="flex items-center">                
-                <div className="ml-3">
-                  <p className="text-xs text-gray-600">Outstanding</p>
-                  <p className="text-sm font-semibold">{formatCurrency(summary.outstanding)}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
-              <div className="flex items-center">
-                <div className="ml-3">
-                  <p className="text-xs text-gray-600">Overdue</p>
-                  <p className="text-sm font-semibold">{formatCurrency(summary.overdue)}</p>
-                  <p className="text-xs text-gray-500">{summary.overdueOrders} orders</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white p-3 rounded-lg shadow border border-gray-200 col-span-2">
-              <div className="flex justify-between items-center h-full">
-                <div>
-                  <p className="text-xs text-gray-600">Last Updated</p>
-                  <p className="text-sm font-semibold">{new Date().toLocaleDateString('id-ID', { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}</p>
-                </div>
-                <button 
-                  onClick={fetchFinanceData}
-                  className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700"
-                >
-                  Refresh Data
-                </button>
-              </div>
-            </div>
-          </div>
+
 
           {/* Bulk Actions */}
           {selectedPOs.length > 0 && (
@@ -2569,7 +2610,27 @@ export default function FinancePurchaseOrders() {
 
           {/* Desktop Table View */}
           <div className="hidden md:block bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto max-h-[70vh]">
+            {/* Top horizontal scrollbar */}
+            <div 
+              ref={topScrollRef}
+              className="overflow-x-auto border-b border-gray-200 bg-gray-50"
+              onScroll={(e) => {
+                if (tableScrollRef.current) {
+                  tableScrollRef.current.scrollLeft = e.currentTarget.scrollLeft
+                }
+              }}
+            >
+              <div className="h-4" style={{width: '1800px'}}></div>
+            </div>
+            <div 
+              ref={tableScrollRef}
+              className="overflow-x-auto max-h-[70vh]"
+              onScroll={(e) => {
+                if (topScrollRef.current) {
+                  topScrollRef.current.scrollLeft = e.currentTarget.scrollLeft
+                }
+              }}
+            >
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-20">
                   <tr>
@@ -2939,9 +3000,9 @@ export default function FinancePurchaseOrders() {
                         {isExpanded && (
                           <tr className="bg-blue-50">
                             <td colSpan={24} className="px-4 py-4">
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                              <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                                 {/* Items List */}
-                                <div>
+                                <div className="md:col-span-4">
                                   <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
                                     <FileText className="h-4 w-4 mr-2" />
                                     Items yang Diterima
@@ -3001,7 +3062,7 @@ export default function FinancePurchaseOrders() {
                                 </div>
                                 
                                 {/* Payment History */}
-                                <div>
+                                <div className="md:col-span-2">
                                   <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
                                     <CreditCard className="h-4 w-4 mr-2" />
                                     Riwayat Pembayaran
@@ -3035,27 +3096,88 @@ export default function FinancePurchaseOrders() {
                                 </div>
                                 
                                 {/* Approval Photo */}
-                                <div>
+                                <div className="md:col-span-1">
                                   <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
                                     <FileText className="h-4 w-4 mr-2" />
-                                    Foto Approval
+                                    Approval
                                   </h3>
-                                  {(item as any).approval_photo ? (
-                                    <div className="bg-white rounded-md border border-gray-200 p-3">
-                                      <img 
-                                        src={`${supabase.storage.from('po-photos').getPublicUrl((item as any).approval_photo).data.publicUrl}`}
-                                        alt="Approval Photo"
-                                        className="m-full h-40 object-cover rounded-md cursor-pointer hover:opacity-80"
-                                        onClick={() => window.open(`${supabase.storage.from('po-photos').getPublicUrl((item as any).approval_photo).data.publicUrl}`, '_blank')}
-                                      />
-                                      <div className="mt-2 text-xs text-gray-500">
-                                        <p>Status: {(item as any).approval_status || 'pending'}</p>
-                                        <p>Total Tagih: {formatCurrency((item as any).total_tagih || 0)}</p>
-                                        {(item as any).keterangan && <p>Keterangan: {(item as any).keterangan}</p>}
-                                      </div>
+                                  <div className="bg-white rounded-md border border-gray-200 p-3">
+                                    <div className="flex justify-center">
+                                      <ApprovalPhotoThumbnail po={item} />
+                                    </div>
+                                    <div className="mt-2 space-y-1 text-xs text-center">
+                                      <p>Status: <span className="font-medium">{(item as any).approval_status || 'pending'}</span></p>
+                                      <p>Total Tagih: <span className="font-medium">{formatCurrency((item as any).total_tagih || 0)}</span></p>
+                                      {(item as any).keterangan && (
+                                        <p>Keterangan: {(item as any).keterangan}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Rincian Items PO */}
+                                <div className="md:col-span-5">
+                                  <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
+                                    <FileText className="h-4 w-4 mr-2" />
+                                    Rincian Items PO
+                                  </h3>
+                                  {rowDetails[item.id]?.items?.length > 0 ? (
+                                    <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
+                                      <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                          <tr>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Produk</th>
+                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Qty PO</th>
+                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Qty Diterima</th>
+                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Qty Tagih</th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Harga PO</th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Harga Diterima</th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Harga Tagih</th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total PO</th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total Aktual</th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total Tagih</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200">
+                                          {rowDetails[item.id].items.map((poItem: any) => (
+                                            <tr key={poItem.id}>
+                                              <td className="px-3 py-2 text-sm">{poItem.product_name || `Product ${poItem.product_id}`}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-center">{poItem.qty}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-center">{poItem.received_qty || poItem.qty}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-center">{poItem.received_qty || poItem.qty}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">{formatCurrency(poItem.harga || 0)}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">{formatCurrency((poItem.qty) * (poItem.harga || 0))}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">{formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">{formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                        <tfoot className="bg-gray-100 border-t border-gray-300">
+                                          <tr>
+                                            <td className="px-3 py-2 text-sm font-bold" colSpan={7}>TOTAL:</td>
+                                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-bold">
+                                              {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
+                                                sum + (parseFloat(poItem.qty) || 0) * (parseFloat(poItem.harga) || 0), 0
+                                              ))}
+                                            </td>
+                                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-bold">
+                                              {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
+                                                sum + (parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
+                                              ))}
+                                            </td>
+                                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-bold">
+                                              {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
+                                                sum + (parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
+                                              ))}
+                                            </td>
+                                          </tr>
+                                        </tfoot>
+                                      </table>
                                     </div>
                                   ) : (
-                                    <p className="text-sm text-gray-500">Belum ada foto approval</p>
+                                    <p className="text-sm text-gray-500">Tidak ada item</p>
                                   )}
                                 </div>
                                 
@@ -3302,6 +3424,48 @@ export default function FinancePurchaseOrders() {
           />
         )}
 
+        {/* Image Modal */}
+        {showImageModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-4 max-w-4xl max-h-[90vh]">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">
+                  Foto Approval - {data.find(po => po.id.toString() === showImageModal)?.po_number}
+                </h3>
+                <button 
+                  onClick={() => setShowImageModal(null)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              {(() => {
+                const po = data.find(p => p.id.toString() === showImageModal)
+                if (!po || !(po as any).approval_photo) return null
+                const imageUrl = `${supabase.storage.from('po-photos').getPublicUrl((po as any).approval_photo).data.publicUrl}`
+                return (
+                  <>
+                    <img 
+                      src={imageUrl}
+                      alt="Approval Photo Full Size"
+                      className="max-w-full max-h-[70vh] object-contain"
+                    />
+                    <div className="mt-4 text-sm text-gray-600">
+                      <p>Status: <span className={`font-medium ${
+                        (po as any).approval_status === 'approved' ? 'text-green-600' : 
+                        (po as any).approval_status === 'rejected' ? 'text-red-600' : 'text-orange-600'
+                      }`}>
+                        {(po as any).approval_status || 'pending'}
+                      </span></p>
+                      <p>Total Tagih: {formatCurrency((po as any).total_tagih || 0)}</p>
+                      {(po as any).keterangan && <p>Keterangan: {(po as any).keterangan}</p>}
+                    </div>
+                  </>
+                )
+              })()}
+            </div>
+          </div>
+        )}
 
       </PageAccessControl>
     </Layout>
