@@ -739,6 +739,8 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
                     <th className="text-left py-2 md:py-3 px-2 md:px-4 font-medium text-gray-700">Produk</th>
                     <th className="text-center py-2 md:py-3 px-2 md:px-4 font-medium text-gray-700">Qty</th>
                     <th className="text-center py-2 md:py-3 px-2 md:px-4 font-medium text-gray-700">Unit</th>
+                    <th className="text-right py-2 md:py-3 px-2 md:px-4 font-medium text-gray-700">Harga</th>
+                    <th className="text-right py-2 md:py-3 px-2 md:px-4 font-medium text-gray-700">Total</th>
                     <th className="text-left py-2 md:py-3 px-2 md:px-4 font-medium text-gray-700">Keterangan</th>
                     {poData.status === 'Pending' && (
                       <th className="text-center py-2 md:py-3 px-2 md:px-4 font-medium text-gray-700">Aksi</th>
@@ -767,6 +769,23 @@ _*Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}
                         )}
                       </td>
                       <td className="py-2 md:py-3 px-2 md:px-4 text-center text-xs md:text-sm">{item.unit_besar}</td>
+                      <td className="py-2 md:py-3 px-2 md:px-4 text-right">
+                        {editingItems[item.id] ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={item.harga || 0}
+                            onChange={(e) => handleItemChange(item.id, 'harga', parseFloat(e.target.value) || 0)}
+                            className="w-24 px-2 py-1 border rounded text-right text-xs md:text-sm"
+                            min="0"
+                          />
+                        ) : (
+                          <span className="text-xs md:text-sm">Rp {(item.harga || 0).toLocaleString('id-ID')}</span>
+                        )}
+                      </td>
+                      <td className="py-2 md:py-3 px-2 md:px-4 text-right">
+                        <span className="text-xs md:text-sm font-medium">Rp {(item.total || 0).toLocaleString('id-ID')}</span>
+                      </td>
                       <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.keterangan || '-'}</td>
                       {poData.status === 'Pending' && (
                         <td className="py-2 md:py-3 px-2 md:px-4 text-center">

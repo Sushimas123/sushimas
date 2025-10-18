@@ -265,23 +265,7 @@ export default function FinancePurchaseOrders() {
     return () => window.removeEventListener('resize', checkScreenSize)
   }, [])
 
-  // Performance monitoring
-  useEffect(() => {
-    const measureLoadTime = () => {
-      const loadTime = performance.now()
-      console.log(`Finance page loaded in ${loadTime.toFixed(2)}ms`)
-      
-      // Track performance metrics
-      if (loadTime > 3000) {
-        console.warn('Finance page load time is slow:', loadTime)
-      }
-    }
-    
-    // Measure when component is fully loaded
-    if (!loading && data.length > 0) {
-      measureLoadTime()
-    }
-  }, [loading, data])
+
 
   const fetchSuppliers = useCallback(async () => {
     const { data } = await supabase.from('suppliers').select('id_supplier, nama_supplier').order('nama_supplier')
@@ -435,14 +419,37 @@ export default function FinancePurchaseOrders() {
       const poIds = financeData.map(item => item.id)
       const poNumbers = financeData.map(item => item.po_number)
       
-      const [itemsData, paymentsData, poDetailsData, barangMasukData, bulkPaymentsData, paymentTermsData] = await Promise.all([
-        supabase.from('po_items').select('po_id, qty, harga, actual_price, received_qty, product_id').in('po_id', poIds),
+      // Split poIds into chunks to avoid Supabase limit
+      const chunkSize = 100
+      const poIdChunks = []
+      for (let i = 0; i < poIds.length; i += chunkSize) {
+        poIdChunks.push(poIds.slice(i, i + chunkSize))
+      }
+      
+      // Fetch po_items in chunks
+      const itemsDataChunks = await Promise.all(
+        poIdChunks.map(chunk => 
+          supabase.from('po_items').select('po_id, qty, harga, actual_price, received_qty, product_id').in('po_id', chunk)
+        )
+      )
+      
+      // Combine all items data
+      const allItemsData = itemsDataChunks.reduce((acc: any[], chunk) => {
+        if (chunk.data) acc.push(...chunk.data)
+        return acc
+      }, [])
+      
+      const itemsData = { data: allItemsData, error: null }
+      
+      const [paymentsData, poDetailsData, barangMasukData, bulkPaymentsData, paymentTermsData] = await Promise.all([
         supabase.from('po_payments').select('po_id, payment_amount, payment_date, payment_via, payment_method, reference_number, status').in('po_id', poIds).order('payment_date', { ascending: false }),
         supabase.from('purchase_orders').select('id, bulk_payment_ref, total_tagih, keterangan, approval_photo, approval_status, approved_at, rejected_at, rejection_notes, id_payment_term').in('id', poIds),
         supabase.from('barang_masuk').select('no_po, invoice_number').in('no_po', poNumbers),
         supabase.from('bulk_payments').select('*'),
         supabase.from('payment_terms').select('id_payment_term, term_name, calculation_type, days')
       ])
+      
+
 
       // Group data by po_id
       const itemsByPO: Record<number, any[]> = {}
@@ -480,15 +487,15 @@ export default function FinancePurchaseOrders() {
         const poData = poDetailsMap[item.id]
         const invoiceNumber = invoiceMap[item.po_number]
 
-        // Hitung correctedTotal (logic kamu)
-        let correctedTotal = 0
-        for (const poItem of items) {
-          if (poItem.actual_price && poItem.received_qty) {
-            correctedTotal += poItem.received_qty * poItem.actual_price
-          } else if (poItem.harga) {
-            correctedTotal += poItem.qty * poItem.harga
-          }
-        }
+        // Calculate total PO using original PO price (harga), not actual_price
+        const correctedTotal = items.reduce((sum, poItem) => {
+          const qty = parseFloat(poItem.qty) || 0
+          const harga = parseFloat(poItem.harga) || 0
+          const itemTotal = qty * harga
+          return sum + itemTotal
+        }, 0)
+        
+
 
         // Calculate payments (logic kamu)
         const totalPaid = payments.reduce((sum, p) => sum + p.payment_amount, 0)
@@ -1131,6 +1138,22 @@ export default function FinancePurchaseOrders() {
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot className="bg-gray-100 border-t border-gray-300">
+                    <tr>
+                      <td className="px-3 py-2 text-xs font-bold" colSpan={4}>Total PO:</td>
+                      <td className="px-3 py-2 text-right text-xs font-bold">
+                        {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
+                          sum + (parseFloat(poItem.qty) || 0) * (parseFloat(poItem.harga) || 0), 0
+                        ))}
+                      </td>
+                      <td className="px-3 py-2 text-right text-xs font-bold">
+                        {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
+                          sum + (parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
+                        ))}
+                      </td>
+                      <td className="px-3 py-2"></td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             ) : (
@@ -2341,6 +2364,22 @@ export default function FinancePurchaseOrders() {
                                     <td className="py-1">Status: {poItem.received_qty ? 'received' : 'pending'}</td>
                                   </tr>
                                 ))}
+                                <tr className="bg-gray-100 border-t border-gray-300">
+                                  <td className="py-1 text-xs font-bold" colSpan={6}>Total PO Asli (qty po × harga):</td>
+                                  <td className="py-1 text-right text-xs font-bold">
+                                    {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
+                                      sum + (parseFloat(poItem.qty) || 0) * (parseFloat(poItem.harga) || 0), 0
+                                    ))}
+                                  </td>
+                                </tr>
+                                <tr className="bg-gray-100">
+                                  <td className="py-1 text-xs font-bold" colSpan={6}>Total Aktual (qty diterima × harga aktual):</td>
+                                  <td className="py-1 text-right text-xs font-bold">
+                                    {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
+                                      sum + (parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
+                                    ))}
+                                  </td>
+                                </tr>
                               </tbody>
                             </table>
                           </div>
@@ -2891,6 +2930,24 @@ export default function FinancePurchaseOrders() {
                                             </tr>
                                           ))}
                                         </tbody>
+                                        <tfoot className="bg-gray-100 border-t border-gray-300">
+                                          <tr>
+                                            <td className="px-3 py-2 text-sm font-bold" colSpan={6}>Total PO Asli (qty po × harga):</td>
+                                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-bold">
+                                              {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
+                                                sum + (parseFloat(poItem.qty) || 0) * (parseFloat(poItem.harga) || 0), 0
+                                              ))}
+                                            </td>
+                                          </tr>
+                                          <tr>
+                                            <td className="px-3 py-2 text-sm font-bold" colSpan={6}>Total Aktual (qty diterima × harga aktual):</td>
+                                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-bold">
+                                              {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
+                                                sum + (parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
+                                              ))}
+                                            </td>
+                                          </tr>
+                                        </tfoot>
                                       </table>
                                     </div>
                                   ) : (

@@ -183,19 +183,19 @@ export default function FinishPO() {
 
       console.log('PO items:', items)
 
-      // Get product names and prices for each item
+      // Get product names and use PO item prices
       const poItems = await Promise.all(
         (items || []).map(async (item) => {
           const { data: product } = await supabase
             .from('nama_product')
-            .select('product_name, harga')
+            .select('product_name')
             .eq('id_product', item.product_id)
             .single()
 
           return {
             ...item,
             product_name: product?.product_name || 'Unknown Product',
-            harga: product?.harga || 0
+            harga: item.harga || 0  // Use price from po_items, not nama_product
           }
         })
       )
@@ -209,12 +209,12 @@ export default function FinishPO() {
         items: poItems
       })
 
-      // Initialize received items with original PO quantities and prices
+      // Initialize received items with PO quantities and prices from po_items
       const initialReceived: Record<number, {qty: number, harga: number, status: 'received' | 'partial' | 'not_received'}> = {}
       poItems.forEach(item => {
         initialReceived[item.id] = {
           qty: item.qty,
-          harga: item.harga || 0,
+          harga: item.harga || 0,  // Use price from po_items table
           status: 'received'
         }
       })

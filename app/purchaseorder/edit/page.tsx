@@ -51,6 +51,7 @@ interface POItem {
   keterangan: string
   supplier_name: string
   merk: string
+  harga: number
 }
 
 function EditPurchaseOrder() {
@@ -134,7 +135,8 @@ function EditPurchaseOrder() {
               satuan_besar: 1,
               keterangan: item.keterangan || '',
               supplier_name: '',
-              merk: product?.merk || ''
+              merk: product?.merk || '',
+              harga: item.harga || 0
             }
           })
         )
@@ -230,7 +232,54 @@ function EditPurchaseOrder() {
     }
   }
 
-  const addProductToPO = (product: Product) => {
+  const getLatestPrice = async (productId: number): Promise<number> => {
+    try {
+      // 1. Try to get latest actual price from po_price_history (most accurate)
+      const { data: priceHistory } = await supabase
+        .from('po_price_history')
+        .select('actual_price')
+        .eq('product_id', productId)
+        .not('actual_price', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+      
+      if (priceHistory?.actual_price) {
+        return priceHistory.actual_price
+      }
+      
+      // 2. Fallback to latest price from barang_masuk
+      const { data: latestPrice } = await supabase
+        .from('barang_masuk')
+        .select('harga_po, harga')
+        .eq('id_barang', productId)
+        .order('tanggal', { ascending: false })
+        .limit(1)
+        .single()
+      
+      if (latestPrice?.harga_po) {
+        return latestPrice.harga_po
+      }
+      
+      if (latestPrice?.harga) {
+        return latestPrice.harga
+      }
+      
+      // 3. Final fallback to master price from nama_product
+      const { data: product } = await supabase
+        .from('nama_product')
+        .select('harga')
+        .eq('id_product', productId)
+        .single()
+      
+      return product?.harga || 0
+    } catch (error) {
+      console.error('Error getting price:', error)
+      return 0
+    }
+  }
+
+  const addProductToPO = async (product: Product) => {
     const existingItem = poItems.find(item => item.product_id === product.id_product)
     
     if (existingItem) {
@@ -240,6 +289,9 @@ function EditPurchaseOrder() {
           : item
       ))
     } else {
+      // Get latest price for new items
+      const latestPrice = await getLatestPrice(product.id_product)
+      
       const newItem: POItem = {
         product_id: product.id_product,
         product_name: product.product_name,
@@ -249,7 +301,8 @@ function EditPurchaseOrder() {
         satuan_besar: product.satuan_besar,
         keterangan: '',
         supplier_name: selectedSupplier?.nama_supplier || '',
-        merk: product.merk || ''
+        merk: product.merk || '',
+        harga: latestPrice
       }
       setPOItems([...poItems, newItem])
     }
@@ -294,7 +347,8 @@ function EditPurchaseOrder() {
         product_id: item.product_id,
         qty: item.qty,
         unit_besar: item.unit_besar,
-        keterangan: item.keterangan
+        keterangan: item.keterangan,
+        harga: item.harga
       }))
 
       const { error: itemsError } = await supabase.from('po_items').insert(poItemsData)
@@ -406,12 +460,12 @@ function EditPurchaseOrder() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tambah Produk</label>
                 <select
                   className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const productId = e.target.value
                     if (productId) {
                       const product = supplierProducts.find(p => p.id_product.toString() === productId)
                       if (product) {
-                        addProductToPO(product)
+                        await addProductToPO(product)
                         e.target.value = ''
                       }
                     }
@@ -457,6 +511,7 @@ function EditPurchaseOrder() {
                     <th className="p-3 text-left">Merk</th>
                     <th className="p-3 text-center">Qty</th>
                     <th className="p-3 text-center">Unit</th>
+                    <th className="p-3 text-right">Harga</th>
                     <th className="p-3 text-left">Keterangan</th>
                     <th className="p-3 text-center">Aksi</th>
                   </tr>
@@ -482,6 +537,16 @@ function EditPurchaseOrder() {
                       </td>
                       <td className="p-3 text-center">
                         {item.unit_besar}
+                      </td>
+                      <td className="p-3 text-right">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.harga}
+                          onChange={(e) => updatePOItem(item.product_id, 'harga', parseFloat(e.target.value) || 0)}
+                          className="w-24 border rounded px-2 py-1 text-sm text-right"
+                          min="0"
+                        />
                       </td>
                       <td className="p-3">
                         <input
