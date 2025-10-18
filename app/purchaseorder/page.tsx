@@ -409,22 +409,22 @@ function PurchaseOrderPageContent() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Pending': return 'bg-yellow-100 text-yellow-800'
-      case 'Sedang diproses': return 'bg-blue-100 text-blue-800'
-      case 'Barang sampai': return 'bg-purple-100 text-purple-800'
-      case 'Sampai Sebagian': return 'bg-green-100 text-green-800'
-      case 'Di Gudang': return 'bg-emerald-100 text-emerald-800'
-      case 'Dibatalkan': return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'Pending': return 'text-yellow-800'
+      case 'Sedang diproses': return 'text-blue-800'
+      case 'Barang sampai': return 'text-purple-800'
+      case 'Sampai Sebagian': return 'text-green-800'
+      case 'Di Gudang': return 'text-emerald-800'
+      case 'Dibatalkan': return 'text-red-800'
+      default: return 'text-gray-800'
     }
   }
 
   const getPriorityColor = (priority: string) => {
     switch (priority?.toLowerCase()) {
-      case 'tinggi': return 'bg-red-100 text-red-800'
-      case 'sedang': return 'bg-yellow-100 text-yellow-800'
-      case 'biasa': return 'bg-green-100 text-green-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'tinggi': return 'text-red-800'
+      case 'sedang': return 'text-yellow-800'
+      case 'biasa': return 'text-green-800'
+      default: return 'text-gray-800'
     }
   }
 
@@ -722,7 +722,7 @@ function PurchaseOrderPageContent() {
 
           {/* Stock Alerts List */}
           {showStockAlerts && stockAlerts.length > 0 && (
-            <div className="bg-white rounded-lg shadow">
+            <div className="">
               <div className="p-4 border-b">
                 <div className="flex justify-between items-center">
                   <h3 className="font-medium text-gray-800 flex items-center gap-2">
@@ -943,7 +943,7 @@ function PurchaseOrderPageContent() {
           )}
 
           {/* Search and Filter Section */}
-          <div className="bg-white rounded-lg shadow p-3">
+          <div className="p-3">
             <div className="flex flex-col gap-3">
               <div className="flex gap-2">
                 <div className="flex-1">
@@ -1092,7 +1092,7 @@ function PurchaseOrderPageContent() {
           </div>
 
           {/* Purchase Orders List */}
-          <div className="bg-white rounded-lg shadow">
+          <div className="">
             {loading ? (
               <div className="p-6 text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>

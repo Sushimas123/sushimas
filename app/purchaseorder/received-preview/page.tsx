@@ -29,7 +29,10 @@ export default function ReceivedPreviewPage() {
   const [receivedData, setReceivedData] = useState<ReceivedData | null>(null)
   const [loading, setLoading] = useState(true)
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const [productPhotos, setProductPhotos] = useState<string[]>([])
   const [showPhotoModal, setShowPhotoModal] = useState(false)
+  const [showProductModal, setShowProductModal] = useState(false)
+  const [selectedProductPhoto, setSelectedProductPhoto] = useState<string | null>(null)
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -93,28 +96,43 @@ const { data: barangMasukItems } = await supabase
 
 const invoiceNumber = barangMasukItems && barangMasukItems.length > 0 ? barangMasukItems[0].invoice_number : po.invoice_number
 
-      // Get photo URL - try both bukti_foto field and search by PO number
-      if (po.bukti_foto) {
-        const { data } = supabase.storage
+      // Get photos - search by PO number and separate nota vs product
+      try {
+        const { data: files } = await supabase.storage
           .from('po-photos')
-          .getPublicUrl(po.bukti_foto)
-        setPhotoUrl(data.publicUrl)
-      } else {
-        // Search for photo by PO number if bukti_foto is empty
-        try {
-          const { data: files } = await supabase.storage
-            .from('po-photos')
-            .list('', { search: po.po_number })
+          .list('', { search: po.po_number })
+        
+        if (files && files.length > 0) {
+          const notaFiles = files.filter(file => file.name.includes('_nota_'))
+          const productFiles = files.filter(file => file.name.includes('_product_'))
           
-          if (files && files.length > 0) {
+          // Set nota photo (first one found)
+          if (notaFiles.length > 0) {
             const { data } = supabase.storage
               .from('po-photos')
-              .getPublicUrl(files[0].name)
+              .getPublicUrl(notaFiles[0].name)
+            setPhotoUrl(data.publicUrl)
+          } else if (po.bukti_foto) {
+            // Fallback to bukti_foto field
+            const { data } = supabase.storage
+              .from('po-photos')
+              .getPublicUrl(po.bukti_foto)
             setPhotoUrl(data.publicUrl)
           }
-        } catch (error) {
-          console.error('Error searching for photo:', error)
+          
+          // Set product photos
+          if (productFiles.length > 0) {
+            const productUrls = productFiles.map(file => {
+              const { data } = supabase.storage
+                .from('po-photos')
+                .getPublicUrl(file.name)
+              return data.publicUrl
+            })
+            setProductPhotos(productUrls)
+          }
         }
+      } catch (error) {
+        console.error('Error searching for photos:', error)
       }
 
       const transformedData: ReceivedData = {
@@ -367,10 +385,22 @@ const invoiceNumber = barangMasukItems && barangMasukItems.length > 0 ? barangMa
               </div>
               {photoUrl && (
                 <div>
-                  <span className="text-gray-600 text-xs">Foto Barang:</span>
+                  <span className="text-gray-600 text-xs">Foto NOTA:</span>
                   <button
                     onClick={() => setShowPhotoModal(true)}
                     className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium text-sm"
+                  >
+                    <ImageIcon size={14} />
+                    Lihat Foto
+                  </button>
+                </div>
+              )}
+              {productPhotos.length > 0 && (
+                <div>
+                  <span className="text-gray-600 text-xs">Foto Product ({productPhotos.length}):</span>
+                  <button
+                    onClick={() => setShowProductModal(true)}
+                    className="flex items-center gap-1 text-green-600 hover:text-green-800 font-medium text-sm"
                   >
                     <ImageIcon size={14} />
                     Lihat Foto
@@ -444,12 +474,12 @@ const invoiceNumber = barangMasukItems && barangMasukItems.length > 0 ? barangMa
             </div>
           </div>
 
-          {/* Photo Modal */}
+          {/* Nota Photo Modal */}
           {showPhotoModal && photoUrl && (
             <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-lg max-w-4xl max-h-full overflow-auto">
+              <div className="bg-white rounded-lg w-[400px] max-h-full overflow-auto">
                 <div className="p-4 border-b flex justify-between items-center">
-                  <h3 className="font-medium">Foto Barang Sampai</h3>
+                  <h3 className="font-medium">Foto NOTA</h3>
                   <button
                     onClick={() => setShowPhotoModal(false)}
                     className="text-gray-500 hover:text-gray-700"
@@ -460,7 +490,63 @@ const invoiceNumber = barangMasukItems && barangMasukItems.length > 0 ? barangMa
                 <div className="p-4">
                   <img 
                     src={photoUrl} 
-                    alt="Foto Barang Sampai" 
+                    alt="Foto NOTA" 
+                    className="max-w-full h-auto rounded-lg"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Product Photos Modal */}
+          {showProductModal && productPhotos.length > 0 && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-lg max-w-6xl max-h-full overflow-auto">
+                <div className="p-4 border-b flex justify-between items-center">
+                  <h3 className="font-medium">Foto Product ({productPhotos.length})</h3>
+                  <button
+                    onClick={() => setShowProductModal(false)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {productPhotos.map((url, index) => (
+                      <div key={index} className="relative">
+                        <img 
+                          src={url} 
+                          alt={`Foto Product ${index + 1}`} 
+                          className="w-full h-48 object-cover rounded-lg cursor-pointer hover:opacity-80"
+                          onClick={() => setSelectedProductPhoto(url)}
+                        />
+                        <p className="text-center text-sm text-gray-600 mt-2">Foto {index + 1}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Selected Product Photo Modal */}
+          {selectedProductPhoto && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-60 flex items-center justify-center p-4">
+              <div className="bg-white rounded-lg w-[400px] max-h-full overflow-auto">
+                <div className="p-4 border-b flex justify-between items-center">
+                  <h3 className="font-medium">Foto Product</h3>
+                  <button
+                    onClick={() => setSelectedProductPhoto(null)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="p-4">
+                  <img 
+                    src={selectedProductPhoto} 
+                    alt="Foto Product" 
                     className="max-w-full h-auto rounded-lg"
                   />
                 </div>
