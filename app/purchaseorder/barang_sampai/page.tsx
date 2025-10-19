@@ -240,12 +240,12 @@ export default function FinishPO() {
         items: poItems
       })
 
-      // Initialize received items with PO quantities and prices from po_items
+      // Initialize received items with empty values (required fields)
       const initialReceived: Record<number, {qty: number, harga: number, status: 'received' | 'partial' | 'not_received'}> = {}
       poItems.forEach(item => {
         initialReceived[item.id] = {
-          qty: item.qty,
-          harga: item.harga || 0,  // Use price from po_items table
+          qty: 0,  // Default empty
+          harga: 0,  // Default empty
           status: 'received'
         }
       })
@@ -539,6 +539,20 @@ export default function FinishPO() {
         }
       }
 
+      // VALIDATE: Check required fields
+      for (const [itemId, receivedData] of Object.entries(receivedItems)) {
+        if (receivedData.status !== 'not_received') {
+          if (!receivedData.qty || receivedData.qty <= 0) {
+            const poItem = poData.items?.find(item => item.id === parseInt(itemId))
+            throw new Error(`Qty Terima harus diisi untuk ${poItem?.product_name || 'item'}`)
+          }
+          if (!receivedData.harga || receivedData.harga <= 0) {
+            const poItem = poData.items?.find(item => item.id === parseInt(itemId))
+            throw new Error(`Harga Aktual harus diisi untuk ${poItem?.product_name || 'item'}`)
+          }
+        }
+      }
+      
       // VALIDATE: Ensure we have data to save
       if (barangMasukInserts.length === 0) {
         throw new Error('Tidak ada item yang akan disimpan ke barang_masuk')
@@ -805,7 +819,7 @@ export default function FinishPO() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Foto NOTA ({formData.foto_barang.length}/{MAX_PHOTOS}) *
+                  Foto NOTA !!!!({formData.foto_barang.length}/{MAX_PHOTOS}) *
                 </label>
                 <div className="space-y-4">
                   {/* Upload Area */}
@@ -944,9 +958,11 @@ export default function FinishPO() {
                             type="number"
                             min="0"
                             step="0.01"
-                            value={receivedItems[item.id]?.qty || 0}
+                            value={receivedItems[item.id]?.qty || ''}
                             onChange={(e) => handleReceivedItemChange(item.id, 'qty', e.target.value)}
                             className="w-16 border border-gray-300 rounded px-1 py-1 text-xs"
+                            placeholder="0"
+                            required
                             disabled={receivedItems[item.id]?.status === 'not_received'}
                           />
                         </td>
@@ -963,9 +979,11 @@ export default function FinishPO() {
                             type="number"
                             min="0"
                             step="0.01"
-                            value={receivedItems[item.id]?.harga || 0}
+                            value={receivedItems[item.id]?.harga || ''}
                             onChange={(e) => handleReceivedItemChange(item.id, 'harga', e.target.value)}
                             className="w-20 border border-gray-300 rounded px-1 py-1 text-xs"
+                            placeholder="0"
+                            required
                             disabled={receivedItems[item.id]?.status === 'not_received'}
                           />
                         </td>
