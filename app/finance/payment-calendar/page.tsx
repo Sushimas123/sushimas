@@ -24,6 +24,7 @@ interface ScheduledPayment {
   approved_at: string
   rejected_at?: string
   rejection_notes?: string
+  notes?: string
 }
 
 // Custom hook untuk fetch data
@@ -80,7 +81,7 @@ const useScheduledPayments = (statusFilter: string) => {
         Promise.all(poIdChunks.map(chunk => 
           supabase
             .from('purchase_orders')
-            .select('id, bulk_payment_ref, total_tagih, approval_status, approved_at, rejected_at, rejection_notes')
+            .select('id, bulk_payment_ref, total_tagih, approval_status, approved_at, rejected_at, rejection_notes, notes')
             .in('id', chunk)
         ))
       ])
@@ -178,7 +179,8 @@ const useScheduledPayments = (statusFilter: string) => {
           approval_status: poData?.approval_status,
           approved_at: poData?.approved_at,
           rejected_at: poData?.rejected_at,
-          rejection_notes: poData?.rejection_notes
+          rejection_notes: poData?.rejection_notes,
+          notes: poData?.notes
         }
       })
       
@@ -246,6 +248,12 @@ const MobilePaymentCard = ({ payment, onAction }: {
           <h3 className="font-semibold text-gray-900 truncate">{payment.nama_supplier}</h3>
           <p className="text-sm text-gray-600">{payment.po_number}</p>
           <p className="text-xs text-gray-500">{payment.nama_branch}</p>
+          <p className="text-xs text-gray-500">
+            {(() => {
+              const defaultNotes = payment.nama_branch === 'Sushimas Harapan Indah' ? 'Rek CV' : 'REK PT'
+              return payment.notes || defaultNotes
+            })()}
+          </p>
         </div>
         <button
           onClick={() => setExpanded(!expanded)}
@@ -342,7 +350,10 @@ const MobileFilters = ({
   setStatusFilter, 
   branchFilter,
   setBranchFilter,
+  notesFilter,
+  setNotesFilter,
   branches,
+  notes,
   statusCounts,
   isOpen,
   onClose 
@@ -351,7 +362,10 @@ const MobileFilters = ({
   setStatusFilter: (filter: string) => void;
   branchFilter: string;
   setBranchFilter: (filter: string) => void;
+  notesFilter: string;
+  setNotesFilter: (filter: string) => void;
   branches: string[];
+  notes: string[];
   statusCounts: any;
   isOpen: boolean;
   onClose: () => void;
@@ -426,6 +440,35 @@ const MobileFilters = ({
               ))}
             </div>
           </div>
+          
+          <div>
+            <h4 className="font-medium mb-2">Notes</h4>
+            <div className="space-y-2">
+              <button
+                onClick={() => setNotesFilter('all')}
+                className={`w-full text-left p-3 rounded-lg ${
+                  notesFilter === 'all' 
+                    ? 'bg-blue-100 text-blue-800 border-blue-200 border-2'
+                    : 'bg-gray-50 text-gray-700'
+                }`}
+              >
+                All Notes
+              </button>
+              {notes.map(note => (
+                <button
+                  key={note}
+                  onClick={() => setNotesFilter(note || '')}
+                  className={`w-full text-left p-3 rounded-lg ${
+                    notesFilter === note 
+                      ? 'bg-blue-100 text-blue-800 border-blue-200 border-2'
+                      : 'bg-gray-50 text-gray-700'
+                  }`}
+                >
+                  {note}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
         
         <div className="mt-4 pt-4 border-t">
@@ -444,6 +487,7 @@ const MobileFilters = ({
 export default function PaymentCalendar() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [branchFilter, setBranchFilter] = useState('all')
+  const [notesFilter, setNotesFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedPO, setSelectedPO] = useState<ScheduledPayment | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -465,18 +509,30 @@ export default function PaymentCalendar() {
       filtered = filtered.filter(p => p.nama_branch === branchFilter)
     }
     
+    // Apply notes filter
+    if (notesFilter !== 'all') {
+      filtered = filtered.filter(p => {
+        const defaultNotes = p.nama_branch === 'Sushimas Harapan Indah' ? 'Rek CV' : 'REK PT'
+        const finalNotes = p.notes || defaultNotes
+        return finalNotes.toLowerCase() === notesFilter.toLowerCase()
+      })
+    }
+    
     // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim()
-      filtered = filtered.filter(p => 
-        p.po_number.toLowerCase().includes(query) ||
-        p.nama_supplier.toLowerCase().includes(query) ||
-        p.nama_branch.toLowerCase().includes(query)
-      )
+      filtered = filtered.filter(p => {
+        const defaultNotes = p.nama_branch === 'Sushimas Harapan Indah' ? 'Rek CV' : 'REK PT'
+        const finalNotes = p.notes || defaultNotes
+        return p.po_number.toLowerCase().includes(query) ||
+               p.nama_supplier.toLowerCase().includes(query) ||
+               p.nama_branch.toLowerCase().includes(query) ||
+               finalNotes.toLowerCase().includes(query)
+      })
     }
     
     return filtered
-  }, [allFilteredPayments, branchFilter, searchQuery])
+  }, [allFilteredPayments, branchFilter, notesFilter, searchQuery])
 
   // Detect mobile screen
   useEffect(() => {
@@ -486,10 +542,27 @@ export default function PaymentCalendar() {
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
-  // Get unique branches for filter
+  // Get unique branches and notes for filter
   const branches = useMemo(() => {
     const uniqueBranches = [...new Set(allPayments.map(p => p.nama_branch))].filter(Boolean).sort()
     return uniqueBranches
+  }, [allPayments])
+  
+  const notes = useMemo(() => {
+    const notesMap = new Map<string, string>()
+    
+    allPayments.forEach(p => {
+      const defaultNotes = p.nama_branch === 'Sushimas Harapan Indah' ? 'Rek CV' : 'REK PT'
+      const finalNotes = p.notes || defaultNotes
+      const lowerKey = finalNotes.toLowerCase()
+      
+      // Keep the first occurrence (case-wise) for display
+      if (!notesMap.has(lowerKey)) {
+        notesMap.set(lowerKey, finalNotes)
+      }
+    })
+    
+    return Array.from(notesMap.values()).sort()
   }, [allPayments])
 
   // Optimized calculations dengan useMemo
@@ -664,7 +737,7 @@ export default function PaymentCalendar() {
               className="w-full mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg flex items-center justify-center gap-2"
             >
               <Filter size={16} />
-              Filters ({statusCounts[statusFilter as keyof typeof statusCounts]}{branchFilter !== 'all' ? `, ${branchFilter}` : ''})
+              Filters ({statusCounts[statusFilter as keyof typeof statusCounts]}{branchFilter !== 'all' ? `, ${branchFilter}` : ''}{notesFilter !== 'all' ? `, ${notesFilter}` : ''})
             </button>
           )}
 
@@ -729,6 +802,41 @@ export default function PaymentCalendar() {
                         }`}
                       >
                         {branch}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => {
+                        setNotesFilter('all')
+                        setCurrentPage(1)
+                      }}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium ${
+                        notesFilter === 'all' 
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      All Notes
+                    </button>
+                    {notes.map(note => (
+                      <button
+                        key={note}
+                        onClick={() => {
+                          setNotesFilter(note || '')
+                          setCurrentPage(1)
+                        }}
+                        className={`px-3 py-1.5 rounded-md text-sm font-medium ${
+                          notesFilter === note 
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {note}
                       </button>
                     ))}
                   </div>
@@ -835,6 +943,7 @@ export default function PaymentCalendar() {
                         { key: 'tanggal_jatuh_tempo', label: 'Due Date' },
                         { key: 'nama_supplier', label: 'Supplier' },
                         { key: 'nama_branch', label: 'Branch' },
+                        { key: 'notes', label: 'Notes' },
                         { key: 'total_po', label: 'Total PO', align: 'right' },
                         { key: 'sisa_bayar', label: 'Outstanding', align: 'right' },
                         { key: 'status', label: 'Status', align: 'center' }
@@ -888,6 +997,12 @@ export default function PaymentCalendar() {
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-500">
                             {payment.nama_branch}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            {(() => {
+                              const defaultNotes = payment.nama_branch === 'Sushimas Harapan Indah' ? 'Rek CV' : 'REK PT'
+                              return payment.notes || defaultNotes
+                            })()}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-right">
                             {formatCurrency(payment.total_po)}
@@ -1014,7 +1129,10 @@ export default function PaymentCalendar() {
           setStatusFilter={setStatusFilter}
           branchFilter={branchFilter}
           setBranchFilter={setBranchFilter}
+          notesFilter={notesFilter}
+          setNotesFilter={setNotesFilter}
           branches={branches}
+          notes={notes}
           statusCounts={statusCounts}
           isOpen={mobileFiltersOpen}
           onClose={() => setMobileFiltersOpen(false)}

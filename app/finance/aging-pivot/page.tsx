@@ -135,6 +135,7 @@ export default function AgingPivotReport() {
       const approvalMap = new Map()
       approvalInfo.forEach(po => {
         approvalMap.set(po.id, po.approval_status)
+        approvalMap.set(po.id + '_notes', po.notes)
       })
 
       const pivotMap = new Map<string, AgingPivotData>()
@@ -148,8 +149,9 @@ export default function AgingPivotReport() {
         
         if (item.status_payment === 'paid' || outstanding <= 0 || item.bulk_payment_ref) continue
 
+        const poNotes = approvalMap.get(item.id + '_notes')
         const defaultNotes = item.nama_branch === 'Sushimas Harapan Indah' ? 'Rek CV' : 'REK PT'
-        const finalNotes = item.notes || defaultNotes
+        const finalNotes = poNotes || defaultNotes
         const key = `${item.nama_branch}-${item.nama_supplier}-${finalNotes}`
         const dueDateStr = new Date(item.tanggal_jatuh_tempo).toLocaleDateString('id-ID')
         
@@ -213,7 +215,8 @@ export default function AgingPivotReport() {
     const exportData: any[] = []
     
     const branchGroups = data.reduce((acc, item) => {
-      const groupKey = showNotes ? (item.notes || 'Unknown') : item.branch
+      const rawGroupKey = showNotes ? (item.notes || 'Unknown') : item.branch
+      const groupKey = showNotes ? rawGroupKey.toLowerCase() : rawGroupKey
       if (!acc[groupKey]) acc[groupKey] = []
       acc[groupKey].push(item)
       return acc
@@ -269,7 +272,8 @@ export default function AgingPivotReport() {
   }
 
   const branchGroups = data.reduce((acc, item) => {
-    const groupKey = showNotes ? (item.notes || 'Unknown') : item.branch
+    const rawGroupKey = showNotes ? (item.notes || 'Unknown') : item.branch
+    const groupKey = showNotes ? rawGroupKey.toLowerCase() : rawGroupKey
     if (!acc[groupKey]) acc[groupKey] = []
     acc[groupKey].push(item)
     return acc
@@ -298,7 +302,7 @@ export default function AgingPivotReport() {
               <div className="flex items-center gap-2">
                 {expandedBranches[groupKey] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 <div>
-                  <div className="font-semibold text-gray-900 text-sm">{groupKey}</div>
+                  <div className="font-semibold text-gray-900 text-sm">{showNotes ? groupKey.toUpperCase() : groupKey}</div>
                   <div className="text-xs text-gray-600">
                     {suppliers.length} supplier{suppliers.length > 1 ? 's' : ''}
                   </div>
@@ -846,7 +850,7 @@ export default function AgingPivotReport() {
                       <tr className="bg-blue-50 font-medium cursor-pointer hover:bg-blue-100" onClick={() => toggleBranch(groupKey)}>
                         <td className="px-2 py-3 text-sm text-gray-900 flex items-center gap-1 sticky left-0 bg-blue-50 z-10 border-r border-gray-200" style={{minWidth: '120px'}}>
                           {expandedBranches[groupKey] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                          <span className="truncate">{groupKey}</span>
+                          <span className="truncate">{showNotes ? groupKey.toUpperCase() : groupKey}</span>
                         </td>
                         <td className="px-2 py-3 text-sm text-gray-500 sticky bg-blue-50 z-10 border-r border-gray-200" style={{left: '120px', minWidth: '140px'}}>
                           <span className="truncate">{suppliers.length} supplier{suppliers.length > 1 ? 's' : ''}</span>
@@ -1043,7 +1047,7 @@ export default function AgingPivotReport() {
                       .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
                       .filter(supplier => 
                         (supplierFilter === '' || supplier.supplier.toLowerCase() === supplierFilter.toLowerCase()) &&
-                        (notesFilter === '' || (supplier.notes || 'Unknown') === notesFilter)
+                        (notesFilter === '' || (supplier.notes || 'Unknown').toLowerCase() === notesFilter.toLowerCase())
                       )
                       .sort((a, b) => {
                         const aVal = sortField === 'date' ? dueDates.filter(date => a.due_dates[date] > 0)[0] || '' :
@@ -1106,7 +1110,7 @@ export default function AgingPivotReport() {
                           .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
                           .filter(supplier => 
                             (supplierFilter === '' || supplier.supplier.toLowerCase() === supplierFilter.toLowerCase()) &&
-                            (notesFilter === '' || (supplier.notes || 'Unknown') === notesFilter)
+                            (notesFilter === '' || (supplier.notes || 'Unknown').toLowerCase() === notesFilter.toLowerCase())
                           )
                           .reduce((sum, supplier) => sum + dueDates.reduce((dateSum, date) => dateSum + (supplier.due_dates[date] || 0), 0), 0)
                         )}
