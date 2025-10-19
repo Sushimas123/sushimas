@@ -444,7 +444,11 @@ export default function AddBarangMasukPage() {
       }
 
       alert(isEditMode ? 'Barang masuk berhasil diupdate' : 'Barang masuk berhasil ditambahkan')
-      window.location.href = '/purchaseorder/barang_masuk'
+      
+      // Get return URL from sessionStorage or use default
+      const returnUrl = sessionStorage.getItem('barang_masuk_return_url') || '/purchaseorder/barang_masuk'
+      sessionStorage.removeItem('barang_masuk_return_url')
+      window.location.href = returnUrl
     } catch (error) {
       console.error('Error saving:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
@@ -813,7 +817,11 @@ export default function AddBarangMasukPage() {
               <div className="flex justify-between gap-3">
                 <button 
                   type="button"
-                  onClick={() => window.history.back()}
+                  onClick={() => {
+                    const returnUrl = sessionStorage.getItem('barang_masuk_return_url') || '/purchaseorder/barang_masuk'
+                    sessionStorage.removeItem('barang_masuk_return_url')
+                    window.location.href = returnUrl
+                  }}
                   className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 flex-1"
                 >
                   <ArrowLeft size={16} />
@@ -832,10 +840,18 @@ export default function AddBarangMasukPage() {
 
             {/* Desktop Action Buttons */}
             <div className="hidden md:flex justify-between pt-4">
-              <a href="/purchaseorder/barang_masuk" className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
+              <button 
+                type="button"
+                onClick={() => {
+                  const returnUrl = sessionStorage.getItem('barang_masuk_return_url') || '/purchaseorder/barang_masuk'
+                  sessionStorage.removeItem('barang_masuk_return_url')
+                  window.location.href = returnUrl
+                }}
+                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+              >
                 <ArrowLeft size={16} />
                 Kembali
-              </a>
+              </button>
               <button 
                 type="submit"
                 disabled={submitting}

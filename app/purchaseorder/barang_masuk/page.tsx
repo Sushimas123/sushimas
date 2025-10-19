@@ -901,13 +901,18 @@ export default function BarangMasukPage() {
                             <td className="px-2 py-2 text-center">
                               {!item.is_in_gudang ? (
                                 <div className="flex items-center justify-center gap-1">
-                                  <a 
-                                    href={`/purchaseorder/barang_masuk/receive?edit=${item.id}`}
+                                  <button
+                                    onClick={() => {
+                                      // Save current URL with filters to sessionStorage
+                                      const currentUrl = new URL(window.location.href)
+                                      sessionStorage.setItem('barang_masuk_return_url', currentUrl.pathname + currentUrl.search)
+                                      window.location.href = `/purchaseorder/barang_masuk/receive?edit=${item.id}`
+                                    }}
                                     className="text-green-600 hover:text-green-800 p-1 rounded"
                                     title="Update Data"
                                   >
                                     <Edit size={12} />
-                                  </a>
+                                  </button>
                                   <button
                                     onClick={() => handleMasukGudang(item)}
                                     disabled={!item.updated_at || processingItems.has(item.id)}
@@ -1044,14 +1049,19 @@ export default function BarangMasukPage() {
                                 
                                 {!item.is_in_gudang ? (
                                   <div className="flex flex-wrap gap-1 mt-2">
-                                    <a 
-                                      href={`/purchaseorder/barang_masuk/receive?edit=${item.id}`}
+                                    <button
+                                      onClick={() => {
+                                        // Save current URL with filters to sessionStorage
+                                        const currentUrl = new URL(window.location.href)
+                                        sessionStorage.setItem('barang_masuk_return_url', currentUrl.pathname + currentUrl.search)
+                                        window.location.href = `/purchaseorder/barang_masuk/receive?edit=${item.id}`
+                                      }}
                                       className="inline-flex items-center gap-1 px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs"
                                       title="Update Data"
                                     >
                                       <Edit size={12} />
                                       Update
-                                    </a>
+                                    </button>
                                     <button
                                       onClick={() => handleMasukGudang(item)}
                                       disabled={!item.updated_at || processingItems.has(item.id)}

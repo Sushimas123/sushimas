@@ -667,7 +667,11 @@ export default function FinishPO() {
       await unlockPO(poData.id)
       
       alert('✅ Data barang sampai berhasil disimpan ke barang masuk!')
-      window.location.href = '/purchaseorder/barang_masuk'
+      
+      // Get return URL from sessionStorage or use default
+      const returnUrl = sessionStorage.getItem('po_return_url') || '/purchaseorder'
+      sessionStorage.removeItem('po_return_url')
+      window.location.href = returnUrl
 
     } catch (error) {
       console.error('Error saving:', error)
@@ -1026,7 +1030,11 @@ export default function FinishPO() {
                   if (poData?.id) {
                     await unlockPO(poData.id)
                   }
-                  window.location.href = '/purchaseorder'
+                  
+                  // Get return URL from sessionStorage or use default
+                  const returnUrl = sessionStorage.getItem('po_return_url') || '/purchaseorder'
+                  sessionStorage.removeItem('po_return_url')
+                  window.location.href = returnUrl
                 }}
                 className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
               >

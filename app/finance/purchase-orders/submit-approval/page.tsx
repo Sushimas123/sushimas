@@ -169,7 +169,11 @@ export default function SubmitApprovalPage() {
       
       console.log('Updated record:', data)
       alert('Berhasil submit untuk approval!')
-      window.location.href = '/finance/purchase-orders'
+      
+      // Get return URL from sessionStorage or use default
+      const returnUrl = sessionStorage.getItem('finance_po_return_url') || '/finance/purchase-orders'
+      sessionStorage.removeItem('finance_po_return_url')
+      window.location.href = returnUrl
     } catch (error) {
       console.error('Error submitting for approval:', error)
       alert('Gagal submit untuk approval')
@@ -221,13 +225,17 @@ export default function SubmitApprovalPage() {
                 PO #{po?.po_number} - {po?.supplier_name}
               </p>
             </div>
-            <a 
-              href="/finance/purchase-orders" 
+            <button
+              onClick={() => {
+                const returnUrl = sessionStorage.getItem('finance_po_return_url') || '/finance/purchase-orders'
+                sessionStorage.removeItem('finance_po_return_url')
+                window.location.href = returnUrl
+              }}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
             >
               <ArrowLeft size={16} />
               Kembali
-            </a>
+            </button>
           </div>
 
           {/* PO Items Detail */}
@@ -352,12 +360,17 @@ export default function SubmitApprovalPage() {
               >
                 {submitting ? 'Submitting...' : 'Submit for Approval'}
               </button>
-              <a
-                href="/finance/purchase-orders"
+              <button
+                type="button"
+                onClick={() => {
+                  const returnUrl = sessionStorage.getItem('finance_po_return_url') || '/finance/purchase-orders'
+                  sessionStorage.removeItem('finance_po_return_url')
+                  window.location.href = returnUrl
+                }}
                 className="px-6 py-3 border border-gray-300 rounded-md hover:bg-gray-50 text-center"
               >
                 Batal
-              </a>
+              </button>
             </div>
           </form>
         </div>

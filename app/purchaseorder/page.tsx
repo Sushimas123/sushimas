@@ -1203,41 +1203,57 @@ function PurchaseOrderPageContent() {
                           <td className="px-2 py-2 text-center">
                             <div className="flex items-center justify-center gap-1">
                               {po.status === 'Barang sampai' || po.status === 'Sampai Sebagian' ? (
-                                <a 
-                                  href={`/purchaseorder/received-preview?id=${po.id}`}
+                                <button
+                                  onClick={() => {
+                                    const currentUrl = new URL(window.location.href)
+                                    sessionStorage.setItem('po_return_url', currentUrl.pathname + currentUrl.search)
+                                    window.location.href = `/purchaseorder/received-preview?id=${po.id}`
+                                  }}
                                   className="text-green-600 hover:text-green-800 p-1 rounded" 
                                   title="Preview Barang Diterima"
                                 >
                                   <Eye size={14} />
-                                </a>
+                                </button>
                               ) : (
-                                <a 
-                                  href={`/purchaseorder/on_progress?id=${po.id}`}
+                                <button
+                                  onClick={() => {
+                                    const currentUrl = new URL(window.location.href)
+                                    sessionStorage.setItem('po_return_url', currentUrl.pathname + currentUrl.search)
+                                    window.location.href = `/purchaseorder/on_progress?id=${po.id}`
+                                  }}
                                   className="text-blue-600 hover:text-blue-800 p-1 rounded" 
                                   title="Preview PO"
                                 >
                                   <Check size={14} />
-                                </a>
+                                </button>
                               )}
                               {po.status === 'Sedang diproses' && (
-                                <a 
-                                  href={`/purchaseorder/barang_sampai?id=${po.id}`}
+                                <button
+                                  onClick={() => {
+                                    const currentUrl = new URL(window.location.href)
+                                    sessionStorage.setItem('po_return_url', currentUrl.pathname + currentUrl.search)
+                                    window.location.href = `/purchaseorder/barang_sampai?id=${po.id}`
+                                  }}
                                   className="text-blue-600 hover:text-blue-800 p-1 rounded" 
                                   title="Barang Sampai"
                                 >
                                   <Package size={14} />
-                                </a>
+                                </button>
                               )}
 
                               {canPerformActionSync(userRole, 'purchaseorder', 'edit') && (
                                 po.status !== 'Dibatalkan' ? (
-                                  <a 
-                                    href={`/purchaseorder/edit?id=${po.id}`}
+                                  <button
+                                    onClick={() => {
+                                      const currentUrl = new URL(window.location.href)
+                                      sessionStorage.setItem('po_return_url', currentUrl.pathname + currentUrl.search)
+                                      window.location.href = `/purchaseorder/edit?id=${po.id}`
+                                    }}
                                     className="text-orange-600 hover:text-orange-800 p-1 rounded" 
                                     title="Edit PO"
                                   >
                                     <Edit size={14} />
-                                  </a>
+                                  </button>
                                 ) : (
                                   <span 
                                     className="text-gray-400 p-1 rounded cursor-not-allowed" 
@@ -1348,41 +1364,57 @@ function PurchaseOrderPageContent() {
                           
                           <div className="flex justify-center gap-4 pt-2">
                             {po.status === 'Barang sampai' || po.status === 'Sampai Sebagian' ? (
-                              <a 
-                                href={`/purchaseorder/received-preview?id=${po.id}`}
+                              <button
+                                onClick={() => {
+                                  const currentUrl = new URL(window.location.href)
+                                  sessionStorage.setItem('po_return_url', currentUrl.pathname + currentUrl.search)
+                                  window.location.href = `/purchaseorder/received-preview?id=${po.id}`
+                                }}
                                 className="text-green-600 hover:text-green-800 p-1 rounded" 
                                 title="Preview Barang Diterima"
                               >
                                 <Eye size={20} />
-                              </a>
+                              </button>
                             ) : (
-                              <a 
-                                href={`/purchaseorder/on_progress?id=${po.id}`}
+                              <button
+                                onClick={() => {
+                                  const currentUrl = new URL(window.location.href)
+                                  sessionStorage.setItem('po_return_url', currentUrl.pathname + currentUrl.search)
+                                  window.location.href = `/purchaseorder/on_progress?id=${po.id}`
+                                }}
                                 className="text-blue-600 hover:text-blue-800 p-1 rounded" 
                                 title="Preview PO"
                               >
                                 <Check size={20} />
-                              </a>
+                              </button>
                             )}
                             {po.status === 'Sedang diproses' && (
-                              <a 
-                                href={`/purchaseorder/barang_sampai?id=${po.id}`}
+                              <button
+                                onClick={() => {
+                                  const currentUrl = new URL(window.location.href)
+                                  sessionStorage.setItem('po_return_url', currentUrl.pathname + currentUrl.search)
+                                  window.location.href = `/purchaseorder/barang_sampai?id=${po.id}`
+                                }}
                                 className="text-blue-600 hover:text-blue-800 p-1 rounded" 
                                 title="Barang Sampai"
                               >
                                 <Package size={20} />
-                              </a>
+                              </button>
                             )}
 
                             {canPerformActionSync(userRole, 'purchaseorder', 'edit') && (
                               po.status !== 'Dibatalkan' ? (
-                                <a 
-                                  href={`/purchaseorder/edit?id=${po.id}`}
+                                <button
+                                  onClick={() => {
+                                    const currentUrl = new URL(window.location.href)
+                                    sessionStorage.setItem('po_return_url', currentUrl.pathname + currentUrl.search)
+                                    window.location.href = `/purchaseorder/edit?id=${po.id}`
+                                  }}
                                   className="text-orange-600 hover:text-orange-800 p-1 rounded" 
                                   title="Edit PO"
                                 >
                                   <Edit size={20} />
-                                </a>
+                                </button>
                               ) : (
                                 <span 
                                   className="text-gray-400 p-1 rounded cursor-not-allowed" 

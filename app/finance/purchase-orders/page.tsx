@@ -1399,13 +1399,17 @@ export default function FinancePurchaseOrders() {
 
           {/* Action Buttons */}
           <div className="flex gap-2 sticky bottom-0 bg-white pt-4 pb-6 border-t border-gray-200">
-            <a
-              href={`/finance/purchase-orders/submit-approval?id=${item.id}`}
+            <button
+              onClick={() => {
+                const currentUrl = new URL(window.location.href)
+                sessionStorage.setItem('finance_po_return_url', currentUrl.pathname + currentUrl.search)
+                window.location.href = `/finance/purchase-orders/submit-approval?id=${item.id}`
+              }}
               className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
             >
               <FileText className="h-4 w-4 mr-1" />
               Submit
-            </a>
+            </button>
             {(item as any).approval_status === 'pending' && (
               <>
                 <button
@@ -2644,12 +2648,16 @@ export default function FinancePurchaseOrders() {
                   )}
                   
                   <div className="flex gap-1 mt-2">
-                    <a
-                      href={`/finance/purchase-orders/submit-approval?id=${item.id}`}
+                    <button
+                      onClick={() => {
+                        const currentUrl = new URL(window.location.href)
+                        sessionStorage.setItem('finance_po_return_url', currentUrl.pathname + currentUrl.search)
+                        window.location.href = `/finance/purchase-orders/submit-approval?id=${item.id}`
+                      }}
                       className="flex-1 text-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
                     >
                       Submit
-                    </a>
+                    </button>
                     {(item as any).approval_status === 'pending' && (
                       <>
                         <button
@@ -3036,13 +3044,17 @@ export default function FinancePurchaseOrders() {
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-center">
                             <div className="flex gap-1 justify-center">
-                              <a
-                                href={`/finance/purchase-orders/submit-approval?id=${item.id}`}
+                              <button
+                                onClick={() => {
+                                  const currentUrl = new URL(window.location.href)
+                                  sessionStorage.setItem('finance_po_return_url', currentUrl.pathname + currentUrl.search)
+                                  window.location.href = `/finance/purchase-orders/submit-approval?id=${item.id}`
+                                }}
                                 className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                                 title="Submit Total Tagih"
                               >
                                 <FileText className="h-3 w-3" />
-                              </a>
+                              </button>
                               {(item as any).approval_status === 'pending' && (
                                 <>
                                   <button
