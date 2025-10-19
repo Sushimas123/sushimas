@@ -118,6 +118,26 @@ export default function FinishPO() {
     fetchPOData(poId)
   }
 
+  // Rollback function to delete uploaded files
+  const rollbackUploadedFiles = async (fileNames: string[]) => {
+    if (fileNames.length === 0) return
+    
+    console.log('Rolling back uploaded files:', fileNames)
+    try {
+      const { error } = await supabase.storage
+        .from('po-photos')
+        .remove(fileNames)
+      
+      if (error) {
+        console.error('Error during rollback:', error)
+      } else {
+        console.log('Successfully rolled back files')
+      }
+    } catch (error) {
+      console.error('Exception during rollback:', error)
+    }
+  }
+
   const fetchPOData = async (poId: number) => {
     try {
 
@@ -417,6 +437,8 @@ export default function FinishPO() {
             if (uploadError) {
               console.error('Upload error details:', uploadError)
               console.error('File details:', { name: file.name, size: file.size, type: file.type })
+              // Rollback uploaded files
+              await rollbackUploadedFiles(uploadedFileNames)
               throw new Error(`Gagal upload foto nota ${i + 1}: ${uploadError.message}`)
             }
             
@@ -425,6 +447,7 @@ export default function FinishPO() {
           }
         } catch (err) {
           console.error('Upload exception:', err)
+          await rollbackUploadedFiles(uploadedFileNames)
           throw new Error(`Gagal upload foto nota: ${err instanceof Error ? err.message : 'Network error'}`)
         }
       }
@@ -450,6 +473,8 @@ export default function FinishPO() {
             if (uploadError) {
               console.error('Product upload error details:', uploadError)
               console.error('Product file details:', { name: file.name, size: file.size, type: file.type })
+              // Rollback all uploaded files
+              await rollbackUploadedFiles(uploadedFileNames)
               throw new Error(`Gagal upload foto product ${i + 1}: ${uploadError.message}`)
             }
             
@@ -458,6 +483,7 @@ export default function FinishPO() {
           }
         } catch (err) {
           console.error('Product upload exception:', err)
+          await rollbackUploadedFiles(uploadedFileNames)
           throw new Error(`Gagal upload foto product: ${err instanceof Error ? err.message : 'Network error'}`)
         }
       }
@@ -567,13 +593,18 @@ export default function FinishPO() {
           .eq('id', poData.id)
 
         if (updateError) {
-          // If PO update fails, try to rollback barang_masuk
+          // If PO update fails, rollback everything
           console.error('PO Update Error:', updateError)
+          
+          // Rollback barang_masuk
           await supabase
             .from('barang_masuk')
             .delete()
             .eq('no_po', poData.po_number)
             .eq('invoice_number', formData.invoice_number)
+          
+          // Rollback uploaded files
+          await rollbackUploadedFiles(uploadedFileNames)
           
           const errorMessage = updateError.message || JSON.stringify(updateError) || 'Unknown database error'
           throw new Error(`Gagal update status PO: ${errorMessage}`)
