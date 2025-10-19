@@ -241,6 +241,7 @@ export default function FinishPO() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
+    console.log('Files selected:', files.length)
     
     if (formData.foto_barang.length + files.length > MAX_PHOTOS) {
       alert(`Maksimal ${MAX_PHOTOS} foto`)
@@ -249,20 +250,39 @@ export default function FinishPO() {
     
     const validFiles: File[] = []
     const newUrls: string[] = []
+    const rejectedFiles: string[] = []
     
     for (const file of files) {
-      if (!file.type.startsWith('image/')) {
-        alert(`File ${file.name} harus berupa gambar`)
+      console.log('Processing file:', file.name, 'Type:', file.type, 'Size:', file.size)
+      
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+      if (!file.type || !allowedTypes.includes(file.type.toLowerCase())) {
+        rejectedFiles.push(`${file.name} (format tidak didukung)`)
         continue
       }
       
       if (file.size > 5 * 1024 * 1024) {
-        alert(`File ${file.name} maksimal 5MB`)
+        rejectedFiles.push(`${file.name} (ukuran > 5MB)`)
         continue
       }
       
-      validFiles.push(file)
-      newUrls.push(URL.createObjectURL(file))
+      if (file.size === 0) {
+        rejectedFiles.push(`${file.name} (file kosong)`)
+        continue
+      }
+      
+      try {
+        const url = URL.createObjectURL(file)
+        validFiles.push(file)
+        newUrls.push(url)
+      } catch (error) {
+        console.error('Error creating object URL:', error)
+        rejectedFiles.push(`${file.name} (error preview)`)
+      }
+    }
+    
+    if (rejectedFiles.length > 0) {
+      alert(`File ditolak:\n${rejectedFiles.join('\n')}`)
     }
     
     if (validFiles.length > 0) {
@@ -285,6 +305,7 @@ export default function FinishPO() {
 
   const handleProductFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
+    console.log('Product files selected:', files.length)
     
     if (formData.foto_product.length + files.length > MAX_PRODUCT_PHOTOS) {
       alert(`Maksimal ${MAX_PRODUCT_PHOTOS} foto`)
@@ -293,20 +314,39 @@ export default function FinishPO() {
     
     const validFiles: File[] = []
     const newUrls: string[] = []
+    const rejectedFiles: string[] = []
     
     for (const file of files) {
-      if (!file.type.startsWith('image/')) {
-        alert(`File ${file.name} harus berupa gambar`)
+      console.log('Processing product file:', file.name, 'Type:', file.type, 'Size:', file.size)
+      
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+      if (!file.type || !allowedTypes.includes(file.type.toLowerCase())) {
+        rejectedFiles.push(`${file.name} (format tidak didukung)`)
         continue
       }
       
       if (file.size > 5 * 1024 * 1024) {
-        alert(`File ${file.name} maksimal 5MB`)
+        rejectedFiles.push(`${file.name} (ukuran > 5MB)`)
         continue
       }
       
-      validFiles.push(file)
-      newUrls.push(URL.createObjectURL(file))
+      if (file.size === 0) {
+        rejectedFiles.push(`${file.name} (file kosong)`)
+        continue
+      }
+      
+      try {
+        const url = URL.createObjectURL(file)
+        validFiles.push(file)
+        newUrls.push(url)
+      } catch (error) {
+        console.error('Error creating product object URL:', error)
+        rejectedFiles.push(`${file.name} (error preview)`)
+      }
+    }
+    
+    if (rejectedFiles.length > 0) {
+      alert(`File produk ditolak:\n${rejectedFiles.join('\n')}`)
     }
     
     if (validFiles.length > 0) {
@@ -358,13 +398,16 @@ export default function FinishPO() {
       
       // Upload nota photos if provided
       if (formData.foto_barang.length > 0) {
+        console.log('Starting nota photo upload:', formData.foto_barang.length, 'files')
         try {
           for (let i = 0; i < formData.foto_barang.length; i++) {
             const file = formData.foto_barang[i]
+            console.log(`Uploading nota file ${i + 1}:`, file.name, file.size, 'bytes')
+            
             const fileExt = file.name.split('.').pop()
             const fileName = `${poData.po_number}_nota_${i + 1}_${Date.now()}.${fileExt}`
             
-            const { error: uploadError } = await supabase.storage
+            const { data, error: uploadError } = await supabase.storage
               .from('po-photos')
               .upload(fileName, file, {
                 cacheControl: '3600',
@@ -373,9 +416,11 @@ export default function FinishPO() {
 
             if (uploadError) {
               console.error('Upload error details:', uploadError)
+              console.error('File details:', { name: file.name, size: file.size, type: file.type })
               throw new Error(`Gagal upload foto nota ${i + 1}: ${uploadError.message}`)
             }
             
+            console.log(`Successfully uploaded:`, fileName)
             uploadedFileNames.push(fileName)
           }
         } catch (err) {
@@ -386,13 +431,16 @@ export default function FinishPO() {
 
       // Upload product photos if provided
       if (formData.foto_product.length > 0) {
+        console.log('Starting product photo upload:', formData.foto_product.length, 'files')
         try {
           for (let i = 0; i < formData.foto_product.length; i++) {
             const file = formData.foto_product[i]
+            console.log(`Uploading product file ${i + 1}:`, file.name, file.size, 'bytes')
+            
             const fileExt = file.name.split('.').pop()
             const fileName = `${poData.po_number}_product_${i + 1}_${Date.now()}.${fileExt}`
             
-            const { error: uploadError } = await supabase.storage
+            const { data, error: uploadError } = await supabase.storage
               .from('po-photos')
               .upload(fileName, file, {
                 cacheControl: '3600',
@@ -400,14 +448,16 @@ export default function FinishPO() {
               })
 
             if (uploadError) {
-              console.error('Upload error details:', uploadError)
+              console.error('Product upload error details:', uploadError)
+              console.error('Product file details:', { name: file.name, size: file.size, type: file.type })
               throw new Error(`Gagal upload foto product ${i + 1}: ${uploadError.message}`)
             }
             
+            console.log(`Successfully uploaded product:`, fileName)
             uploadedFileNames.push(fileName)
           }
         } catch (err) {
-          console.error('Upload exception:', err)
+          console.error('Product upload exception:', err)
           throw new Error(`Gagal upload foto product: ${err instanceof Error ? err.message : 'Network error'}`)
         }
       }
