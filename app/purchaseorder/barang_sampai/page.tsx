@@ -48,7 +48,7 @@ export default function FinishPO() {
   const MAX_PHOTOS = 1
   const MAX_PRODUCT_PHOTOS = 5
 
-  const [receivedItems, setReceivedItems] = useState<Record<number, {qty: number, harga: number, status: 'received' | 'partial' | 'not_received'}>>({})
+  const [receivedItems, setReceivedItems] = useState<Record<number, {qty: number, harga: number}>>({})
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -241,12 +241,11 @@ export default function FinishPO() {
       })
 
       // Initialize received items with empty values (required fields)
-      const initialReceived: Record<number, {qty: number, harga: number, status: 'received' | 'partial' | 'not_received'}> = {}
+      const initialReceived: Record<number, {qty: number, harga: number}> = {}
       poItems.forEach(item => {
         initialReceived[item.id] = {
           qty: 0,  // Default empty
-          harga: 0,  // Default empty
-          status: 'received'
+          harga: 0  // Default empty
         }
       })
       setReceivedItems(initialReceived)
@@ -387,12 +386,12 @@ export default function FinishPO() {
     }))
   }
 
-  const handleReceivedItemChange = (itemId: number, field: 'qty' | 'harga' | 'status', value: number | string) => {
+  const handleReceivedItemChange = (itemId: number, field: 'qty' | 'harga', value: number | string) => {
     setReceivedItems(prev => ({
       ...prev,
       [itemId]: {
         ...prev[itemId],
-        [field]: field === 'status' ? value as 'received' | 'partial' | 'not_received' : Number(value)
+        [field]: Number(value)
       }
     }))
   }
@@ -494,7 +493,7 @@ export default function FinishPO() {
       const poItemUpdates = []
       
       for (const [itemId, receivedData] of Object.entries(receivedItems)) {
-        if (receivedData.status !== 'not_received' && receivedData.qty > 0) {
+        if (receivedData.qty > 0) {
           const poItem = poData.items?.find(item => item.id === parseInt(itemId))
           if (poItem) {
             // Get product details
@@ -526,7 +525,7 @@ export default function FinishPO() {
               id_branch: poData.cabang_id,
               no_po: poData.po_number,
               invoice_number: formData.invoice_number,
-              keterangan: `${formData.keterangan || ''} - Status: ${receivedData.status}`.trim(),
+              keterangan: formData.keterangan || null,
               created_by: user.id_user || null
             })
 
@@ -541,11 +540,7 @@ export default function FinishPO() {
 
       // VALIDATE: Check required fields
       for (const [itemId, receivedData] of Object.entries(receivedItems)) {
-        if (receivedData.status !== 'not_received') {
-          if (!receivedData.qty || receivedData.qty <= 0) {
-            const poItem = poData.items?.find(item => item.id === parseInt(itemId))
-            throw new Error(`Qty Terima harus diisi untuk ${poItem?.product_name || 'item'}`)
-          }
+        if (receivedData.qty > 0) {
           if (!receivedData.harga || receivedData.harga <= 0) {
             const poItem = poData.items?.find(item => item.id === parseInt(itemId))
             throw new Error(`Harga Aktual harus diisi untuk ${poItem?.product_name || 'item'}`)
@@ -633,7 +628,7 @@ export default function FinishPO() {
 
       // STEP 3: Handle price differences (optional, non-critical)
       for (const [itemId, receivedData] of Object.entries(receivedItems)) {
-        if (receivedData.status !== 'not_received' && receivedData.qty > 0) {
+        if (receivedData.qty > 0) {
           const poItem = poData.items?.find(item => item.id === parseInt(itemId))
           if (poItem) {
             const originalPrice = poItem.harga || 0
@@ -945,7 +940,7 @@ export default function FinishPO() {
                       <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Qty Terima</th>
                       <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Harga PO</th>
                       <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Harga Aktual</th>
-                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -966,8 +961,6 @@ export default function FinishPO() {
                             onChange={(e) => handleReceivedItemChange(item.id, 'qty', e.target.value)}
                             className="w-16 border border-gray-300 rounded px-1 py-1 text-xs"
                             placeholder="0"
-                            required
-                            disabled={receivedItems[item.id]?.status === 'not_received'}
                           />
                         </td>
                         <td className="px-2 py-2 text-xs text-gray-600">
@@ -987,20 +980,15 @@ export default function FinishPO() {
                             onChange={(e) => handleReceivedItemChange(item.id, 'harga', e.target.value)}
                             className="w-20 border border-gray-300 rounded px-1 py-1 text-xs"
                             placeholder="0"
-                            required
-                            disabled={receivedItems[item.id]?.status === 'not_received'}
                           />
                         </td>
-                        <td className="px-2 py-2">
-                          <select
-                            value={receivedItems[item.id]?.status || 'received'}
-                            onChange={(e) => handleReceivedItemChange(item.id, 'status', e.target.value)}
-                            className="border border-gray-300 rounded px-1 py-1 text-xs w-full"
-                          >
-                            <option value="received">Penuh</option>
-                            <option value="partial">Sebagian</option>
-                            <option value="not_received">Tidak</option>
-                          </select>
+                        <td className="px-2 py-2 text-xs text-gray-600 font-medium">
+                          {new Intl.NumberFormat('id-ID', {
+                            style: 'currency',
+                            currency: 'IDR',
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                          }).format((receivedItems[item.id]?.qty || 0) * (receivedItems[item.id]?.harga || 0))}
                         </td>
                       </tr>
                     ))}
