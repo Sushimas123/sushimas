@@ -44,8 +44,19 @@ const RejectModal = ({ po, onClose, onSuccess }: {
 
     setLoading(true)
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser()
+      // Get current user from localStorage or Supabase Auth
+      let currentUser = null
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        currentUser = user
+      } catch (authError) {
+        console.warn('Auth error, using localStorage:', authError)
+      }
+      
+      if (!currentUser) {
+        const localUser = JSON.parse(localStorage.getItem('user') || '{}')
+        currentUser = { id: localUser.auth_id || null }
+      }
       
       const { error } = await supabase
         .from('purchase_orders')
@@ -53,7 +64,7 @@ const RejectModal = ({ po, onClose, onSuccess }: {
           approval_status: 'rejected',
           rejected_at: new Date().toISOString(),
           rejection_notes: notes.trim(),
-          rejected_by: user?.id || null
+          rejected_by: currentUser?.id || null
         })
         .eq('id', po.id)
 
@@ -1415,15 +1426,33 @@ export default function FinancePurchaseOrders() {
                 <button
                   onClick={async () => {
                     try {
-                      // Get current user
-                      const { data: { user } } = await supabase.auth.getUser()
+                      // Get current user from localStorage or Supabase Auth
+                      let userId = null
+                      try {
+                        const { data: { user } } = await supabase.auth.getUser()
+                        if (user) {
+                          const { data: userData } = await supabase
+                            .from('users')
+                            .select('id_user')
+                            .eq('email', user.email)
+                            .single()
+                          userId = userData?.id_user
+                        }
+                      } catch (authError) {
+                        console.warn('Auth error, using localStorage:', authError)
+                      }
+                      
+                      if (!userId) {
+                        const localUser = JSON.parse(localStorage.getItem('user') || '{}')
+                        userId = localUser.id_user || null
+                      }
                       
                       const { error } = await supabase
                         .from('purchase_orders')
                         .update({ 
                           approval_status: 'approved',
                           approved_at: new Date().toISOString(),
-                          approved_by: user?.id || null,
+                          approved_by: userId,
                           rejection_notes: null,
                           rejected_at: null
                         })
@@ -2008,18 +2037,33 @@ export default function FinancePurchaseOrders() {
                   <button
                     onClick={async () => {
                       try {
-                        // Get current user
-                        const { data: { user } } = await supabase.auth.getUser()
-                        if (!user) throw new Error('User not authenticated')
+                        // Get current user from localStorage or Supabase Auth
+                        let userId = null
+                        try {
+                          const { data: { user } } = await supabase.auth.getUser()
+                          if (user) {
+                            const { data: userData, error: userError } = await supabase
+                              .from('users')
+                              .select('id_user')
+                              .eq('email', user.email)
+                              .single()
+                            
+                            if (!userError && userData) {
+                              userId = userData.id_user
+                            }
+                          }
+                        } catch (authError) {
+                          console.warn('Auth error, using localStorage:', authError)
+                        }
                         
-                        // Get user ID from users table using email
-                        const { data: userData, error: userError } = await supabase
-                          .from('users')
-                          .select('id_user')
-                          .eq('email', user.email)
-                          .single()
+                        if (!userId) {
+                          const localUser = JSON.parse(localStorage.getItem('user') || '{}')
+                          userId = localUser.id_user || null
+                        }
                         
-                        if (userError) throw userError
+                        if (!userId) {
+                          throw new Error('User not authenticated. Please login again.')
+                        }
                         
                         const updatePromises = selectedPOs.map(poId => 
                           supabase
@@ -2027,7 +2071,7 @@ export default function FinancePurchaseOrders() {
                             .update({ 
                               approval_status: 'approved',
                               approved_at: new Date().toISOString(),
-                              approved_by: userData?.id_user || null,
+                              approved_by: userId,
                               rejection_notes: null,
                               rejected_at: null
                             })
@@ -2057,9 +2101,23 @@ export default function FinancePurchaseOrders() {
                           return
                         }
 
-                        // Get current user
-                        const { data: { user } } = await supabase.auth.getUser()
-                        if (!user) throw new Error('User not authenticated')
+                        // Get current user from localStorage or Supabase Auth
+                        let currentUser = null
+                        try {
+                          const { data: { user } } = await supabase.auth.getUser()
+                          currentUser = user
+                        } catch (authError) {
+                          console.warn('Auth error, using localStorage:', authError)
+                        }
+                        
+                        if (!currentUser) {
+                          const localUser = JSON.parse(localStorage.getItem('user') || '{}')
+                          currentUser = { id: localUser.auth_id || null }
+                        }
+                        
+                        if (!currentUser?.id) {
+                          throw new Error('User not authenticated. Please login again.')
+                        }
                         
                         const updatePromises = selectedPOs.map(poId => 
                           supabase
@@ -2068,7 +2126,7 @@ export default function FinancePurchaseOrders() {
                               approval_status: 'rejected',
                               rejected_at: new Date().toISOString(),
                               rejection_notes: notes.trim(),
-                              rejected_by: user.id
+                              rejected_by: currentUser.id
                             })
                             .eq('id', poId)
                         )
@@ -3060,25 +3118,42 @@ export default function FinancePurchaseOrders() {
                                   <button
                                     onClick={async () => {
                                       try {
-                                        // Get current user from Supabase Auth
-                                        const { data: { user } } = await supabase.auth.getUser()
-                                        if (!user) throw new Error('User not authenticated')
+                                        // Get current user from localStorage or Supabase Auth
+                                        let userId = null
+                                        try {
+                                          const { data: { user } } = await supabase.auth.getUser()
+                                          if (user) {
+                                            // Get user ID from users table using email
+                                            const { data: userData, error: userError } = await supabase
+                                              .from('users')
+                                              .select('id_user')
+                                              .eq('email', user.email)
+                                              .single()
+                                            
+                                            if (!userError && userData) {
+                                              userId = userData.id_user
+                                            }
+                                          }
+                                        } catch (authError) {
+                                          console.warn('Auth error, using localStorage:', authError)
+                                        }
                                         
-                                        // Get user ID from users table using email
-                                        const { data: userData, error: userError } = await supabase
-                                          .from('users')
-                                          .select('id_user')
-                                          .eq('email', user.email)
-                                          .single()
+                                        // Fallback to localStorage
+                                        if (!userId) {
+                                          const localUser = JSON.parse(localStorage.getItem('user') || '{}')
+                                          userId = localUser.id_user || null
+                                        }
                                         
-                                        if (userError) throw userError
+                                        if (!userId) {
+                                          throw new Error('User not authenticated. Please login again.')
+                                        }
                                         
                                         const { error } = await supabase
                                           .from('purchase_orders')
                                           .update({ 
                                             approval_status: 'approved',
                                             approved_at: new Date().toISOString(),
-                                            approved_by: userData?.id_user || null,
+                                            approved_by: userId,
                                             rejection_notes: null,
                                             rejected_at: null
                                           })
