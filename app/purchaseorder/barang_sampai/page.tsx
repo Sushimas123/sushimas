@@ -939,7 +939,7 @@ export default function FinishPO() {
                       <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Qty PO</th>
                       <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Qty Terima</th>
                       <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Harga PO</th>
-                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Harga Aktual</th>
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">harga Satuan Invoice</th>
                       <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
                     </tr>
                   </thead>
