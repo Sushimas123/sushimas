@@ -1,9 +1,15 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
+
+interface Branch {
+  id_branch: number;
+  kode_branch: string;
+  nama_branch: string;
+}
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -12,12 +18,42 @@ export default function SignupPage() {
     confirmPassword: '',
     nama_lengkap: '',
     no_telp: '',
-    cabang: ''
+    cabang: '',
+    selectedBranches: [] as string[]
   })
+  const [branches, setBranches] = useState<Branch[]>([])
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [message, setMessage] = useState('')
   const router = useRouter()
+
+  useEffect(() => {
+    fetchBranches()
+  }, [])
+
+  const fetchBranches = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('branches')
+        .select('id_branch, kode_branch, nama_branch')
+        .eq('is_active', true)
+        .order('nama_branch')
+
+      if (error) throw error
+      setBranches(data || [])
+    } catch (error) {
+      console.error('Error fetching branches:', error)
+    }
+  }
+
+  const handleBranchToggle = (branchCode: string) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedBranches: prev.selectedBranches.includes(branchCode)
+        ? prev.selectedBranches.filter(b => b !== branchCode)
+        : [...prev.selectedBranches, branchCode]
+    }))
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData(prev => ({
@@ -100,20 +136,38 @@ export default function SignupPage() {
             email: formData.email,
             nama_lengkap: formData.nama_lengkap,
             no_telp: formData.no_telp || null,
-            cabang: formData.cabang || null,
+            cabang: formData.selectedBranches[0] || null,
             role: 'staff',
             is_active: true,
             auth_id: authData.user.id
           }
           
-          const { error: profileError } = await supabase
+          const { data: userData, error: profileError } = await supabase
             .from('users')
             .insert(insertData)
+            .select('id_user')
+            .single()
 
           if (profileError) {
             console.error('Profile creation failed:', profileError)
           } else {
             console.log('Profile created successfully')
+            
+            // Insert user branches
+            if (formData.selectedBranches.length > 0 && userData?.id_user) {
+              const userBranches = formData.selectedBranches.map(branch => ({
+                id_user: userData.id_user,
+                kode_branch: branch
+              }))
+              
+              const { error: branchError } = await supabase
+                .from('user_branches')
+                .insert(userBranches)
+                
+              if (branchError) {
+                console.error('Branch insert error:', branchError)
+              }
+            }
           }
         } catch (dbError) {
           console.error('Database operation failed:', dbError)
@@ -137,12 +191,12 @@ export default function SignupPage() {
               email: formData.email,
               nama_lengkap: formData.nama_lengkap,
               no_telp: formData.no_telp || null,
-              cabang: formData.cabang || null,
+              cabang: formData.selectedBranches[0] || null,
               role: 'staff',
               is_active: true,
               auth_id: null // Will be linked later
             })
-            .select()
+            .select('id_user')
             .single()
 
           if (manualError) {
@@ -150,6 +204,19 @@ export default function SignupPage() {
             setMessage('Signup failed. Please contact administrator.')
           } else {
             console.log('Manual user created:', manualUser)
+            
+            // Insert user branches for manual creation
+            if (formData.selectedBranches.length > 0 && manualUser?.id_user) {
+              const userBranches = formData.selectedBranches.map(branch => ({
+                id_user: manualUser.id_user,
+                kode_branch: branch
+              }))
+              
+              await supabase
+                .from('user_branches')
+                .insert(userBranches)
+            }
+            
             setMessage('Account created successfully! You can now login.')
             setTimeout(() => router.push('/auth/login'), 2000)
           }
@@ -210,27 +277,28 @@ export default function SignupPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Branch
+              Select Branches *
             </label>
-            <div className="relative">
-              <select
-                name="cabang"
-                value={formData.cabang}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Select your branch</option>
-                <option value="JAK729">JAK729 - Sushimas Condet</option>
-                <option value="BEK516">BEK516 - Sushimas Grand Galaxy</option>
-                <option value="DEP464">DEP464 - Sushimas Depok</option>
-                <option value="TAN624">TAN624 - Sushimas Serpong</option>
-                <option value="BOG853">BOG853 - Sushimas Cibinong</option>
-                <option value="BEK068">BEK068 - Sushimas Grand Wisata</option>
-                <option value="BEK458">BEK458 - Sushimas Harapan Indah</option>
-                <option value="JAK672">JAK672 - Central Condet</option>
-                <option value="BEK261">BEK261 - Central Grandwis</option>
-              </select>
+            <div className="border border-gray-300 rounded-lg p-3 max-h-32 overflow-y-auto">
+              {branches.length === 0 ? (
+                <p className="text-gray-500 text-sm">Loading branches...</p>
+              ) : (
+                branches.map(branch => (
+                  <label key={branch.id_branch} className="flex items-center gap-2 text-sm mb-1">
+                    <input
+                      type="checkbox"
+                      checked={formData.selectedBranches.includes(branch.kode_branch)}
+                      onChange={() => handleBranchToggle(branch.kode_branch)}
+                      className="w-4 h-4 text-blue-600 rounded"
+                    />
+                    <span>{branch.kode_branch} - {branch.nama_branch}</span>
+                  </label>
+                ))
+              )}
             </div>
+            {formData.selectedBranches.length === 0 && (
+              <p className="text-red-500 text-xs mt-1">Please select at least one branch</p>
+            )}
           </div>
 
           <div>
@@ -306,7 +374,7 @@ export default function SignupPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || formData.selectedBranches.length === 0}
             className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Creating account...' : 'Create Account'}
