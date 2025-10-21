@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Layout from '@/components/Layout';
 import PageAccessControl from '@/components/PageAccessControl';
 import { supabase } from '@/src/lib/supabaseClient';
@@ -29,9 +29,20 @@ interface PettyCashExpense {
   barang_masuk_id?: number;
 }
 
+interface PettyCashRequest {
+  id: number;
+  amount: number;
+  parent_request_id?: number;
+  carried_balance?: number;
+  request_number?: string;
+  branch_code?: string;
+  branches?: any;
+  }
+
+
 function PettyCashExpensesContent() {
   const [expenses, setExpenses] = useState<PettyCashExpense[]>([]);
-  const [requests, setRequests] = useState<{id: number, amount: number, parent_request_id?: number, carried_balance?: number, request_number?: string, branch_code?: string}[]>([]);
+  const [requests, setRequests] = useState<PettyCashRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -44,33 +55,67 @@ function PettyCashExpensesContent() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
 
-  const exportToExcel = () => {
-    const exportData = filteredExpenses.map((expense, index) => {
-      const runningBalance = calculateRunningBalance(expense);
+  // Memoized calculateRunningBalance untuk mengatasi N+1
+  const calculateRunningBalance = useMemo(() => {
+    const cache = new Map<number, number>();
+    
+    return (expense: PettyCashExpense) => {
+      if (cache.has(expense.id)) {
+        return cache.get(expense.id)!;
+      }
       
-      return {
-        'Tanggal': formatDate(expense.expense_date),
-        'Request Number': expense.request_number,
-        'Cabang': expense.branch_name,
-        'Kategori': expense.category_name,
-        'Deskripsi': expense.description,
-        'Nama Barang': expense.vendor_name || '-',
-        'Qty': expense.qty || '-',
-        'Harga Satuan': expense.harga || '-',
-        'Total': expense.amount,
-        'Running Balance': runningBalance,
-        'Status Settlement': expense.settlement_status || 'no_settlement',
-        'Receipt Number': expense.receipt_number || '-',
-        'Notes': expense.notes || '-'
-      };
-    });
-    
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
-    
-    const fileName = `petty_cash_expenses_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(wb, fileName);
+      const request = requests.find(r => r.id === expense.request_id);
+      if (!request) {
+        cache.set(expense.id, 0);
+        return 0;
+      }
+
+      const totalAvailable = request.amount + (request.carried_balance || 0);
+      const relevantExpenses = expenses.filter(e => 
+        e.request_id === expense.request_id && 
+        (new Date(e.expense_date) < new Date(expense.expense_date) ||
+        (new Date(e.expense_date).getTime() === new Date(expense.expense_date).getTime() && e.id <= expense.id))
+      );
+      const totalExpensesUpToNow = relevantExpenses.reduce((sum, e) => sum + e.amount, 0);
+      const balance = totalAvailable - totalExpensesUpToNow;
+      
+      cache.set(expense.id, balance);
+      return balance;
+    };
+  }, [expenses, requests]);
+
+  const exportToExcel = () => {
+    try {
+      const exportData = filteredExpenses.map((expense) => {
+        const runningBalance = calculateRunningBalance(expense);
+        
+        return {
+          'Tanggal': formatDate(expense.expense_date),
+          'Request Number': expense.request_number,
+          'Cabang': expense.branch_name,
+          'Kategori': expense.category_name,
+          'Deskripsi': expense.description,
+          'Nama Barang': expense.vendor_name || '-',
+          'Qty': expense.qty || '-',
+          'Harga Satuan': expense.harga || '-',
+          'Total': expense.amount,
+          'Running Balance': runningBalance,
+          'Status Settlement': expense.settlement_status || 'no_settlement',
+          'Receipt Number': expense.receipt_number || '-',
+          'Notes': expense.notes || '-'
+        };
+      });
+      
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
+      
+      const fileName = `petty_cash_expenses_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (err) {
+      console.error('Export error:', err);
+      alert('Gagal mengexport data ke Excel');
+    }
   };
 
   const handleConvertToBarangMasuk = async (expense: PettyCashExpense) => {
@@ -102,7 +147,8 @@ function PettyCashExpensesContent() {
       alert('Berhasil dikonversi ke barang masuk!');
       fetchExpenses();
     } catch (error) {
-      alert(`Gagal konversi: ${error}`);
+      console.error('Conversion error:', error);
+      alert(`Gagal konversi: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -110,34 +156,39 @@ function PettyCashExpensesContent() {
     if (!confirm('Hapus expense ini? Jika sudah dikonversi ke barang masuk, data barang masuk juga akan terhapus.')) return;
     
     try {
-      const { data: expense } = await supabase
+      const { data: expense, error: expenseError } = await supabase
         .from('petty_cash_expenses')
         .select('request_id, barang_masuk_id')
         .eq('id', id)
         .single();
       
+      if (expenseError) throw expenseError;
       if (!expense) {
         alert('Expense tidak ditemukan');
         return;
       }
       
-      const { data: settlement } = await supabase
+      const { data: settlement, error: settlementError } = await supabase
         .from('petty_cash_settlements')
         .select('status')
         .eq('request_id', expense.request_id)
         .eq('status', 'completed')
         .single();
       
+      if (settlementError && settlementError.code !== 'PGRST116') throw settlementError;
+      
       if (settlement) {
         alert('Expense tidak bisa dihapus karena request sudah ada settlement yang completed. Undo settlement terlebih dahulu.');
         return;
       }
       
-      // Check for related gudang entries (both via barang_masuk_id and source_reference)
-      const { data: gudangEntries } = await supabase
+      // Check for related gudang entries
+      const { data: gudangEntries, error: gudangError } = await supabase
         .from('gudang')
         .select('*')
-        .or(`source_reference.like.%PETTY-CASH-${id}%,source_reference.like.%${id}%`);
+        .or(`source_reference.ilike.%PETTY-CASH-${id}%,source_reference.ilike.%${id}%`);
+      
+      if (gudangError) throw gudangError;
       
       if (gudangEntries && gudangEntries.length > 0) {
         if (!confirm('Expense ini sudah masuk ke gudang. Hapus juga dari gudang? Ini akan mempengaruhi stok.')) {
@@ -158,33 +209,25 @@ function PettyCashExpensesContent() {
         }
       }
       
-      // First, remove foreign key reference by updating barang_masuk_id to null
+      // Remove foreign key reference first
       if (expense.barang_masuk_id) {
         const { error: updateError } = await supabase
           .from('petty_cash_expenses')
           .update({ barang_masuk_id: null })
           .eq('id', id);
         
-        if (updateError) {
-          console.error('Update expense error:', updateError);
-          alert(`Gagal mengupdate expense: ${updateError.message}`);
-          return;
-        }
+        if (updateError) throw updateError;
       }
       
-      // Now delete the expense first
+      // Delete the expense
       const { error: expenseDeleteError } = await supabase
         .from('petty_cash_expenses')
         .delete()
         .eq('id', id);
       
-      if (expenseDeleteError) {
-        console.error('Expense delete error:', expenseDeleteError);
-        alert(`Gagal menghapus expense: ${expenseDeleteError.message}`);
-        return;
-      }
+      if (expenseDeleteError) throw expenseDeleteError;
       
-      // Then delete related barang_masuk entries
+      // Delete related barang_masuk entries
       if (expense.barang_masuk_id) {
         const { error: barangMasukError } = await supabase
           .from('barang_masuk')
@@ -193,25 +236,25 @@ function PettyCashExpensesContent() {
         
         if (barangMasukError) {
           console.error('Barang masuk delete error:', barangMasukError);
-          // Don't return here since expense is already deleted
         }
       } else {
-        // Also check for barang_masuk with source_reference containing expense ID
-        const { data: barangMasukEntries } = await supabase
+        // Check for barang_masuk with source_reference containing expense ID
+        const { data: barangMasukEntries, error: barangMasukSearchError } = await supabase
           .from('barang_masuk')
           .select('*')
-          .or(`no_po.like.%PETTY-CASH-${id}%,no_po.like.%${id}%`);
+          .or(`no_po.ilike.%PETTY-CASH-${id}%,no_po.ilike.%${id}%`);
         
-        if (barangMasukEntries && barangMasukEntries.length > 0) {
+        if (barangMasukSearchError) {
+          console.error('Barang masuk search error:', barangMasukSearchError);
+        } else if (barangMasukEntries && barangMasukEntries.length > 0) {
           for (const barangMasuk of barangMasukEntries) {
-            const { error: barangMasukError } = await supabase
+            const { error: barangMasukDeleteError } = await supabase
               .from('barang_masuk')
               .delete()
               .eq('id', barangMasuk.id);
             
-            if (barangMasukError) {
-              console.error('Barang masuk delete error:', barangMasukError);
-              // Don't return here since expense is already deleted
+            if (barangMasukDeleteError) {
+              console.error('Barang masuk delete error:', barangMasukDeleteError);
             }
           }
         }
@@ -220,7 +263,8 @@ function PettyCashExpensesContent() {
       alert('Expense berhasil dihapus!' + (expense.barang_masuk_id ? ' Data barang masuk terkait juga telah dihapus.' : ''));
       fetchExpenses();
     } catch (error) {
-      alert('Gagal menghapus expense');
+      console.error('Delete error:', error);
+      alert(`Gagal menghapus expense: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -233,44 +277,64 @@ function PettyCashExpensesContent() {
       let allowedBranchCodes: string[] = [];
       
       if (userData) {
-        const user = JSON.parse(userData);
-        userRole = user.role;
-        
-        if (userRole !== 'super admin' && userRole !== 'admin' && user.id_user) {
-          const { data: userBranches } = await supabase
-            .from('user_branches')
-            .select('kode_branch')
-            .eq('id_user', user.id_user)
-            .eq('is_active', true);
+        try {
+          const user = JSON.parse(userData);
+          userRole = user.role || '';
           
-          allowedBranchCodes = userBranches?.map(ub => ub.kode_branch) || [];
+          if (userRole !== 'super admin' && userRole !== 'admin' && user.id_user) {
+            const { data: userBranches, error: userBranchesError } = await supabase
+              .from('user_branches')
+              .select('kode_branch')
+              .eq('id_user', user.id_user)
+              .eq('is_active', true);
+            
+            if (userBranchesError) throw userBranchesError;
+            
+            allowedBranchCodes = userBranches?.map(ub => ub.kode_branch) || [];
+          }
+        } catch (parseError) {
+          console.error('Error parsing user data:', parseError);
         }
       }
       
-      // ✅ FETCH ALL DATA IN PARALLEL
-      const [requestsResult, expensesResult, categoriesResult, usersResult, settlementsResult] = await Promise.all([
-        supabase.from('petty_cash_requests').select('id, amount, parent_request_id, carried_balance, request_number, branch_code, branches(nama_branch)').order('created_at', { ascending: true }),
+      // Fetch all data in parallel
+      const [
+        requestsResult,
+        expensesResult,
+        categoriesResult,
+        usersResult,
+        settlementsResult
+      ] = await Promise.all([
+        supabase.from('petty_cash_requests')
+          .select('id, amount, parent_request_id, carried_balance, request_number, branch_code, branches(nama_branch)')
+          .order('created_at', { ascending: true }),
         supabase.from('petty_cash_expenses').select('*').order('expense_date', { ascending: false }),
         supabase.from('categories').select('id_category, category_name'),
         supabase.from('users').select('id_user, nama_lengkap'),
         supabase.from('petty_cash_settlements').select('request_id, status')
       ]);
 
+      // Handle errors
       if (expensesResult.error) throw expensesResult.error;
+      if (requestsResult.error) throw requestsResult.error;
+      if (categoriesResult.error) throw categoriesResult.error;
+      if (usersResult.error) throw usersResult.error;
+      if (settlementsResult.error) throw settlementsResult.error;
 
-      // ✅ CREATE LOOKUP MAPS
-      const requestsMap = new Map(requestsResult.data?.map(r => [r.id, r]));
-      const categoriesMap = new Map(categoriesResult.data?.map(c => [c.id_category, c.category_name]));
-      const usersMap = new Map(usersResult.data?.map(u => [u.id_user, u.nama_lengkap]));
-      const settlementsMap = new Map(settlementsResult.data?.map(s => [s.request_id, s.status]));
+      // Create lookup maps
+      const requestsMap = new Map((requestsResult.data || []).map(r => [r.id, r]));
+      const categoriesMap = new Map((categoriesResult.data || []).map(c => [c.id_category, c.category_name]));
+      const usersMap = new Map((usersResult.data || []).map(u => [u.id_user, u.nama_lengkap]));
+      const settlementsMap = new Map((settlementsResult.data || []).map(s => [s.request_id, s.status]));
 
-      // ✅ FILTER REQUESTS BY BRANCH
+      // Filter requests by branch
       let filteredRequests = requestsResult.data || [];
       if (userRole !== 'super admin' && userRole !== 'admin') {
         if (allowedBranchCodes.length > 0) {
-          filteredRequests = filteredRequests.filter(r => allowedBranchCodes.includes(r.branch_code));
+          filteredRequests = filteredRequests.filter(r => 
+            r.branch_code && allowedBranchCodes.includes(r.branch_code)
+          );
         } else {
-          // If user has no branch assignments, return empty result
           filteredRequests = [];
         }
       }
@@ -278,17 +342,23 @@ function PettyCashExpensesContent() {
 
       const allowedRequestIds = new Set(filteredRequests.map(r => r.id));
 
-      // ✅ MAP EXPENSES WITH LOOKUPS (NO LOOPS!)
+      // Map expenses with lookups
       const formattedExpenses = (expensesResult.data || [])
-        .filter(expense => userRole === 'super admin' || userRole === 'admin' || allowedRequestIds.has(expense.request_id))
+        .filter(expense => 
+          userRole === 'super admin' || 
+          userRole === 'admin' || 
+          allowedRequestIds.has(expense.request_id)
+        )
         .map(expense => {
           const request = requestsMap.get(expense.request_id);
+          const branchName = (request?.branches as any)?.nama_branch || 'Unknown Branch';
+          
           return {
             ...expense,
             request_number: request?.request_number || `REQ-${expense.request_id}`,
             category_name: categoriesMap.get(expense.category_id) || `Category ${expense.category_id}`,
             created_by_name: usersMap.get(expense.created_by) || `User ${expense.created_by}`,
-            branch_name: (request?.branches as any)?.nama_branch || 'Unknown Branch',
+            branch_name: branchName,
             settlement_status: settlementsMap.get(expense.request_id) || 'no_settlement'
           };
         });
@@ -331,7 +401,9 @@ function PettyCashExpensesContent() {
         matchesDate = matchesDate && expenseDate >= new Date(startDate);
       }
       if (endDate) {
-        matchesDate = matchesDate && expenseDate <= new Date(endDate);
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        matchesDate = matchesDate && expenseDate <= endDateTime;
       }
     }
     
@@ -347,42 +419,32 @@ function PettyCashExpensesContent() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('id-ID', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+    try {
+      return new Date(dateString).toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch {
+      return 'Invalid Date';
+    }
   };
 
-  const categories = Array.from(new Set(expenses.map(e => e.category_id)))
-    .map(id => {
-      const expense = expenses.find(e => e.category_id === id);
-      return {
-        id: id,
-        name: expense?.category_name || `Category ${id}`
-      };
-    });
+  // Memoized categories dan branches
+  const categories = useMemo(() => 
+    Array.from(new Set(expenses.map(e => e.category_id)))
+      .map(id => {
+        const expense = expenses.find(e => e.category_id === id);
+        return {
+          id: id,
+          name: expense?.category_name || `Category ${id}`
+        };
+      }), [expenses]);
 
-  const branches = Array.from(new Set(expenses.map(e => e.branch_name)))
-    .filter(name => name)
-    .sort();
-
-  const calculateRunningBalance = (expense: PettyCashExpense) => {
-    const request = requests.find(r => r.id === expense.request_id);
-    if (!request) return 0;
-
-    const totalAvailable = request.amount + (request.carried_balance || 0);
-
-    const relevantExpenses = expenses.filter(e => 
-      e.request_id === expense.request_id && 
-      (new Date(e.expense_date) < new Date(expense.expense_date) ||
-      (new Date(e.expense_date).getTime() === new Date(expense.expense_date).getTime() && e.id <= expense.id))
-    );
-
-    const totalExpensesUpToNow = relevantExpenses.reduce((sum, e) => sum + e.amount, 0);
-
-    return totalAvailable - totalExpensesUpToNow;
-  };
+  const branches = useMemo(() => 
+    Array.from(new Set(expenses.map(e => e.branch_name)))
+      .filter((name): name is string => !!name)
+      .sort(), [expenses]);
 
   // Pagination
   const totalPages = Math.ceil(filteredExpenses.length / pageSize);
@@ -395,22 +457,8 @@ function PettyCashExpensesContent() {
     totalRemaining: requests.reduce((sum, r) => {
       const requestExpenses = expenses.filter(e => e.request_id === r.id);
       const totalExpenses = requestExpenses.reduce((expSum, e) => expSum + e.amount, 0);
-      return sum + (r.amount + ((r as any).carried_balance || 0)) - totalExpenses;
+      return sum + (r.amount + (r.carried_balance || 0)) - totalExpenses;
     }, 0)
-  };
-
-  const getSettlementStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Completed</span>;
-      case 'verified':
-        return <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">Verified</span>;
-      case 'pending':
-        return <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">Pending</span>;
-      case 'no_settlement':
-      default:
-        return <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">No Settlement</span>;
-    }
   };
 
   if (loading) {
@@ -449,8 +497,6 @@ function PettyCashExpensesContent() {
           </a>
         </div>
       </div>
-
-
 
       {/* Search Bar - Always visible */}
       <div className="bg-white p-4 rounded-lg border">
@@ -756,7 +802,7 @@ function PettyCashExpensesContent() {
             <p className="text-gray-600 mb-4">
               {searchTerm || categoryFilter !== 'all' 
                 ? 'Coba ubah filter pencarian' 
-                : 'Belum ada pengeluaran   yang dibuat'
+                : 'Belum ada pengeluaran yang dibuat'
               }
             </p>
             <a 

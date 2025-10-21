@@ -7,7 +7,7 @@ import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 
 interface OutstandingData {
-  id: number
+  id: number | string
   po_number: string
   nama_supplier: string
   kategori: string | null
@@ -62,9 +62,33 @@ export default function OutstandingMatrix() {
         query = query.lte('tanggal_barang_sampai', dateTo)
       }
       
-      const { data: financeData, error } = await query
+      // ✅ TAMBAHKAN PETTY CASH QUERY BERDASARKAN TANGGAL
+      let pettyCashQuery = supabase
+        .from('petty_cash_expenses')
+        .select(`
+          id, request_id, amount, description, expense_date,
+          petty_cash_requests(request_number, branch_code, branches(nama_branch)),
+          categories(category_name)
+        `)
+      
+      // Apply same date filters to petty cash
+      if (dateFrom) {
+        pettyCashQuery = pettyCashQuery.gte('expense_date', dateFrom)
+      }
+      if (dateTo) {
+        pettyCashQuery = pettyCashQuery.lte('expense_date', dateTo)
+      }
+      
+      const [financeResult, pettyCashResult] = await Promise.all([
+        query,
+        pettyCashQuery
+      ])
 
-      if (error) throw error
+      if (financeResult.error) throw financeResult.error
+      if (pettyCashResult.error) throw pettyCashResult.error
+
+      const financeData = financeResult.data
+      const pettyCashData = pettyCashResult.data
 
       // Get PO items and payments for calculation
       const poIds = financeData.map(item => item.id)
@@ -209,16 +233,30 @@ export default function OutstandingMatrix() {
         return hasItems && item.status_payment !== 'paid' && item.sisa_bayar > 0
       })
 
-      // Data processing complete
+      // ✅ PROCESS PETTY CASH DATA
+      const pettyCashProcessed = (pettyCashData || []).map((expense: any) => ({
+        id: `PC-${expense.id}`,
+        po_number: expense.petty_cash_requests?.request_number || `PC-${expense.request_id}`,
+        nama_supplier: 'Petty Cash',
+        kategori: expense.categories?.category_name || 'Petty Cash',
+        sub_kategori: 'Expenses',
+        nama_product: expense.description,
+        nama_branch: expense.petty_cash_requests?.branches?.nama_branch || 'Unknown Branch',
+        sisa_bayar: expense.amount,
+        status_payment: 'unpaid'
+      }))
 
-      setData(processedData)
+      // ✅ GABUNGKAN DATA
+      const combinedData = [...processedData, ...pettyCashProcessed]
 
-      // Extract unique branches and categories
-      const uniqueBranches = [...new Set(processedData.map(item => item.nama_branch))].sort()
+      setData(combinedData)
+
+      // Extract unique branches and categories from combined data
+      const uniqueBranches = [...new Set(combinedData.map(item => item.nama_branch))].sort()
       setBranches(uniqueBranches)
 
       const categoryMap: Record<string, Record<string, Set<string>>> = {}
-      processedData.forEach(item => {
+      combinedData.forEach(item => {
         const kategori = item.kategori || 'Uncategorized'
         const subKategori = item.sub_kategori || 'General'
         const namaProduct = item.nama_product || 'Unknown Product'
