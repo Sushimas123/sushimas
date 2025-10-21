@@ -524,4 +524,4 @@ export default function PaymentTermsPage() {
       </PageAccessControl>
     </Layout>
   );
-}
+} 
