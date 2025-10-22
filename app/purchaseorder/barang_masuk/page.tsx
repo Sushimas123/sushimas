@@ -375,19 +375,7 @@ export default function BarangMasukPage() {
     }
   }
 
-  // Filter barang masuk based on status only (search is now server-side)
-  const filteredBarangMasuk = barangMasuk.filter(item => {
-    // Status filter
-    if (statusFilter === 'pending') {
-      return !item.is_in_gudang
-    } else if (statusFilter === 'in_gudang') {
-      return item.is_in_gudang
-    }
-    
-    return true
-  })
-
-  // Group barang masuk by PO
+  // Group barang masuk by PO (data already filtered server-side)
   const groupByPO = (items: BarangMasuk[]): Record<string, POGroup> => {
     return items.reduce((groups: Record<string, POGroup>, item) => {
       const key = item.no_po || 'no-po'
@@ -409,7 +397,7 @@ export default function BarangMasukPage() {
     }, {})
   }
 
-  const poGroups = groupByPO(filteredBarangMasuk)
+  const poGroups = groupByPO(barangMasuk)
   const totalPages = Math.ceil(totalCount / itemsPerPage)
   
   const handlePageChange = (page: number) => {
@@ -810,7 +798,7 @@ export default function BarangMasukPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {filteredBarangMasuk.map((item) => (
+                        {barangMasuk.map((item) => (
                           <tr key={item.id} className="hover:bg-gray-50">
                             <td className="px-2 py-2">
                               <div className="text-xs">{new Date(item.tanggal).toLocaleDateString('id-ID')}</div>
@@ -1084,7 +1072,7 @@ export default function BarangMasukPage() {
                 </div>
               )}
                 
-              {(isMobile ? Object.keys(poGroups).length === 0 : filteredBarangMasuk.length === 0) && (
+              {barangMasuk.length === 0 && (
                 <div className="bg-white rounded-lg shadow p-8 text-center">
                   <Package className="mx-auto text-gray-400 mb-4" size={48} />
                   <p className="text-gray-500 mb-4">
