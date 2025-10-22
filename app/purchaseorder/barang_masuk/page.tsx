@@ -92,6 +92,7 @@ export default function BarangMasukPage() {
   const [isMobile, setIsMobile] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_gudang'>('all')
   const [processingItems, setProcessingItems] = useState<Set<number>>(new Set())
+  const [fetchTimeout, setFetchTimeout] = useState<NodeJS.Timeout>()
   const itemsPerPage = 20
 
   useEffect(() => {
@@ -109,9 +110,17 @@ export default function BarangMasukPage() {
   }, [])
 
   useEffect(() => {
-    setCurrentPage(1)
-    fetchBarangMasuk()
-  }, [selectedBranch, searchTerm])
+    if (fetchTimeout) clearTimeout(fetchTimeout)
+    
+    const timeout = setTimeout(() => {
+      setCurrentPage(1)
+      fetchBarangMasuk()
+    }, 500)
+    
+    setFetchTimeout(timeout)
+    
+    return () => clearTimeout(timeout)
+  }, [selectedBranch, searchTerm, statusFilter])
   
   useEffect(() => {
     fetchBarangMasuk()
@@ -185,35 +194,7 @@ export default function BarangMasukPage() {
         searchBranchIds = branches?.map(b => b.id_branch) || []
       }
       
-      // Build count query
-      let countQuery = supabase
-        .from('barang_masuk')
-        .select('*', { count: 'exact', head: true })
-      
-      // Apply branch access control
-      if (allowedBranchIds.length > 0) {
-        countQuery = countQuery.in('id_branch', allowedBranchIds)
-      }
-      
-      if (selectedBranch) {
-        countQuery = countQuery.eq('id_branch', parseInt(selectedBranch))
-      }
-      
-      // Apply search filters
-      if (searchTerm) {
-        countQuery = countQuery.or(
-          `no_po.ilike.%${searchTerm}%,` +
-          `invoice_number.ilike.%${searchTerm}%` +
-          (searchProductIds.length > 0 ? `,id_barang.in.(${searchProductIds.join(',')})` : '') +
-          (searchSupplierIds.length > 0 ? `,id_supplier.in.(${searchSupplierIds.join(',')})` : '') +
-          (searchBranchIds.length > 0 ? `,id_branch.in.(${searchBranchIds.join(',')})` : '')
-        )
-      }
-      
-      const { count } = await countQuery
-      setTotalCount(count || 0)
-      
-      // Get paginated data
+      // Build query with all filters (server-side)
       const from = (currentPage - 1) * itemsPerPage
       const to = from + itemsPerPage - 1
       
@@ -223,9 +204,16 @@ export default function BarangMasukPage() {
           *,
           created_by_user:users!barang_masuk_created_by_fkey(nama_lengkap),
           updated_by_user:users!barang_masuk_updated_by_fkey(nama_lengkap)
-        `)
+        `, { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(from, to)
+      
+      // Apply status filter (server-side)
+      if (statusFilter === 'pending') {
+        query = query.eq('is_in_gudang', false)
+      } else if (statusFilter === 'in_gudang') {
+        query = query.eq('is_in_gudang', true)
+      }
       
       // Apply branch access control
       if (allowedBranchIds.length > 0) {
@@ -247,13 +235,13 @@ export default function BarangMasukPage() {
         )
       }
       
-      const { data, error } = await query
+      const { data, count, error } = await query
 
       if (error) {
         throw error
       }
 
-
+      setTotalCount(count || 0)
 
       if (!data || data.length === 0) {
         setBarangMasuk([])
@@ -1097,8 +1085,26 @@ export default function BarangMasukPage() {
               )}
                 
               {(isMobile ? Object.keys(poGroups).length === 0 : filteredBarangMasuk.length === 0) && (
-                <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
-                  {searchTerm ? 'Tidak ada data yang sesuai dengan pencarian' : 'Tidak ada data barang masuk'}
+                <div className="bg-white rounded-lg shadow p-8 text-center">
+                  <Package className="mx-auto text-gray-400 mb-4" size={48} />
+                  <p className="text-gray-500 mb-4">
+                    {searchTerm || selectedBranch || statusFilter !== 'all' 
+                      ? 'Tidak ada data yang sesuai dengan filter'
+                      : 'Tidak ada data barang masuk'
+                    }
+                  </p>
+                  {(searchTerm || selectedBranch || statusFilter !== 'all') && (
+                    <button 
+                      onClick={() => {
+                        setSearchTerm('')
+                        setSelectedBranch('')
+                        setStatusFilter('all')
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                    >
+                      Reset Filter
+                    </button>
+                  )}
                 </div>
               )}
               
