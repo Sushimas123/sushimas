@@ -208,11 +208,14 @@ export default function BarangMasukPage() {
         .order('created_at', { ascending: false })
         .range(from, to)
       
-      // Apply status filter (server-side)
-      if (statusFilter === 'pending') {
-        query = query.eq('is_in_gudang', false)
-      } else if (statusFilter === 'in_gudang') {
-        query = query.eq('is_in_gudang', true)
+      // Get gudang entries for status filtering
+      let gudangEntries: any[] = []
+      if (statusFilter !== 'all') {
+        const { data: gudangData } = await supabase
+          .from('gudang')
+          .select('source_reference, id_product, cabang, tanggal')
+          .eq('source_type', 'PO')
+        gudangEntries = gudangData || []
       }
       
       // Apply branch access control
@@ -357,7 +360,17 @@ export default function BarangMasukPage() {
         }
       });
 
-      setBarangMasuk(barangMasukWithDetails);
+      // Apply status filter
+      let finalData = barangMasukWithDetails;
+      if (statusFilter === 'pending') {
+        finalData = barangMasukWithDetails.filter(item => !item.is_in_gudang);
+      } else if (statusFilter === 'in_gudang') {
+        finalData = barangMasukWithDetails.filter(item => item.is_in_gudang);
+      }
+      
+      setBarangMasuk(finalData);
+      // Keep original count for pagination
+      // setTotalCount will be set from the original query count
       
       // Set default expanded state for mobile - expand first 3 POs by default
       const poGroups = groupByPO(barangMasukWithDetails);
