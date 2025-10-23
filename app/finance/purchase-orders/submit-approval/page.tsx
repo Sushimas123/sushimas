@@ -16,6 +16,7 @@ export default function SubmitApprovalPage() {
     keterangan: '',
     photo: null as File | null
   })
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -346,10 +347,48 @@ export default function SubmitApprovalPage() {
               <input
                 type="file"
                 accept="image/*"
-                onChange={(e) => setFormData({...formData, photo: e.target.files?.[0] || null})}
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null
+                  setFormData({...formData, photo: file})
+                  
+                  if (file) {
+                    const reader = new FileReader()
+                    reader.onload = (e) => {
+                      setPhotoPreview(e.target?.result as string)
+                    }
+                    reader.readAsDataURL(file)
+                  } else {
+                    setPhotoPreview(null)
+                  }
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 required
               />
+              
+              {photoPreview && (
+                <div className="mt-3">
+                  <p className="text-sm text-gray-600 mb-2">Preview:</p>
+                  <div className="relative inline-block">
+                    <img 
+                      src={photoPreview} 
+                      alt="Preview" 
+                      className="max-w-xs max-h-48 rounded-lg border shadow-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({...formData, photo: null})
+                        setPhotoPreview(null)
+                        const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+                        if (fileInput) fileInput.value = ''
+                      }}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-4">
