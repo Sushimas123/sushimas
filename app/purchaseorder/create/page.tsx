@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { Plus, ShoppingCart, Search, Calendar, Building2, User, Package, Minus, Save, ArrowLeft } from 'lucide-react'
+import { Plus, ShoppingCart, Search, Calendar, Building2, User, Package, Minus, Save, ArrowLeft, AlertTriangle } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 
@@ -67,6 +67,7 @@ function CreatePurchaseOrder() {
   const [userBranch, setUserBranch] = useState('')
   const [allowedBranches, setAllowedBranches] = useState<string[]>([])
   const [isUserDataLoaded, setIsUserDataLoaded] = useState(false)
+  const [duplicateWarning, setDuplicateWarning] = useState<{count: number, pos: any[]} | null>(null)
   const [formData, setFormData] = useState({
     supplier_id: '',
     cabang_id: '',
@@ -463,6 +464,60 @@ function CreatePurchaseOrder() {
     return groups
   }, {} as Record<string, POItem[]>)
 
+  const checkDuplicatePO = async () => {
+    if (!formData.cabang_id || poItems.length === 0) return
+
+    const totalAmount = poItems.reduce((sum, item) => sum + (item.qty * item.harga), 0)
+    const supplierIds = [...new Set(poItems.map(item => {
+      const supplier = suppliers.find(s => s.nama_supplier === item.supplier_name)
+      return supplier?.id_supplier
+    }))].filter(Boolean)
+
+    if (supplierIds.length === 0) return
+
+    try {
+      // Check for similar POs in last 30 days
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+      const { data: similarPOs } = await supabase
+        .from('finance_dashboard_view')
+        .select('id, po_number, nama_supplier, nama_branch, total_po, created_at, po_status')
+        .eq('cabang_id', parseInt(formData.cabang_id))
+        .in('supplier_id', supplierIds)
+        .gte('created_at', thirtyDaysAgo.toISOString())
+        .neq('po_status', 'Dibatalkan')
+
+      if (similarPOs && similarPOs.length > 0) {
+        // Check for exact amount matches (±5% tolerance)
+        const duplicates = similarPOs.filter(po => {
+          const diff = Math.abs(po.total_po - totalAmount)
+          const tolerance = totalAmount * 0.05 // 5% tolerance
+          return diff <= tolerance
+        })
+
+        if (duplicates.length > 0) {
+          setDuplicateWarning({ count: duplicates.length, pos: duplicates })
+        } else {
+          setDuplicateWarning(null)
+        }
+      } else {
+        setDuplicateWarning(null)
+      }
+    } catch (error) {
+      console.error('Error checking duplicates:', error)
+    }
+  }
+
+  // Check for duplicates when items or form data changes
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      checkDuplicatePO()
+    }, 1000) // Debounce 1 second
+
+    return () => clearTimeout(timeoutId)
+  }, [poItems, formData.cabang_id])
+
   const handleSavePO = async () => {
     try {
       // Validation
@@ -474,6 +529,25 @@ function CreatePurchaseOrder() {
       if (poItems.length === 0) {
         alert('Tambahkan minimal satu item')
         return
+      }
+
+      // Check for duplicates before saving
+      if (duplicateWarning && duplicateWarning.count > 0) {
+        const confirmSave = confirm(
+          `⚠️ PERINGATAN DUPLIKASI PO\n\n` +
+          `Ditemukan ${duplicateWarning.count} PO serupa dengan:\n` +
+          `• Supplier yang sama\n` +
+          `• Cabang yang sama\n` +
+          `• Total nominal yang mirip\n\n` +
+          `PO serupa:\n${duplicateWarning.pos.map(po => 
+            `- ${po.po_number} (${po.nama_supplier}) - ${new Intl.NumberFormat('id-ID', {style: 'currency', currency: 'IDR'}).format(po.total_po)}`
+          ).join('\n')}\n\n` +
+          `Apakah Anda yakin ingin melanjutkan?`
+        )
+        
+        if (!confirmSave) {
+          return
+        }
       }
       
       console.log('Starting PO save...')
@@ -583,6 +657,36 @@ function CreatePurchaseOrder() {
       </div>
 
       <div className="space-y-3">
+        {/* Duplicate Warning Banner */}
+        {duplicateWarning && duplicateWarning.count > 0 && (
+          <div className="bg-orange-50 border-l-4 border-orange-400 p-3 rounded">
+            <div className="flex items-start">
+              <AlertTriangle className="text-orange-400 mr-2 mt-0.5" size={16} />
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-orange-800">
+                  ⚠️ Potensi Duplikasi PO Terdeteksi ({duplicateWarning.count} PO serupa)
+                </h3>
+                <p className="text-xs text-orange-700 mt-1">
+                  Ditemukan PO dengan supplier, cabang, dan nominal yang sama dalam 30 hari terakhir:
+                </p>
+                <div className="mt-2 space-y-1">
+                  {duplicateWarning.pos.slice(0, 3).map((po, index) => (
+                    <div key={index} className="text-xs text-orange-600 bg-orange-100 p-1.5 rounded">
+                      • {po.po_number} - {po.nama_supplier} - {new Intl.NumberFormat('id-ID', {style: 'currency', currency: 'IDR'}).format(po.total_po)} ({po.po_status})
+                    </div>
+                  ))}
+                  {duplicateWarning.pos.length > 3 && (
+                    <p className="text-xs text-orange-600">...dan {duplicateWarning.pos.length - 3} PO lainnya</p>
+                  )}
+                </div>
+                <p className="text-xs text-orange-700 mt-2 font-medium">
+                  Pastikan ini bukan duplikasi sebelum menyimpan!
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* PO Info */}
         <div className="bg-white rounded shadow p-3">
           <h3 className="text-sm font-semibold mb-2">Informasi PO</h3>

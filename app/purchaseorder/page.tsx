@@ -23,6 +23,7 @@ interface PurchaseOrder {
   received_by_name?: string
   received_at?: string
   total_harga: number
+  status_payment?: string  // Tambahkan ini
   items: Array<{product_name: string, qty: number}>
 }
 
@@ -243,56 +244,17 @@ function PurchaseOrderPageContent() {
         }
       }
       
-      // Count total records first
-      let countQuery = supabase
-        .from('purchase_orders')
-        .select('*', { count: 'exact', head: true })
-
-      // Apply filters to count query
-      if (filters.cabang_id) {
-        countQuery = countQuery.eq('cabang_id', filters.cabang_id)
-      }
-      if (filters.supplier_id) {
-        countQuery = countQuery.eq('supplier_id', filters.supplier_id)
-      }
-      if (filters.status) {
-        countQuery = countQuery.eq('status', filters.status)
-      }
-      if (filters.priority) {
-        countQuery = countQuery.eq('priority', filters.priority)
-      }
-      
-      // Filter by allowed branches for non-admin users
-      if (userRole !== 'super admin' && userRole !== 'admin' && userBranchIds.length > 0) {
-        countQuery = countQuery.in('cabang_id', userBranchIds)
-      }
-      
-      // Apply search filters
-      if (search && (searchPOIds.length > 0 || searchSupplierIds.length > 0 || searchBranchIds.length > 0)) {
-        const orConditions = []
-        if (searchPOIds.length > 0) orConditions.push(`id.in.(${searchPOIds.join(',')})`)
-        if (searchSupplierIds.length > 0) orConditions.push(`supplier_id.in.(${searchSupplierIds.join(',')})`)
-        if (searchBranchIds.length > 0) orConditions.push(`cabang_id.in.(${searchBranchIds.join(',')})`)
-        
-        if (orConditions.length > 0) {
-          countQuery = countQuery.or(orConditions.join(','))
-        }
-      }
-
-      const { count } = await countQuery
-      setTotalCount(count || 0)
-
-      // Query purchase_orders with pagination
+      // Query dengan pagination menggunakan finance_dashboard_view
       const from = (currentPage - 1) * itemsPerPage
       const to = from + itemsPerPage - 1
 
       let query = supabase
-        .from('purchase_orders')
-        .select('*, received_by_name, received_at')
+        .from('finance_dashboard_view')
+        .select('*')
         .order('created_at', { ascending: false })
         .range(from, to)
 
-      // Apply filters
+      // Apply filters - gunakan field yang ada di view
       if (filters.cabang_id) {
         query = query.eq('cabang_id', filters.cabang_id)
       }
@@ -300,7 +262,7 @@ function PurchaseOrderPageContent() {
         query = query.eq('supplier_id', filters.supplier_id)
       }
       if (filters.status) {
-        query = query.eq('status', filters.status)
+        query = query.eq('po_status', filters.status) // Gunakan po_status dari view
       }
       if (filters.priority) {
         query = query.eq('priority', filters.priority)
@@ -323,58 +285,51 @@ function PurchaseOrderPageContent() {
         }
       }
 
-      const { data: poData, error } = await query
+      const { data: poData, error, count } = await query
+      
+      // Set total count dari hasil query
+      if (count !== null) {
+        setTotalCount(count)
+      } else {
+        // Fallback: hitung manual jika count tidak tersedia
+        const { count: totalCount } = await supabase
+          .from('finance_dashboard_view')
+          .select('*', { count: 'exact', head: true })
+        setTotalCount(totalCount || 0)
+      }
 
       if (error) throw error
       
-      // Bulk fetch all related data to avoid N+1 queries
+      // Fetch items untuk setiap PO
       const poIds = (poData || []).map(po => po.id)
-      const supplierIds = [...new Set((poData || []).map(po => po.supplier_id))]
-      const branchIds = [...new Set((poData || []).map(po => po.cabang_id))]
+      const { data: allItems } = poIds.length > 0 
+        ? await supabase.from('po_items').select('po_id, qty, product_id, actual_price, received_qty, harga').in('po_id', poIds)
+        : { data: [] }
       
-      // Parallel bulk queries
-      const [suppliersResult, branchesResult, itemsResult] = await Promise.all([
-        supplierIds.length > 0 ? supabase.from('suppliers').select('id_supplier, nama_supplier').in('id_supplier', supplierIds) : { data: [] },
-        branchIds.length > 0 ? supabase.from('branches').select('id_branch, nama_branch').in('id_branch', branchIds) : { data: [] },
-        poIds.length > 0 ? supabase.from('po_items').select('po_id, qty, product_id, actual_price, received_qty, harga').in('po_id', poIds) : { data: [] }
-      ])
-      
-      const suppliers = suppliersResult.data || []
-      const branches = branchesResult.data || []
-      const allItems = itemsResult.data || []
-      
-      // Get unique product IDs and bulk fetch products
-      const productIds = [...new Set(allItems.map(item => item.product_id))]
+      // Get unique product IDs dan fetch products
+      const productIds = [...new Set((allItems || []).map(item => item.product_id))]
       const { data: products } = productIds.length > 0 
         ? await supabase.from('nama_product').select('id_product, product_name, harga').in('id_product', productIds)
         : { data: [] }
       
       // Create lookup maps
-      const supplierMap = new Map(suppliers.map(s => [s.id_supplier, s.nama_supplier]))
-      const branchMap = new Map(branches.map(b => [b.id_branch, b.nama_branch]))
       const productMap = new Map((products || []).map(p => [p.id_product, p]))
       const itemsMap = new Map<number, any[]>()
       
       // Group items by PO ID
-      allItems.forEach(item => {
+      ;(allItems || []).forEach(item => {
         if (!itemsMap.has(item.po_id)) {
           itemsMap.set(item.po_id, [])
         }
         itemsMap.get(item.po_id)?.push(item)
       })
       
-      // Transform data
+      // Transform data - data sudah lengkap dari view
       const transformedData = (poData || []).map((po: any) => {
         const items = itemsMap.get(po.id) || []
-        let totalHarga = 0
         
         const poItems = items.map(item => {
           const product = productMap.get(item.product_id)
-          const priceToUse = item.actual_price || item.harga || product?.harga || 0
-          const qtyToUse = item.received_qty || item.qty
-          
-          totalHarga += priceToUse * qtyToUse
-          
           return {
             product_name: product?.product_name || 'Unknown Product',
             qty: item.received_qty || item.qty
@@ -384,16 +339,17 @@ function PurchaseOrderPageContent() {
         return {
           id: po.id,
           po_number: po.po_number,
-          status: po.status,
+          status: po.po_status, // Gunakan po_status dari view
           priority: po.priority,
-          supplier_name: supplierMap.get(po.supplier_id) || 'Unknown',
-          branch_name: branchMap.get(po.cabang_id) || 'Unknown',
+          supplier_name: po.nama_supplier, // Sudah ada di view
+          branch_name: po.nama_branch, // Sudah ada di view
           created_at: po.created_at,
           created_by_name: 'System',
           tanggal_barang_sampai: po.tanggal_barang_sampai,
           received_by_name: po.received_by_name,
           received_at: po.received_at,
-          total_harga: totalHarga,
+          total_harga: po.total_po, // Gunakan total_po dari view
+          status_payment: po.status_payment, // Sudah dihitung di view
           items: poItems
         }
       })
@@ -589,7 +545,7 @@ function PurchaseOrderPageContent() {
       // Fetch all purchase orders without pagination for export
       let query = supabase
         .from('purchase_orders')
-        .select('*, received_by_name, received_at')
+        .select('*, received_by_name, received_at, status_payment') // Tambahkan payment_status
         .order('created_at', { ascending: false })
 
       // Apply current filters
@@ -1263,15 +1219,16 @@ function PurchaseOrderPageContent() {
                                   </span>
                                 )
                               )}
-                              {canPerformActionSync(userRole, 'purchaseorder', 'delete') && (
-                                <button
-                                  onClick={() => handleDeletePO(po.id, po.po_number)}
-                                  className="text-red-600 hover:text-red-800 p-1 rounded"
-                                  title="Delete PO"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              )}
+{canPerformActionSync(userRole, 'purchaseorder', 'delete') && 
+ (po.status_payment !== 'paid' || userRole === 'super admin') && (
+  <button
+    onClick={() => handleDeletePO(po.id, po.po_number)}
+    className="text-red-600 hover:text-red-800 p-1 rounded"
+    title="Delete PO"
+  >
+    <Trash2 size={14} />
+  </button>
+)}
                             </div>
                           </td>
                         </tr>
@@ -1424,15 +1381,16 @@ function PurchaseOrderPageContent() {
                                 </span>
                               )
                             )}
-                            {canPerformActionSync(userRole, 'purchaseorder', 'delete') && (
-                              <button
-                                onClick={() => handleDeletePO(po.id, po.po_number)}
-                                className="text-red-600 hover:text-red-800 p-1 rounded"
-                                title="Delete PO"
-                              >
-                                <Trash2 size={20} />
-                              </button>
-                            )}
+{canPerformActionSync(userRole, 'purchaseorder', 'delete') && 
+ (po.status_payment !== 'paid' || userRole === 'super admin') && (
+  <button
+    onClick={() => handleDeletePO(po.id, po.po_number)}
+    className="text-red-600 hover:text-red-800 p-1 rounded"
+    title="Delete PO"
+  >
+    <Trash2 size={20} />
+  </button>
+)}
                           </div>
                         </div>
                       )}
