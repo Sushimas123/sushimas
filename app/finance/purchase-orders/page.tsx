@@ -1232,7 +1232,7 @@ export default function FinancePurchaseOrders() {
                             </td>
                             <td className="px-2 py-1 text-right text-xs font-bold">
                               {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
-                                sum + (parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
+                                sum + (parseFloat(poItem.qty_tagih) || parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.harga_tagih) || parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
                               ))}
                             </td>
                           </tr>

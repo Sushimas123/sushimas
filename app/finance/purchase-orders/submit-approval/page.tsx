@@ -89,12 +89,18 @@ export default function SubmitApprovalPage() {
 
       const totalPO = itemsWithDetails.reduce((sum, item) => sum + item.total, 0)
       // Calculate total_tagih from items
-      const itemsWithTagih = itemsWithDetails.map(item => ({
-        ...item,
-        total_tagih: item.qty_tagih * item.harga_tagih
-      }))
+      const itemsWithTagih = itemsWithDetails.map(item => {
+        const qtyTagih = item.qty_tagih || item.received_qty || item.qty
+        const hargaTagih = item.harga_tagih || item.actual_price || item.harga || product?.harga || 0
+        return {
+          ...item,
+          qty_tagih: qtyTagih,
+          harga_tagih: hargaTagih,
+          total_tagih: qtyTagih * hargaTagih
+        }
+      })
       
-      const totalTagih = itemsWithTagih.reduce((sum, item) => sum + item.total_tagih, 0)
+      const totalTagih = itemsWithTagih.reduce((sum, item) => sum + (item.total_tagih || 0), 0)
       setItems(itemsWithTagih)
 
       const enrichedData = {
@@ -138,7 +144,10 @@ export default function SubmitApprovalPage() {
       }
 
       // Calculate final total_tagih from items (in case user edited individual items)
-      const calculatedTotalTagih = items.reduce((sum, item) => sum + (item.total_tagih || 0), 0)
+      const calculatedTotalTagih = items.reduce((sum, item) => {
+        const itemTotal = (item.qty_tagih || 0) * (item.harga_tagih || 0)
+        return sum + itemTotal
+      }, 0)
       
       const updateData = {
         total_tagih: calculatedTotalTagih, // Use calculated total instead of form input
@@ -204,11 +213,11 @@ export default function SubmitApprovalPage() {
   const updateItemTagih = (index: number, field: 'qty_tagih' | 'harga_tagih', value: number) => {
     const updatedItems = [...items]
     updatedItems[index][field] = value
-    updatedItems[index].total_tagih = updatedItems[index].qty_tagih * updatedItems[index].harga_tagih
+    updatedItems[index].total_tagih = (updatedItems[index].qty_tagih || 0) * (updatedItems[index].harga_tagih || 0)
     setItems(updatedItems)
     
     // Update total_tagih in form
-    const newTotalTagih = updatedItems.reduce((sum, item) => sum + item.total_tagih, 0)
+    const newTotalTagih = updatedItems.reduce((sum, item) => sum + (item.total_tagih || 0), 0)
     setFormData({...formData, total_tagih: newTotalTagih})
   }
 
