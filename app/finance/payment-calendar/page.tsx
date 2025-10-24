@@ -64,7 +64,7 @@ const useScheduledPayments = (statusFilter: string) => {
       }
       
       // Bulk fetch all related data in parallel with chunking
-      const [poItemsResults, paymentsResults, poDataResults] = await Promise.all([
+      const [poItemsResults, paymentsResults, poDataResults, bulkPaymentsResults] = await Promise.all([
         Promise.all(poIdChunks.map(chunk => 
           supabase
             .from('po_items')
@@ -83,18 +83,21 @@ const useScheduledPayments = (statusFilter: string) => {
             .from('purchase_orders')
             .select('id, bulk_payment_ref, total_tagih, approval_status, approved_at, rejected_at, rejection_notes, notes')
             .in('id', chunk)
-        ))
+        )),
+        supabase.from('bulk_payments').select('*')
       ])
       
       // Combine chunked results
       const poItemsResult = { data: poItemsResults.flatMap(r => r.data || []) }
       const paymentsResult = { data: paymentsResults.flatMap(r => r.data || []) }
       const poDataResult = { data: poDataResults.flatMap(r => r.data || []) }
+      const bulkPaymentsResult = bulkPaymentsResults
       
       // Create lookup maps for O(1) access
       const itemsMap = new Map<number, any[]>()
       const paymentsMap = new Map<number, any[]>()
       const poDataMap = new Map<number, any>()
+      const bulkPaymentsMap = new Map<string, any>()
       
       // Group items by PO ID
       poItemsResult.data?.forEach(item => {
@@ -117,11 +120,18 @@ const useScheduledPayments = (statusFilter: string) => {
         poDataMap.set(po.id, po)
       })
       
+      // Create bulk payments map
+      bulkPaymentsResult.data?.forEach(bp => {
+        bulkPaymentsMap.set(bp.bulk_reference, bp)
+      })
+      
       // Transform data efficiently
       const correctedData = (financeData || []).map((item: any) => {
         const items = itemsMap.get(item.id) || []
         const payments = paymentsMap.get(item.id) || []
         const poData = poDataMap.get(item.id)
+        const bulkPayment = poData?.bulk_payment_ref ? bulkPaymentsMap.get(poData.bulk_payment_ref) : null
+        const latestPayment = payments[0] || null
         
         // Calculate corrected total using original PO price (harga)
         const correctedTotal = items.reduce((sum, poItem) => {
@@ -180,12 +190,13 @@ const useScheduledPayments = (statusFilter: string) => {
           approved_at: poData?.approved_at,
           rejected_at: poData?.rejected_at,
           rejection_notes: poData?.rejection_notes,
-          notes: poData?.notes
+          notes: poData?.notes,
+          dibayar_tanggal: bulkPayment?.payment_date || latestPayment?.payment_date || null
         }
       })
       
-      // Filter data yang sudah sampai
-      const goodsArrivedData = correctedData.filter((item: any) => item.tanggal_barang_sampai)
+      // Filter data yang sudah sampai atau sudah dibayar
+      const goodsArrivedData = correctedData.filter((item: any) => item.tanggal_barang_sampai || item.dibayar_tanggal)
       
       setAllPayments(goodsArrivedData)
       
@@ -281,7 +292,12 @@ const MobilePaymentCard = ({ payment, onAction }: {
             )}
           </div>
         ) : (
-          <div>Due: {payment.tanggal_jatuh_tempo ? new Date(payment.tanggal_jatuh_tempo).toLocaleDateString('id-ID') : 'TBD'}</div>
+          <div>
+            <div>Due: {payment.tanggal_jatuh_tempo ? new Date(payment.tanggal_jatuh_tempo).toLocaleDateString('id-ID') : 'TBD'}</div>
+            {(payment as any).dibayar_tanggal && (
+              <div>Paid: {new Date((payment as any).dibayar_tanggal).toLocaleDateString('id-ID')}</div>
+            )}
+          </div>
         )}
       </div>
 
@@ -489,6 +505,8 @@ export default function PaymentCalendar() {
   const [branchFilter, setBranchFilter] = useState('all')
   const [notesFilter, setNotesFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [selectedPO, setSelectedPO] = useState<ScheduledPayment | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [sortField, setSortField] = useState<string>('')
@@ -500,7 +518,7 @@ export default function PaymentCalendar() {
 
   const { payments: allFilteredPayments, allPayments, loading, error, refetch } = useScheduledPayments(statusFilter)
   
-  // Apply branch and search filters
+  // Apply branch, notes, date and search filters
   const payments = useMemo(() => {
     let filtered = allFilteredPayments
     
@@ -518,6 +536,17 @@ export default function PaymentCalendar() {
       })
     }
     
+    // Apply date filter
+    if (dateFrom || dateTo) {
+      filtered = filtered.filter(p => {
+        if (!(p as any).dibayar_tanggal) return false
+        const paymentDate = (p as any).dibayar_tanggal
+        if (dateFrom && paymentDate < dateFrom) return false
+        if (dateTo && paymentDate > dateTo) return false
+        return true
+      })
+    }
+    
     // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim()
@@ -532,7 +561,7 @@ export default function PaymentCalendar() {
     }
     
     return filtered
-  }, [allFilteredPayments, branchFilter, notesFilter, searchQuery])
+  }, [allFilteredPayments, branchFilter, notesFilter, searchQuery, dateFrom, dateTo])
 
   // Detect mobile screen
   useEffect(() => {
@@ -713,20 +742,62 @@ export default function PaymentCalendar() {
             </div>
           </div>
 
-          {/* Search Bar */}
+          {/* Search Bar and Date Filter */}
           <div className="bg-white p-4 rounded-lg shadow border mb-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Search by PO number, supplier, or branch..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value)
-                  setCurrentPage(1)
-                }}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <input
+                  type="text"
+                  placeholder="Search by PO number, supplier, or branch..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div className="flex gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">From Date</label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => {
+                      setDateFrom(e.target.value)
+                      setCurrentPage(1)
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">To Date</label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => {
+                      setDateTo(e.target.value)
+                      setCurrentPage(1)
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+                {(dateFrom || dateTo) && (
+                  <div className="flex items-end">
+                    <button
+                      onClick={() => {
+                        setDateFrom('')
+                        setDateTo('')
+                        setCurrentPage(1)
+                      }}
+                      className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -936,30 +1007,31 @@ export default function PaymentCalendar() {
             ) : (
               /* Desktop Table View */
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+                <table className="min-w-full divide-y divide-gray-200 text-xs">
                   <thead className="bg-gray-50">
                     <tr>
                       {[
-                        { key: 'tanggal_jatuh_tempo', label: 'Due Date' },
-                        { key: 'nama_supplier', label: 'Supplier' },
-                        { key: 'nama_branch', label: 'Branch' },
-                        { key: 'notes', label: 'Notes' },
-                        { key: 'total_po', label: 'Total PO', align: 'right' },
-                        { key: 'sisa_bayar', label: 'Outstanding', align: 'right' },
-                        { key: 'status', label: 'Status', align: 'center' }
-                      ].map(({ key, label, align = 'left' }) => (
+                        { key: 'tanggal_jatuh_tempo', label: 'Due Date', width: 'w-20' },
+                        { key: 'payment_date', label: 'Payment Date', width: 'w-20' },
+                        { key: 'nama_supplier', label: 'Supplier', width: 'w-32' },
+                        { key: 'nama_branch', label: 'Branch', width: 'w-24' },
+                        { key: 'notes', label: 'Notes', width: 'w-16' },
+                        { key: 'total_po', label: 'Total PO', align: 'right', width: 'w-20' },
+                        { key: 'sisa_bayar', label: 'Outstanding', align: 'right', width: 'w-20' },
+                        { key: 'status', label: 'Status', align: 'center', width: 'w-20' }
+                      ].map(({ key, label, align = 'left', width }) => (
                         <th 
                           key={key}
-                          className={`px-6 py-3 text-${align} text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100`}
+                          className={`${width} px-2 py-2 text-${align} text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100`}
                           onClick={() => handleSort(key)}
                         >
                           <div className="flex items-center gap-1">
                             {label}
-                            {sortField === key && (sortDirection === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
+                            {sortField === key && (sortDirection === 'asc' ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
                           </div>
                         </th>
                       ))}
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      <th className="w-16 px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -970,7 +1042,7 @@ export default function PaymentCalendar() {
                       
                       return (
                         <tr key={payment.id} className={isOverdue ? 'bg-red-50' : ''}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
                             {payment.status === 'rejected' ? (
                               <div>
                                 <div className="text-red-600">Rejected</div>
@@ -982,12 +1054,17 @@ export default function PaymentCalendar() {
                               payment.tanggal_jatuh_tempo ? new Date(payment.tanggal_jatuh_tempo).toLocaleDateString('id-ID') : 'TBD'
                             )}
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-900">
+                          <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
+                            {(payment as any).dibayar_tanggal ? (
+                              new Date((payment as any).dibayar_tanggal).toLocaleDateString('id-ID')
+                            ) : '-'}
+                          </td>
+                          <td className="px-2 py-2 text-xs text-gray-900">
                             <div>
-                              <p className="font-medium">{payment.nama_supplier}</p>
+                              <p className="font-medium truncate">{payment.nama_supplier}</p>
                               <a 
                                 href={`/purchaseorder/received-preview?id=${payment.id}`}
-                                className="text-blue-600 hover:text-blue-800 hover:underline text-sm"
+                                className="text-blue-600 hover:text-blue-800 hover:underline text-xs"
                                 target="_blank"
                                 rel="noopener noreferrer"
                               >
@@ -995,23 +1072,23 @@ export default function PaymentCalendar() {
                               </a>
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-500">
+                          <td className="px-2 py-2 text-xs text-gray-500 truncate">
                             {payment.nama_branch}
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-500">
+                          <td className="px-2 py-2 text-xs text-gray-500 truncate">
                             {(() => {
                               const defaultNotes = payment.nama_branch === 'Sushimas Harapan Indah' ? 'Rek CV' : 'REK PT'
                               return payment.notes || defaultNotes
                             })()}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-right">
+                          <td className="px-2 py-2 whitespace-nowrap text-xs font-medium text-gray-900 text-right">
                             {formatCurrency(payment.total_po)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-right">
+                          <td className="px-2 py-2 whitespace-nowrap text-xs font-medium text-gray-900 text-right">
                             {formatCurrency(payment.sisa_bayar)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          <td className="px-2 py-2 whitespace-nowrap text-center">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
                               payment.status === 'need_submit' ? 'bg-pink-100 text-pink-800' :
                               payment.status === 'need_approve' ? 'bg-purple-100 text-purple-800' :
                               payment.status === 'need_payment' ? 'bg-blue-100 text-blue-800' :
@@ -1021,12 +1098,12 @@ export default function PaymentCalendar() {
                               {payment.status.toUpperCase()}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <td className="px-2 py-2 whitespace-nowrap text-center">
                             <div className="flex justify-center gap-1">
                               {payment.status === 'need_submit' && (
                                 <a
                                   href={`/finance/purchase-orders/submit-approval?id=${payment.id}`}
-                                  className="px-3 py-1 bg-pink-600 text-white text-sm rounded hover:bg-pink-700"
+                                  className="px-2 py-1 bg-pink-600 text-white text-xs rounded hover:bg-pink-700"
                                 >
                                   Submit
                                 </a>
@@ -1034,7 +1111,7 @@ export default function PaymentCalendar() {
                               {(payment.status === 'need_approve' || payment.status === 'need_payment') && (
                                 <button
                                   onClick={() => handlePaymentAction(payment)}
-                                  className={`px-3 py-1 text-white text-sm rounded ${
+                                  className={`px-2 py-1 text-white text-xs rounded ${
                                     payment.status === 'need_approve' 
                                       ? 'bg-purple-600 hover:bg-purple-700' 
                                       : 'bg-blue-600 hover:bg-blue-700'
@@ -1046,7 +1123,7 @@ export default function PaymentCalendar() {
                               {payment.status === 'rejected' && (payment as any).rejection_notes && (
                                 <button
                                   onClick={() => alert((payment as any).rejection_notes)}
-                                  className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+                                  className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
                                 >
                                   View Notes
                                 </button>
