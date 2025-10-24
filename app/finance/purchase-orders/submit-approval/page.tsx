@@ -57,8 +57,10 @@ export default function SubmitApprovalPage() {
       // Get PO items with product details
       const { data: itemsData } = await supabase
         .from('po_items')
-        .select('qty, harga, actual_price, received_qty, product_id')
+        .select('qty, harga, actual_price, received_qty, product_id, qty_tagih, harga_tagih')
         .eq('po_id', poId)
+      
+      console.log('Raw po_items data:', itemsData)
 
       // Get product names and calculate totals
       const itemsWithDetails = await Promise.all(
@@ -78,9 +80,9 @@ export default function SubmitApprovalPage() {
             final_price: finalPrice,
             final_qty: finalQty,
             total: finalQty * finalPrice,
-            // Tagih defaults (editable)
-            qty_tagih: item.received_qty || item.qty,
-            harga_tagih: item.actual_price || item.harga || product?.harga || 0
+            // Tagih defaults (editable) - use existing values if available
+            qty_tagih: item.qty_tagih || item.received_qty || item.qty,
+            harga_tagih: item.harga_tagih || item.actual_price || item.harga || product?.harga || 0
           }
         })
       )
@@ -135,13 +137,19 @@ export default function SubmitApprovalPage() {
         photoPath = fileName
       }
 
+      // Calculate final total_tagih from items (in case user edited individual items)
+      const calculatedTotalTagih = items.reduce((sum, item) => sum + (item.total_tagih || 0), 0)
+      
       const updateData = {
-        total_tagih: formData.total_tagih,
+        total_tagih: calculatedTotalTagih, // Use calculated total instead of form input
         keterangan: formData.keterangan,
         approval_photo: photoPath,
         approval_status: 'pending',
         submitted_at: new Date().toISOString()
       }
+      
+      console.log('Calculated total tagih:', calculatedTotalTagih)
+      console.log('Form total tagih:', formData.total_tagih)
       
       console.log('Update data:', updateData)
 
@@ -157,8 +165,9 @@ export default function SubmitApprovalPage() {
       }
       
       // Update po_items with qty_tagih and harga_tagih
-      for (const item of items) {
-        await supabase
+      console.log('Updating po_items with tagih data:', items)
+      const itemUpdatePromises = items.map(async (item) => {
+        const updateResult = await supabase
           .from('po_items')
           .update({
             qty_tagih: item.qty_tagih,
@@ -166,7 +175,16 @@ export default function SubmitApprovalPage() {
           })
           .eq('po_id', po.id)
           .eq('product_id', item.product_id)
-      }
+        
+        console.log(`Updated item ${item.product_id}:`, updateResult)
+        if (updateResult.error) {
+          console.error('Error updating po_item:', updateResult.error)
+          throw new Error(`Failed to update item ${item.product_name}: ${updateResult.error.message}`)
+        }
+        return updateResult
+      })
+      
+      await Promise.all(itemUpdatePromises)
       
       console.log('Updated record:', data)
       alert('Berhasil submit untuk approval!')
@@ -316,17 +334,17 @@ export default function SubmitApprovalPage() {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Total Tagih <span className="text-red-500">*</span>
+                Total Tagih (Otomatis dihitung dari items)
               </label>
               <input
-                type="number"
-                value={formData.total_tagih}
-                onChange={(e) => setFormData({...formData, total_tagih: parseFloat(e.target.value) || 0})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500"
-                min="0"
-                step="0.01"
-                required
+                type="text"
+                value={formatCurrency(formData.total_tagih)}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Total ini dihitung otomatis berdasarkan qty tagih × harga tagih dari setiap item
+              </p>
             </div>
 
             <div>

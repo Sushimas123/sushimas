@@ -364,7 +364,7 @@ export default function FinancePurchaseOrders() {
       // Fetch items with product names
       const { data: items } = await supabase
         .from('po_items')
-        .select('*')
+        .select('*, qty_tagih, harga_tagih')
         .eq('po_id', id)
       
       // Get product names for each item
@@ -456,7 +456,7 @@ export default function FinancePurchaseOrders() {
       // Fetch po_items in chunks
       const itemsDataChunks = await Promise.all(
         poIdChunks.map(chunk => 
-          supabase.from('po_items').select('po_id, qty, harga, actual_price, received_qty, product_id').in('po_id', chunk)
+          supabase.from('po_items').select('po_id, qty, harga, actual_price, received_qty, product_id, qty_tagih, harga_tagih').in('po_id', chunk)
         )
       )
       
@@ -1207,13 +1207,13 @@ export default function FinancePurchaseOrders() {
                               <td className="px-2 py-1 font-medium">{poItem.product_name || `Product ${poItem.product_id}`}</td>
                               <td className="px-2 py-1 text-center">{poItem.qty}</td>
                               <td className="px-2 py-1 text-center">{poItem.received_qty || poItem.qty}</td>
-                              <td className="px-2 py-1 text-center">{poItem.received_qty || poItem.qty}</td>
+                              <td className="px-2 py-1 text-center">{poItem.qty_tagih || poItem.received_qty || poItem.qty}</td>
                               <td className="px-2 py-1 text-right">{formatCurrency(poItem.harga || 0)}</td>
                               <td className="px-2 py-1 text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
-                              <td className="px-2 py-1 text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
+                              <td className="px-2 py-1 text-right">{formatCurrency(poItem.harga_tagih || poItem.actual_price || poItem.harga || 0)}</td>
                               <td className="px-2 py-1 text-right font-medium">{formatCurrency((poItem.qty) * (poItem.harga || 0))}</td>
                               <td className="px-2 py-1 text-right font-medium">{formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}</td>
-                              <td className="px-2 py-1 text-right font-medium">{formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}</td>
+                              <td className="px-2 py-1 text-right font-medium">{formatCurrency((poItem.qty_tagih || poItem.received_qty || poItem.qty) * (poItem.harga_tagih || poItem.actual_price || poItem.harga || 0))}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -3386,13 +3386,13 @@ export default function FinancePurchaseOrders() {
                                               <td className="px-3 py-2 text-sm">{poItem.product_name || `Product ${poItem.product_id}`}</td>
                                               <td className="px-3 py-2 whitespace-nowrap text-sm text-center">{poItem.qty}</td>
                                               <td className="px-3 py-2 whitespace-nowrap text-sm text-center">{poItem.received_qty || poItem.qty}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-center">{poItem.received_qty || poItem.qty}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-center">{poItem.qty_tagih || poItem.received_qty || poItem.qty}</td>
                                               <td className="px-3 py-2 whitespace-nowrap text-sm text-right">{formatCurrency(poItem.harga || 0)}</td>
                                               <td className="px-3 py-2 whitespace-nowrap text-sm text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">{formatCurrency(poItem.harga_tagih || poItem.actual_price || poItem.harga || 0)}</td>
                                               <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">{formatCurrency((poItem.qty) * (poItem.harga || 0))}</td>
                                               <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">{formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">{formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}</td>
+                                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">{formatCurrency((poItem.qty_tagih || poItem.received_qty || poItem.qty) * (poItem.harga_tagih || poItem.actual_price || poItem.harga || 0))}</td>
                                             </tr>
                                           ))}
                                         </tbody>
@@ -3411,7 +3411,7 @@ export default function FinancePurchaseOrders() {
                                             </td>
                                             <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-bold">
                                               {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
-                                                sum + (parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
+                                                sum + (parseFloat(poItem.qty_tagih) || parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.harga_tagih) || parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
                                               ))}
                                             </td>
                                           </tr>
