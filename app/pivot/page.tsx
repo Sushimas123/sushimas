@@ -44,24 +44,20 @@ interface PivotData {
   };
 }
 
-interface InvestigationNotes {
-  id: number;
-  analysis_id: number;
-  notes: string;
-  created_by: string;
-  created_at: string;
-}
-
-// Cache object untuk menyimpan data yang sudah di-fetch
 const dataCache = new Map();
 
 export default function PivotPage() {
   const router = useRouter();
   const [data, setData] = useState<AnalysisData[]>([]);
   const [pivotData, setPivotData] = useState<PivotData>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [branchFilter, setBranchFilter] = useState('');
   const [dateRange, setDateRange] = useState({
+    startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0]
+  });
+  const [tempBranchFilter, setTempBranchFilter] = useState('');
+  const [tempDateRange, setTempDateRange] = useState({
     startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   });
@@ -72,11 +68,7 @@ export default function PivotPage() {
   const [userRole, setUserRole] = useState('');
   const [allowedBranches, setAllowedBranches] = useState<string[]>([]);
   const [productSearch, setProductSearch] = useState('');
-
-  // Fungsi untuk menghasilkan cache key berdasarkan parameter
-  const getCacheKey = useCallback((startDate: string, endDate: string, branchFilter: string) => {
-    return `${startDate}-${endDate}-${branchFilter}`;
-  }, []);
+  const [hasAppliedFilter, setHasAppliedFilter] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -84,20 +76,17 @@ export default function PivotPage() {
     };
     init();
     
-    // Load saved date range from localStorage
     const saved = localStorage.getItem('pivot-date-range');
     if (saved) {
       try {
-        setDateRange(JSON.parse(saved));
+        const savedRange = JSON.parse(saved);
+        setDateRange(savedRange);
+        setTempDateRange(savedRange);
       } catch (e) {
         // Error loading saved date range
       }
     }
   }, []);
-
-  useEffect(() => {
-    fetchAnalysisData();
-  }, [dateRange, branchFilter]);
 
   useEffect(() => {
     if (userRole) {
@@ -111,10 +100,30 @@ export default function PivotPage() {
     }
   }, [allowedBranches]);
 
-  // Save dateRange to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('pivot-date-range', JSON.stringify(dateRange));
   }, [dateRange]);
+
+  const applyFilters = () => {
+    setDateRange(tempDateRange);
+    setBranchFilter(tempBranchFilter);
+    setHasAppliedFilter(true);
+    setTimeout(() => fetchAnalysisData(), 100);
+  };
+
+  const resetFilters = () => {
+    const defaultDateRange = {
+      startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      endDate: new Date().toISOString().split('T')[0]
+    };
+    setTempDateRange(defaultDateRange);
+    setTempBranchFilter('');
+    setDateRange(defaultDateRange);
+    setBranchFilter('');
+    setData([]);
+    setPivotData({});
+    setHasAppliedFilter(false);
+  };
 
   const initializeUserData = async () => {
     const userData = localStorage.getItem('user');
@@ -135,15 +144,10 @@ export default function PivotPage() {
             .eq('id_user', user.id_user)
             .eq('is_active', true);
           
-          if (error) {
-            // Error fetching user branches
-          }
-          
           if (userBranches && userBranches.length > 0) {
             const branchNames = userBranches.map(ub => (ub.branches as any).nama_branch);
             setAllowedBranches(branchNames);
           } else {
-            // No user branches found, using fallback
             const fallbackBranch = user.cabang || '';
             setAllowedBranches([fallbackBranch].filter(Boolean));
           }
@@ -156,7 +160,6 @@ export default function PivotPage() {
     try {
       let branchQuery = supabase.from('branches').select('*');
       
-      // Filter branches for non-admin users
       if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranches.length > 0) {
         branchQuery = branchQuery.in('nama_branch', allowedBranches);
       }
@@ -196,6 +199,11 @@ export default function PivotPage() {
   };
 
   const fetchAnalysisData = async () => {
+    if (!hasAppliedFilter) {
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     try {
       if (!dateRange.startDate || !dateRange.endDate) {
@@ -215,14 +223,12 @@ export default function PivotPage() {
         .lte('tanggal_input', dateRange.endDate)
         .order('tanggal_input', { ascending: false });
 
-      // Apply branch filter
       if (branchFilter) {
         const selectedBranchData = branches.find(b => b.nama_branch === branchFilter);
         if (selectedBranchData) {
           readyQuery = readyQuery.eq('id_branch', selectedBranchData.id_branch);
         }
       } else if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranches.length > 0) {
-        // For non-admin users, filter by their allowed branches
         const allowedBranchIds = branches
           .filter(b => allowedBranches.includes(b.nama_branch))
           .map(b => b.id_branch);
@@ -242,7 +248,6 @@ export default function PivotPage() {
       
       const uniqueProductIds = [...new Set(readyData?.map(r => r.id_product) || [])];
       
-      // Fetch warehouse data dengan pagination
       let warehouseData: any[] = [];
       let whFrom = 0;
       const whBatch = 1000;
@@ -260,7 +265,6 @@ export default function PivotPage() {
         whFrom += whBatch;
       }
       
-      // Fetch ESB data dengan pagination untuk menghindari limit 1000
       let allEsbData: any[] = [];
       let esbPage = 0;
       const esbPageSize = 1000;
@@ -269,7 +273,7 @@ export default function PivotPage() {
         const { data: esbBatch } = await supabase
           .from('esb_harian')
           .select('sales_date, product_id, branch, qty_total')
-          .gte('sales_date', dateRange.startDate) // Gunakan actual date range, bukan buffer
+          .gte('sales_date', dateRange.startDate)
           .lte('sales_date', dateRange.endDate)
           .in('product_id', uniqueProductIds)
           .range(esbPage * esbPageSize, (esbPage + 1) * esbPageSize - 1);
@@ -290,7 +294,6 @@ export default function PivotPage() {
         .lte('tanggal_input', dateRange.endDate)
         .in('id_product', uniqueProductIds);
       
-      // Fetch produksi_detail data dengan pagination
       let productionDetailData: any[] = [];
       let pdFrom = 0;
       const pdBatch = 1000;
@@ -309,7 +312,6 @@ export default function PivotPage() {
         pdFrom += pdBatch;
       }
 
-      // Process data menggunakan logika yang sama dengan analysis page
       const allAnalysisData = processAnalysisData(
         readyData || [],
         productData || [],
@@ -320,12 +322,10 @@ export default function PivotPage() {
         productionDetailData || [],        
       );
       
-      // Filter untuk display
       const filteredAnalysisData = allAnalysisData.filter(item => {
         return item.tanggal >= dateRange.startDate && item.tanggal <= dateRange.endDate;
       });
 
-      // Build pivot data with product search filter
       const pivotDataTemp: PivotData = {};
       
       filteredAnalysisData.forEach(item => {
@@ -333,7 +333,6 @@ export default function PivotPage() {
         const productName = item.product;
         const date = item.tanggal;
         
-        // Apply product search filter
         if (productSearch && !productName.toLowerCase().includes(productSearch.toLowerCase())) {
           return;
         }
@@ -376,7 +375,6 @@ export default function PivotPage() {
     const productMap = new Map(products.map(p => [p.id_product, p]));
     const branchMap = new Map(branches.map(b => [b.id_branch, b]));
 
-    
     const warehouseMap = new Map();
     warehouse.forEach(w => {
       const key = `${w.id_product}-${w.cabang}`;
@@ -433,7 +431,7 @@ export default function PivotPage() {
       const keluarForm = calculateKeluarForm(ready, readyStock, warehouse, branchMap, sumifTotal);
       const selisih = calculateSelisih(hasilESB, keluarForm, totalProduction);
       
-      const tolerancePercentage = 5.0; // Default tolerance
+      const tolerancePercentage = 5.0;
       const toleranceValue = hasilESB * (tolerancePercentage / 100);
       const toleranceMin = -toleranceValue;
       const toleranceMax = toleranceValue;
@@ -519,27 +517,6 @@ export default function PivotPage() {
     return hasilEsb - keluarForm + totalProduction;
   };
 
-  // Fungsi untuk menghapus cache lama
-  const clearOldCache = useCallback(() => {
-    const now = new Date();
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    for (const [key] of dataCache) {
-      const [startDate] = key.split('-');
-      const cacheDate = new Date(startDate);
-      
-      if (cacheDate < sevenDaysAgo) {
-        dataCache.delete(key);
-      }
-    }
-  }, []);
-
-  // Bersihkan cache setiap hari
-  useEffect(() => {
-    const interval = setInterval(clearOldCache, 24 * 60 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [clearOldCache]);
-
   const handleExport = () => {
     if (Object.keys(pivotData).length === 0) {
       showToast('No data to export', 'error');
@@ -550,7 +527,6 @@ export default function PivotPage() {
     const exportData: any[] = [];
 
     Object.entries(pivotData).forEach(([subcategory, products]) => {
-      // Add subcategory header
       const subcategoryRow: any = { 'Subcategory / Product': subcategory };
       dates.forEach(date => {
         const total = Object.values(products).reduce((sum, productDates) => {
@@ -561,7 +537,6 @@ export default function PivotPage() {
       });
       exportData.push(subcategoryRow);
 
-      // Add product rows
       Object.entries(products).forEach(([product, datesData]) => {
         const productRow: any = { 'Subcategory / Product': `  ${product}` };
         dates.forEach(date => {
@@ -581,330 +556,6 @@ export default function PivotPage() {
 
   const dates = getAllDates();
 
-  // Komponen NegativeDiscrepancyDashboard
-  const NegativeDiscrepancyDashboard: React.FC<{ 
-    data: AnalysisData[], 
-    dateRange: { startDate: string, endDate: string },
-    branchFilter: string,
-    productSearch: string 
-  }> = ({ data, dateRange, branchFilter, productSearch }) => {
-    const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
-    const [notes, setNotes] = useState<{ [key: number]: string }>({});
-    const [savedNotes, setSavedNotes] = useState<InvestigationNotes[]>([]);
-    const [filterCategory, setFilterCategory] = useState('');
-    const [filterBranch, setFilterBranch] = useState(branchFilter);
-    const [savingNotes, setSavingNotes] = useState<Set<number>>(new Set());
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 10;
-
-    let negativeData = data.filter(item => item.selisih < 0);
-    
-    // Filter by user's allowed branches for non-admin users
-    if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranches.length > 0) {
-      negativeData = negativeData.filter(item => allowedBranches.includes(item.cabang));
-    }
-    
-    // Apply product search filter from parent component
-    if (productSearch) {
-      negativeData = negativeData.filter(item => 
-        item.product.toLowerCase().includes(productSearch.toLowerCase())
-      );
-    }
-
-    useEffect(() => {
-      if (negativeData.length > 0) {
-        loadInvestigationNotes(negativeData.map(item => item.id_product));
-      }
-    }, [negativeData]);
-
-    const loadInvestigationNotes = async (analysisIds: number[]) => {
-      if (analysisIds.length === 0) return;
-      
-      const { data: notesData, error } = await supabase
-        .from('investigation_notes')
-        .select('*')
-        .in('analysis_id', analysisIds)
-        .order('created_at', { ascending: false });
-
-      if (!error && notesData) {
-        setSavedNotes(notesData);
-      }
-    };
-
-    const toggleExpand = (id: number) => {
-      const newExpanded = new Set(expandedItems);
-      if (newExpanded.has(id)) {
-        newExpanded.delete(id);
-      } else {
-        newExpanded.add(id);
-      }
-      setExpandedItems(newExpanded);
-    };
-
-    const saveNotes = async (id: number) => {
-      if (!notes[id] || notes[id].trim() === '') return;
-
-      setSavingNotes(prev => new Set(prev).add(id));
-      
-      const userData = localStorage.getItem('user');
-      const user = userData ? JSON.parse(userData) : { name: 'Unknown' };
-
-      const { error } = await supabase
-        .from('investigation_notes')
-        .insert({
-          analysis_id: id,
-          notes: notes[id],
-          created_by: user.name || 'Unknown'
-        });
-
-      if (!error) {
-        loadInvestigationNotes([id]);
-        setNotes(prev => ({ ...prev, [id]: '' }));
-      }
-      
-      setSavingNotes(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(id);
-        return newSet;
-      });
-    };
-
-    const getSeverityLevel = (selisih: number) => {
-      const absoluteValue = Math.abs(selisih);
-      if (absoluteValue > 100) return 'high';
-      if (absoluteValue > 50) return 'medium';
-      return 'low';
-    };
-
-    const filteredData = negativeData.filter(item => {
-      const matchesCategory = !filterCategory || item.sub_category === filterCategory;
-      const matchesBranch = !filterBranch || item.cabang === filterBranch;
-      return matchesCategory && matchesBranch;
-    });
-
-    // Pagination calculations
-    const totalItems = filteredData.length;
-    const totalPages = Math.ceil(totalItems / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const paginatedData = filteredData.slice(startIndex, endIndex);
-
-    const categories = [...new Set(negativeData.map(item => item.sub_category))];
-    const allBranches = [...new Set(negativeData.map(item => item.cabang))];
-    // Filter branches based on user's allowed branches
-    const branches = userRole === 'super admin' || userRole === 'admin' 
-      ? allBranches 
-      : allBranches.filter(branch => allowedBranches.includes(branch));
-
-    // Reset to page 1 when filters change
-    useEffect(() => {
-      setCurrentPage(1);
-    }, [filterCategory, filterBranch]);
-
-    if (negativeData.length === 0) {
-      return (
-        <div className="bg-white rounded-lg shadow p-6 mt-6">
-          <h2 className="text-xl font-bold text-green-700 flex items-center">
-            <AlertTriangle className="mr-2" />
-            Tidak Ada Selisih Negatif
-          </h2>
-          <p className="text-gray-600 text-sm mt-1">
-            Selamat! Tidak ada selisih negatif yang perlu investigasi pada periode ini.
-          </p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="bg-white rounded-lg shadow p-6 mt-6">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h2 className="text-xl font-bold text-red-700 flex items-center">
-              <AlertTriangle className="mr-2" />
-              Investigasi Selisih Minus
-            </h2>
-            <p className="text-gray-600 text-sm mt-1">
-              Total {totalItems} item dengan selisih negatif perlu investigasi
-            </p>
-          </div>
-        </div>
-
-        <div className="flex gap-4 mb-4 p-3 bg-gray-50 rounded">
-          <div>
-            <label className="block text-sm font-medium mb-1">Kategori</label>
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="border border-gray-300 px-3 py-1 rounded text-sm"
-            >
-              <option value="">Semua Kategori</option>
-              {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Cabang</label>
-            <select
-              value={filterBranch}
-              onChange={(e) => setFilterBranch(e.target.value)}
-              className="border border-gray-300 px-3 py-1 rounded text-sm"
-            >
-              <option value="">Semua Cabang</option>
-              {branches.map(branch => (
-                <option key={branch} value={branch}>{branch}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-1 py-1 text-left w-8"></th>
-                <th className="px-1 py-1 text-left w-20">Tanggal</th>
-                <th className="px-1 py-1 text-left max-w-[120px]">Produk</th>
-                <th className="px-1 py-1 text-left max-w-[80px]">Kategori</th>
-                <th className="px-1 py-1 text-left max-w-[80px]">Cabang</th>
-                <th className="px-1 py-1 text-right w-16">Selisih</th>
-                <th className="px-1 py-1 text-center w-16">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedData.map((item, index) => (
-                <React.Fragment key={`${item.id_product}-${item.tanggal}-${item.cabang}`}>
-                  <tr className={`border-b hover:bg-gray-50 ${
-                    getSeverityLevel(item.selisih) === 'high' ? 'bg-red-50' : 
-                    getSeverityLevel(item.selisih) === 'medium' ? 'bg-orange-50' : 'bg-yellow-50'
-                  }`}>
-                    <td className="px-1 py-1">
-                      <button 
-                        onClick={() => toggleExpand(item.id_product)}
-                        className="text-gray-500 hover:text-gray-700"
-                      >
-                        {expandedItems.has(item.id_product) ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                      </button>
-                    </td>
-                    <td className="px-1 py-1 text-xs">{item.tanggal}</td>
-                    <td className="px-1 py-1 font-medium text-xs truncate max-w-[120px]">{item.product}</td>
-                    <td className="px-1 py-1 text-xs truncate max-w-[80px]">{item.sub_category}</td>
-                    <td className="px-1 py-1 text-xs truncate max-w-[80px]">{item.cabang}</td>
-                    <td className="px-1 py-1 text-right text-red-600 font-bold text-xs">{item.selisih.toFixed(2)}</td>
-                    <td className="px-1 py-1 text-center">
-                      <span className="px-1 py-0.5 rounded text-xs bg-red-100 text-red-800">
-                        {item.status}
-                      </span>
-                    </td>
-                  </tr>
-                  
-                  {expandedItems.has(item.id_product) && (
-                    <tr className="bg-blue-50">
-                      <td colSpan={7} className="px-2 py-2">
-                        <div>
-                          <h4 className="font-medium mb-1 text-xs">Catatan Investigasi</h4>
-                          <div className="mb-2 max-h-32 overflow-y-auto">
-                            {savedNotes
-                              .filter(note => note.analysis_id === item.id_product)
-                              .map(note => (
-                                <div key={note.id} className="bg-white p-1 rounded border mb-1">
-                                  <div className="text-xs text-gray-500">
-                                    {note.created_by} - {new Date(note.created_at).toLocaleString()}
-                                  </div>
-                                  <div className="text-xs">{note.notes}</div>
-                                </div>
-                              ))
-                            }
-                            
-                            {savedNotes.filter(note => note.analysis_id === item.id_product).length === 0 && (
-                              <div className="text-gray-500 text-xs">Belum ada catatan investigasi</div>
-                            )}
-                          </div>
-                          
-                          <div className="flex gap-1">
-                            <input
-                              type="text"
-                              value={notes[item.id_product] || ''}
-                              onChange={(e) => setNotes(prev => ({ ...prev, [item.id_product]: e.target.value }))}
-                              placeholder="Tambah catatan investigasi..."
-                              className="flex-1 border border-gray-300 px-2 py-1 rounded text-xs"
-                            />
-                            <button
-                              onClick={() => saveNotes(item.id_product)}
-                              disabled={savingNotes.has(item.id_product)}
-                              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-2 py-1 rounded text-xs"
-                            >
-                              {savingNotes.has(item.id_product) ? 'Saving...' : 'Simpan'}
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4 px-4 py-3 bg-gray-50 rounded">
-            <div className="text-sm text-gray-700">
-              Menampilkan {startIndex + 1} - {Math.min(endIndex, totalItems)} dari {totalItems} item
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Previous
-              </button>
-              
-              <div className="flex gap-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
-                  
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-1 text-sm border rounded ${
-                        currentPage === pageNum
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'hover:bg-gray-100'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-              </div>
-              
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
   if (loading) {
     return (
       <Layout>
@@ -919,7 +570,6 @@ export default function PivotPage() {
     <Layout>
       <PageAccessControl pageName="pivot">
         <div className="p-6 space-y-6">
-          {/* Header */}
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-bold text-gray-800">Pivot Analysis</h1>
@@ -943,15 +593,14 @@ export default function PivotPage() {
             </div>
           </div>
 
-          {/* Filters */}
           <div className="bg-white rounded-lg shadow p-4">
             <div className="flex flex-wrap gap-4">
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium">From:</label>
                 <input
                   type="date"
-                  value={dateRange.startDate}
-                  onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+                  value={tempDateRange.startDate}
+                  onChange={(e) => setTempDateRange(prev => ({ ...prev, startDate: e.target.value }))}
                   className="px-3 py-2 border rounded text-sm"
                 />
               </div>
@@ -959,16 +608,16 @@ export default function PivotPage() {
                 <label className="text-sm font-medium">To:</label>
                 <input
                   type="date"
-                  value={dateRange.endDate}
-                  onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+                  value={tempDateRange.endDate}
+                  onChange={(e) => setTempDateRange(prev => ({ ...prev, endDate: e.target.value }))}
                   className="px-3 py-2 border rounded text-sm"
                 />
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium">Branch:</label>
                 <select
-                  value={branchFilter}
-                  onChange={(e) => setBranchFilter(e.target.value)}
+                  value={tempBranchFilter}
+                  onChange={(e) => setTempBranchFilter(e.target.value)}
                   className="px-1 py-2 border rounded text-sm"
                 >
                   <option value="">{userRole === 'super admin' || userRole === 'admin' ? 'All Branches' : 'All My Branches'}</option>
@@ -978,6 +627,20 @@ export default function PivotPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={applyFilters}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                >
+                  Apply Filter
+                </button>
+                <button
+                  onClick={resetFilters}
+                  className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm"
+                >
+                  Reset
+                </button>
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium">Product:</label>
@@ -992,7 +655,6 @@ export default function PivotPage() {
             </div>
           </div>
 
-          {/* Pivot Table */}
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-bold">Pivot Table - {displayMode === 'selisih' ? 'Selisih' : 'Pemakaian'} Analysis</h2>
@@ -1021,75 +683,83 @@ export default function PivotPage() {
             </div>
             
             <div className="overflow-x-auto">
-              <table className="w-full text-sm border border-gray-200">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="border px-3 py-2 text-left font-medium">Subcategory / Product</th>
-                    {dates.map(date => (
-                      <th key={date} className="border px-3 py-2 text-center font-medium">
-                        {new Date(date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit' })}
-                      </th>
+              {!hasAppliedFilter ? (
+                <div className="text-center py-12 text-gray-500">
+                  <div className="mb-4">
+                    <AlertTriangle size={48} className="mx-auto text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-medium mb-2">No Data to Display</h3>
+                  <p className="text-sm">Please select date range and branch filter, then click "Apply Filter" to load data.</p>
+                </div>
+              ) : (
+                <table className="w-full text-sm border border-gray-200">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="border px-3 py-2 text-left font-medium">Subcategory / Product</th>
+                      {dates.map(date => (
+                        <th key={date} className="border px-3 py-2 text-center font-medium">
+                          {new Date(date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit' })}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(pivotData).map(([subcategory, products]) => (
+                      <React.Fragment key={subcategory}>
+                        <tr 
+                          className="bg-gray-50 cursor-pointer hover:bg-gray-100"
+                          onClick={() => toggleSubcategory(subcategory)}
+                        >
+                          <td className="border px-3 py-2 font-medium">
+                            <div className="flex items-center">
+                              <span className="mr-2">
+                                {expandedSubcategories.has(subcategory) ? '▼' : '►'}
+                              </span>
+                              {subcategory}
+                            </div>
+                          </td>
+                          {dates.map(date => {
+                            const total = Object.values(products).reduce((sum, productDates) => {
+                              const value = displayMode === 'selisih' ? productDates[date]?.selisih : productDates[date]?.pemakaian;
+                              return sum + (value || 0);
+                            }, 0);
+                            
+                            return (
+                              <td key={date} className={`border px-3 py-2 text-center font-medium ${
+                                total < 0 ? 'text-red-600' : total > 0 ? 'text-green-600' : 'text-gray-600'
+                              }`}>
+                                {total.toFixed(2)}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                        
+                        {expandedSubcategories.has(subcategory) && 
+                          Object.entries(products).map(([product, datesData]) => (
+                            <tr key={product} className="bg-blue-50">
+                              <td className="border px-3 py-2 pl-8">{product}</td>
+                              {dates.map(date => {
+                                const value = displayMode === 'selisih' ? datesData[date]?.selisih : datesData[date]?.pemakaian;
+                                
+                                return (
+                                  <td key={date} className={`border px-3 py-2 text-center ${
+                                    (value || 0) < 0 ? 'text-red-600' : 
+                                    (value || 0) > 0 ? 'text-green-600' : 'text-gray-600'
+                                  }`}>
+                                    {(value || 0).toFixed(2)}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))
+                        }
+                      </React.Fragment>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(pivotData).map(([subcategory, products]) => (
-                    <React.Fragment key={subcategory}>
-                      {/* Subcategory row */}
-                      <tr 
-                        className="bg-gray-50 cursor-pointer hover:bg-gray-100"
-                        onClick={() => toggleSubcategory(subcategory)}
-                      >
-                        <td className="border px-3 py-2 font-medium">
-                          <div className="flex items-center">
-                            <span className="mr-2">
-                              {expandedSubcategories.has(subcategory) ? '▼' : '►'}
-                            </span>
-                            {subcategory}
-                          </div>
-                        </td>
-                        {dates.map(date => {
-                          const total = Object.values(products).reduce((sum, productDates) => {
-                            const value = displayMode === 'selisih' ? productDates[date]?.selisih : productDates[date]?.pemakaian;
-                            return sum + (value || 0);
-                          }, 0);
-                          
-                          return (
-                            <td key={date} className={`border px-3 py-2 text-center font-medium ${
-                              total < 0 ? 'text-red-600' : total > 0 ? 'text-green-600' : 'text-gray-600'
-                            }`}>
-                              {total.toFixed(2)}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                      
-                      {/* Product rows */}
-                      {expandedSubcategories.has(subcategory) && 
-                        Object.entries(products).map(([product, datesData]) => (
-                          <tr key={product} className="bg-blue-50">
-                            <td className="border px-3 py-2 pl-8">{product}</td>
-                            {dates.map(date => {
-                              const value = displayMode === 'selisih' ? datesData[date]?.selisih : datesData[date]?.pemakaian;
-                              
-                              return (
-                                <td key={date} className={`border px-3 py-2 text-center ${
-                                  (value || 0) < 0 ? 'text-red-600' : 
-                                  (value || 0) > 0 ? 'text-green-600' : 'text-gray-600'
-                                }`}>
-                                  {(value || 0).toFixed(2)}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))
-                      }
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
+                  </tbody>
+                </table>
+              )}
               
-              {Object.keys(pivotData).length === 0 && (
+              {hasAppliedFilter && Object.keys(pivotData).length === 0 && (
                 <div className="text-center py-8 text-gray-500">
                   No data available for the selected filters
                 </div>
@@ -1097,15 +767,6 @@ export default function PivotPage() {
             </div>
           </div>
 
-          {/* NegativeDiscrepancyDashboard */}
-          <NegativeDiscrepancyDashboard 
-            data={data} 
-            dateRange={dateRange} 
-            branchFilter={branchFilter}
-            productSearch={productSearch} 
-          />
-
-          {/* Toast */}
           {toast && (
             <div className={`fixed top-4 right-4 px-4 py-2 rounded shadow-lg z-50 ${
               toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
