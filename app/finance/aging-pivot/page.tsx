@@ -118,7 +118,7 @@ export default function AgingPivotReport() {
         Promise.all(poChunks.map(chunk => 
           supabase
             .from('purchase_orders')
-            .select('id, approval_status')
+            .select('id, approval_status, notes')
             .in('id', chunk)
         ))
       ])
