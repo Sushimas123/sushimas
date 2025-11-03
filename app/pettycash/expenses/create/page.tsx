@@ -169,16 +169,19 @@ function CreateExpenseContent() {
         .from('petty_cash_expenses')
         .select('request_id, amount');
 
+      // Get all settlements at once to avoid N+1
+      const requestIds = (requestData || []).map(r => r.id);
+      const { data: settlementsData } = await supabase
+        .from('petty_cash_settlements')
+        .select('request_id')
+        .in('request_id', requestIds);
+      
+      const settledRequestIds = new Set(settlementsData?.map(s => s.request_id) || []);
+      
       // Filter out requests that already have settlements and calculate remaining balance
       const availableRequests = [];
       for (const request of requestData || []) {
-        const { data: existingSettlement } = await supabase
-          .from('petty_cash_settlements')
-          .select('id')
-          .eq('request_id', request.id)
-          .single();
-
-        if (!existingSettlement) {
+        if (!settledRequestIds.has(request.id)) {
           // Calculate total expenses for this request
           const totalExpenses = expensesData?.filter(e => e.request_id === request.id)
             .reduce((sum, e) => sum + e.amount, 0) || 0;
@@ -198,16 +201,28 @@ function CreateExpenseContent() {
         }
       }
       
-      // Check lock status for each request
-      const requestsWithLockStatus = [];
-      for (const request of availableRequests) {
-        const lockStatus = await checkRequestLock(request.id);
+      // Check lock status for all requests at once
+      const availableRequestIds = availableRequests.map(r => r.id);
+      const lockStatuses = await Promise.all(
+        availableRequestIds.map(id => checkRequestLock(id))
+      );
+      
+      // Process lock statuses
+      const newLockedRequests = new Set<number>();
+      const newLockMessages: {[key: number]: string} = {};
+      
+      lockStatuses.forEach((lockStatus, index) => {
+        const requestId = availableRequestIds[index];
         if (lockStatus.isLocked) {
-          setLockedRequests(prev => new Set([...prev, request.id]));
-          setLockMessages(prev => ({ ...prev, [request.id]: `Sedang diproses oleh ${lockStatus.lockedBy}` }));
+          newLockedRequests.add(requestId);
+          newLockMessages[requestId] = `Sedang diproses oleh ${lockStatus.lockedBy}`;
         }
-        requestsWithLockStatus.push(request);
-      }
+      });
+      
+      setLockedRequests(newLockedRequests);
+      setLockMessages(newLockMessages);
+      
+      const requestsWithLockStatus = availableRequests;
       
       // Transform the data to match our interface
       const transformedRequests = requestsWithLockStatus.map(request => {

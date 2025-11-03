@@ -154,46 +154,65 @@ function PettyCashDashboardContent() {
         }
       }
       
-      // Fetch requests data with branch filtering
-      let requestsQuery = supabase
-        .from('petty_cash_requests')
-        .select(`
-          *,
-          branches(nama_branch),
-          requested_by_user:users!petty_cash_requests_requested_by_fkey(nama_lengkap)
-        `);
+      // Batch fetch all data in parallel to avoid N+1
+      const [requestsResult, expensesResult, categoriesResult, settlementsResult] = await Promise.all([
+        // Fetch requests with branch filtering
+        (() => {
+          let requestsQuery = supabase
+            .from('petty_cash_requests')
+            .select('*');
+          
+          if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranchCodes.length > 0) {
+            requestsQuery = requestsQuery.in('branch_code', allowedBranchCodes);
+          }
+          
+          return requestsQuery;
+        })(),
+        
+        // Fetch expenses
+        supabase.from('petty_cash_expenses').select('*'),
+        
+        // Fetch categories
+        supabase.from('categories').select('id_category, category_name'),
+        
+        // Fetch settlements
+        supabase.from('petty_cash_settlements').select('*')
+      ]);
       
-      // Apply branch filter for non-admin users
-      if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranchCodes.length > 0) {
-        requestsQuery = requestsQuery.in('branch_code', allowedBranchCodes);
-      }
+      if (requestsResult.error) throw requestsResult.error;
+      if (expensesResult.error) throw expensesResult.error;
+      if (categoriesResult.error) throw categoriesResult.error;
+      if (settlementsResult.error) throw settlementsResult.error;
       
-      const { data: requestsData, error: requestsError } = await requestsQuery;
+      const requestsData = requestsResult.data;
+      const expensesData = expensesResult.data;
+      const categoriesData = categoriesResult.data;
+      const settlementsData = settlementsResult.data;
       
-      console.log('Requests data:', requestsData);
-      console.log('Requests error:', requestsError);
+      // Batch fetch related data
+      const branchCodes = [...new Set(requestsData?.map(r => r.branch_code).filter(Boolean) || [])];
+      const userIds = [...new Set(requestsData?.map(r => r.requested_by).filter(Boolean) || [])];
       
-      // Fetch expenses data
-      const { data: expensesData, error: expensesError } = await supabase
-        .from('petty_cash_expenses')
-        .select('*');
+      const [branchesResult, usersResult] = await Promise.all([
+        supabase.from('branches').select('kode_branch, nama_branch').in('kode_branch', branchCodes),
+        supabase.from('users').select('id_user, nama_lengkap').in('id_user', userIds)
+      ]);
       
-      // Fetch categories separately
-      const { data: categoriesData } = await supabase
-        .from('categories')
-        .select('id_category, category_name');
+      // Create lookup maps
+      const branchesMap = new Map((branchesResult.data || []).map(b => [b.kode_branch, b.nama_branch]));
+      const usersMap = new Map((usersResult.data || []).map(u => [u.id_user, u.nama_lengkap]));
       
+      // Enrich requests data with lookups
+      const enrichedRequestsData = requestsData?.map(request => ({
+        ...request,
+        branches: { nama_branch: branchesMap.get(request.branch_code) || request.branch_code },
+        requested_by_user: { nama_lengkap: usersMap.get(request.requested_by) || `User ${request.requested_by}` }
+      }));
+      
+      console.log('Requests data:', enrichedRequestsData);
       console.log('Expenses data:', expensesData);
       console.log('Categories data:', categoriesData);
-      console.log('Expenses error:', expensesError);
-      
-      // Fetch settlements data
-      const { data: settlementsData, error: settlementsError } = await supabase
-        .from('petty_cash_settlements')
-        .select('*');
-      
       console.log('Settlements data:', settlementsData);
-      console.log('Settlements error:', settlementsError);
       
       // Calculate stats
       const totalRequests = requestsData?.length || 0;
@@ -224,7 +243,7 @@ function PettyCashDashboardContent() {
       const branchMap = new Map();
       
       // Get latest UNSETTLED request per branch
-      requestsData?.forEach(request => {
+      enrichedRequestsData?.forEach(request => {
         const branchCode = request.branch_code;
         const branchName = request.branches?.nama_branch || branchCode;
         
@@ -264,7 +283,7 @@ function PettyCashDashboardContent() {
       // Add expenses only for latest UNSETTLED request per branch
       expensesData?.forEach(expense => {
         // Find request to get branch
-        const request = requestsData?.find(r => r.id === expense.request_id);
+        const request = enrichedRequestsData?.find(r => r.id === expense.request_id);
         if (request) {
           // Check if this expense's request has completed settlement
           const hasCompletedSettlement = settlementsData?.some(s => 
@@ -314,7 +333,7 @@ function PettyCashDashboardContent() {
         branchBalances,
         summaries: summaryData || [],
         expensesData: expensesData || undefined,
-        requestsData: requestsData || undefined,
+        requestsData: enrichedRequestsData || undefined,
         categoriesData: categoriesData || undefined,
         settlementsData: settlementsData || undefined
       });

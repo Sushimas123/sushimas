@@ -55,39 +55,49 @@ function PettyCashExpensesContent() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
 
-  // Memoized calculateRunningBalance untuk mengatasi N+1
-  const calculateRunningBalance = useMemo(() => {
-    const cache = new Map<number, number>();
+  // Pre-compute running balances untuk mengatasi N+1
+  const runningBalances = useMemo(() => {
+    const balanceMap = new Map<number, number>();
+    const requestMap = new Map(requests.map(r => [r.id, r]));
     
-    return (expense: PettyCashExpense) => {
-      if (cache.has(expense.id)) {
-        return cache.get(expense.id)!;
+    // Group expenses by request_id and sort by date/id
+    const expensesByRequest = new Map<number, PettyCashExpense[]>();
+    expenses.forEach(expense => {
+      if (!expensesByRequest.has(expense.request_id)) {
+        expensesByRequest.set(expense.request_id, []);
       }
+      expensesByRequest.get(expense.request_id)!.push(expense);
+    });
+    
+    // Calculate running balance for each request
+    expensesByRequest.forEach((requestExpenses, requestId) => {
+      const request = requestMap.get(requestId);
+      if (!request) return;
       
-      const request = requests.find(r => r.id === expense.request_id);
-      if (!request) {
-        cache.set(expense.id, 0);
-        return 0;
-      }
-
       const totalAvailable = request.amount + (request.carried_balance || 0);
-      const relevantExpenses = expenses.filter(e => 
-        e.request_id === expense.request_id && 
-        (new Date(e.expense_date) < new Date(expense.expense_date) ||
-        (new Date(e.expense_date).getTime() === new Date(expense.expense_date).getTime() && e.id <= expense.id))
-      );
-      const totalExpensesUpToNow = relevantExpenses.reduce((sum, e) => sum + e.amount, 0);
-      const balance = totalAvailable - totalExpensesUpToNow;
+      let runningTotal = 0;
       
-      cache.set(expense.id, balance);
-      return balance;
-    };
+      // Sort expenses by date then by id
+      const sortedExpenses = requestExpenses.sort((a, b) => {
+        const dateA = new Date(a.expense_date).getTime();
+        const dateB = new Date(b.expense_date).getTime();
+        if (dateA !== dateB) return dateA - dateB;
+        return a.id - b.id;
+      });
+      
+      sortedExpenses.forEach(expense => {
+        runningTotal += expense.amount;
+        balanceMap.set(expense.id, totalAvailable - runningTotal);
+      });
+    });
+    
+    return balanceMap;
   }, [expenses, requests]);
 
   const exportToExcel = () => {
     try {
       const exportData = filteredExpenses.map((expense) => {
-        const runningBalance = calculateRunningBalance(expense);
+        const runningBalance = runningBalances.get(expense.id) || 0;
         
         return {
           'Tanggal': formatDate(expense.expense_date),
@@ -685,7 +695,7 @@ function PettyCashExpensesContent() {
           </thead>
             <tbody>
               {paginatedExpenses.map((expense) => {
-                const runningBalance = calculateRunningBalance(expense);
+                const runningBalance = runningBalances.get(expense.id) || 0;
                 
                 return (
                   <tr key={expense.id} className="border-b hover:bg-gray-50">

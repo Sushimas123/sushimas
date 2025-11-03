@@ -23,6 +23,7 @@ interface Settlement {
   verified_by_name?: string;
   request_amount?: number;
   refilled_request_id?: number;
+  branch_name?: string;
 }
 
 function SettlementsContent() {
@@ -30,6 +31,7 @@ function SettlementsContent() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [branchFilter, setBranchFilter] = useState('all');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const fetchSettlements = async () => {
@@ -64,48 +66,59 @@ function SettlementsContent() {
 
       if (error) throw error;
 
-      const formattedSettlements = [];
-      for (const settlement of settlementsData || []) {
-        // Fetch request data with branch info
-        const { data: requestData } = await supabase
-          .from('petty_cash_requests')
-          .select('request_number, amount, branch_code')
-          .eq('id', settlement.request_id)
-          .single();
-        
-        // Filter by user branches for non-admin users
-        if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranchCodes.length > 0) {
-          if (!requestData?.branch_code || !allowedBranchCodes.includes(requestData.branch_code)) {
-            continue; // Skip this settlement if branch not allowed
+      // Batch fetch all related data to avoid N+1
+      const requestIds = [...new Set((settlementsData || []).map(s => s.request_id))];
+      const userIds = [...new Set([
+        ...(settlementsData || []).map(s => s.settled_by),
+        ...(settlementsData || []).map(s => s.verified_by).filter(Boolean)
+      ])];
+      
+      // Fetch all requests at once
+      const { data: requestsData } = await supabase
+        .from('petty_cash_requests')
+        .select('id, request_number, amount, branch_code')
+        .in('id', requestIds);
+      
+      // Fetch all users at once
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('id_user, nama_lengkap')
+        .in('id_user', userIds);
+      
+      // Fetch all branches at once
+      const branchCodes = [...new Set((requestsData || []).map(r => r.branch_code).filter(Boolean))];
+      const { data: branchesData } = await supabase
+        .from('branches')
+        .select('kode_branch, nama_branch')
+        .in('kode_branch', branchCodes);
+      
+      // Create lookup maps
+      const requestsMap = new Map((requestsData || []).map(r => [r.id, r]));
+      const usersMap = new Map((usersData || []).map(u => [u.id_user, u.nama_lengkap]));
+      const branchesMap = new Map((branchesData || []).map(b => [b.kode_branch, b.nama_branch]));
+      
+      // Format settlements with lookups
+      const formattedSettlements = (settlementsData || [])
+        .map(settlement => {
+          const requestData = requestsMap.get(settlement.request_id);
+          
+          // Filter by user branches for non-admin users
+          if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranchCodes.length > 0) {
+            if (!requestData?.branch_code || !allowedBranchCodes.includes(requestData.branch_code)) {
+              return null; // Will be filtered out
+            }
           }
-        }
-        
-        // Fetch settled by user
-        const { data: settledByData } = await supabase
-          .from('users')
-          .select('nama_lengkap')
-          .eq('id_user', settlement.settled_by)
-          .single();
-        
-        // Fetch verified by user if exists
-        let verifiedByData = null;
-        if (settlement.verified_by) {
-          const { data } = await supabase
-            .from('users')
-            .select('nama_lengkap')
-            .eq('id_user', settlement.verified_by)
-            .single();
-          verifiedByData = data;
-        }
-        
-        formattedSettlements.push({
-          ...settlement,
-          request_number: requestData?.request_number || `REQ-${settlement.request_id}`,
-          request_amount: requestData?.amount || 0,
-          settled_by_name: settledByData?.nama_lengkap || `User ${settlement.settled_by}`,
-          verified_by_name: verifiedByData?.nama_lengkap || null
-        });
-      }
+          
+          return {
+            ...settlement,
+            request_number: requestData?.request_number || `REQ-${settlement.request_id}`,
+            request_amount: requestData?.amount || 0,
+            settled_by_name: usersMap.get(settlement.settled_by) || `User ${settlement.settled_by}`,
+            verified_by_name: settlement.verified_by ? usersMap.get(settlement.verified_by) || null : null,
+            branch_name: requestData?.branch_code ? branchesMap.get(requestData.branch_code) || requestData.branch_code : 'Unknown'
+          };
+        })
+        .filter(Boolean); // Remove null entries from branch filtering
 
       setSettlements(formattedSettlements);
     } catch (error) {
@@ -265,9 +278,13 @@ function SettlementsContent() {
       settlement.request_number?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === 'all' || settlement.status === statusFilter;
+    const matchesBranch = branchFilter === 'all' || settlement.branch_name === branchFilter;
     
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesStatus && matchesBranch;
   });
+
+  // Get unique branches for filter
+  const branches = [...new Set(settlements.map(s => s.branch_name).filter(Boolean))].sort();
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -400,17 +417,31 @@ function SettlementsContent() {
         </button>
         
         {isFilterOpen && (
-          <div className="mt-4">
-            <select 
-              value={statusFilter} 
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
-            >
-              <option value="all">Semua Status</option>
-              <option value="pending">Pending</option>
-              <option value="verified">Verified</option>
-              <option value="completed">Completed</option>
-            </select>
+          <div className="mt-4 space-y-3">
+            <div>
+              <select 
+                value={statusFilter} 
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm"
+              >
+                <option value="all">Semua Status</option>
+                <option value="pending">Pending</option>
+                <option value="verified">Verified</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+            <div>
+              <select 
+                value={branchFilter} 
+                onChange={(e) => setBranchFilter(e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm"
+              >
+                <option value="all">Semua Cabang</option>
+                {branches.map(branch => (
+                  <option key={branch} value={branch}>{branch}</option>
+                ))}
+              </select>
+            </div>
           </div>
         )}
       </div>
@@ -428,6 +459,18 @@ function SettlementsContent() {
               <option value="pending">Pending</option>
               <option value="verified">Verified</option>
               <option value="completed">Completed</option>
+            </select>
+          </div>
+          <div>
+            <select 
+              value={branchFilter} 
+              onChange={(e) => setBranchFilter(e.target.value)}
+              className="w-full border rounded px-3 py-2 text-sm"
+            >
+              <option value="all">Semua Cabang</option>
+              {branches.map(branch => (
+                <option key={branch} value={branch}>{branch}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -569,6 +612,7 @@ function SettlementsContent() {
               <tr>
                 <th className="text-left py-3 px-4">Settlement Info</th>
                 <th className="text-left py-3 px-4">Request</th>
+                <th className="text-left py-3 px-4">Cabang</th>
                 <th className="text-right py-3 px-4">Request Amount</th>
                 <th className="text-right py-3 px-4">Total Expenses</th>
                 <th className="text-right py-3 px-4">Remaining</th>
@@ -588,6 +632,9 @@ function SettlementsContent() {
                   </td>
                   <td className="py-4 px-4">
                     <div className="text-purple-600 font-medium">{settlement.request_number}</div>
+                  </td>
+                  <td className="py-4 px-4">
+                    <div className="text-green-600 font-medium">{settlement.branch_name}</div>
                   </td>
                   <td className="py-4 px-4 text-right">
                     <div className="font-semibold">{formatCurrency(settlement.request_amount || 0)}</div>
