@@ -23,7 +23,7 @@ interface PurchaseOrder {
   received_by_name?: string
   received_at?: string
   total_harga: number
-  status_payment?: string  // Tambahkan ini
+
   items: Array<{product_name: string, qty: number}>
 }
 
@@ -349,7 +349,7 @@ function PurchaseOrderPageContent() {
           received_by_name: po.received_by_name,
           received_at: po.received_at,
           total_harga: po.total_po, // Gunakan total_po dari view
-          status_payment: po.status_payment, // Sudah dihitung di view
+
           items: poItems
         }
       })
@@ -545,7 +545,7 @@ function PurchaseOrderPageContent() {
       // Fetch all purchase orders without pagination for export
       let query = supabase
         .from('purchase_orders')
-        .select('*, received_by_name, received_at, status_payment') // Tambahkan payment_status
+        .select('*, received_by_name, received_at')
         .order('created_at', { ascending: false })
 
       // Apply current filters
@@ -1219,8 +1219,7 @@ function PurchaseOrderPageContent() {
                                   </span>
                                 )
                               )}
-{canPerformActionSync(userRole, 'purchaseorder', 'delete') && 
- (po.status_payment !== 'paid' || userRole === 'super admin') && (
+{canPerformActionSync(userRole, 'purchaseorder', 'delete') && (
   <button
     onClick={() => handleDeletePO(po.id, po.po_number)}
     className="text-red-600 hover:text-red-800 p-1 rounded"
@@ -1381,8 +1380,7 @@ function PurchaseOrderPageContent() {
                                 </span>
                               )
                             )}
-{canPerformActionSync(userRole, 'purchaseorder', 'delete') && 
- (po.status_payment !== 'paid' || userRole === 'super admin') && (
+{canPerformActionSync(userRole, 'purchaseorder', 'delete') && (
   <button
     onClick={() => handleDeletePO(po.id, po.po_number)}
     className="text-red-600 hover:text-red-800 p-1 rounded"
