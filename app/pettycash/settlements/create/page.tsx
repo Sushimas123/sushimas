@@ -68,44 +68,44 @@ function CreateSettlementContent() {
 
       if (requestsError) throw requestsError;
 
-      const requestsWithExpenses = [];
-      for (const request of requestsData || []) {
-        // Check if already settled
-        const { data: existingSettlement } = await supabase
-          .from('petty_cash_settlements')
-          .select('id')
-          .eq('request_id', request.id)
-          .single();
-
-        if (existingSettlement) continue; // Skip if already settled
-
-        // Get total expenses for this request
-        const { data: expensesData } = await supabase
-          .from('petty_cash_expenses')
-          .select('amount')
-          .eq('request_id', request.id);
-
-        const totalExpenses = expensesData?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
-        // Calculate total available = amount + carried_balance (for refill requests)
-        const totalAvailable = request.amount + (request.carried_balance || 0);
-        const remainingAmount = totalAvailable - totalExpenses;
-
-        // Get branch name
-        const { data: branchData } = await supabase
-          .from('branches')
-          .select('nama_branch')
-          .eq('kode_branch', request.branch_code)
-          .single();
-
-        requestsWithExpenses.push({
-          id: request.id,
-          request_number: request.request_number,
-          amount: totalAvailable, // Show total available instead of just amount
-          total_expenses: totalExpenses,
-          remaining_amount: remainingAmount,
-          branch_name: branchData?.nama_branch || request.branch_code
+      // Batch fetch all related data to avoid N+1
+      const requestIds = (requestsData || []).map(r => r.id);
+      const branchCodes = [...new Set((requestsData || []).map(r => r.branch_code))];
+      
+      const [settlementsResult, expensesResult, branchesResult] = await Promise.all([
+        supabase.from('petty_cash_settlements').select('request_id').in('request_id', requestIds),
+        supabase.from('petty_cash_expenses').select('request_id, amount').in('request_id', requestIds),
+        supabase.from('branches').select('kode_branch, nama_branch').in('kode_branch', branchCodes)
+      ]);
+      
+      // Create lookup maps
+      const settledRequestIds = new Set((settlementsResult.data || []).map(s => s.request_id));
+      const expensesByRequest = new Map<number, number>();
+      const branchesMap = new Map((branchesResult.data || []).map(b => [b.kode_branch, b.nama_branch]));
+      
+      // Calculate total expenses per request
+      (expensesResult.data || []).forEach(expense => {
+        const current = expensesByRequest.get(expense.request_id) || 0;
+        expensesByRequest.set(expense.request_id, current + expense.amount);
+      });
+      
+      // Process requests with lookups
+      const requestsWithExpenses = (requestsData || [])
+        .filter(request => !settledRequestIds.has(request.id)) // Skip settled requests
+        .map(request => {
+          const totalExpenses = expensesByRequest.get(request.id) || 0;
+          const totalAvailable = request.amount + (request.carried_balance || 0);
+          const remainingAmount = totalAvailable - totalExpenses;
+          
+          return {
+            id: request.id,
+            request_number: request.request_number,
+            amount: totalAvailable,
+            total_expenses: totalExpenses,
+            remaining_amount: remainingAmount,
+            branch_name: branchesMap.get(request.branch_code) || request.branch_code
+          };
         });
-      }
 
       setRequests(requestsWithExpenses);
     } catch (error) {
