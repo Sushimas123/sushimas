@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
-import { Calendar, Wrench, AlertTriangle, CheckCircle, Clock, Edit2, Trash2 } from 'lucide-react';
+import { Calendar, Wrench, AlertTriangle, CheckCircle, Clock, Edit2, Trash2, Search } from 'lucide-react';
 import Layout from '../../../components/Layout';
 import PageAccessControl from '../../../components/PageAccessControl';
 import { AssetMaintenance, Asset } from '@/src/types/assets';
@@ -13,6 +13,7 @@ export default function MaintenancePage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [branchFilter, setBranchFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -21,6 +22,7 @@ export default function MaintenancePage() {
   const [assetSearch, setAssetSearch] = useState('');
   const [showAssetDropdown, setShowAssetDropdown] = useState(false);
   const [formData, setFormData] = useState({
+    branch_id: '',
     asset_id: '',
     maintenance_date: new Date().toISOString().split('T')[0],
     maintenance_type: 'ROUTINE',
@@ -165,6 +167,7 @@ export default function MaintenancePage() {
       setShowAddForm(false);
       setAssetSearch('');
       setFormData({
+        branch_id: '',
         asset_id: '',
         maintenance_date: new Date().toISOString().split('T')[0],
         maintenance_type: 'ROUTINE',
@@ -182,7 +185,9 @@ export default function MaintenancePage() {
 
   const handleEdit = (maintenance: AssetMaintenance) => {
     setEditingId(maintenance.maintenance_id);
+    const asset = assets.find(a => a.asset_id === maintenance.asset_id);
     setFormData({
+      branch_id: asset?.branches?.kode_branch || '',
       asset_id: maintenance.asset_id,
       maintenance_date: maintenance.maintenance_date,
       maintenance_type: maintenance.maintenance_type,
@@ -215,6 +220,7 @@ export default function MaintenancePage() {
       setEditingId(null);
       setAssetSearch('');
       setFormData({
+        branch_id: '',
         asset_id: '',
         maintenance_date: new Date().toISOString().split('T')[0],
         maintenance_type: 'ROUTINE',
@@ -271,13 +277,20 @@ export default function MaintenancePage() {
   const filteredMaintenances = maintenances.filter(maintenance => {
     const statusMatch = !statusFilter || maintenance.status === statusFilter;
     
-    if (branchFilter === 'all') return statusMatch;
+    // Search filter
+    const searchMatch = !searchTerm || 
+      maintenance.assets?.asset_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      maintenance.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      maintenance.technician?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      maintenance.maintenance_type?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (branchFilter === 'all') return statusMatch && searchMatch;
     
     // Find the asset for this maintenance to get branch info
     const asset = assets.find(a => a.asset_id === maintenance.asset_id);
     const branchMatch = asset?.branches?.kode_branch === branchFilter;
     
-    return statusMatch && branchMatch;
+    return statusMatch && branchMatch && searchMatch;
   });
 
   // Get unique branches from assets for filter dropdown
@@ -289,7 +302,7 @@ export default function MaintenancePage() {
       code: branchCode,
       name: asset?.branches?.nama_branch || branchCode
     };
-  }).sort((a, b) => a.name.localeCompare(b.name));
+  }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   // Pagination
   const totalPages = Math.ceil(filteredMaintenances.length / pageSize);
@@ -398,7 +411,17 @@ export default function MaintenancePage() {
 
           {/* Filters */}
           <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex gap-4">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  type="text"
+                  placeholder="Search by asset name, description, technician, or type..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border rounded text-sm"
+                />
+              </div>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
@@ -558,6 +581,26 @@ export default function MaintenancePage() {
               <div className="bg-white rounded-lg p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
                 <h2 className="text-lg font-semibold mb-4">Add Maintenance Record</h2>
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+                    <select
+                      value={formData.branch_id}
+                      onChange={(e) => {
+                        setFormData({...formData, branch_id: e.target.value, asset_id: ''});
+                        setAssetSearch('');
+                      }}
+                      className="w-full px-3 py-2 border rounded-lg"
+                      required
+                    >
+                      <option value="">Select Branch</option>
+                      {availableBranches.map(branch => (
+                        <option key={branch.code} value={branch.code}>
+                          {branch.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div className="relative">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Asset</label>
                     <input
@@ -578,13 +621,15 @@ export default function MaintenancePage() {
                         🏢 {assets.find(a => a.asset_id === formData.asset_id)?.branches?.nama_branch || 'Unknown Branch'}
                       </div>
                     )}
-                    {showAssetDropdown && (
+                    {showAssetDropdown && formData.branch_id && (
                       <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
                         {assets
-                          .filter(asset => 
-                            asset.asset_name.toLowerCase().includes(assetSearch.toLowerCase()) ||
-                            asset.location.toLowerCase().includes(assetSearch.toLowerCase())
-                          )
+                          .filter(asset => {
+                            const branchMatch = asset.branches?.kode_branch === formData.branch_id;
+                            const searchMatch = asset.asset_name.toLowerCase().includes(assetSearch.toLowerCase()) ||
+                              asset.location.toLowerCase().includes(assetSearch.toLowerCase());
+                            return branchMatch && searchMatch;
+                          })
                           .map(asset => (
                             <div
                               key={asset.asset_id}
@@ -695,6 +740,26 @@ export default function MaintenancePage() {
               <div className="bg-white rounded-lg p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
                 <h2 className="text-lg font-semibold mb-4">Edit Maintenance Record</h2>
                 <form onSubmit={handleUpdate} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+                    <select
+                      value={formData.branch_id}
+                      onChange={(e) => {
+                        setFormData({...formData, branch_id: e.target.value, asset_id: ''});
+                        setAssetSearch('');
+                      }}
+                      className="w-full px-3 py-2 border rounded-lg"
+                      required
+                    >
+                      <option value="">Select Branch</option>
+                      {availableBranches.map(branch => (
+                        <option key={branch.code} value={branch.code}>
+                          {branch.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div className="relative">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Asset</label>
                     <input
@@ -715,13 +780,15 @@ export default function MaintenancePage() {
                         🏢 {assets.find(a => a.asset_id === formData.asset_id)?.branches?.nama_branch || 'Unknown Branch'}
                       </div>
                     )}
-                    {showAssetDropdown && (
+                    {showAssetDropdown && formData.branch_id && (
                       <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
                         {assets
-                          .filter(asset => 
-                            asset.asset_name.toLowerCase().includes(assetSearch.toLowerCase()) ||
-                            asset.location.toLowerCase().includes(assetSearch.toLowerCase())
-                          )
+                          .filter(asset => {
+                            const branchMatch = asset.branches?.kode_branch === formData.branch_id;
+                            const searchMatch = asset.asset_name.toLowerCase().includes(assetSearch.toLowerCase()) ||
+                              asset.location.toLowerCase().includes(assetSearch.toLowerCase());
+                            return branchMatch && searchMatch;
+                          })
                           .map(asset => (
                             <div
                               key={asset.asset_id}
