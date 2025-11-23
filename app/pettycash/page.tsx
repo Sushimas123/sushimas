@@ -94,6 +94,8 @@ function PettyCashDashboardContent() {
   const [summaryStatusFilter, setSummaryStatusFilter] = useState('all');
   const [activeTab, setActiveTab] = useState<'overview' | 'branches' | 'summary'>('overview');
   const [isMobile, setIsMobile] = useState(false);
+  const [summaryPage, setSummaryPage] = useState(1);
+  const [summaryPageSize] = useState(20);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -433,6 +435,13 @@ function PettyCashDashboardContent() {
         return direction === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
       });
   }, [data.summaries, summaryBranchFilter, summaryStatusFilter, dateRange, summarySort, data.settlementsData]);
+
+  const paginatedSummaries = useMemo(() => {
+    const startIndex = (summaryPage - 1) * summaryPageSize;
+    return filteredSummaries.slice(startIndex, startIndex + summaryPageSize);
+  }, [filteredSummaries, summaryPage, summaryPageSize]);
+
+  const summaryTotalPages = Math.ceil(filteredSummaries.length / summaryPageSize);
 
   const MobileBranchCard = ({ branch }: { branch: BranchBalance }) => {
     const isExpanded = expandedBranches.has(branch.branch_code);
@@ -858,52 +867,7 @@ function PettyCashDashboardContent() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-lg border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Balance</p>
-              <p className="text-2xl font-bold text-green-600">{formatCurrency(data.totalBalance)}</p>
-            </div>
 
-          </div>
-          <p className="text-xs text-gray-500 mt-2">Saldo dari request terbaru per cabang</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Requests</p>
-              <p className="text-2xl font-bold text-blue-600">{data.totalRequests}</p>
-            </div>
-
-          </div>
-          <p className="text-xs text-gray-500 mt-2">
-            <span className="text-yellow-600">{data.pendingRequests} pending</span> • 
-            <span className="text-green-600 ml-1">{data.approvedRequests} approved</span>
-          </p>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Expenses</p>
-              <p className="text-2xl font-bold text-red-600">{formatCurrency(data.totalExpenses)}</p>
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mt-2">Pengeluaran bulan ini</p>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Pending Settlements</p>
-              <p className="text-2xl font-bold text-orange-600">{data.pendingSettlements}</p>
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mt-2">Menunggu penyelesaian</p>
-        </div>
-      </div>
 
       {/* Branch Balances */}
       <div className="bg-white rounded-lg border">
@@ -1209,7 +1173,7 @@ function PettyCashDashboardContent() {
               </tr>
             </thead>
             <tbody>
-              {filteredSummaries.map((summary) => {
+              {paginatedSummaries.map((summary) => {
                 const isExpanded = expandedSummaries.has(summary.id);
                 
                 const toggleExpanded = () => {
@@ -1343,6 +1307,51 @@ function PettyCashDashboardContent() {
             </tbody>
           </table>
         </div>
+        
+        {/* Summary Pagination */}
+        {summaryTotalPages > 1 && (
+          <div className="flex justify-between items-center p-4 border-t">
+            <div className="text-sm text-gray-600">
+              Showing {((summaryPage - 1) * summaryPageSize) + 1} to {Math.min(summaryPage * summaryPageSize, filteredSummaries.length)} of {filteredSummaries.length} entries
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSummaryPage(p => Math.max(1, p - 1))}
+                disabled={summaryPage === 1}
+                className="px-4 py-2 text-sm bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <div className="hidden md:flex gap-2">
+                {[...Array(Math.min(5, summaryTotalPages))].map((_, i) => {
+                  const pageNum = i + 1;
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setSummaryPage(pageNum)}
+                      className={`px-3 py-2 text-sm rounded ${
+                        summaryPage === pageNum ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+                {summaryTotalPages > 5 && <span className="px-2 py-2 text-sm">...</span>}
+              </div>
+              <span className="md:hidden px-3 py-2 text-sm bg-gray-50 rounded">
+                {summaryPage} / {summaryTotalPages}
+              </span>
+              <button
+                onClick={() => setSummaryPage(p => Math.min(summaryTotalPages, p + 1))}
+                disabled={summaryPage === summaryTotalPages}
+                className="px-4 py-2 text-sm bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
