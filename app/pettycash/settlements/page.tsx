@@ -30,7 +30,7 @@ function SettlementsContent() {
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('pending');
   const [branchFilter, setBranchFilter] = useState('all');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
