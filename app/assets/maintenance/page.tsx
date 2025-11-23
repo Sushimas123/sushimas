@@ -12,6 +12,9 @@ export default function MaintenancePage() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
+  const [branchFilter, setBranchFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(20);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -34,6 +37,49 @@ export default function MaintenancePage() {
 
   const fetchData = async () => {
     try {
+      // Get user data and check role
+      const userData = localStorage.getItem('user');
+      let userRole = '';
+      let allowedBranchCodes: string[] = [];
+      
+      if (userData) {
+        const user = JSON.parse(userData);
+        userRole = user.role;
+        
+        // For non-admin users, get their allowed branches
+        if (userRole !== 'super admin' && userRole !== 'admin' && user.id_user) {
+          const { data: userBranches } = await supabase
+            .from('user_branches')
+            .select('kode_branch')
+            .eq('id_user', user.id_user)
+            .eq('is_active', true);
+          
+          allowedBranchCodes = userBranches?.map(ub => ub.kode_branch) || [];
+        }
+      }
+
+      // Build asset query with branch filtering
+      let assetQuery = supabase
+        .from('assets')
+        .select(`
+          *,
+          branches(nama_branch, kode_branch)
+        `)
+        .eq('status', 'ACTIVE');
+      
+      if (userRole !== 'super admin' && userRole !== 'admin' && allowedBranchCodes.length > 0) {
+        // Convert branch codes to branch IDs
+        const { data: branchIds } = await supabase
+          .from('branches')
+          .select('id_branch')
+          .in('kode_branch', allowedBranchCodes);
+        
+        if (branchIds && branchIds.length > 0) {
+          const allowedBranchIds = branchIds.map(b => b.id_branch);
+          assetQuery = assetQuery.in('id_branch', allowedBranchIds);
+        }
+      }
+      
       const [maintenanceData, assetData] = await Promise.all([
         supabase
           .from('asset_maintenance')
@@ -41,21 +87,26 @@ export default function MaintenancePage() {
             *,
             assets (
               asset_name,
-              location
+              location,
+              id_branch,
+              branches(nama_branch, kode_branch)
             )
           `)
           .order('maintenance_date', { ascending: false }),
-        supabase
-          .from('assets')
-          .select(`
-            *,
-            branches(nama_branch)
-          `)
-          .eq('status', 'ACTIVE')
-          .order('asset_name')
+        assetQuery.order('asset_name')
       ]);
 
-      if (maintenanceData.data) setMaintenances(maintenanceData.data);
+      if (maintenanceData.data) {
+        // Filter maintenances based on user's allowed assets
+        let filteredMaintenances = maintenanceData.data;
+        if (userRole !== 'super admin' && userRole !== 'admin' && assetData.data) {
+          const allowedAssetIds = new Set(assetData.data.map(asset => asset.asset_id));
+          filteredMaintenances = maintenanceData.data.filter(maintenance => 
+            allowedAssetIds.has(maintenance.asset_id)
+          );
+        }
+        setMaintenances(filteredMaintenances);
+      }
       if (assetData.data) setAssets(assetData.data);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -217,9 +268,32 @@ export default function MaintenancePage() {
     }
   };
 
-  const filteredMaintenances = maintenances.filter(maintenance => 
-    !statusFilter || maintenance.status === statusFilter
-  );
+  const filteredMaintenances = maintenances.filter(maintenance => {
+    const statusMatch = !statusFilter || maintenance.status === statusFilter;
+    
+    if (branchFilter === 'all') return statusMatch;
+    
+    // Find the asset for this maintenance to get branch info
+    const asset = assets.find(a => a.asset_id === maintenance.asset_id);
+    const branchMatch = asset?.branches?.kode_branch === branchFilter;
+    
+    return statusMatch && branchMatch;
+  });
+
+  // Get unique branches from assets for filter dropdown
+  const availableBranches = Array.from(
+    new Set(assets.map(asset => asset.branches?.kode_branch).filter(Boolean))
+  ).map(branchCode => {
+    const asset = assets.find(a => a.branches?.kode_branch === branchCode);
+    return {
+      code: branchCode,
+      name: asset?.branches?.nama_branch || branchCode
+    };
+  }).sort((a, b) => a.name.localeCompare(b.name));
+
+  // Pagination
+  const totalPages = Math.ceil(filteredMaintenances.length / pageSize);
+  const paginatedMaintenances = filteredMaintenances.slice((page - 1) * pageSize, page * pageSize);
 
   const upcomingMaintenances = maintenances.filter(m => {
     const maintenanceDate = new Date(m.maintenance_date);
@@ -324,17 +398,32 @@ export default function MaintenancePage() {
 
           {/* Filters */}
           <div className="bg-white rounded-lg shadow p-4">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border rounded text-sm"
-            >
-              <option value="">All Status</option>
-              <option value="SCHEDULED">Scheduled</option>
-              <option value="IN_PROGRESS">In Progress</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
+            <div className="flex gap-4">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-2 border rounded text-sm"
+              >
+                <option value="">All Status</option>
+                <option value="SCHEDULED">Scheduled</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+              
+              <select
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value)}
+                className="px-3 py-2 border rounded text-sm"
+              >
+                <option value="all">All Branches</option>
+                {availableBranches.map(branch => (
+                  <option key={branch.code} value={branch.code}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Maintenance List */}
@@ -344,6 +433,7 @@ export default function MaintenancePage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Asset</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Branch</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Type</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Date</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Description</th>
@@ -355,10 +445,13 @@ export default function MaintenancePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {filteredMaintenances.map((maintenance) => (
+                  {paginatedMaintenances.map((maintenance) => (
                     <tr key={maintenance.maintenance_id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">
                         {maintenance.assets?.asset_name}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {maintenance.assets?.branches?.nama_branch || '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">{maintenance.maintenance_type}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">
@@ -411,6 +504,53 @@ export default function MaintenancePage() {
               </table>
             </div>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-600">
+                  Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, filteredMaintenances.length)} of {filteredMaintenances.length} entries
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="px-4 py-2 text-sm bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <div className="hidden md:flex gap-2">
+                    {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                      const pageNum = i + 1;
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setPage(pageNum)}
+                          className={`px-3 py-2 text-sm rounded ${
+                            page === pageNum ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                    {totalPages > 5 && <span className="px-2 py-2 text-sm">...</span>}
+                  </div>
+                  <span className="md:hidden px-3 py-2 text-sm bg-gray-50 rounded">
+                    {page} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="px-4 py-2 text-sm bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Add Maintenance Modal */}
           {showAddForm && (
