@@ -361,7 +361,7 @@ function SettlementsContent() {
       </div>
 
       {/* Stats Cards - Mobile Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-7 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
         <div className="bg-white p-3 md:p-4 rounded-lg border text-center">
           <div className="text-lg md:text-2xl font-bold text-blue-600">{stats.total}</div>
           <div className="text-xs md:text-sm text-gray-600">Total</div>
@@ -381,10 +381,6 @@ function SettlementsContent() {
         <div className="bg-white p-3 md:p-4 rounded-lg border text-center md:col-span-1 col-span-2">
           <div className="text-sm md:text-lg font-bold text-purple-600">{stats.refillable}</div>
           <div className="text-xs md:text-sm text-gray-600">Ready for Refill</div>
-        </div>
-        <div className="bg-white p-3 md:p-4 rounded-lg border text-center md:col-span-2 col-span-2">
-          <div className="text-sm md:text-lg font-bold text-orange-600">{formatCurrency(stats.totalRefillableAmount)}</div>
-          <div className="text-xs md:text-sm text-gray-600">Total Refillable</div>
         </div>
       </div>
 
