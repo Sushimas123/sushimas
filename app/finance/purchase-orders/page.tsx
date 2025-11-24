@@ -447,7 +447,7 @@ export default function FinancePurchaseOrders() {
       const poNumbers = financeData.map(item => item.po_number)
       
       // Split poIds into chunks to avoid Supabase limit
-      const chunkSize = 100
+      const chunkSize = 50
       const poIdChunks = []
       for (let i = 0; i < poIds.length; i += chunkSize) {
         poIdChunks.push(poIds.slice(i, i + chunkSize))

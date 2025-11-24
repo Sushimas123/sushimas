@@ -369,6 +369,20 @@ export default function FixDataPage() {
               <p className="text-gray-600">Klik "Scan PO" untuk mencari PO yang bermasalah</p>
             </div>
           )}
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-yellow-800 mb-2">💡 Penyebab Data Bermasalah:</h3>
+            <ul className="text-sm text-yellow-700 space-y-1">
+              <li>• Status PO diubah manual tanpa melalui workflow</li>
+              <li>• Data barang_masuk/gudang dihapus manual</li>
+              <li>• Error saat proses penyimpanan data</li>
+              <li>• Bug aplikasi atau database constraint issues</li>
+            </ul>
+            <div className="mt-3 pt-3 border-t border-yellow-200">
+              <p className="text-sm font-medium text-yellow-800">🔧 Pencegahan:</p>
+              <p className="text-xs text-yellow-700">Selalu gunakan workflow resmi untuk mengubah status PO. Hindari edit manual di database.</p>
+            </div>
+          </div>
         </div>
       </PageAccessControl>
     </Layout>
