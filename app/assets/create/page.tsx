@@ -101,7 +101,7 @@ export default function CreateAssetPage() {
       
       const lastId = lastAsset?.[0]?.asset_id || 'AST-0000';
       const num = parseInt(lastId.split('-')[1]) + 1;
-      const newAssetId = `AST-${num.toString().padStart(5, '0')}`;
+      const newAssetId = `AST-${num.toString().padStart(4, '0')}`;
 
       let photoUrl = null;
       
