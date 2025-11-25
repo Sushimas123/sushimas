@@ -65,9 +65,9 @@ export default function CreateAssetPage() {
       .order('asset_id', { ascending: false })
       .limit(1);
     
-    const lastId = data?.[0]?.asset_id || 'AST-000';
+    const lastId = data?.[0]?.asset_id || 'AST-0000';
     const num = parseInt(lastId.split('-')[1]) + 1;
-    setFormData(prev => ({ ...prev, asset_id: `AST-${num.toString().padStart(3, '0')}` }));
+    setFormData(prev => ({ ...prev, asset_id: `AST-${num.toString().padStart(4, '0')}` }));
   };
 
   const handlePhotoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,9 +99,9 @@ export default function CreateAssetPage() {
         .order('asset_id', { ascending: false })
         .limit(1);
       
-      const lastId = lastAsset?.[0]?.asset_id || 'AST-000';
+      const lastId = lastAsset?.[0]?.asset_id || 'AST-0000';
       const num = parseInt(lastId.split('-')[1]) + 1;
-      const newAssetId = `AST-${num.toString().padStart(3, '0')}`;
+      const newAssetId = `AST-${num.toString().padStart(5, '0')}`;
 
       let photoUrl = null;
       
