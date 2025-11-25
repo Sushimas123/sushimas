@@ -62,12 +62,26 @@ export default function CreateAssetPage() {
     const { data } = await supabase
       .from('assets')
       .select('asset_id')
-      .order('asset_id', { ascending: false })
-      .limit(1);
+      .order('created_at', { ascending: false });
     
-    const lastId = data?.[0]?.asset_id || 'AST-0000';
-    const num = parseInt(lastId.split('-')[1]) + 1;
-    setFormData(prev => ({ ...prev, asset_id: `AST-${num.toString().padStart(4, '0')}` }));
+    if (!data || data.length === 0) {
+      setFormData(prev => ({ ...prev, asset_id: 'AST-0001' }));
+      return;
+    }
+    
+    // Find highest numeric ID
+    let maxNum = 0;
+    data.forEach(asset => {
+      if (asset.asset_id?.startsWith('AST-')) {
+        const num = parseInt(asset.asset_id.split('-')[1]);
+        if (!isNaN(num) && num > maxNum) {
+          maxNum = num;
+        }
+      }
+    });
+    
+    const newNum = maxNum + 1;
+    setFormData(prev => ({ ...prev, asset_id: `AST-${newNum.toString().padStart(4, '0')}` }));
   };
 
   const handlePhotoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,15 +107,24 @@ export default function CreateAssetPage() {
 
     try {
       // Regenerate asset_id to avoid duplicate
-      const { data: lastAsset } = await supabase
+      const { data: allAssets } = await supabase
         .from('assets')
-        .select('asset_id')
-        .order('asset_id', { ascending: false })
-        .limit(1);
+        .select('asset_id');
       
-      const lastId = lastAsset?.[0]?.asset_id || 'AST-0000';
-      const num = parseInt(lastId.split('-')[1]) + 1;
-      const newAssetId = `AST-${num.toString().padStart(4, '0')}`;
+      let maxNum = 0;
+      if (allAssets) {
+        allAssets.forEach(asset => {
+          if (asset.asset_id?.startsWith('AST-')) {
+            const num = parseInt(asset.asset_id.split('-')[1]);
+            if (!isNaN(num) && num > maxNum) {
+              maxNum = num;
+            }
+          }
+        });
+      }
+      
+      const newNum = maxNum + 1;
+      const newAssetId = `AST-${newNum.toString().padStart(4, '0')}`;
 
       let photoUrl = null;
       
