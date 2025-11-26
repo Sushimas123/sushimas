@@ -254,6 +254,9 @@ export default function FinancePurchaseOrders() {
     dateFrom: '',
     dateTo: '',
     supplier: '',
+    selectedSuppliers: [] as string[],
+    supplierSearch: '',
+    showSupplierDropdown: false,
     branch: '',
     poStatus: '',
     paymentStatus: '',
@@ -272,11 +275,6 @@ export default function FinancePurchaseOrders() {
     fetchFinanceData()
     fetchBulkPayments()
   }, [])
-  
-  // Separate effect for filter changes
-  useEffect(() => {
-    fetchFinanceData()
-  }, [filters])
 
 
 
@@ -292,11 +290,45 @@ export default function FinancePurchaseOrders() {
     return () => window.removeEventListener('resize', checkScreenSize)
   }, [])
 
+  // Close supplier dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filters.showSupplierDropdown) {
+        const target = event.target as Element
+        if (!target.closest('.supplier-dropdown')) {
+          setFilters(prev => ({...prev, showSupplierDropdown: false}))
+        }
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [filters.showSupplierDropdown])
+
 
 
   const fetchSuppliers = useCallback(async () => {
     const { data } = await supabase.from('suppliers').select('id_supplier, nama_supplier').order('nama_supplier')
-    setSuppliers(data || [])
+    
+    // Remove duplicates based on case-insensitive name comparison
+    const uniqueSuppliers = (data || []).reduce((acc: any[], supplier) => {
+      const normalizedName = supplier.nama_supplier.toLowerCase().trim()
+      const existing = acc.find(s => s.nama_supplier.toLowerCase().trim() === normalizedName)
+      
+      if (existing) {
+        // If duplicate found, combine the IDs
+        existing.combined_ids = existing.combined_ids || [existing.id_supplier]
+        existing.combined_ids.push(supplier.id_supplier)
+      } else {
+        acc.push({
+          ...supplier,
+          combined_ids: [supplier.id_supplier]
+        })
+      }
+      return acc
+    }, [])
+    
+    setSuppliers(uniqueSuppliers)
   }, [])
 
   const fetchBranches = useCallback(async () => {
@@ -433,6 +465,19 @@ export default function FinancePurchaseOrders() {
       if (filters.dateFrom) query = query.gte('po_date', filters.dateFrom)
       if (filters.dateTo) query = query.lte('po_date', filters.dateTo)
       if (filters.supplier) query = query.eq('supplier_id', filters.supplier)
+      if (filters.selectedSuppliers.length > 0) {
+        // Get all combined IDs from selected suppliers
+        const allSupplierIds = filters.selectedSuppliers.flatMap(selectedId => {
+          const supplier = suppliers.find(s => s.id_supplier.toString() === selectedId)
+          console.log('Processing selected supplier ID:', selectedId, 'Found supplier:', supplier)
+          return supplier?.combined_ids || [parseInt(selectedId)]
+        })
+        console.log('Selected suppliers:', filters.selectedSuppliers)
+        console.log('All supplier IDs for filter:', allSupplierIds)
+        if (allSupplierIds.length > 0) {
+          query = query.in('supplier_id', allSupplierIds)
+        }
+      }
       if (filters.branch) query = query.eq('cabang_id', filters.branch)
       if (filters.poStatus) query = query.eq('po_status', filters.poStatus)
       if (filters.dueDate === 'overdue') query = query.eq('is_overdue', true)
@@ -680,6 +725,9 @@ export default function FinancePurchaseOrders() {
       dateFrom: '',
       dateTo: '',
       supplier: '',
+      selectedSuppliers: [],
+      supplierSearch: '',
+      showSupplierDropdown: false,
       branch: '',
       poStatus: '',
       paymentStatus: '',
@@ -690,6 +738,8 @@ export default function FinancePurchaseOrders() {
   }
 
   const applyFilters = () => {
+    console.log('Applying filters:', filters)
+    console.log('Available suppliers:', suppliers)
     setLoading(true)
     setCurrentPage(1)
     fetchFinanceData()
@@ -1563,6 +1613,98 @@ export default function FinancePurchaseOrders() {
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+              <div className="relative supplier-dropdown">
+                <button
+                  type="button"
+                  onClick={() => setFilters({...filters, showSupplierDropdown: !filters.showSupplierDropdown})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm text-left bg-white flex items-center justify-between"
+                >
+                  <span className="truncate">
+                    {filters.selectedSuppliers.length === 0 
+                      ? 'Pilih Supplier' 
+                      : `${filters.selectedSuppliers.length} supplier dipilih`
+                    }
+                  </span>
+                  <ChevronDown className="h-4 w-4 text-gray-400" />
+                </button>
+                
+                {filters.showSupplierDropdown && (
+                  <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-hidden">
+                    <div className="p-2 border-b border-gray-200">
+                      <input
+                        type="text"
+                        placeholder="Cari supplier..."
+                        value={filters.supplierSearch}
+                        onChange={(e) => setFilters({...filters, supplierSearch: e.target.value})}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="max-h-40 overflow-y-auto">
+                      {suppliers
+                        .filter(supplier => 
+                          supplier.nama_supplier.toLowerCase().includes(filters.supplierSearch.toLowerCase())
+                        )
+                        .map(supplier => (
+                          <label key={supplier.id_supplier} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={filters.selectedSuppliers.includes(supplier.id_supplier.toString())}
+                              onChange={(e) => {
+                                const supplierId = supplier.id_supplier.toString()
+                                console.log('Checkbox changed:', supplierId, e.target.checked)
+                                if (e.target.checked) {
+                                  const newSelected = [...filters.selectedSuppliers, supplierId]
+                                  console.log('New selected suppliers:', newSelected)
+                                  setFilters({
+                                    ...filters,
+                                    selectedSuppliers: newSelected
+                                  })
+                                } else {
+                                  const newSelected = filters.selectedSuppliers.filter(id => id !== supplierId)
+                                  console.log('New selected suppliers after removal:', newSelected)
+                                  setFilters({
+                                    ...filters,
+                                    selectedSuppliers: newSelected
+                                  })
+                                }
+                              }}
+                              className="rounded border-gray-300 mr-2"
+                            />
+                            <span className="text-sm truncate">{supplier.nama_supplier}</span>
+                          </label>
+                        ))
+                      }
+                      {suppliers.filter(supplier => 
+                        supplier.nama_supplier.toLowerCase().includes(filters.supplierSearch.toLowerCase())
+                      ).length === 0 && (
+                        <div className="px-3 py-2 text-sm text-gray-500">Tidak ada supplier ditemukan</div>
+                      )}
+                    </div>
+                    <div className="p-2 border-t border-gray-200 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFilters({...filters, selectedSuppliers: []})}
+                        className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                      >
+                        Clear All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allSupplierIds = suppliers.map(s => s.id_supplier.toString())
+                          setFilters({...filters, selectedSuppliers: allSupplierIds})
+                        }}
+                        className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                      >
+                        Select All
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
               <select
                 value={filters.branch}
@@ -2404,6 +2546,100 @@ export default function FinancePurchaseOrders() {
                     />
                   </div>
                   
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                    <div className="relative supplier-dropdown">
+                      <button
+                        type="button"
+                        onClick={() => setFilters({...filters, showSupplierDropdown: !filters.showSupplierDropdown})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm text-left bg-white flex items-center justify-between"
+                      >
+                        <span className="truncate">
+                          {filters.selectedSuppliers.length === 0 
+                            ? 'Pilih Supplier' 
+                            : `${filters.selectedSuppliers.length} supplier dipilih`
+                          }
+                        </span>
+                        <ChevronDown className="h-4 w-4 text-gray-400" />
+                      </button>
+                      
+                      {filters.showSupplierDropdown && (
+                        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                          <div className="p-2 border-b border-gray-200">
+                            <input
+                              type="text"
+                              placeholder="Cari supplier..."
+                              value={filters.supplierSearch}
+                              onChange={(e) => setFilters({...filters, supplierSearch: e.target.value})}
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+                          <div className="max-h-40 overflow-y-auto">
+                            {suppliers
+                              .filter(supplier => 
+                                supplier.nama_supplier.toLowerCase().includes(filters.supplierSearch.toLowerCase())
+                              )
+                              .map(supplier => (
+                                <div key={supplier.id_supplier} className="flex items-center px-3 py-2 hover:bg-gray-50">
+                                  <input
+                                    type="checkbox"
+                                    checked={filters.selectedSuppliers.includes(supplier.id_supplier.toString())}
+                                    onChange={(e) => {
+                                      e.stopPropagation()
+                                      const supplierId = supplier.id_supplier.toString()
+                                      console.log('Desktop checkbox changed:', supplierId, e.target.checked)
+                                      if (e.target.checked) {
+                                        const newSelected = [...filters.selectedSuppliers, supplierId]
+                                        console.log('Desktop new selected suppliers:', newSelected)
+                                        setFilters({
+                                          ...filters,
+                                          selectedSuppliers: newSelected
+                                        })
+                                      } else {
+                                        const newSelected = filters.selectedSuppliers.filter(id => id !== supplierId)
+                                        console.log('Desktop new selected suppliers after removal:', newSelected)
+                                        setFilters({
+                                          ...filters,
+                                          selectedSuppliers: newSelected
+                                        })
+                                      }
+                                    }}
+                                    className="rounded border-gray-300 mr-2"
+                                  />
+                                  <span className="text-sm truncate">{supplier.nama_supplier}</span>
+                                </div>
+                              ))
+                            }
+                            {suppliers.filter(supplier => 
+                              supplier.nama_supplier.toLowerCase().includes(filters.supplierSearch.toLowerCase())
+                            ).length === 0 && (
+                              <div className="px-3 py-2 text-sm text-gray-500">Tidak ada supplier ditemukan</div>
+                            )}
+                          </div>
+                          <div className="p-2 border-t border-gray-200 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setFilters({...filters, selectedSuppliers: []})}
+                              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                            >
+                              Clear All
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const allSupplierIds = suppliers.map(s => s.id_supplier.toString())
+                                console.log('Select All clicked, all supplier IDs:', allSupplierIds)
+                                setFilters({...filters, selectedSuppliers: allSupplierIds})
+                              }}
+                              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                            >
+                              Select All
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
                     <select
