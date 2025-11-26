@@ -156,7 +156,12 @@ export default function MaintenancePage() {
       const { error } = await supabase
         .from('asset_maintenance')
         .insert([{
-          ...formData,
+          asset_id: formData.asset_id,
+          maintenance_date: formData.maintenance_date,
+          maintenance_type: formData.maintenance_type,
+          description: formData.description,
+          technician: formData.technician,
+          status: formData.status,
           cost: parseFloat(formData.cost) || 0,
           next_maintenance_date: formData.next_maintenance_date || null
         }]);
@@ -207,7 +212,12 @@ export default function MaintenancePage() {
       const { error } = await supabase
         .from('asset_maintenance')
         .update({
-          ...formData,
+          asset_id: formData.asset_id,
+          maintenance_date: formData.maintenance_date,
+          maintenance_type: formData.maintenance_type,
+          description: formData.description,
+          technician: formData.technician,
+          status: formData.status,
           cost: parseFloat(formData.cost) || 0,
           next_maintenance_date: formData.next_maintenance_date || null
         })
