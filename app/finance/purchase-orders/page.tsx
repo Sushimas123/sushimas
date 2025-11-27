@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/src/lib/supabaseClient'
 import { DollarSign, FileText, AlertTriangle, TrendingUp, Search, Plus, Filter, X, ChevronDown, ChevronRight, Calendar, Building, User, CreditCard, Clock, CheckCircle, AlertCircle, Edit, ChevronUp, Download, LinkIcon, Receipt } from 'lucide-react'
 import Layout from '../../../components/Layout'
@@ -210,6 +211,8 @@ interface BulkPayment {
 }
 
 export default function FinancePurchaseOrders() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [data, setData] = useState<FinanceData[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -266,13 +269,85 @@ export default function FinancePurchaseOrders() {
   })
   const [showFilters, setShowFilters] = useState(false)
 
+  // Update URL when filters change
+  const updateURL = useCallback(() => {
+    const params = new URLSearchParams()
+    
+    if (search) params.set('search', search)
+    if (filters.dateFrom) params.set('dateFrom', filters.dateFrom)
+    if (filters.dateTo) params.set('dateTo', filters.dateTo)
+    if (filters.supplier) params.set('supplier', filters.supplier)
+    if (filters.selectedSuppliers.length > 0) params.set('suppliers', filters.selectedSuppliers.join(','))
+    if (filters.branch) params.set('branch', filters.branch)
+    if (filters.poStatus) params.set('poStatus', filters.poStatus)
+    if (filters.paymentStatus) params.set('paymentStatus', filters.paymentStatus)
+    if (filters.dueDate) params.set('dueDate', filters.dueDate)
+    if (filters.goodsReceived) params.set('goodsReceived', filters.goodsReceived)
+    if (filters.approvalStatus) params.set('approvalStatus', filters.approvalStatus)
+    if (currentPage > 1) params.set('page', currentPage.toString())
+    
+    const newUrl = params.toString() ? `?${params.toString()}` : '/finance/purchase-orders'
+    router.replace(newUrl, { scroll: false })
+  }, [search, filters, currentPage, router])
+
+  // Initialize filters from URL parameters
+  useEffect(() => {
+    const urlFilters = {
+      dateFrom: searchParams.get('dateFrom') || '',
+      dateTo: searchParams.get('dateTo') || '',
+      supplier: searchParams.get('supplier') || '',
+      selectedSuppliers: searchParams.get('suppliers') ? searchParams.get('suppliers')!.split(',') : [],
+      supplierSearch: '',
+      showSupplierDropdown: false,
+      branch: searchParams.get('branch') || '',
+      poStatus: searchParams.get('poStatus') || '',
+      paymentStatus: searchParams.get('paymentStatus') || '',
+      dueDate: searchParams.get('dueDate') || '',
+      goodsReceived: searchParams.get('goodsReceived') || '',
+      approvalStatus: searchParams.get('approvalStatus') || ''
+    }
+    
+    const urlSearch = searchParams.get('search') || ''
+    const urlPage = parseInt(searchParams.get('page') || '1')
+    
+    setFilters(urlFilters)
+    setSearch(urlSearch)
+    setCurrentPage(urlPage)
+  }, [searchParams])
+
   // Preload critical data on mount
   useEffect(() => {
     // Preload suppliers and branches first (smaller datasets)
     Promise.all([fetchSuppliers(), fetchBranches()])
     
-    // Then load main data
-    fetchFinanceData()
+    // Check if returning from submit page
+    const returnUrl = sessionStorage.getItem('finance_po_return_url')
+    if (returnUrl && window.location.pathname + window.location.search === returnUrl) {
+      // Restore filter state from sessionStorage
+      const savedFilters = sessionStorage.getItem('finance_po_filters')
+      const savedSearch = sessionStorage.getItem('finance_po_search')
+      const savedPage = sessionStorage.getItem('finance_po_page')
+      
+      if (savedFilters) {
+        setFilters(JSON.parse(savedFilters))
+      }
+      if (savedSearch) {
+        setSearch(savedSearch)
+      }
+      if (savedPage) {
+        setCurrentPage(parseInt(savedPage))
+      }
+      
+      // Clear the return URL after restoring
+      sessionStorage.removeItem('finance_po_return_url')
+      sessionStorage.removeItem('finance_po_filters')
+      sessionStorage.removeItem('finance_po_search')
+      sessionStorage.removeItem('finance_po_page')
+    } else {
+      // Load data with URL parameters
+      fetchFinanceData()
+    }
+    
     fetchBulkPayments()
   }, [])
 
@@ -434,6 +509,26 @@ export default function FinancePurchaseOrders() {
       }
     }
   }, [expandedRows, rowDetails])
+
+  // Save state whenever search changes
+  useEffect(() => {
+    if (search !== '') {
+      const currentUrl = new URL(window.location.href)
+      sessionStorage.setItem('finance_po_return_url', currentUrl.pathname + currentUrl.search)
+      sessionStorage.setItem('finance_po_filters', JSON.stringify(filters))
+      sessionStorage.setItem('finance_po_search', search)
+      sessionStorage.setItem('finance_po_page', currentPage.toString())
+    }
+  }, [search, filters, currentPage])
+
+  // Update URL when filters or search change
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      updateURL()
+    }, 300) // Debounce URL updates
+    
+    return () => clearTimeout(timeoutId)
+  }, [updateURL])
 
   // Memoized filtered data for better performance
   const filteredData = useMemo(() => {
@@ -721,7 +816,7 @@ export default function FinancePurchaseOrders() {
   const currentPageData = allFilteredData.slice(startIndex, startIndex + itemsPerPage)
 
   const clearFilters = () => {
-    setFilters({
+    const clearedFilters = {
       dateFrom: '',
       dateTo: '',
       supplier: '',
@@ -734,7 +829,13 @@ export default function FinancePurchaseOrders() {
       dueDate: '',
       goodsReceived: '',
       approvalStatus: ''
-    })
+    }
+    setFilters(clearedFilters)
+    setSearch('')
+    setCurrentPage(1)
+    
+    // Clear URL parameters
+    router.replace('/finance/purchase-orders', { scroll: false })
   }
 
   const applyFilters = () => {
@@ -742,6 +843,17 @@ export default function FinancePurchaseOrders() {
     console.log('Available suppliers:', suppliers)
     setLoading(true)
     setCurrentPage(1)
+    
+    // Save current state whenever filters are applied
+    const currentUrl = new URL(window.location.href)
+    sessionStorage.setItem('finance_po_return_url', currentUrl.pathname + currentUrl.search)
+    sessionStorage.setItem('finance_po_filters', JSON.stringify(filters))
+    sessionStorage.setItem('finance_po_search', search)
+    sessionStorage.setItem('finance_po_page', '1')
+    
+    // Update URL immediately when applying filters
+    updateURL()
+    
     fetchFinanceData()
   }
 
@@ -1006,13 +1118,21 @@ export default function FinancePurchaseOrders() {
               <p className="text-sm">{item.tanggal_jatuh_tempo ? formatDate(item.tanggal_jatuh_tempo) : 'Menunggu barang sampai'}</p>
             </div>
             <div className="flex gap-1">
-              <a
-                href={`/finance/purchase-orders/submit-approval?id=${item.id}`}
+              <button
+                onClick={() => {
+                  // Save current state before navigating
+                  const currentUrl = new URL(window.location.href)
+                  sessionStorage.setItem('finance_po_return_url', currentUrl.pathname + currentUrl.search)
+                  sessionStorage.setItem('finance_po_filters', JSON.stringify(filters))
+                  sessionStorage.setItem('finance_po_search', search)
+                  sessionStorage.setItem('finance_po_page', currentPage.toString())
+                  window.location.href = `/finance/purchase-orders/submit-approval?id=${item.id}`
+                }}
                 className="inline-flex items-center p-1 border border-transparent rounded-md text-white bg-green-600 hover:bg-green-700"
                 title="Submit Total Tagih"
               >
                 <FileText className="h-3 w-3" />
-              </a>
+              </button>
               {(item as any).approval_status === 'pending' && (
                 <>
                   <button
@@ -1462,8 +1582,12 @@ export default function FinancePurchaseOrders() {
           <div className="flex gap-2 sticky bottom-0 bg-white pt-4 pb-6 border-t border-gray-200">
             <button
               onClick={() => {
+                // Save current state before navigating
                 const currentUrl = new URL(window.location.href)
                 sessionStorage.setItem('finance_po_return_url', currentUrl.pathname + currentUrl.search)
+                sessionStorage.setItem('finance_po_filters', JSON.stringify(filters))
+                sessionStorage.setItem('finance_po_search', search)
+                sessionStorage.setItem('finance_po_page', currentPage.toString())
                 window.location.href = `/finance/purchase-orders/submit-approval?id=${item.id}`
               }}
               className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
@@ -1865,8 +1989,10 @@ export default function FinancePurchaseOrders() {
                   <div className="flex flex-wrap gap-1">
                     <button
                       onClick={() => {
-                        setFilters({...filters, poStatus: ''})
+                        const newFilters = {...filters, poStatus: ''}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.poStatus === '' 
@@ -1878,8 +2004,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, poStatus: 'Pending'})
+                        const newFilters = {...filters, poStatus: 'Pending'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.poStatus === 'Pending' 
@@ -1891,8 +2019,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, poStatus: 'Sedang diproses'})
+                        const newFilters = {...filters, poStatus: 'Sedang diproses'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.poStatus === 'Sedang diproses' 
@@ -1904,8 +2034,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, poStatus: 'Barang sampai'})
+                        const newFilters = {...filters, poStatus: 'Barang sampai'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.poStatus === 'Barang sampai' 
@@ -1924,8 +2056,10 @@ export default function FinancePurchaseOrders() {
                   <div className="flex flex-wrap gap-1">
                     <button
                       onClick={() => {
-                        setFilters({...filters, paymentStatus: ''})
+                        const newFilters = {...filters, paymentStatus: ''}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.paymentStatus === '' 
@@ -1937,8 +2071,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, paymentStatus: 'unpaid'})
+                        const newFilters = {...filters, paymentStatus: 'unpaid'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.paymentStatus === 'unpaid' 
@@ -1950,8 +2086,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, paymentStatus: 'partial'})
+                        const newFilters = {...filters, paymentStatus: 'partial'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.paymentStatus === 'partial' 
@@ -1963,8 +2101,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, paymentStatus: 'paid'})
+                        const newFilters = {...filters, paymentStatus: 'paid'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.paymentStatus === 'paid' 
@@ -1983,8 +2123,10 @@ export default function FinancePurchaseOrders() {
                   <div className="flex flex-wrap gap-1">
                     <button
                       onClick={() => {
-                        setFilters({...filters, approvalStatus: ''})
+                        const newFilters = {...filters, approvalStatus: ''}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.approvalStatus === '' 
@@ -1996,8 +2138,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, approvalStatus: 'pending'})
+                        const newFilters = {...filters, approvalStatus: 'pending'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.approvalStatus === 'pending' 
@@ -2009,8 +2153,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, approvalStatus: 'approved'})
+                        const newFilters = {...filters, approvalStatus: 'approved'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.approvalStatus === 'approved' 
@@ -2022,8 +2168,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, approvalStatus: 'rejected'})
+                        const newFilters = {...filters, approvalStatus: 'rejected'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.approvalStatus === 'rejected' 
@@ -2337,8 +2485,10 @@ export default function FinancePurchaseOrders() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => {
-                        setFilters({...filters, poStatus: ''})
+                        const newFilters = {...filters, poStatus: ''}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.poStatus === '' 
@@ -2350,8 +2500,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, poStatus: 'Pending'})
+                        const newFilters = {...filters, poStatus: 'Pending'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.poStatus === 'Pending' 
@@ -2363,8 +2515,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, poStatus: 'Sedang diproses'})
+                        const newFilters = {...filters, poStatus: 'Sedang diproses'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.poStatus === 'Sedang diproses' 
@@ -2376,8 +2530,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, poStatus: 'Barang sampai'})
+                        const newFilters = {...filters, poStatus: 'Barang sampai'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.poStatus === 'Barang sampai' 
@@ -2396,8 +2552,10 @@ export default function FinancePurchaseOrders() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => {
-                        setFilters({...filters, paymentStatus: ''})
+                        const newFilters = {...filters, paymentStatus: ''}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.paymentStatus === '' 
@@ -2409,8 +2567,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, paymentStatus: 'unpaid'})
+                        const newFilters = {...filters, paymentStatus: 'unpaid'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.paymentStatus === 'unpaid' 
@@ -2422,8 +2582,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, paymentStatus: 'partial'})
+                        const newFilters = {...filters, paymentStatus: 'partial'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.paymentStatus === 'partial' 
@@ -2435,8 +2597,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, paymentStatus: 'paid'})
+                        const newFilters = {...filters, paymentStatus: 'paid'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.paymentStatus === 'paid' 
@@ -2455,8 +2619,10 @@ export default function FinancePurchaseOrders() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => {
-                        setFilters({...filters, approvalStatus: ''})
+                        const newFilters = {...filters, approvalStatus: ''}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.approvalStatus === '' 
@@ -2468,8 +2634,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, approvalStatus: 'pending'})
+                        const newFilters = {...filters, approvalStatus: 'pending'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.approvalStatus === 'pending' 
@@ -2481,8 +2649,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, approvalStatus: 'approved'})
+                        const newFilters = {...filters, approvalStatus: 'approved'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.approvalStatus === 'approved' 
@@ -2494,8 +2664,10 @@ export default function FinancePurchaseOrders() {
                     </button>
                     <button
                       onClick={() => {
-                        setFilters({...filters, approvalStatus: 'rejected'})
+                        const newFilters = {...filters, approvalStatus: 'rejected'}
+                        setFilters(newFilters)
                         setCurrentPage(1)
+                        setTimeout(() => updateURL(), 0)
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.approvalStatus === 'rejected' 
@@ -2728,7 +2900,10 @@ export default function FinancePurchaseOrders() {
                     Terapkan Filter
                   </button>
                   <button
-                    onClick={() => { clearFilters(); fetchFinanceData(); }}
+                    onClick={() => { 
+                      clearFilters()
+                      fetchFinanceData()
+                    }}
                     className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-2 text-sm"
                   >
                     <X size={16} />
@@ -2944,8 +3119,12 @@ export default function FinancePurchaseOrders() {
                   <div className="flex gap-1 mt-2">
                     <button
                       onClick={() => {
+                        // Save current state before navigating
                         const currentUrl = new URL(window.location.href)
                         sessionStorage.setItem('finance_po_return_url', currentUrl.pathname + currentUrl.search)
+                        sessionStorage.setItem('finance_po_filters', JSON.stringify(filters))
+                        sessionStorage.setItem('finance_po_search', search)
+                        sessionStorage.setItem('finance_po_page', currentPage.toString())
                         window.location.href = `/finance/purchase-orders/submit-approval?id=${item.id}`
                       }}
                       className="flex-1 text-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
@@ -3340,8 +3519,12 @@ export default function FinancePurchaseOrders() {
                             <div className="flex gap-1 justify-center">
                               <button
                                 onClick={() => {
+                                  // Save current state before navigating
                                   const currentUrl = new URL(window.location.href)
                                   sessionStorage.setItem('finance_po_return_url', currentUrl.pathname + currentUrl.search)
+                                  sessionStorage.setItem('finance_po_filters', JSON.stringify(filters))
+                                  sessionStorage.setItem('finance_po_search', search)
+                                  sessionStorage.setItem('finance_po_page', currentPage.toString())
                                   window.location.href = `/finance/purchase-orders/submit-approval?id=${item.id}`
                                 }}
                                 className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
