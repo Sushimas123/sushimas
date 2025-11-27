@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/src/lib/supabaseClient'
 import { DollarSign, FileText, AlertTriangle, TrendingUp, Search, Plus, Filter, X, ChevronDown, ChevronRight, Calendar, Building, User, CreditCard, Clock, CheckCircle, AlertCircle, Edit, ChevronUp, Download, LinkIcon, Receipt } from 'lucide-react'
@@ -210,7 +210,7 @@ interface BulkPayment {
   purchase_orders: any[]
 }
 
-export default function FinancePurchaseOrders() {
+function FinancePurchaseOrdersContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [data, setData] = useState<FinanceData[]>([])
@@ -4132,5 +4132,13 @@ export default function FinancePurchaseOrders() {
 
       </PageAccessControl>
     </Layout>
+  )
+}
+
+export default function FinancePurchaseOrders() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <FinancePurchaseOrdersContent />
+    </Suspense>
   )
 }
