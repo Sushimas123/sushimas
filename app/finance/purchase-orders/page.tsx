@@ -292,6 +292,8 @@ export default function FinancePurchaseOrders() {
 
   // Initialize filters from URL parameters
   useEffect(() => {
+    if (!searchParams) return
+    
     const urlFilters = {
       dateFrom: searchParams.get('dateFrom') || '',
       dateTo: searchParams.get('dateTo') || '',
