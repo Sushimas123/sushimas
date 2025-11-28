@@ -290,33 +290,6 @@ function FinancePurchaseOrdersContent() {
     router.replace(newUrl, { scroll: false })
   }, [search, filters, currentPage, router])
 
-  // Initialize filters from URL parameters
-  useEffect(() => {
-    if (!searchParams) return
-    
-    const urlFilters = {
-      dateFrom: searchParams.get('dateFrom') || '',
-      dateTo: searchParams.get('dateTo') || '',
-      supplier: searchParams.get('supplier') || '',
-      selectedSuppliers: searchParams.get('suppliers') ? searchParams.get('suppliers')!.split(',') : [],
-      supplierSearch: '',
-      showSupplierDropdown: false,
-      branch: searchParams.get('branch') || '',
-      poStatus: searchParams.get('poStatus') || '',
-      paymentStatus: searchParams.get('paymentStatus') || '',
-      dueDate: searchParams.get('dueDate') || '',
-      goodsReceived: searchParams.get('goodsReceived') || '',
-      approvalStatus: searchParams.get('approvalStatus') || ''
-    }
-    
-    const urlSearch = searchParams.get('search') || ''
-    const urlPage = parseInt(searchParams.get('page') || '1')
-    
-    setFilters(urlFilters)
-    setSearch(urlSearch)
-    setCurrentPage(urlPage)
-  }, [searchParams])
-
   // Preload critical data on mount
   useEffect(() => {
     // Preload suppliers and branches first (smaller datasets)
@@ -345,13 +318,44 @@ function FinancePurchaseOrdersContent() {
       sessionStorage.removeItem('finance_po_filters')
       sessionStorage.removeItem('finance_po_search')
       sessionStorage.removeItem('finance_po_page')
-    } else {
-      // Load data with URL parameters
-      fetchFinanceData()
     }
     
     fetchBulkPayments()
   }, [])
+
+  // Initialize filters from URL parameters
+  useEffect(() => {
+    if (!searchParams) return
+    
+    const urlFilters = {
+      dateFrom: searchParams.get('dateFrom') || '',
+      dateTo: searchParams.get('dateTo') || '',
+      supplier: searchParams.get('supplier') || '',
+      selectedSuppliers: searchParams.get('suppliers') ? searchParams.get('suppliers')!.split(',') : [],
+      supplierSearch: '',
+      showSupplierDropdown: false,
+      branch: searchParams.get('branch') || '',
+      poStatus: searchParams.get('poStatus') || '',
+      paymentStatus: searchParams.get('paymentStatus') || '',
+      dueDate: searchParams.get('dueDate') || '',
+      goodsReceived: searchParams.get('goodsReceived') || '',
+      approvalStatus: searchParams.get('approvalStatus') || ''
+    }
+    
+    const urlSearch = searchParams.get('search') || ''
+    const urlPage = parseInt(searchParams.get('page') || '1')
+    
+    setFilters(urlFilters)
+    setSearch(urlSearch)
+    setCurrentPage(urlPage)
+  }, [searchParams])
+
+  // Fetch data when filters change
+  useEffect(() => {
+    if (suppliers.length > 0) { // Only fetch when suppliers are loaded
+      fetchFinanceData()
+    }
+  }, [filters, suppliers])
 
 
 
