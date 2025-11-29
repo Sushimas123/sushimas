@@ -218,7 +218,7 @@ function FinancePurchaseOrdersContent() {
   const [data, setData] = useState<FinanceData[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const debouncedSearch = useDebounce(search, 300)
+  const debouncedSearch = useDebounce(search, 800)
   const [selectedPO, setSelectedPO] = useState<FinanceData | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [suppliers, setSuppliers] = useState<any[]>([])
@@ -534,7 +534,7 @@ function FinancePurchaseOrdersContent() {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       updateURL()
-    }, 300) // Debounce URL updates
+    }, 800) // Debounce URL updates
     
     return () => clearTimeout(timeoutId)
   }, [updateURL])
