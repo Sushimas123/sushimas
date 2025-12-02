@@ -68,11 +68,21 @@ export default function BulkPaymentsPage() {
       // Optimized: Get all related data in bulk to avoid N+1 queries
       const bulkReferences = (bulkPaymentsData || []).map(bp => bp.bulk_reference)
       
-      // Bulk fetch all POs (without JOIN due to missing foreign key)
+      // Bulk fetch all POs
       const { data: allPOs } = await supabase
         .from('purchase_orders')
         .select('id, po_number, total_tagih, supplier_id, bulk_payment_ref')
         .in('bulk_payment_ref', bulkReferences)
+      
+      // Get PO numbers to fetch invoice numbers from barang_masuk
+      const poNumbers = allPOs?.map(po => po.po_number) || []
+      const { data: barangMasukData } = await supabase
+        .from('barang_masuk')
+        .select('no_po, invoice_number')
+        .in('no_po', poNumbers)
+      
+      // Create invoice lookup map
+      const invoiceMap = new Map(barangMasukData?.map(bm => [bm.no_po, bm.invoice_number]) || [])
       
       // Get unique supplier IDs and fetch supplier data separately
       const supplierIds = [...new Set(allPOs?.map(po => po.supplier_id) || [])]
@@ -95,7 +105,8 @@ export default function BulkPaymentsPage() {
           po_number: po.po_number,
           total_tagih: po.total_tagih,
           supplier_id: po.supplier_id,
-          nama_supplier: supplierMap.get(po.supplier_id) || 'Unknown Supplier'
+          nama_supplier: supplierMap.get(po.supplier_id) || 'Unknown Supplier',
+          invoice_number: invoiceMap.get(po.po_number) || null
         })
       })
       
@@ -181,6 +192,152 @@ export default function BulkPaymentsPage() {
       paymentMethod: '',
       status: ''
     })
+  }
+
+  const exportBulkPaymentPDF = async (bulkPayment: BulkPayment) => {
+    try {
+      const jsPDF = (await import('jspdf')).default
+      const doc = new jsPDF()
+      
+      // Get company name from first PO's branch
+      let companyName = 'PT. Suryamas Pratama'
+      if (bulkPayment.purchase_orders.length > 0) {
+        const firstPO = bulkPayment.purchase_orders[0]
+        const { data: poData } = await supabase
+          .from('purchase_orders')
+          .select('cabang_id')
+          .eq('id', firstPO.id)
+          .single()
+        
+        if (poData?.cabang_id) {
+          const { data: branchData } = await supabase
+            .from('branches')
+            .select('badan')
+            .eq('id_branch', poData.cabang_id)
+            .single()
+          
+          if (branchData?.badan) {
+            companyName = branchData.badan
+          }
+        }
+      }
+      
+      const bankInfo = `${bulkPayment.payment_method} - ${bulkPayment.payment_via}`
+      
+      // Header - centered like single payment
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text(companyName, 105, 20, { align: 'center' })
+      
+      doc.setFontSize(14)
+      doc.text('BUKTI PENGELUARAN', 105, 35, { align: 'center' })
+      
+      // Payment info - same format as single payment
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.text(`Tanggal: ${formatDate(bulkPayment.payment_date)}`, 20, 50)
+      // Get supplier names for display
+      const supplierNames = [...new Set(bulkPayment.purchase_orders.map((po: any) => po.nama_supplier))]
+      const supplierText = supplierNames.length > 3 
+        ? `${supplierNames.slice(0, 3).join(', ')} & ${supplierNames.length - 3} lainnya`
+        : supplierNames.join(', ')
+      
+      doc.text(`Supplier: ${supplierText}`, 20, 60)
+      doc.text('Nomor Bukti: _______________', 20, 70)
+      
+      // Table Header - adjusted column widths
+      const tableStartY = 90
+      doc.setFont('helvetica', 'bold')
+      doc.rect(20, tableStartY, 170, 10)
+      doc.text('COA', 25, tableStartY + 7)
+      doc.text('Deskripsi', 85, tableStartY + 7)
+      doc.text('Nominal', 170, tableStartY + 7)
+      
+      // Table Content - each PO as a row with pagination
+      doc.setFont('helvetica', 'normal')
+      let currentRowY = tableStartY + 10
+      const maxRowsPerPage = 12 // Max rows that fit on one page
+      let currentPage = 1
+      let rowCount = 0
+      
+      bulkPayment.purchase_orders.forEach((po: any, index: number) => {
+        // Check if we need a new page
+        if (rowCount >= maxRowsPerPage) {
+          // Add page number
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(8)
+          doc.text(`Halaman ${currentPage}`, 180, 280)
+          
+          // New page
+          doc.addPage()
+          currentPage++
+          rowCount = 0
+          
+          // Repeat header on new page
+          doc.setFontSize(16)
+          doc.setFont('helvetica', 'bold')
+          doc.text(companyName, 105, 20, { align: 'center' })
+          doc.setFontSize(14)
+          doc.text('BUKTI PENGELUARAN (Lanjutan)', 105, 35, { align: 'center' })
+          
+          // Table header
+          const newTableStartY = 50
+          doc.setFontSize(10)
+          doc.setFont('helvetica', 'bold')
+          doc.rect(20, newTableStartY, 170, 10)
+          doc.text('COA', 25, newTableStartY + 7)
+          doc.text('Deskripsi', 85, newTableStartY + 7)
+          doc.text('Nominal', 170, newTableStartY + 7)
+          
+          currentRowY = newTableStartY + 10
+          doc.setFont('helvetica', 'normal')
+        }
+        
+        doc.rect(20, currentRowY, 170, 15)
+        doc.text('', 25, currentRowY + 10) // Nama COA (blank)
+        console.log('PO:', po.po_number, 'Invoice:', po.invoice_number) // Debug
+        const description = po.invoice_number 
+          ? `Pembayaran untuk invoice ${po.invoice_number} dari supplier ${po.nama_supplier}`
+          : `${po.po_number} - ${po.nama_supplier}`
+        doc.text(description, 50, currentRowY + 10) // Deskripsi
+        doc.text(formatCurrency(po.total_tagih), 170, currentRowY + 10) // Nominal
+        currentRowY += 15
+        rowCount++
+      })
+      
+      // Total - same format as single payment
+      const finalTotalY = currentRowY + 5
+      doc.rect(20, finalTotalY, 170, 10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('TOTAL', 55, finalTotalY + 7)
+      doc.text(formatCurrency(bulkPayment.total_amount), 170, finalTotalY + 7)
+      
+      // Signature Section - same format as single payment
+      const signY = finalTotalY + 40
+      doc.setFont('helvetica', 'normal')
+      doc.text('Dibuat,', 30, signY)
+      doc.text('Disetujui,', 90, signY)
+      doc.text('Bank,', 150, signY)
+      doc.text(bankInfo, 150, signY + 10)
+      
+      // Signature lines
+      doc.line(20, signY + 30, 70, signY + 30)
+      doc.line(80, signY + 30, 130, signY + 30)
+      doc.line(140, signY + 30, 190, signY + 30)
+      
+      // Names under signature lines
+      doc.text('Khoirun Nisa', 30, signY + 40)
+      doc.text('Raymond', 90, signY + 40)
+      
+      // Add final page number
+      doc.setFontSize(8)
+      doc.text(`Halaman ${currentPage}`, 180, 280)
+      
+      doc.save(`bukti-pengeluaran-bulk-${bulkPayment.bulk_reference}.pdf`)
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert('Gagal generate PDF')
+    }
   }
 
   const summary = {
@@ -449,6 +606,14 @@ export default function BulkPaymentsPage() {
                         Detail
                       </button>
                       <button
+                        onClick={() => exportBulkPaymentPDF(bulkPayment)}
+                        className="flex-1 inline-flex items-center justify-center px-2 py-1 text-xs text-green-700 bg-green-100 rounded-md hover:bg-green-200"
+                        title="Export PDF"
+                      >
+                        <Download className="h-3 w-3 mr-1" />
+                        Export
+                      </button>
+                      <button
                         onClick={async () => {
                           if (confirm(`Yakin ingin menghapus bulk payment ${bulkPayment.bulk_reference}? PO akan dikembalikan ke status unpaid.`)) {
                             try {
@@ -551,6 +716,14 @@ export default function BulkPaymentsPage() {
                           >
                             <Eye className="h-3 w-3 mr-1" />
                             Detail
+                          </button>
+                          <button
+                            onClick={() => exportBulkPaymentPDF(bulkPayment)}
+                            className="inline-flex items-center px-2 py-1 text-xs text-green-700 bg-green-100 rounded-md hover:bg-green-200"
+                            title="Export PDF"
+                          >
+                            <Download className="h-3 w-3 mr-1" />
+                            Export
                           </button>
                           <button
                             onClick={async () => {
@@ -671,7 +844,14 @@ export default function BulkPaymentsPage() {
                 </div>
               </div>
               
-              <div className="mt-4 flex justify-end">
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={() => exportBulkPaymentPDF(showBulkPaymentDetails)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
+                >
+                  <Download size={16} />
+                  Export PDF
+                </button>
                 <button 
                   onClick={() => setShowBulkPaymentDetails(null)}
                   className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
