@@ -10,12 +10,14 @@ import { Asset, AssetDamageJournal } from '@/src/types/assets';
 export default function DamageJournalPage() {
   const [journals, setJournals] = useState<AssetDamageJournal[]>([]);
   const [assets, setAssets] = useState<any[]>([]);
+  const [branches, setBranches] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [selectedBranch, setSelectedBranch] = useState('');
   const [selectedAsset, setSelectedAsset] = useState<any | null>(null);
   const [editingJournal, setEditingJournal] = useState<AssetDamageJournal | null>(null);
   const [formData, setFormData] = useState({
@@ -25,6 +27,7 @@ export default function DamageJournalPage() {
     quantity_damaged: 1,
     damage_value: 0
   });
+  const [formBranchFilter, setFormBranchFilter] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -32,13 +35,14 @@ export default function DamageJournalPage() {
 
   const fetchData = async () => {
     try {
-      const [journalsData, assetsData] = await Promise.all([
+      const [journalsData, assetsData, branchesData] = await Promise.all([
         supabase
           .from('asset_damage_journal')
           .select(`
             *,
             assets (
               asset_name,
+              id_branch,
               asset_categories (
                 category_name
               ),
@@ -52,11 +56,16 @@ export default function DamageJournalPage() {
           .from('assets')
           .select('asset_id, asset_name, current_value, id_branch')
           .eq('status', 'ACTIVE')
-          .order('asset_name')
+          .order('asset_name'),
+        supabase
+          .from('branches')
+          .select('id_branch, nama_branch')
+          .order('nama_branch')
       ]);
 
       if (journalsData.data) setJournals(journalsData.data);
       if (assetsData.data) setAssets(assetsData.data);
+      if (branchesData.data) setBranches(branchesData.data);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -178,6 +187,7 @@ export default function DamageJournalPage() {
         quantity_damaged: 1,
         damage_value: 0
       });
+      setFormBranchFilter('');
       setSelectedAsset(null);
       setUsers([]);
       fetchData();
@@ -201,6 +211,7 @@ export default function DamageJournalPage() {
     const asset = assets.find(a => a.asset_id === journal.asset_id);
     if (asset) {
       setSelectedAsset(asset);
+      setFormBranchFilter(asset.id_branch?.toString() || '');
       handleAssetChange(journal.asset_id);
     }
     
@@ -241,6 +252,7 @@ export default function DamageJournalPage() {
       setShowForm(false);
       setEditingJournal(null);
       setFormData({ asset_id: '', damaged_by: '', damage_description: '', quantity_damaged: 1, damage_value: 0 });
+      setFormBranchFilter('');
       setSelectedAsset(null);
       setUsers([]);
       fetchData();
@@ -288,8 +300,15 @@ export default function DamageJournalPage() {
     const matchesDateFrom = !dateFrom || journalDate >= dateFrom;
     const matchesDateTo = !dateTo || journalDate <= dateTo;
     
-    return matchesSearch && matchesDateFrom && matchesDateTo;
+    const matchesBranch = !selectedBranch || journal.assets?.id_branch?.toString() === selectedBranch;
+    
+    return matchesSearch && matchesDateFrom && matchesDateTo && matchesBranch;
   });
+  
+  // Filter assets based on selected branch
+  const filteredAssets = selectedBranch 
+    ? assets.filter(asset => asset.id_branch?.toString() === selectedBranch)
+    : assets;
 
   if (loading) {
     return (
@@ -332,6 +351,21 @@ export default function DamageJournalPage() {
                 />
               </div>
               <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Branch:</label>
+                <select
+                  value={selectedBranch}
+                  onChange={(e) => setSelectedBranch(e.target.value)}
+                  className="px-3 py-2 border rounded text-sm"
+                >
+                  <option value="">All Branches</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id_branch} value={branch.id_branch}>
+                      {branch.nama_branch}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-gray-700">From:</label>
                 <input
                   type="date"
@@ -354,6 +388,7 @@ export default function DamageJournalPage() {
                   setSearchTerm('');
                   setDateFrom('');
                   setDateTo('');
+                  setSelectedBranch('');
                 }}
                 className="px-3 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
               >
@@ -370,6 +405,21 @@ export default function DamageJournalPage() {
                 </h2>
                 <form onSubmit={editingJournal ? handleUpdate : handleSubmit} className="space-y-4">
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Branch Filter</label>
+                    <select
+                      value={formBranchFilter}
+                      onChange={(e) => setFormBranchFilter(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    >
+                      <option value="">All Branches</option>
+                      {branches.map((branch) => (
+                        <option key={branch.id_branch} value={branch.id_branch}>
+                          {branch.nama_branch}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Asset</label>
                     <select
                       value={formData.asset_id}
@@ -378,7 +428,10 @@ export default function DamageJournalPage() {
                       required
                     >
                       <option value="">Select Asset</option>
-                      {assets.map((asset) => (
+                      {(formBranchFilter 
+                        ? assets.filter(asset => asset.id_branch?.toString() === formBranchFilter)
+                        : assets
+                      ).map((asset) => (
                         <option key={asset.asset_id} value={asset.asset_id}>
                           {asset.asset_id} - {asset.asset_name}
                         </option>
@@ -441,6 +494,7 @@ export default function DamageJournalPage() {
                         setShowForm(false);
                         setEditingJournal(null);
                         setFormData({ asset_id: '', damaged_by: '', damage_description: '', quantity_damaged: 1, damage_value: 0 });
+                        setFormBranchFilter('');
                         setSelectedAsset(null);
                         setUsers([]);
                       }}
@@ -519,7 +573,7 @@ export default function DamageJournalPage() {
             <div className="bg-white rounded-lg shadow p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total Incidents {(dateFrom || dateTo) && '(Filtered)'}</p>
+                  <p className="text-sm text-gray-600">Total Incidents {(dateFrom || dateTo || selectedBranch) && '(Filtered)'}</p>
                   <p className="text-2xl font-bold text-red-600">{filteredJournals.length}</p>
                 </div>
                 <AlertTriangle className="text-red-600" size={24} />
@@ -528,7 +582,7 @@ export default function DamageJournalPage() {
             <div className="bg-white rounded-lg shadow p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Items Damaged {(dateFrom || dateTo) && '(Filtered)'}</p>
+                  <p className="text-sm text-gray-600">Items Damaged {(dateFrom || dateTo || selectedBranch) && '(Filtered)'}</p>
                   <p className="text-2xl font-bold text-orange-600">
                     {filteredJournals.reduce((sum, j) => sum + j.quantity_damaged, 0)}
                   </p>
@@ -539,7 +593,7 @@ export default function DamageJournalPage() {
             <div className="bg-white rounded-lg shadow p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total Damage Value {(dateFrom || dateTo) && '(Filtered)'}</p>
+                  <p className="text-sm text-gray-600">Total Damage Value {(dateFrom || dateTo || selectedBranch) && '(Filtered)'}</p>
                   <p className="text-2xl font-bold text-red-600">
                     Rp {filteredJournals.reduce((sum, j) => sum + (j.damage_value || 0), 0).toLocaleString('id-ID')}
                   </p>
