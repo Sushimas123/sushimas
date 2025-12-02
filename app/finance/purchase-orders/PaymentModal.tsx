@@ -197,24 +197,36 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
       const tableStartY = 90
       doc.setFont('helvetica', 'bold')
       doc.rect(20, tableStartY, 170, 10)
-      doc.text('Nama COA', 25, tableStartY + 7)
-      doc.text('Deskripsi', 70, tableStartY + 7)
-      doc.text('Nominal', 150, tableStartY + 7)
+      doc.text('COA', 25, tableStartY + 7)
+      doc.text('Deskripsi', 85, tableStartY + 7)
+      doc.text('Nominal', 170, tableStartY + 7)
+      
+      // Get invoice number from barang_masuk
+      const { data: barangMasukData } = await supabase
+        .from('barang_masuk')
+        .select('invoice_number')
+        .eq('no_po', po.po_number)
+        .single()
+      
+      const invoiceNumber = barangMasukData?.invoice_number
       
       // Table Content
       doc.setFont('helvetica', 'normal')
       const rowY = tableStartY + 10
       doc.rect(20, rowY, 170, 15)
       doc.text('', 25, rowY + 10) // Nama COA (blank)
-      doc.text(`${po.po_number} - ${po.nama_supplier}`, 70, rowY + 10) // Deskripsi
-      doc.text(formatCurrency(po.total_paid), 150, rowY + 10) // Nominal
+      const description = invoiceNumber 
+        ? `Pembayaran untuk invoice ${invoiceNumber} dari supplier ${po.nama_supplier}`
+        : `${po.po_number} - ${po.nama_supplier}`
+      doc.text(description, 50, rowY + 10) // Deskripsi
+      doc.text(formatCurrency(po.total_paid), 170, rowY + 10) // Nominal
       
       // Total
       const totalY = rowY + 15
       doc.rect(20, totalY, 170, 10)
       doc.setFont('helvetica', 'bold')
-      doc.text('TOTAL', 70, totalY + 7)
-      doc.text(formatCurrency(po.total_paid), 150, totalY + 7)
+      doc.text('TOTAL', 55, totalY + 7)
+      doc.text(formatCurrency(po.total_paid), 170, totalY + 7)
       
       // Signature Section
       const signY = totalY + 40
@@ -230,6 +242,10 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
       doc.line(20, signY + 30, 70, signY + 30)
       doc.line(80, signY + 30, 130, signY + 30)
       doc.line(140, signY + 30, 190, signY + 30)
+      
+      // Names under signature lines
+      doc.text('Khoirun Nisa', 30, signY + 40)
+      doc.text('Raymond', 90, signY + 40)
       
       doc.save(`bukti-pengeluaran-${po.po_number}-${new Date().toISOString().split('T')[0]}.pdf`)
     } catch (error) {
