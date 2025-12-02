@@ -3491,12 +3491,7 @@ function FinancePurchaseOrdersContent() {
                             {(item as any).bulk_payment_ref ? (
                               <button
                                 onClick={() => {
-                                  const bulkPayment = bulkPayments.find(
-                                    bp => bp.bulk_reference === (item as any).bulk_payment_ref
-                                  )
-                                  if (bulkPayment) {
-                                    setShowBulkPaymentDetails(bulkPayment)
-                                  }
+                                  router.push(`/finance/bulk-payments?ref=${(item as any).bulk_payment_ref}`)
                                 }}
                                 className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200"
                                 title="Lihat detail pembayaran bulk"
@@ -3653,8 +3648,8 @@ function FinancePurchaseOrdersContent() {
                                 <button
                                   onClick={() => {
                                     if ((item as any).bulk_payment_ref) {
-                                      // For bulk payments, redirect to bulk payments page
-                                      window.open('/finance/bulk-payments', '_blank')
+                                      // For bulk payments, redirect to bulk payments page with ref parameter
+                                      router.push(`/finance/bulk-payments?ref=${(item as any).bulk_payment_ref}`)
                                     } else {
                                       // For single payments, open payment modal
                                       setSelectedPO(item)

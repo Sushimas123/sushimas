@@ -39,6 +39,18 @@ export default function BulkPaymentsPage() {
     fetchBulkPayments()
   }, [filters])
 
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const refParam = urlParams.get('ref')
+    
+    if (refParam && bulkPayments.length > 0) {
+      const targetBulkPayment = bulkPayments.find(bp => bp.bulk_reference === refParam)
+      if (targetBulkPayment) {
+        setShowBulkPaymentDetails(targetBulkPayment)
+      }
+    }
+  }, [bulkPayments])
+
   const fetchBulkPayments = async () => {
     try {
       setLoading(true)
@@ -287,7 +299,7 @@ export default function BulkPaymentsPage() {
           doc.rect(20, newTableStartY, 170, 10)
           doc.text('COA', 25, newTableStartY + 7)
           doc.text('Deskripsi', 85, newTableStartY + 7)
-          doc.text('Nominal', 170, newTableStartY + 7)
+          doc.text('Nominal', 166, newTableStartY + 7)
           
           currentRowY = newTableStartY + 10
           doc.setFont('helvetica', 'normal')
@@ -300,7 +312,7 @@ export default function BulkPaymentsPage() {
           ? `Pembayaran untuk invoice ${po.invoice_number} dari supplier ${po.nama_supplier}`
           : `${po.po_number} - ${po.nama_supplier}`
         doc.text(description, 50, currentRowY + 10) // Deskripsi
-        doc.text(formatCurrency(po.total_tagih), 170, currentRowY + 10) // Nominal
+        doc.text(formatCurrency(po.total_tagih), 166, currentRowY + 10) // Nominal
         currentRowY += 15
         rowCount++
       })
@@ -310,7 +322,7 @@ export default function BulkPaymentsPage() {
       doc.rect(20, finalTotalY, 170, 10)
       doc.setFont('helvetica', 'bold')
       doc.text('TOTAL', 55, finalTotalY + 7)
-      doc.text(formatCurrency(bulkPayment.total_amount), 170, finalTotalY + 7)
+      doc.text(formatCurrency(bulkPayment.total_amount), 166, finalTotalY + 7)
       
       // Signature Section - same format as single payment
       const signY = finalTotalY + 40

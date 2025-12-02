@@ -219,14 +219,14 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
         ? `Pembayaran untuk invoice ${invoiceNumber} dari supplier ${po.nama_supplier}`
         : `${po.po_number} - ${po.nama_supplier}`
       doc.text(description, 50, rowY + 10) // Deskripsi
-      doc.text(formatCurrency(po.total_paid), 170, rowY + 10) // Nominal
+      doc.text(formatCurrency(po.total_paid), 168, rowY + 10) // Nominal
       
       // Total
       const totalY = rowY + 15
       doc.rect(20, totalY, 170, 10)
       doc.setFont('helvetica', 'bold')
       doc.text('TOTAL', 55, totalY + 7)
-      doc.text(formatCurrency(po.total_paid), 170, totalY + 7)
+      doc.text(formatCurrency(po.total_paid), 168, totalY + 7)
       
       // Signature Section
       const signY = totalY + 40
