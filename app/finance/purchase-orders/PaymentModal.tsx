@@ -23,6 +23,7 @@ interface PaymentModalProps {
     total_paid: number
     sisa_bayar: number
     total_tagih?: number
+    cabang_id?: number
   }
   onClose: () => void
   onSuccess: () => void
@@ -162,45 +163,75 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
       const jsPDF = (await import('jspdf')).default
       const doc = new jsPDF()
       
+      // Get company data from branches table
+      const { data: branchData } = await supabase
+        .from('branches')
+        .select('badan')
+        .eq('id_branch', po.cabang_id)
+        .single()
+      
+      const companyName = branchData?.badan || 'PT. Suryamas Pratama' 
+      const lastPaymentDate = payments.length > 0 
+        ? new Date(payments[payments.length - 1].payment_date).toLocaleDateString('id-ID')
+        : new Date().toLocaleDateString('id-ID')
+      
+      const bankInfo = payments.length > 0 
+        ? `${payments[0].payment_method} - ${payments[0].payment_via}`
+        : ''
+      
       // Header
-      doc.setFontSize(18)
-      doc.text('Payment Receipt', 20, 20)
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text(companyName, 105, 20, { align: 'center' })
       
-      doc.setFontSize(12)
-      doc.text(`PO Number: ${po.po_number}`, 20, 35)
-      doc.text(`Supplier: ${po.nama_supplier}`, 20, 45)
-      doc.text(`Date: ${new Date().toLocaleDateString('id-ID')}`, 20, 55)
+      doc.setFontSize(14)
+      doc.text('BUKTI PENGELUARAN', 105, 35, { align: 'center' })
       
-      // PO Summary
-      doc.text('PO Summary:', 20, 70)
-      doc.text(`Total PO: ${formatCurrency(po.total_po)}`, 25, 80)
-      doc.text(`Total Tagih: ${formatCurrency(po.total_tagih || 0)}`, 25, 90)
-      doc.text(`Total Paid: ${formatCurrency(po.total_paid)}`, 25, 100)
-      doc.text(`Remaining: ${formatCurrency(po.sisa_bayar)}`, 25, 110)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.text(`Tanggal: ${lastPaymentDate}`, 20, 50)
+      doc.text(`Supplier: ${po.nama_supplier}`, 20, 60)
+      doc.text('Nomor Bukti: _______________', 20, 70)
       
-      // Payment History
-      if (payments.length > 0) {
-        doc.text('Payment History:', 20, 130)
-        let yPos = 140
-        payments.forEach((payment, index) => {
-          doc.text(`${index + 1}. ${new Date(payment.payment_date).toLocaleDateString('id-ID')}`, 25, yPos)
-          doc.text(`   Amount: ${formatCurrency(payment.payment_amount)}`, 25, yPos + 10)
-          doc.text(`   Method: ${payment.payment_method} via ${payment.payment_via}`, 25, yPos + 20)
-          if (payment.reference_number) {
-            doc.text(`   Ref: ${payment.reference_number}`, 25, yPos + 30)
-            yPos += 40
-          } else {
-            yPos += 30
-          }
-          if (payment.notes) {
-            doc.text(`   Notes: ${payment.notes}`, 25, yPos)
-            yPos += 10
-          }
-          yPos += 10
-        })
+      // Table Header
+      const tableStartY = 90
+      doc.setFont('helvetica', 'bold')
+      doc.rect(20, tableStartY, 170, 10)
+      doc.text('Nama COA', 25, tableStartY + 7)
+      doc.text('Deskripsi', 70, tableStartY + 7)
+      doc.text('Nominal', 150, tableStartY + 7)
+      
+      // Table Content
+      doc.setFont('helvetica', 'normal')
+      const rowY = tableStartY + 10
+      doc.rect(20, rowY, 170, 15)
+      doc.text('', 25, rowY + 10) // Nama COA (blank)
+      doc.text(`${po.po_number} - ${po.nama_supplier}`, 70, rowY + 10) // Deskripsi
+      doc.text(formatCurrency(po.total_paid), 150, rowY + 10) // Nominal
+      
+      // Total
+      const totalY = rowY + 15
+      doc.rect(20, totalY, 170, 10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('TOTAL', 70, totalY + 7)
+      doc.text(formatCurrency(po.total_paid), 150, totalY + 7)
+      
+      // Signature Section
+      const signY = totalY + 40
+      doc.setFont('helvetica', 'normal')
+      doc.text('Dibuat,', 30, signY)
+      doc.text('Disetujui,', 90, signY)
+      doc.text('Bank,', 150, signY)
+      if (bankInfo) {
+        doc.text(bankInfo, 150, signY + 10)
       }
       
-      doc.save(`payment-receipt-${po.po_number}-${new Date().toISOString().split('T')[0]}.pdf`)
+      // Signature lines
+      doc.line(20, signY + 30, 70, signY + 30)
+      doc.line(80, signY + 30, 130, signY + 30)
+      doc.line(140, signY + 30, 190, signY + 30)
+      
+      doc.save(`bukti-pengeluaran-${po.po_number}-${new Date().toISOString().split('T')[0]}.pdf`)
     } catch (error) {
       console.error('Error exporting PDF:', error)
       alert('Gagal export PDF')
