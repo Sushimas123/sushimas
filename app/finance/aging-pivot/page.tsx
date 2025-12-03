@@ -211,14 +211,7 @@ export default function AgingPivotReport() {
   }
 
   const formatCurrencyShort = (amount: number) => {
-    if (amount >= 1000000000) {
-      return `Rp ${(amount / 1000000000).toFixed(1)}M`
-    } else if (amount >= 1000000) {
-      return `Rp ${(amount / 1000000).toFixed(1)}Jt`
-    } else if (amount >= 1000) {
-      return `Rp ${(amount / 1000).toFixed(1)}K`
-    }
-    return `Rp ${amount}`
+    return formatCurrency(amount)
   }
 
   const exportToExcel = () => {
