@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
 import { X, Plus, Trash2, Calendar, DollarSign, FileText, Clock, CheckCircle, Download } from 'lucide-react'
+import { PaymentTransactionManager } from '@/src/utils/paymentTransactions'
 
 interface Payment {
   id: number
@@ -87,8 +88,8 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
     if (submitting) return
 
     const amount = parseFloat(formData.payment_amount)
-    if (amount <= 0 || amount > po.sisa_bayar) {
-      alert('Jumlah pembayaran tidak valid')
+    if (amount <= 0) {
+      alert('Jumlah pembayaran harus lebih dari 0')
       return
     }
 
@@ -97,20 +98,21 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
       const userData = localStorage.getItem('user')
       const user = userData ? JSON.parse(userData) : null
 
-      const { error } = await supabase
-        .from('po_payments')
-        .insert({
-          po_id: po.id,
-          payment_date: formData.payment_date,
-          payment_amount: amount,
-          payment_method: formData.payment_method,
-          payment_via: formData.payment_via,
-          reference_number: formData.reference_number,
-          notes: formData.notes,
-          created_by: user?.id_user
-        })
+      const result = await PaymentTransactionManager.executeSinglePayment({
+        po_id: po.id,
+        payment_date: formData.payment_date,
+        payment_amount: amount,
+        payment_method: formData.payment_method,
+        payment_via: formData.payment_via,
+        reference_number: formData.reference_number,
+        notes: formData.notes,
+        created_by: user?.id_user
+      })
 
-      if (error) throw error
+      if (!result.success) {
+        alert(result.error || 'Gagal menambah pembayaran')
+        return
+      }
 
       setFormData({
         payment_date: new Date().toISOString().split('T')[0],
@@ -125,28 +127,28 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
       onSuccess()
     } catch (error) {
       console.error('Error adding payment:', error)
-      alert('Gagal menambah pembayaran')
+      alert('Terjadi kesalahan sistem saat memproses pembayaran')
     } finally {
       setSubmitting(false)
     }
   }
 
   const handleDelete = async (paymentId: number) => {
-    if (!confirm('Yakin ingin menghapus pembayaran ini?')) return
+    if (!confirm('Yakin ingin menghapus pembayaran ini? Tindakan ini tidak dapat dibatalkan.')) return
 
     try {
-      const { error } = await supabase
-        .from('po_payments')
-        .delete()
-        .eq('id', paymentId)
-
-      if (error) throw error
+      const result = await PaymentTransactionManager.rollbackSinglePayment(paymentId)
+      
+      if (!result.success) {
+        alert(result.error || 'Gagal menghapus pembayaran')
+        return
+      }
 
       fetchPayments()
       onSuccess()
     } catch (error) {
       console.error('Error deleting payment:', error)
-      alert('Gagal menghapus pembayaran')
+      alert('Terjadi kesalahan sistem saat menghapus pembayaran')
     }
   }
 

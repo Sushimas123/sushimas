@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
 import { X, Plus, Trash2, Calculator } from 'lucide-react'
+import { PaymentTransactionManager } from '@/src/utils/paymentTransactions'
 
 interface BulkPaymentModalProps {
   isOpen: boolean
@@ -61,49 +62,26 @@ export default function BulkPaymentModal({ isOpen, onClose, onSuccess, available
       return
     }
 
+    if (totalAmount <= 0) {
+      alert('Total amount harus lebih dari 0')
+      return
+    }
+
     setLoading(true)
     try {
-      // Check if bulk reference already exists
-      const { data: existingBulk } = await supabase
-        .from('bulk_payments')
-        .select('id')
-        .eq('bulk_reference', formData.bulk_reference)
-        .single()
+      const result = await PaymentTransactionManager.executeBulkPayment({
+        bulk_reference: formData.bulk_reference,
+        total_amount: totalAmount,
+        payment_date: formData.payment_date,
+        payment_via: formData.payment_via,
+        payment_method: formData.payment_method,
+        notes: formData.notes,
+        po_ids: selectedPOs.map(po => po.id)
+      })
 
-      if (existingBulk) {
-        alert('Bulk reference sudah ada, silakan refresh halaman')
+      if (!result.success) {
+        alert(result.error || 'Gagal membuat bulk payment')
         return
-      }
-
-      // Insert bulk payment
-      const { data: bulkPayment, error: bulkError } = await supabase
-        .from('bulk_payments')
-        .insert({
-          bulk_reference: formData.bulk_reference,
-          total_amount: totalAmount,
-          payment_date: formData.payment_date,
-          payment_via: formData.payment_via,
-          payment_method: formData.payment_method,
-          notes: formData.notes
-        })
-        .select()
-        .single()
-
-      if (bulkError) throw bulkError
-
-      // Update purchase_orders with bulk_payment_ref
-      for (const po of selectedPOs) {
-        const { error: updateError } = await supabase
-          .from('purchase_orders')
-          .update({ 
-            bulk_payment_ref: formData.bulk_reference
-          })
-          .eq('id', po.id)
-        
-        if (updateError) {
-          console.error('Error updating PO:', po.id, updateError)
-          throw updateError
-        }
       }
 
       onSuccess()
@@ -120,7 +98,7 @@ export default function BulkPaymentModal({ isOpen, onClose, onSuccess, available
       })
     } catch (error) {
       console.error('Error creating bulk payment:', error)
-      alert('Error creating bulk payment')
+      alert('Terjadi kesalahan sistem saat membuat bulk payment')
     } finally {
       setLoading(false)
     }
