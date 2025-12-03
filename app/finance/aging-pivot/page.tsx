@@ -37,6 +37,8 @@ export default function AgingPivotReport() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [supplierFilter, setSupplierFilter] = useState('')
   const [notesFilter, setNotesFilter] = useState('')
+  const [summaryBranchFilter, setSummaryBranchFilter] = useState('')
+  const [summarySupplierFilter, setSummarySupplierFilter] = useState('')
   
   // Get unique suppliers from the data
   const availableSuppliers = React.useMemo(() => {
@@ -52,6 +54,14 @@ export default function AgingPivotReport() {
       .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
       .map(item => item.notes || 'Unknown'))]
     return notes.sort()
+  }, [data, dueDates])
+  
+  // Get unique branches from the data
+  const availableBranches = React.useMemo(() => {
+    const branches = [...new Set(data
+      .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
+      .map(item => item.branch))]
+    return branches.sort()
   }, [data, dueDates])
   const [isMobile, setIsMobile] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -411,6 +421,11 @@ export default function AgingPivotReport() {
   const MobileSummaryView = () => {
     const filteredSuppliers = data
       .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
+      .filter(supplier => 
+        (summaryBranchFilter === '' || supplier.branch === summaryBranchFilter) &&
+        (summarySupplierFilter === '' || supplier.supplier.toLowerCase() === summarySupplierFilter.toLowerCase()) &&
+        (notesFilter === '' || (supplier.notes || 'Unknown').toLowerCase() === notesFilter.toLowerCase())
+      )
       .sort((a, b) => {
         const aVal = sortField === 'date' ? dueDates.filter(date => a.due_dates[date] > 0)[0] || '' :
                     sortField === 'supplier' ? a.supplier : 
@@ -458,6 +473,43 @@ export default function AgingPivotReport() {
               />
               <span className="ml-2 text-sm text-gray-700">Urutan menurun</span>
             </label>
+          </div>
+        </div>
+
+        {/* Filter Controls */}
+        <div className="bg-white p-3 rounded-lg border">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Filter:</label>
+          <div className="space-y-2">
+            <select
+              value={summaryBranchFilter}
+              onChange={(e) => setSummaryBranchFilter(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md text-sm"
+            >
+              <option value="">Semua Cabang</option>
+              {availableBranches.map(branch => (
+                <option key={branch} value={branch}>{branch}</option>
+              ))}
+            </select>
+            <select
+              value={summarySupplierFilter}
+              onChange={(e) => setSummarySupplierFilter(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md text-sm"
+            >
+              <option value="">Semua Supplier</option>
+              {availableSuppliers.map(supplier => (
+                <option key={supplier} value={supplier}>{supplier}</option>
+              ))}
+            </select>
+            <select
+              value={notesFilter}
+              onChange={(e) => setNotesFilter(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md text-sm"
+            >
+              <option value="">Semua Notes</option>
+              {availableNotes.map(note => (
+                <option key={note} value={note}>{note}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -936,8 +988,18 @@ export default function AgingPivotReport() {
                 </div>
                 <div className="mt-3 flex gap-3">
                   <select
-                    value={supplierFilter}
-                    onChange={(e) => setSupplierFilter(e.target.value)}
+                    value={summaryBranchFilter}
+                    onChange={(e) => setSummaryBranchFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm w-48"
+                  >
+                    <option value="">Semua Cabang</option>
+                    {availableBranches.map(branch => (
+                      <option key={branch} value={branch}>{branch}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={summarySupplierFilter}
+                    onChange={(e) => setSummarySupplierFilter(e.target.value)}
                     className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm w-64"
                   >
                     <option value="">Semua Supplier</option>
@@ -1046,7 +1108,8 @@ export default function AgingPivotReport() {
                     {data
                       .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
                       .filter(supplier => 
-                        (supplierFilter === '' || supplier.supplier.toLowerCase() === supplierFilter.toLowerCase()) &&
+                        (summaryBranchFilter === '' || supplier.branch === summaryBranchFilter) &&
+                        (summarySupplierFilter === '' || supplier.supplier.toLowerCase() === summarySupplierFilter.toLowerCase()) &&
                         (notesFilter === '' || (supplier.notes || 'Unknown').toLowerCase() === notesFilter.toLowerCase())
                       )
                       .sort((a, b) => {
@@ -1109,7 +1172,8 @@ export default function AgingPivotReport() {
                         {formatCurrency(data
                           .filter(supplier => dueDates.some(date => supplier.due_dates[date] > 0))
                           .filter(supplier => 
-                            (supplierFilter === '' || supplier.supplier.toLowerCase() === supplierFilter.toLowerCase()) &&
+                            (summaryBranchFilter === '' || supplier.branch === summaryBranchFilter) &&
+                            (summarySupplierFilter === '' || supplier.supplier.toLowerCase() === summarySupplierFilter.toLowerCase()) &&
                             (notesFilter === '' || (supplier.notes || 'Unknown').toLowerCase() === notesFilter.toLowerCase())
                           )
                           .reduce((sum, supplier) => sum + dueDates.reduce((dateSum, date) => dateSum + (supplier.due_dates[date] || 0), 0), 0)
