@@ -2085,6 +2085,12 @@ function FinancePurchaseOrdersContent() {
                     <span className="text-sm font-medium text-blue-800">
                       {selectedPOs.length} PO dipilih
                     </span>
+                    <div className="text-xs text-blue-700 mt-1">
+                      Total: {formatCurrency(selectedPOs.reduce((sum, poId) => {
+                        const po = data.find(item => item.id === poId)
+                        return sum + (po?.sisa_bayar || 0)
+                      }, 0))}
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <button
