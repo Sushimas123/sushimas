@@ -1233,6 +1233,24 @@ function FinancePurchaseOrdersContent() {
                   <Plus className="h-3 w-3" />
                 </button>
               )}
+              {((item.total_paid > 0 && !(item as any).bulk_payment_ref) || (item as any).bulk_payment_ref) && (
+                <button
+                  onClick={() => {
+                    if ((item as any).bulk_payment_ref) {
+                      // For bulk payments, redirect to bulk payments page with ref parameter
+                      router.push(`/finance/bulk-payments?ref=${(item as any).bulk_payment_ref}`)
+                    } else {
+                      // For single payments, open payment modal
+                      setSelectedPO(item)
+                      setShowPaymentModal(true)
+                    }
+                  }}
+                  className="inline-flex items-center p-1 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                  title={`${(item as any).bulk_payment_ref ? 'View Bulk Payment' : 'Edit Payment'}`}
+                >
+                  <Edit className="h-3 w-3" />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1594,6 +1612,100 @@ function FinancePurchaseOrdersContent() {
 
           {/* Action Buttons */}
           <div className="flex gap-2 sticky bottom-0 bg-white pt-4 pb-6 border-t border-gray-200">
+            {item.total_paid > 0 && (
+              <button
+                onClick={async () => {
+                  try {
+                    const jsPDF = (await import('jspdf')).default
+                    const doc = new jsPDF()
+                    
+                    // Get company data from branches table
+                    const { data: branchData } = await supabase
+                      .from('branches')
+                      .select('badan')
+                      .eq('id_branch', (item as any).cabang_id)
+                      .single()
+                    
+                    const companyName = branchData?.badan || 'PT. Suryamas Pratama'
+                    const paymentDate = (item as any).dibayar_tanggal 
+                      ? formatDate((item as any).dibayar_tanggal)
+                      : new Date().toLocaleDateString('id-ID')
+                    
+                    const bankInfo = (item as any).payment_method && (item as any).payment_via
+                      ? `${(item as any).payment_method} - ${(item as any).payment_via}`
+                      : ''
+                    
+                    // Header
+                    doc.setFontSize(16)
+                    doc.setFont('helvetica', 'bold')
+                    doc.text(companyName, 105, 20, { align: 'center' })
+                    
+                    doc.setFontSize(14)
+                    doc.text('BUKTI PENGELUARAN', 105, 35, { align: 'center' })
+                    
+                    doc.setFont('helvetica', 'normal')
+                    doc.setFontSize(10)
+                    doc.text(`Tanggal: ${paymentDate}`, 20, 50)
+                    doc.text(`Supplier: ${item.nama_supplier}`, 20, 60)
+                    doc.text('Nomor Bukti: _______________', 20, 70)
+                    
+                    // Table Header
+                    const tableStartY = 90
+                    doc.setFont('helvetica', 'bold')
+                    doc.rect(20, tableStartY, 170, 10)
+                    doc.text('COA', 25, tableStartY + 7)
+                    doc.text('Deskripsi', 85, tableStartY + 7)
+                    doc.text('Nominal', 170, tableStartY + 7)
+                    
+                    // Table Content
+                    doc.setFont('helvetica', 'normal')
+                    const rowY = tableStartY + 10
+                    doc.rect(20, rowY, 170, 15)
+                    doc.text('', 25, rowY + 10)
+                    const description = (item as any).invoice_number 
+                      ? `Pembayaran untuk invoice ${(item as any).invoice_number} dari supplier ${item.nama_supplier}`
+                      : `${item.po_number} - ${item.nama_supplier}`
+                    doc.text(description, 50, rowY + 10)
+                    doc.text(formatCurrency(item.total_paid), 168, rowY + 10)
+                    
+                    // Total
+                    const totalY = rowY + 15
+                    doc.rect(20, totalY, 170, 10)
+                    doc.setFont('helvetica', 'bold')
+                    doc.text('TOTAL', 55, totalY + 7)
+                    doc.text(formatCurrency(item.total_paid), 168, totalY + 7)
+                    
+                    // Signature Section
+                    const signY = totalY + 40
+                    doc.setFont('helvetica', 'normal')
+                    doc.text('Dibuat,', 30, signY)
+                    doc.text('Disetujui,', 90, signY)
+                    doc.text('Bank,', 150, signY)
+                    if (bankInfo) {
+                      doc.text(bankInfo, 150, signY + 10)
+                    }
+                    
+                    // Signature lines
+                    doc.line(20, signY + 30, 70, signY + 30)
+                    doc.line(80, signY + 30, 130, signY + 30)
+                    doc.line(140, signY + 30, 190, signY + 30)
+                    
+                    // Names under signature lines
+                    doc.text('Khoirun Nisa', 30, signY + 40)
+                    doc.text('Raymond', 90, signY + 40)
+                    
+                    doc.save(`bukti-pengeluaran-${item.po_number}-${new Date().toISOString().split('T')[0]}.pdf`)
+                  } catch (error) {
+                    console.error('Error exporting PDF:', error)
+                    alert('Gagal export PDF')
+                  }
+                }}
+                className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 flex items-center justify-center"
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Export PDF
+              </button>
+            )}
             <button
               onClick={() => {
                 // Save current state before navigating
@@ -1604,7 +1716,7 @@ function FinancePurchaseOrdersContent() {
                 sessionStorage.setItem('finance_po_page', currentPage.toString())
                 window.location.href = `/finance/purchase-orders/submit-approval?id=${item.id}`
               }}
-              className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+              className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
             >
               <FileText className="h-4 w-4 mr-1" />
               Submit
@@ -1705,6 +1817,25 @@ function FinancePurchaseOrdersContent() {
               >
                 <Plus className="h-4 w-4 mr-1" />
                 Bayar
+              </button>
+            )}
+            {((item.total_paid > 0 && !(item as any).bulk_payment_ref) || (item as any).bulk_payment_ref) && (
+              <button
+                onClick={() => {
+                  if ((item as any).bulk_payment_ref) {
+                    // For bulk payments, redirect to bulk payments page with ref parameter
+                    router.push(`/finance/bulk-payments?ref=${(item as any).bulk_payment_ref}`)
+                  } else {
+                    // For single payments, open payment modal
+                    setSelectedPO(item)
+                    setShowPaymentModal(true)
+                    setSelectedMobileItem(null)
+                  }
+                }}
+                className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              >
+                <Edit className="h-4 w-4 mr-1" />
+                {(item as any).bulk_payment_ref ? 'View Bulk' : 'Edit Payment'}
               </button>
             )}
           </div>
@@ -3225,6 +3356,24 @@ function FinancePurchaseOrdersContent() {
                         className="flex-1 text-center px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
                       >
                         Bayar
+                      </button>
+                    )}
+                    {((item.total_paid > 0 && !(item as any).bulk_payment_ref) || (item as any).bulk_payment_ref) && (
+                      <button
+                        onClick={() => {
+                          if ((item as any).bulk_payment_ref) {
+                            // For bulk payments, redirect to bulk payments page with ref parameter
+                            router.push(`/finance/bulk-payments?ref=${(item as any).bulk_payment_ref}`)
+                          } else {
+                            // For single payments, open payment modal
+                            setSelectedPO(item)
+                            setShowPaymentModal(true)
+                          }
+                        }}
+                        className="flex-1 text-center px-2 py-1 border border-gray-300 text-gray-700 bg-white text-xs rounded hover:bg-gray-50"
+                        title={`${(item as any).bulk_payment_ref ? 'View Bulk Payment' : 'Edit Payment'}`}
+                      >
+                        <Edit className="h-3 w-3 mx-auto" />
                       </button>
                     )}
                   </div>
