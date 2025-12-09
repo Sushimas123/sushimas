@@ -764,6 +764,7 @@ export default function AssetsPage() {
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Category & Location</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Purchase Info</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Value & Qty</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Notes</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Status & Condition</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Actions</th>
                   </tr>
@@ -824,6 +825,13 @@ export default function AssetsPage() {
                             Rp {asset.current_value?.toLocaleString('id-ID')}
                           </div>
                           <div className="text-xs text-gray-500">Qty: {asset.quantity || 1}</div>
+                        </div>
+                      </td>
+                      
+                      {/* Notes */}
+                      <td className="px-3 py-4">
+                        <div className="text-sm text-gray-600 max-w-xs truncate" title={asset.notes || '-'}>
+                          {asset.notes || '-'}
                         </div>
                       </td>
                       
