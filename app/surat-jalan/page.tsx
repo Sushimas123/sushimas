@@ -16,6 +16,7 @@ interface SuratJalan {
   dibuat_oleh: string
   disetujui_oleh: string
   diterima_oleh?: string
+  notes?: string
   created_at: string
   created_by?: number
   updated_by?: number
@@ -128,6 +129,9 @@ function SuratJalanRow({ suratJalan, onExportPDF, onDelete, exportLoading }: {
         <td className="px-6 py-4 text-sm text-gray-900">
           {suratJalan.updated_at ? new Date(suratJalan.updated_at).toLocaleDateString('id-ID') : '-'}
         </td>
+        <td className="px-6 py-4 text-sm text-gray-900">
+          {suratJalan.notes || '-'}
+        </td>
         <td className="px-6 py-4 text-sm font-medium">
           <div className="flex items-center gap-2">
             <button
@@ -168,7 +172,7 @@ function SuratJalanRow({ suratJalan, onExportPDF, onDelete, exportLoading }: {
       </tr>
       {isExpanded && (
         <tr>
-          <td colSpan={7} className="px-6 py-0">
+          <td colSpan={8} className="px-6 py-0">
             <div className="bg-gray-50 p-4 border-l-4 border-blue-500">
               <div className="mb-3">
                 <h4 className="font-medium text-gray-900 mb-2">Items Detail ({items.length}):</h4>
@@ -422,6 +426,11 @@ const exportToPDF = async (suratJalan: SuratJalan) => {
               <td>Driver</td>
               <td>${suratJalan.driver}</td>
             </tr>
+            ${suratJalan.notes ? `
+            <tr>
+              <td>Notes</td>
+              <td>${suratJalan.notes}</td>
+            </tr>` : ''}
           </table>
 
           <div class="items-title">DAFTAR BARANG</div>
@@ -520,6 +529,7 @@ export default function SuratJalanPage() {
     driver: '',
     dibuat_oleh: '',
     disetujui_oleh: '',
+    notes: '',
     items: [{ no_urut: 1, id_product: '', jumlah_barang: '', satuan: '', keterangan: '' }] as SuratJalanItem[]
   })
 
@@ -679,6 +689,7 @@ export default function SuratJalanPage() {
           driver: form.driver,
           dibuat_oleh: form.dibuat_oleh,
           disetujui_oleh: form.disetujui_oleh,
+          notes: form.notes,
           created_by: user.id_user,
           updated_by: user.id_user
         })
@@ -784,6 +795,7 @@ export default function SuratJalanPage() {
       driver: '',
       dibuat_oleh: '',
       disetujui_oleh: '',
+      notes: '',
       items: [{ no_urut: 1, id_product: '', jumlah_barang: '', satuan: '', keterangan: '' }]
     })
     setShowForm(false)
@@ -918,6 +930,7 @@ export default function SuratJalanPage() {
                         {sortBy === 'updated_at' && (sortOrder === 'asc' ? '↑' : '↓')}
                       </div>
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50">Notes</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50">Aksi</th>
                   </tr>
                 </thead>
@@ -932,7 +945,7 @@ export default function SuratJalanPage() {
                     ))
                   ) : suratJalans.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                         <div className="py-8">
                           <p className="mb-2">Tidak ada data surat jalan</p>
                           <p className="text-sm text-gray-400">
@@ -1094,6 +1107,19 @@ export default function SuratJalanPage() {
                         required
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Notes
+                    </label>
+                    <textarea
+                      value={form.notes}
+                      onChange={(e) => setForm({...form, notes: e.target.value})}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Catatan tambahan"
+                      rows={3}
+                    />
                   </div>
 
                   <div className="bg-gray-50 p-3 rounded">
