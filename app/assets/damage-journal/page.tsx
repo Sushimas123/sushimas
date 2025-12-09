@@ -54,7 +54,7 @@ export default function DamageJournalPage() {
           .order('damage_date', { ascending: false }),
         supabase
           .from('assets')
-          .select('asset_id, asset_name, current_value, id_branch')
+          .select('asset_id, asset_name, current_value, purchase_price, quantity, id_branch')
           .eq('status', 'ACTIVE')
           .order('asset_name'),
         supabase
@@ -75,14 +75,17 @@ export default function DamageJournalPage() {
 
   const handleAssetChange = async (assetId: string) => {
     const asset = assets.find(a => a.asset_id === assetId);
+    console.log('Selected asset:', asset);
     setSelectedAsset(asset || null);
     
     if (asset) {
-      // Auto-fill damage value from asset current value
+      // Auto-fill damage value from asset current value or purchase price
+      const defaultValue = asset.current_value || asset.purchase_price || 0;
+      console.log('Asset values - current_value:', asset.current_value, 'purchase_price:', asset.purchase_price, 'defaultValue:', defaultValue);
       setFormData(prev => ({
         ...prev,
         asset_id: assetId,
-        damage_value: asset.current_value || 0
+        damage_value: defaultValue
       }));
       
       // Fetch users from the same branch as the asset
@@ -471,9 +474,15 @@ export default function DamageJournalPage() {
                       type="number"
                       min="0"
                       value={formData.damage_value}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
-                      readOnly
+                      onChange={(e) => setFormData({ ...formData, damage_value: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      placeholder="Enter damage value"
                     />
+                    {selectedAsset && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Asset value: Rp {(selectedAsset.current_value || selectedAsset.purchase_price || 0).toLocaleString('id-ID')}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>

@@ -297,6 +297,8 @@ export default function AssetsPage() {
     fetchData();
   }, []);
 
+
+
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
@@ -330,7 +332,24 @@ export default function AssetsPage() {
           .order('nama_branch')
       ]);
 
-      if (assetsData.data) setAssets(assetsData.data);
+      if (assetsData.data) {
+        // Auto-update status to BROKEN for assets with quantity 0
+        const assetsToUpdate = assetsData.data.filter(asset => 
+          asset.quantity === 0 && asset.status !== 'BROKEN'
+        );
+        
+        if (assetsToUpdate.length > 0) {
+          for (const asset of assetsToUpdate) {
+            await supabase
+              .from('assets')
+              .update({ status: 'BROKEN' })
+              .eq('asset_id', asset.asset_id);
+            asset.status = 'BROKEN';
+          }
+        }
+        
+        setAssets(assetsData.data);
+      }
       if (categoriesData.data) setCategories(categoriesData.data);
       if (branchesData.data) setBranches(branchesData.data);
     } catch (error) {
@@ -373,6 +392,36 @@ export default function AssetsPage() {
 
   const getStatusColor = (status: string) => statusColors[status as keyof typeof statusColors] || 'bg-gray-100 text-gray-800 border-gray-200';
   const getConditionColor = (condition: string) => conditionColors[condition as keyof typeof conditionColors] || 'bg-gray-100 text-gray-800 border-gray-200';
+
+  // Auto-update status to BROKEN when quantity becomes 0
+  const updateAssetQuantity = useCallback(async (assetId: string, newQuantity: number) => {
+    try {
+      const updateData: any = { quantity: newQuantity };
+      
+      // If quantity becomes 0, auto-set status to BROKEN
+      if (newQuantity === 0) {
+        updateData.status = 'BROKEN';
+      }
+      
+      const { error } = await supabase
+        .from('assets')
+        .update(updateData)
+        .eq('asset_id', assetId);
+
+      if (error) throw error;
+
+      setAssets(prev => prev.map(asset => 
+        asset.asset_id === assetId ? { 
+          ...asset, 
+          quantity: newQuantity,
+          ...(newQuantity === 0 && { status: 'BROKEN' as Asset['status'] })
+        } : asset
+      ));
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      alert('Failed to update quantity');
+    }
+  }, []);
 
   // Optimized update functions dengan useCallback
   const updateAssetStatus = useCallback(async (assetId: string, newStatus: string) => {
@@ -441,7 +490,7 @@ export default function AssetsPage() {
   const summaryStats = useMemo(() => {
     const totalAssets = filteredAssets.length;
     const activeAssets = filteredAssets.filter(a => a.status === 'ACTIVE').length;
-    const goodConditionAssets = filteredAssets.filter(a => ['EXCELLENT', 'GOOD'].includes(a.condition)).reduce((sum, a) => sum + (a.quantity || 1), 0);
+    const goodConditionAssets = filteredAssets.filter(a => ['EXCELLENT', 'GOOD'].includes(a.condition)).reduce((sum, a) => sum + (a.quantity ?? 1), 0);
     const totalValue = filteredAssets.reduce((sum, a) => sum + (a.current_value || 0), 0);
 
     return { totalAssets, activeAssets, goodConditionAssets, totalValue };
@@ -719,7 +768,7 @@ export default function AssetsPage() {
                   </div>
                   <div>
                     <div className="text-gray-500">Qty</div>
-                    <div>{asset.quantity || 1}</div>
+                    <div>{asset.quantity ?? 1}</div>
                   </div>
                 </div>
 
@@ -824,7 +873,7 @@ export default function AssetsPage() {
                           <div className="text-sm font-medium text-gray-900">
                             Rp {asset.current_value?.toLocaleString('id-ID')}
                           </div>
-                          <div className="text-xs text-gray-500">Qty: {asset.quantity || 1}</div>
+                          <div className="text-xs text-gray-500">Qty: {asset.quantity ?? 1}</div>
                         </div>
                       </td>
                       
