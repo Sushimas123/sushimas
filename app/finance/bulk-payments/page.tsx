@@ -173,23 +173,38 @@ export default function BulkPaymentsPage() {
     try {
       const XLSX = await import('xlsx')
       
-      const worksheetData = filteredData.map(item => ({
-        'Bulk Reference': item.bulk_reference,
-        'Payment Date': formatDate(item.payment_date),
-        'Total Amount': item.total_amount,
-        'Payment Via': item.payment_via,
-        'Payment Method': item.payment_method,
-        'Status': item.status,
-        'PO Count': item.purchase_orders.length,
-        'Notes': item.notes || '',
-        'Created At': formatDate(item.created_at)
-      }))
+      // Create detailed worksheet with PO breakdown
+      const detailedData: any[] = []
       
-      const worksheet = XLSX.utils.json_to_sheet(worksheetData)
+      filteredData.forEach(bulkPayment => {
+        bulkPayment.purchase_orders.forEach((po: any) => {
+          const description = po.invoice_number 
+            ? `Pembayaran untuk invoice ${po.invoice_number} dari supplier ${po.nama_supplier}`
+            : `${po.po_number} - ${po.nama_supplier}`
+            
+          detailedData.push({
+            'Bulk Reference': bulkPayment.bulk_reference,
+            'Payment Date': formatDate(bulkPayment.payment_date),
+            'Payment Via': bulkPayment.payment_via,
+            'Payment Method': bulkPayment.payment_method,
+            'Status': bulkPayment.status,
+            'PO Number': po.po_number,
+            'Invoice Number': po.invoice_number || '-',
+            'Supplier': po.nama_supplier,
+            'Description': description,
+            'Amount': po.total_tagih,
+            'Bulk Total': bulkPayment.total_amount,
+            'Notes': bulkPayment.notes || '',
+            'Created At': formatDate(bulkPayment.created_at)
+          })
+        })
+      })
+      
+      const worksheet = XLSX.utils.json_to_sheet(detailedData)
       const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Bulk Payments')
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Bulk Payment Details')
       
-      XLSX.writeFile(workbook, `bulk-payments-${new Date().toISOString().split('T')[0]}.xlsx`)
+      XLSX.writeFile(workbook, `bulk-payments-detail-${new Date().toISOString().split('T')[0]}.xlsx`)
     } catch (error) {
       console.error('Error exporting to XLSX:', error)
       alert('Gagal export file. Pastikan browser mendukung fitur export.')
@@ -307,11 +322,10 @@ export default function BulkPaymentsPage() {
         
         doc.rect(20, currentRowY, 170, 15)
         doc.text('', 25, currentRowY + 10) // Nama COA (blank)
-        console.log('PO:', po.po_number, 'Invoice:', po.invoice_number) // Debug
         const description = po.invoice_number 
           ? `Pembayaran untuk invoice ${po.invoice_number} dari supplier ${po.nama_supplier}`
-          : `${po.po_number} - ${po.nama_supplier}`
-        doc.text(description, 50, currentRowY + 10) // Deskripsi
+          : `Pembayaran untuk ${po.po_number} dari supplier ${po.nama_supplier}`
+        doc.text(description, 50, currentRowY + 10, { maxWidth: 100 }) // Deskripsi
         doc.text(formatCurrency(po.total_tagih), 166, currentRowY + 10) // Nominal
         currentRowY += 15
         rowCount++

@@ -219,8 +219,8 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
       doc.text('', 25, rowY + 10) // Nama COA (blank)
       const description = invoiceNumber 
         ? `Pembayaran untuk invoice ${invoiceNumber} dari supplier ${po.nama_supplier}`
-        : `${po.po_number} - ${po.nama_supplier}`
-      doc.text(description, 50, rowY + 10) // Deskripsi
+        : `Pembayaran untuk ${po.po_number} dari supplier ${po.nama_supplier}`
+      doc.text(description, 50, rowY + 10, { maxWidth: 100 }) // Deskripsi
       doc.text(formatCurrency(po.total_paid), 168, rowY + 10) // Nominal
       
       // Total
