@@ -223,6 +223,13 @@ function MarketplacePOPageContent() {
         )
       }
       
+      // Apply supplier filter
+      if (filters.supplier) {
+        filteredItems = filteredItems.filter(item => 
+          item.nama_supplier.toLowerCase().includes(filters.supplier.toLowerCase())
+        )
+      }
+      
       // Apply status filter
       if (filters.status) {
         filteredItems = filteredItems.filter(item => item.item_status === filters.status)
@@ -570,9 +577,10 @@ function MarketplacePOPageContent() {
             ) : (
               items.filter(item => {
                 // Final filter check before display
+                const supplierMatch = !filters.supplier || item.nama_supplier.toLowerCase().includes(filters.supplier.toLowerCase())
                 const statusMatch = !filters.status || item.item_status === filters.status
                 const branchMatch = filters.branches.length === 0 || filters.branches.includes(item.nama_branch)
-                return statusMatch && branchMatch
+                return supplierMatch && statusMatch && branchMatch
               }).map((item) => (
                 <div key={item.id} className="bg-white rounded-lg shadow border border-gray-200 p-4">
                   <div className="flex items-center justify-between">
