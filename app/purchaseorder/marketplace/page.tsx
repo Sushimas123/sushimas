@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/src/lib/supabaseClient'
 import { Plus, Search, ShoppingCart, Package, Calendar, Building, User } from 'lucide-react'
 import Layout from '../../../components/Layout'
@@ -23,6 +24,8 @@ interface ItemView {
 }
 
 export default function MarketplacePOPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [items, setItems] = useState<ItemView[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -37,13 +40,52 @@ export default function MarketplacePOPage() {
   const [showBranchDropdown, setShowBranchDropdown] = useState(false)
   const [allBranches, setAllBranches] = useState<string[]>([])
 
+  // Update URL with all state
+  const updateURL = useCallback(() => {
+    const params = new URLSearchParams()
+    if (search) params.set('search', search)
+    if (filters.supplier) params.set('supplier', filters.supplier)
+    if (filters.status) params.set('status', filters.status)
+    if (filters.branches.length > 0) params.set('branches', filters.branches.join(','))
+    if (currentPage > 1) params.set('page', currentPage.toString())
+    
+    router.replace(`?${params.toString()}`, { scroll: false })
+  }, [router, search, filters, currentPage])
+
+  // Initialize from URL params
+  useEffect(() => {
+    if (!searchParams) return
+    
+    const urlSearch = searchParams.get('search') || ''
+    const supplier = searchParams.get('supplier') || ''
+    const status = searchParams.get('status') || ''
+    const branchesParam = searchParams.get('branches')
+    const branches = branchesParam ? branchesParam.split(',') : []
+    const page = parseInt(searchParams.get('page') || '1')
+    
+    setSearch(urlSearch)
+    setFilters({ supplier, status, branches })
+    setCurrentPage(page)
+  }, [])
+
+  // Update URL when state changes (but not on initial load)
+  useEffect(() => {
+    if (searchParams) {
+      updateURL()
+    }
+  }, [search, filters, currentPage])
+
+  // Reset page when filters/search change
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1)
+    }
+  }, [search, filters])
+
+  // Fetch data when dependencies change
   useEffect(() => {
     fetchMarketplaceItems()
   }, [currentPage, filters])
-  
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [search, filters])
 
   // Fetch all branches on component mount
   useEffect(() => {
@@ -86,7 +128,7 @@ export default function MarketplacePOPage() {
         return
       }
       
-      // Get all items for these POs (filter will be applied client-side)
+      // Get all items for these POs
       const { data: allItemsData, error: allItemsError } = await supabase
         .from('po_items')
         .select('*')
@@ -162,27 +204,42 @@ export default function MarketplacePOPage() {
         }
       })
 
-      // Apply client-side filtering and sorting
-      const filteredTransformedItems = transformedItems
-        .filter(item => {
-          const matchesStatus = !filters.status || item.item_status === filters.status
-          const matchesBranch = filters.branches.length === 0 || filters.branches.includes(item.nama_branch)
-          return matchesStatus && matchesBranch
-        })
-        .sort((a, b) => {
-          // Sort by po_date (newest first)
-          const dateA = new Date(a.po_date)
-          const dateB = new Date(b.po_date)
-          return dateB.getTime() - dateA.getTime()
-        })
+      // Apply sorting
+      const sortedItems = transformedItems.sort((a, b) => {
+        const dateA = new Date(a.po_date)
+        const dateB = new Date(b.po_date)
+        return dateB.getTime() - dateA.getTime()
+      })
+      
+      // Apply client-side filtering with strict matching
+      let filteredItems = sortedItems
+      
+      // Apply search filter
+      if (search) {
+        filteredItems = filteredItems.filter(item => 
+          item.product_name.toLowerCase().includes(search.toLowerCase()) ||
+          item.po_number.toLowerCase().includes(search.toLowerCase()) ||
+          item.nama_supplier.toLowerCase().includes(search.toLowerCase())
+        )
+      }
+      
+      // Apply status filter
+      if (filters.status) {
+        filteredItems = filteredItems.filter(item => item.item_status === filters.status)
+      }
+      
+      // Apply branch filter
+      if (filters.branches.length > 0) {
+        filteredItems = filteredItems.filter(item => filters.branches.includes(item.nama_branch))
+      }
       
       // Set total count based on filtered items
-      setTotalCount(filteredTransformedItems.length)
+      setTotalCount(filteredItems.length)
       
       // Apply pagination to filtered items
       const from = (currentPage - 1) * itemsPerPage
       const to = from + itemsPerPage
-      const paginatedItems = filteredTransformedItems.slice(from, to)
+      const paginatedItems = filteredItems.slice(from, to)
       
       setItems(paginatedItems)
     } catch (error) {
@@ -232,17 +289,6 @@ export default function MarketplacePOPage() {
       console.error('Error updating tracking info:', error)
     }
   }
-
-  const filteredItems = items.filter(item => {
-    const matchesSearch = item.product_name.toLowerCase().includes(search.toLowerCase()) ||
-      item.po_number.toLowerCase().includes(search.toLowerCase()) ||
-      item.nama_supplier.toLowerCase().includes(search.toLowerCase())
-    
-    const matchesStatus = !filters.status || item.item_status === filters.status
-    const matchesBranch = filters.branches.length === 0 || filters.branches.includes(item.nama_branch)
-    
-    return matchesSearch && matchesStatus && matchesBranch
-  })
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -471,10 +517,15 @@ export default function MarketplacePOPage() {
           </div>
 
           {/* Active Filters Display */}
-          {(filters.supplier || filters.status || filters.branches.length > 0) && (
+          {(search || filters.supplier || filters.status || filters.branches.length > 0) && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-2 text-sm flex-wrap">
                 <span className="text-blue-800 font-medium">Active filters:</span>
+                {search && (
+                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
+                    Search: {search}
+                  </span>
+                )}
                 {filters.supplier && (
                   <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
                     Supplier: {filters.supplier}
@@ -487,11 +538,14 @@ export default function MarketplacePOPage() {
                 )}
                 {filters.branches.length > 0 && (
                   <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
-                    Cabang: {filters.branches.length} dipilih
+                    Cabang: {filters.branches.length} dipilih ({filters.branches.join(', ')})
                   </span>
                 )}
                 <button
-                  onClick={() => setFilters({supplier: '', status: '', branches: []})}
+                  onClick={() => {
+                    setSearch('')
+                    setFilters({supplier: '', status: '', branches: []})
+                  }}
                   className="text-blue-600 hover:text-blue-800 text-xs underline ml-2"
                 >
                   Clear all
@@ -502,14 +556,24 @@ export default function MarketplacePOPage() {
 
           {/* Items List */}
           <div className="space-y-4">
-            {filteredItems.length === 0 ? (
+            {loading ? (
+              <div className="bg-white rounded-lg shadow border border-gray-200 p-12 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-lg font-medium text-gray-900">Loading...</p>
+              </div>
+            ) : items.length === 0 ? (
               <div className="bg-white rounded-lg shadow border border-gray-200 p-12 text-center">
                 <Package className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-lg font-medium text-gray-900">Belum ada Item Marketplace</p>
-                <p className="text-sm text-gray-500">Item dari PO Shopee dan Tokopedia akan muncul di sini</p>
+                <p className="text-lg font-medium text-gray-900">Tidak ada item yang sesuai filter</p>
+                <p className="text-sm text-gray-500">Filter: status='{filters.status}' branches=[{filters.branches.join(', ')}]</p>
               </div>
             ) : (
-              filteredItems.map((item) => (
+              items.filter(item => {
+                // Final filter check before display
+                const statusMatch = !filters.status || item.item_status === filters.status
+                const branchMatch = filters.branches.length === 0 || filters.branches.includes(item.nama_branch)
+                return statusMatch && branchMatch
+              }).map((item) => (
                 <div key={item.id} className="bg-white rounded-lg shadow border border-gray-200 p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
@@ -585,7 +649,7 @@ export default function MarketplacePOPage() {
 
           {/* Pagination */}
           {Math.ceil(totalCount / itemsPerPage) > 1 && (
-            <div className="bg-white px-4 py-3 border-t border-gray-200 rounded-lg shadow border border-gray-200 mb-4">
+            <div className="bg-white px-4 py-3 border-t border-gray-200 rounded-lg shadow border border-gray-200 mb-4 mt-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-700">
@@ -663,19 +727,19 @@ export default function MarketplacePOPage() {
               </div>
               <div className="text-center">
                 <p className="text-sm text-gray-600">Current Page</p>
-                <p className="text-lg font-semibold">{filteredItems.length} items</p>
+                <p className="text-lg font-semibold">{items.length} items</p>
               </div>
               <div className="text-center">
                 <p className="text-sm text-gray-600">Received Items</p>
                 <p className="text-lg font-semibold">
-                  {filteredItems.filter(item => item.item_status === 'received').length}
+                  {items.filter(item => item.item_status === 'received').length}
                 </p>
               </div>
               <div className="text-center">
                 <p className="text-sm text-gray-600">Completion Rate</p>
                 <p className="text-lg font-semibold">
-                  {filteredItems.length > 0
-                    ? Math.round((filteredItems.filter(item => item.item_status === 'received').length / filteredItems.length) * 100)
+                  {totalCount > 0
+                    ? Math.round((items.filter(item => item.item_status === 'received').length / items.length) * 100)
                     : 0}%
                 </p>
               </div>
