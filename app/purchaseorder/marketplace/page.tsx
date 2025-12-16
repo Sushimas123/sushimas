@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/src/lib/supabaseClient'
 import { Plus, Search, ShoppingCart, Package, Calendar, Building, User } from 'lucide-react'
@@ -23,7 +23,7 @@ interface ItemView {
   status_updated_at?: string
 }
 
-export default function MarketplacePOPage() {
+function MarketplacePOPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [items, setItems] = useState<ItemView[]>([])
@@ -748,5 +748,19 @@ export default function MarketplacePOPage() {
         </div>
       </PageAccessControl>
     </Layout>
+  )
+}
+
+export default function MarketplacePOPage() {
+  return (
+    <Suspense fallback={
+      <Layout>
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      </Layout>
+    }>
+      <MarketplacePOPageContent />
+    </Suspense>
   )
 }
