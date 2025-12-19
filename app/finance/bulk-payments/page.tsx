@@ -322,9 +322,7 @@ export default function BulkPaymentsPage() {
         
         doc.rect(20, currentRowY, 170, 15)
         doc.text('', 25, currentRowY + 10) // Nama COA (blank)
-        const description = po.invoice_number 
-          ? `Pembayaran untuk invoice ${po.invoice_number} dari supplier ${po.nama_supplier}`
-          : `Pembayaran untuk ${po.po_number} dari supplier ${po.nama_supplier}`
+        const description = `Pembayaran untuk invoice ${po.invoice_number} dari supplier ${po.nama_supplier}`
         doc.text(description, 50, currentRowY + 10, { maxWidth: 100 }) // Deskripsi
         doc.text(formatCurrency(po.total_tagih), 166, currentRowY + 10) // Nominal
         currentRowY += 15

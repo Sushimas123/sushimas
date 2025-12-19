@@ -204,13 +204,18 @@ export default function PaymentModal({ po, onClose, onSuccess }: PaymentModalPro
       doc.text('Nominal', 170, tableStartY + 7)
       
       // Get invoice number from barang_masuk
-      const { data: barangMasukData } = await supabase
+      const { data: barangMasukData, error: barangMasukError } = await supabase
         .from('barang_masuk')
         .select('invoice_number')
         .eq('no_po', po.po_number)
-        .single()
+        .maybeSingle()
+      
+      console.log('PO Number:', po.po_number)
+      console.log('Barang Masuk Data:', barangMasukData)
+      console.log('Barang Masuk Error:', barangMasukError)
       
       const invoiceNumber = barangMasukData?.invoice_number
+      console.log('Invoice Number:', invoiceNumber)
       
       // Table Content
       doc.setFont('helvetica', 'normal')
