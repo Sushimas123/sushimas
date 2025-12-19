@@ -86,15 +86,33 @@ export default function BulkPaymentsPage() {
         .select('id, po_number, total_tagih, supplier_id, bulk_payment_ref')
         .in('bulk_payment_ref', bulkReferences)
       
-      // Get PO numbers to fetch invoice numbers from barang_masuk
-      const poNumbers = allPOs?.map(po => po.po_number) || []
-      const { data: barangMasukData } = await supabase
-        .from('barang_masuk')
-        .select('no_po, invoice_number')
-        .in('no_po', poNumbers)
+      // Get PO IDs to fetch invoice numbers from po_price_history
+      const poIds = allPOs?.map(po => po.id) || []
+      const { data: priceHistoryData } = await supabase
+        .from('po_price_history')
+        .select('po_id, invoice_number')
+        .in('po_id', poIds)
       
-      // Create invoice lookup map
-      const invoiceMap = new Map(barangMasukData?.map(bm => [bm.no_po, bm.invoice_number]) || [])
+      // Create invoice lookup map from po_price_history
+      const invoiceMap = new Map(priceHistoryData?.map(ph => [ph.po_id, ph.invoice_number]) || [])
+      
+      // Fallback: Get missing invoice numbers from barang_masuk for POs not found in po_price_history
+      const missingPoIds = poIds.filter(id => !invoiceMap.has(id))
+      if (missingPoIds.length > 0) {
+        const missingPoNumbers = allPOs?.filter(po => missingPoIds.includes(po.id)).map(po => po.po_number) || []
+        const { data: barangMasukData } = await supabase
+          .from('barang_masuk')
+          .select('no_po, invoice_number')
+          .in('no_po', missingPoNumbers)
+        
+        // Add missing invoice numbers to the map
+        barangMasukData?.forEach(bm => {
+          const po = allPOs?.find(p => p.po_number === bm.no_po)
+          if (po && bm.invoice_number) {
+            invoiceMap.set(po.id, bm.invoice_number)
+          }
+        })
+      }
       
       // Get unique supplier IDs and fetch supplier data separately
       const supplierIds = [...new Set(allPOs?.map(po => po.supplier_id) || [])]
@@ -118,7 +136,7 @@ export default function BulkPaymentsPage() {
           total_tagih: po.total_tagih,
           supplier_id: po.supplier_id,
           nama_supplier: supplierMap.get(po.supplier_id) || 'Unknown Supplier',
-          invoice_number: invoiceMap.get(po.po_number) || null
+          invoice_number: invoiceMap.get(po.id) || null
         })
       })
       
@@ -178,9 +196,7 @@ export default function BulkPaymentsPage() {
       
       filteredData.forEach(bulkPayment => {
         bulkPayment.purchase_orders.forEach((po: any) => {
-          const description = po.invoice_number 
-            ? `Pembayaran untuk invoice ${po.invoice_number} dari supplier ${po.nama_supplier}`
-            : `${po.po_number} - ${po.nama_supplier}`
+          const description = `Pembayaran untuk invoice ${po.invoice_number || po.po_number} dari supplier ${po.nama_supplier}`
             
           detailedData.push({
             'Bulk Reference': bulkPayment.bulk_reference,
