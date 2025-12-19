@@ -1662,9 +1662,7 @@ function FinancePurchaseOrdersContent() {
                     const rowY = tableStartY + 10
                     doc.rect(20, rowY, 170, 15)
                     doc.text('', 25, rowY + 10)
-                    const description = (item as any).invoice_number 
-                      ? `Pembayaran untuk invoice ${(item as any).invoice_number} dari supplier ${item.nama_supplier}`
-                      : `Pembayaran untuk ${item.po_number} dari supplier ${item.nama_supplier}`
+                    const description = `Pembayaran untuk invoice ${(item as any).invoice_number} dari supplier ${item.nama_supplier}`
                     doc.text(description, 50, rowY + 10, { maxWidth: 100 })
                     doc.text(formatCurrency(item.total_paid), 168, rowY + 10)
                     
