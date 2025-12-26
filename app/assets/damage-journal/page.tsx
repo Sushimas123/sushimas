@@ -1,11 +1,127 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from "@/src/lib/supabaseClient";
-import { AlertTriangle, Plus, Search, Package, Edit, Trash2 } from 'lucide-react';
+import { AlertTriangle, Plus, Search, Package, Edit, Trash2, ChevronDown, X } from 'lucide-react';
 import Layout from '../../../components/Layout';
 import PageAccessControl from '../../../components/PageAccessControl';
 import { Asset, AssetDamageJournal } from '@/src/types/assets';
+
+// Searchable Select Component
+interface SearchableSelectProps {
+  options: any[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  displayKey: string;
+  valueKey: string;
+  searchKeys: string[];
+}
+
+function SearchableSelect({ options, value, onChange, placeholder, displayKey, valueKey, searchKeys }: SearchableSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const filteredOptions = options.filter(option => 
+    searchKeys.some(key => 
+      option[key]?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  );
+
+  const selectedOption = options.find(option => option[valueKey] === value);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearchTerm('');
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelect = (option: any) => {
+    onChange(option[valueKey]);
+    setIsOpen(false);
+    setSearchTerm('');
+  };
+
+  const handleClear = () => {
+    onChange('');
+    setSearchTerm('');
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <div 
+        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white cursor-pointer flex items-center justify-between"
+        onClick={() => {
+          setIsOpen(!isOpen);
+          if (!isOpen) {
+            setTimeout(() => inputRef.current?.focus(), 100);
+          }
+        }}
+      >
+        <span className={selectedOption ? 'text-gray-900' : 'text-gray-500'}>
+          {selectedOption ? selectedOption[displayKey] : placeholder}
+        </span>
+        <div className="flex items-center gap-1">
+          {selectedOption && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleClear();
+              }}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X size={16} />
+            </button>
+          )}
+          <ChevronDown size={16} className={`text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </div>
+      </div>
+      
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-hidden">
+          <div className="p-2 border-b">
+            <div className="relative">
+              <Search size={16} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                ref={inputRef}
+                type="text"
+                placeholder="Search assets..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-3 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((option) => (
+                <div
+                  key={option[valueKey]}
+                  className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                  onClick={() => handleSelect(option)}
+                >
+                  <div className="font-medium">{option[displayKey]}</div>
+                  <div className="text-xs text-gray-500">{option[valueKey]}</div>
+                </div>
+              ))
+            ) : (
+              <div className="px-3 py-2 text-sm text-gray-500">No assets found</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function DamageJournalPage() {
   const [journals, setJournals] = useState<AssetDamageJournal[]>([]);
@@ -424,22 +540,18 @@ export default function DamageJournalPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Asset</label>
-                    <select
-                      value={formData.asset_id}
-                      onChange={(e) => handleAssetChange(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      required
-                    >
-                      <option value="">Select Asset</option>
-                      {(formBranchFilter 
+                    <SearchableSelect
+                      options={formBranchFilter 
                         ? assets.filter(asset => asset.id_branch?.toString() === formBranchFilter)
                         : assets
-                      ).map((asset) => (
-                        <option key={asset.asset_id} value={asset.asset_id}>
-                          {asset.asset_id} - {asset.asset_name}
-                        </option>
-                      ))}
-                    </select>
+                      }
+                      value={formData.asset_id}
+                      onChange={handleAssetChange}
+                      placeholder="Select Asset"
+                      displayKey="asset_name"
+                      valueKey="asset_id"
+                      searchKeys={['asset_name', 'asset_id']}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Damaged By</label>
