@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
-import { Calendar, Clock, CheckCircle, X, DollarSign, Filter, ChevronDown, ChevronUp, Search } from 'lucide-react'
+import { Calendar, Clock, CheckCircle, X, DollarSign, Filter, ChevronDown, ChevronUp, Search, Download } from 'lucide-react'
 import Layout from '../../../components/Layout'
 import PageAccessControl from '../../../components/PageAccessControl'
 import PaymentModal from '../purchase-orders/PaymentModal'
@@ -685,6 +685,53 @@ export default function PaymentCalendar() {
     }).format(amount)
   }, [])
 
+  const exportToExcel = useCallback(async () => {
+    try {
+      const XLSX = await import('xlsx')
+      
+      const exportData = sortedPayments.map(payment => {
+        const defaultNotes = payment.nama_branch === 'Sushimas Harapan Indah' ? 'Rek CV' : 'REK PT'
+        const finalNotes = payment.notes || defaultNotes
+        
+        return {
+          'PO Number': payment.po_number,
+          'Supplier': payment.nama_supplier,
+          'Branch': payment.nama_branch,
+          'Notes': finalNotes,
+          'Due Date': payment.tanggal_jatuh_tempo ? new Date(payment.tanggal_jatuh_tempo).toLocaleDateString('id-ID') : 'TBD',
+          'Payment Date': (payment as any).dibayar_tanggal ? new Date((payment as any).dibayar_tanggal).toLocaleDateString('id-ID') : '-',
+          'Total PO': payment.total_po,
+          'Total Paid': payment.total_paid,
+          'Outstanding': payment.sisa_bayar,
+          'Status': payment.status.toUpperCase(),
+          'Approval Status': payment.approval_status || '-',
+          'Approved At': payment.approved_at ? new Date(payment.approved_at).toLocaleDateString('id-ID') : '-',
+          'Rejected At': payment.rejected_at ? new Date(payment.rejected_at).toLocaleDateString('id-ID') : '-',
+          'Rejection Notes': payment.rejection_notes || '-'
+        }
+      })
+      
+      const worksheet = XLSX.utils.json_to_sheet(exportData)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Payment Calendar')
+      
+      // Generate filename with current filters
+      const filterSuffix = [
+        statusFilter !== 'all' ? statusFilter : null,
+        branchFilter !== 'all' ? branchFilter.replace(/\s+/g, '-') : null,
+        notesFilter !== 'all' ? notesFilter.replace(/\s+/g, '-') : null,
+        dateFrom || dateTo ? `${dateFrom || 'start'}-to-${dateTo || 'end'}` : null
+      ].filter(Boolean).join('_')
+      
+      const filename = `payment-calendar${filterSuffix ? `_${filterSuffix}` : ''}_${new Date().toISOString().split('T')[0]}.xlsx`
+      
+      XLSX.writeFile(workbook, filename)
+    } catch (error) {
+      console.error('Error exporting to Excel:', error)
+      alert('Gagal export file. Pastikan browser mendukung fitur export.')
+    }
+  }, [sortedPayments, statusFilter, branchFilter, notesFilter, dateFrom, dateTo])
+
   if (loading) {
     return (
       <Layout>
@@ -797,6 +844,15 @@ export default function PaymentCalendar() {
                     </button>
                   </div>
                 )}
+                <div className="flex items-end">
+                  <button
+                    onClick={exportToExcel}
+                    className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 text-sm"
+                  >
+                    <Download size={16} />
+                    Export Excel
+                  </button>
+                </div>
               </div>
             </div>
           </div>
