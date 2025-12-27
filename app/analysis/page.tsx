@@ -263,6 +263,14 @@ export default function AnalysisPage() {
   };
 
   const fetchAnalysisData = async () => {
+    const CONTROLLER_TIMEOUT = 30000; // 30 detik
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      showToast('Request timeout. Please reduce date range or filters.', 'error');
+      setLoading(false);
+    }, CONTROLLER_TIMEOUT);
+
     setLoading(true);
     try {
       // Validate date range
@@ -289,18 +297,20 @@ export default function AnalysisPage() {
         allowedBranchIds = branchData?.map(b => b.id_branch) || [];
       }
       
-      // Fetch ready data with batching
+      // Fetch ready data with batching and safety limits
       let readyData: any[] = [];
-      let readyFrom = 0;
+      const MAX_RECORDS = 10000; // Safety limit
       const readyBatchSize = 1000;
+      let totalFetched = 0;
       
-      while (true) {
+      while (totalFetched < MAX_RECORDS) {
         let query = supabase
           .from('ready')
           .select('*')
           .gte('tanggal_input', bufferDateStr)
           .lte('tanggal_input', dateRange.endDate)
-          .order('tanggal_input', { ascending: false });
+          .order('tanggal_input', { ascending: false })
+          .range(totalFetched, totalFetched + readyBatchSize - 1);
         
         // Apply pre-filters to reduce data load
         if (preFilters.branch) {
@@ -319,8 +329,7 @@ export default function AnalysisPage() {
           query = query.eq('sub_category', preFilters.subCategory);
         }
         
-        const { data: readyBatch, error: readyError } = await query
-          .range(readyFrom, readyFrom + readyBatchSize - 1);
+        const { data: readyBatch, error: readyError } = await query;
         
         if (readyError) {
           throw new Error(`Failed to fetch ready data: ${readyError.message}`);
@@ -329,13 +338,22 @@ export default function AnalysisPage() {
         if (!readyBatch || readyBatch.length === 0) break;
         
         readyData = [...readyData, ...readyBatch];
+        totalFetched += readyBatch.length;
         
         if (readyBatch.length < readyBatchSize) break;
-        readyFrom += readyBatchSize;
+        if (totalFetched >= MAX_RECORDS) {
+          console.warn('WARNING: Hit max record limit of', MAX_RECORDS);
+          showToast(`Warning: Limited to ${MAX_RECORDS} records. Use filters to reduce data.`, 'error');
+          break;
+        }
       }
       
       if (!readyData || readyData.length === 0) {
-        throw new Error('No ready data returned');
+        console.log('No ready data found for date range:', dateRange.startDate, 'to', dateRange.endDate);
+        showToast('No ready data found for the selected date range. Try a different date range or check if data exists in Ready Stock.', 'error');
+        setData([]);
+        setDataLoaded(true);
+        return;
       }
 
       const { data: productData } = await supabase.from('nama_product').select('*');
@@ -452,9 +470,16 @@ export default function AnalysisPage() {
 
       setData(filteredAnalysisData);
       setDataLoaded(true);
-    } catch (error) {
-      showToast('Failed to fetch analysis data', 'error');
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        showToast('Request timeout. Try smaller date range.', 'error');
+      } else {
+        console.error('Analysis data fetch error:', error);
+        const errorMessage = error?.message || error?.details || 'Unknown error';
+        showToast(`Failed to fetch analysis data: ${errorMessage}`, 'error');
+      }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
@@ -885,36 +910,6 @@ export default function AnalysisPage() {
                 ))}
               </select>
             </div>
-            <div>
-              <label htmlFor="subCategoryFilter" className="block text-sm font-medium mb-2 text-gray-700">Sub Category</label>
-              <select
-                id="subCategoryFilter"
-                name="subCategoryFilter"
-                value={subCategoryFilter}
-                onChange={(e) => setSubCategoryFilter(e.target.value)}
-                className="border border-gray-300 px-3 py-2 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">All Sub Categories</option>
-                {uniqueSubCategories.map(category => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="branchFilter" className="block text-sm font-medium mb-2 text-gray-700">Branch</label>
-              <select
-                id="branchFilter"
-                name="branchFilter"
-                value={branchFilter}
-                onChange={(e) => setBranchFilter(e.target.value)}
-                className="border border-gray-300 px-3 py-2 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">All Branches</option>
-                {uniqueBranches.map(branch => (
-                  <option key={branch} value={branch}>{branch}</option>
-                ))}
-              </select>
-            </div>
             <div className="flex gap-1">
               <button
                 onClick={() => {
@@ -1008,6 +1003,52 @@ export default function AnalysisPage() {
             </div>
           </div>
         )}
+
+        {/* Filter Panel */}
+        <div className="bg-white p-4 rounded-lg shadow mb-4">
+          <h3 className="font-medium text-gray-800 mb-3 text-sm">Data Filters</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label htmlFor="filterProduct" className="block text-sm font-medium mb-2 text-gray-700">Product Name</label>
+              <input
+                id="filterProduct"
+                type="text"
+                placeholder="Search product..."
+                value={productFilter}
+                onChange={(e) => setProductFilter(e.target.value)}
+                className="w-full border border-gray-300 px-3 py-2 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="filterSubCategory" className="block text-sm font-medium mb-2 text-gray-700">Sub Category</label>
+              <select
+                id="filterSubCategory"
+                value={subCategoryFilter}
+                onChange={(e) => setSubCategoryFilter(e.target.value)}
+                className="w-full border border-gray-300 px-3 py-2 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Sub Categories</option>
+                {uniqueSubCategories.map(category => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="filterBranch" className="block text-sm font-medium mb-2 text-gray-700">Branch</label>
+              <select
+                id="filterBranch"
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value)}
+                className="w-full border border-gray-300 px-3 py-2 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Branches</option>
+                {uniqueBranches.map(branch => (
+                  <option key={branch} value={branch}>{branch}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
 
         <div className="overflow-x-auto bg-white rounded-lg shadow max-h-[70vh]">
           <table className="w-full text-xs border border-gray-200">
