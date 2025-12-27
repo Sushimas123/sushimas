@@ -110,13 +110,13 @@ function GudangFinalContent() {
 
   const fetchGudang = async () => {
     try {
-      // Load only recent 1000 records initially for better performance
+      // Load only recent 10000 records initially for better performance
       const { data: recentData, error: recentError } = await supabase
         .from('gudang_final_view')
         .select('*')
         .order('tanggal', { ascending: false })
         .order('order_no', { ascending: false })
-        .limit(1000);
+        .limit(10000);
       
       if (recentError) throw recentError;
       
