@@ -38,14 +38,15 @@ interface AnalysisData {
 export default function AnalysisPage() {
   const router = useRouter();
   const [data, setData] = useState<AnalysisData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Changed to false initially
+  const [dataLoaded, setDataLoaded] = useState(false); // Track if data has been loaded
   const [productFilter, setProductFilter] = useState('');
   const [subCategoryFilter, setSubCategoryFilter] = useState('');
   const [branchFilter, setBranchFilter] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days ago
-    endDate: new Date().toISOString().split('T')[0] // today
+    startDate: '',
+    endDate: ''
   });
   const [debouncedProductFilter, setDebouncedProductFilter] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -74,6 +75,12 @@ export default function AnalysisPage() {
     tolerance_range: true,
     status: true
   });
+  const [preFilters, setPreFilters] = useState({
+    branch: '',
+    subCategory: ''
+  });
+  const [availableBranches, setAvailableBranches] = useState<string[]>([]);
+  const [availableSubCategories, setAvailableSubCategories] = useState<string[]>([]);
   const [userRole, setUserRole] = useState<string>('guest');
 
   // Load column settings on mount
@@ -88,15 +95,43 @@ export default function AnalysisPage() {
   }, []);
 
   useEffect(() => {
-    fetchAnalysisData();
-    
-    // Get user role
+    // Get user role and load filter options
     const userData = localStorage.getItem('user');
     if (userData) {
       const user = JSON.parse(userData);
       setUserRole(user.role || 'guest');
     }
-  }, [dateRange]);
+    loadFilterOptions();
+  }, []);
+
+  const loadFilterOptions = async () => {
+    try {
+      // Load branches
+      const { data: branchData } = await supabase
+        .from('branches')
+        .select('nama_branch')
+        .eq('is_active', true)
+        .order('nama_branch');
+      
+      if (branchData) {
+        setAvailableBranches(branchData.map(b => b.nama_branch));
+      }
+
+      // Load subcategories from products
+      const { data: productData } = await supabase
+        .from('nama_product')
+        .select('sub_category')
+        .eq('is_active', true)
+        .not('sub_category', 'is', null);
+      
+      if (productData) {
+        const uniqueSubCategories = [...new Set(productData.map(p => p.sub_category).filter(Boolean))] as string[];
+        setAvailableSubCategories(uniqueSubCategories.sort());
+      }
+    } catch (error) {
+      console.error('Error loading filter options:', error);
+    }
+  }; // Remove dateRange dependency
 
   // Save column settings whenever they change
   useEffect(() => {
@@ -267,9 +302,21 @@ export default function AnalysisPage() {
           .lte('tanggal_input', dateRange.endDate)
           .order('tanggal_input', { ascending: false });
         
-        // Apply branch filter if user has restrictions
-        if (allowedBranchIds.length > 0) {
-          query = query.in('id_branch', allowedBranchIds);
+        // Apply pre-filters to reduce data load
+        if (preFilters.branch) {
+          const branchData = await supabase
+            .from('branches')
+            .select('id_branch')
+            .eq('nama_branch', preFilters.branch)
+            .single();
+          
+          if (branchData.data) {
+            query = query.eq('id_branch', branchData.data.id_branch);
+          }
+        }
+        
+        if (preFilters.subCategory) {
+          query = query.eq('sub_category', preFilters.subCategory);
         }
         
         const { data: readyBatch, error: readyError } = await query
@@ -404,6 +451,7 @@ export default function AnalysisPage() {
       });
 
       setData(filteredAnalysisData);
+      setDataLoaded(true);
     } catch (error) {
       showToast('Failed to fetch analysis data', 'error');
     } finally {
@@ -788,36 +836,54 @@ export default function AnalysisPage() {
           <div className="flex flex-wrap gap-4 items-end">
 
             <div>
-              <label htmlFor="startDate" className="block text-sm font-medium mb-2 text-gray-700">Start Date</label>
+              <label htmlFor="startDate" className="block text-sm font-medium mb-2 text-gray-700">Start Date *</label>
               <input
                 id="startDate"
                 type="date"
                 value={dateRange.startDate}
                 onChange={(e) => setDateRange(prev => ({...prev, startDate: e.target.value}))}
                 className="border border-gray-300 px-3 py-2 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                required
               />
             </div>
             <div>
-              <label htmlFor="endDate" className="block text-sm font-medium mb-2 text-gray-700">End Date</label>
+              <label htmlFor="endDate" className="block text-sm font-medium mb-2 text-gray-700">End Date *</label>
               <input
                 id="endDate"
                 type="date"
                 value={dateRange.endDate}
                 onChange={(e) => setDateRange(prev => ({...prev, endDate: e.target.value}))}
                 className="border border-gray-300 px-3 py-2 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                required
               />
             </div>
             <div>
-              <label htmlFor="productFilter" className="block text-sm font-medium mb-2 text-gray-700">Product Filter</label>
-              <input
-                id="productFilter"
-                name="productFilter"
-                type="text"
-                placeholder="Search products..."
-                value={productFilter}
-                onChange={(e) => setProductFilter(e.target.value)}
+              <label htmlFor="preBranchFilter" className="block text-sm font-medium mb-2 text-gray-700">Branch Filter</label>
+              <select
+                id="preBranchFilter"
+                value={preFilters.branch}
+                onChange={(e) => setPreFilters(prev => ({...prev, branch: e.target.value}))}
                 className="border border-gray-300 px-3 py-2 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+              >
+                <option value="">All Branches</option>
+                {availableBranches.map(branch => (
+                  <option key={branch} value={branch}>{branch}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="preSubCategoryFilter" className="block text-sm font-medium mb-2 text-gray-700">Sub Category Filter</label>
+              <select
+                id="preSubCategoryFilter"
+                value={preFilters.subCategory}
+                onChange={(e) => setPreFilters(prev => ({...prev, subCategory: e.target.value}))}
+                className="border border-gray-300 px-3 py-2 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Sub Categories</option>
+                {availableSubCategories.map((subCat: string) => (
+                  <option key={subCat} value={subCat}>{subCat}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label htmlFor="subCategoryFilter" className="block text-sm font-medium mb-2 text-gray-700">Sub Category</label>
@@ -902,9 +968,10 @@ export default function AnalysisPage() {
               )}
               <button
                 onClick={fetchAnalysisData}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-1 py-1 rounded text-xs"
+                disabled={!dateRange.startDate || !dateRange.endDate || loading}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded text-sm font-medium"
               >
-                🔄
+                {loading ? '⏳ Loading...' : '📊 Load Analysis'}
               </button>
             </div>
           </div>
@@ -968,7 +1035,17 @@ export default function AnalysisPage() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {!dataLoaded && !loading ? (
+                <tr>
+                  <td colSpan={Object.values(visibleColumns).filter(Boolean).length} className="text-center py-12">
+                    <div className="text-gray-500">
+                      <div className="text-4xl mb-2">📅</div>
+                      <p className="text-lg font-medium mb-2">Select Date Range</p>
+                      <p className="text-sm">Choose start and end dates above, then click "Load Analysis" to view data</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : loading ? (
                 <tr>
                   <td colSpan={Object.values(visibleColumns).filter(Boolean).length} className="text-center py-8">
                     <div className="flex items-center justify-center gap-2">
@@ -977,7 +1054,7 @@ export default function AnalysisPage() {
                     </div>
                   </td>
                 </tr>
-              ) : filteredAndSortedData.length === 0 ? (
+              ) : filteredAndSortedData.length === 0 && dataLoaded ? (
                 <tr>
                   <td colSpan={Object.values(visibleColumns).filter(Boolean).length} className="text-center py-4 text-gray-500">
                     No analysis data found
