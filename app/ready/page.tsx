@@ -307,60 +307,53 @@ function ReadyPageContent() {
     try {
       const branchFilter = await getBranchFilter()
       
-      let allReadyData: any[] = []
+      // Load only recent 1000 records initially for better performance
+      let readyQuery = supabase
+        .from('ready')
+        .select('*')
+        .order('tanggal_input', { ascending: false })
+        .limit(5000);
       
-      // Fetch all data using pagination to bypass 1000 limit
-      let from = 0
-      const batchSize = 1000
-      
-      // Get branch filter once
-      let branchIds: number[] = []
+      // Apply branch filter if needed
       if (branchFilter && branchFilter.length > 0) {
         const { data: branchData } = await supabase
           .from('branches')
           .select('id_branch')
           .in('kode_branch', branchFilter)
-        branchIds = branchData?.map(b => b.id_branch) || []
-      }
-      
-      while (true) {
-        let readyQuery = supabase
-          .from('ready')
-          .select('*')
-          .order('tanggal_input', { ascending: false })
-          .range(from, from + batchSize - 1)
-        
-        // Apply branch filter if needed
+        const branchIds = branchData?.map(b => b.id_branch) || []
         if (branchIds.length > 0) {
           readyQuery = readyQuery.in('id_branch', branchIds)
         }
-        
-        const { data: batchData, error: batchError } = await readyQuery
-        
-        if (batchError) {
-          console.error('Ready batch query error:', batchError)
-          throw batchError
-        }
-        
-        if (!batchData || batchData.length === 0) break
-        
-        allReadyData = [...allReadyData, ...batchData]
-        
-        if (batchData.length < batchSize) break
-        from += batchSize
       }
       
-      if (allReadyData.length === 0) {
+      const { data: readyData, error: readyError } = await readyQuery
+      
+      if (readyError) {
+        console.error('Ready query error:', readyError)
+        throw readyError
+      }
+      
+      if (!readyData || readyData.length === 0) {
         setReady([])
         return
       }
-
       
-      // Fetch related data in parallel
+      // Get unique IDs for optimized related data fetching
+      const productIds = [...new Set(readyData.map(item => item.id_product))];
+      const branchIds = [...new Set(readyData.map(item => item.id_branch))];
+      const userIds = [...new Set([...readyData.map(item => item.created_by), ...readyData.map(item => item.updated_by)].filter(Boolean))];
+      
+      // Fetch related data only for loaded records
       const [productsData, branchesData, usersData] = await Promise.all([
-        supabase.from('nama_product').select('id_product, product_name'),
-        supabase.from('branches').select('id_branch, nama_branch'),
-        supabase.from('users').select('id_user, nama_lengkap')
+        supabase.from('nama_product')
+          .select('id_product, product_name')
+          .in('id_product', productIds),
+        supabase.from('branches')
+          .select('id_branch, nama_branch')
+          .in('id_branch', branchIds),
+        userIds.length > 0 ? supabase.from('users')
+          .select('id_user, nama_lengkap')
+          .in('id_user', userIds) : Promise.resolve({ data: [] })
       ])
       
       // Create lookup maps
@@ -369,7 +362,7 @@ function ReadyPageContent() {
       const userMap = new Map(usersData.data?.map(u => [u.id_user, u.nama_lengkap]) || [])
       
       // Transform data
-      const readyWithNames = allReadyData.map(item => ({
+      const readyWithNames = readyData.map(item => ({
         ...item,
         product_name: productMap.get(item.id_product) || '',
         branch_name: branchMap.get(item.id_branch) || '',
@@ -1335,7 +1328,10 @@ function ReadyPageContent() {
         )}
 
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold text-gray-800">🍽️ Ready Stock</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold text-gray-800">🍽️ Ready Stock</h1>
+            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Recent 5000 records loaded</span>
+          </div>
           <div className="flex gap-2 items-center">
             <span className="text-xs text-gray-600">Access Level:</span>
             <span className={`px-2 py-1 rounded text-xs font-semibold ${
