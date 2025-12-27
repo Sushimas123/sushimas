@@ -110,40 +110,32 @@ function GudangFinalContent() {
 
   const fetchGudang = async () => {
     try {
-      let allGudangData: any[] = [];
-      let from = 0;
-      const batchSize = 1000;
+      // Load only recent 1000 records initially for better performance
+      const { data: recentData, error: recentError } = await supabase
+        .from('gudang_final_view')
+        .select('*')
+        .order('tanggal', { ascending: false })
+        .order('order_no', { ascending: false })
+        .limit(1000);
       
-      // Fetch all data using pagination
-      while (true) {
-        const { data: batchData, error: batchError } = await supabase
-          .from('gudang_final_view')
-          .select('*')
-          .order('tanggal', { ascending: false })
-          .order('order_no', { ascending: false })
-          .range(from, from + batchSize - 1);
-        
-        if (batchError) throw batchError;
-        if (!batchData || batchData.length === 0) break;
-        
-        allGudangData = [...allGudangData, ...batchData];
-        
-        if (batchData.length < batchSize) break;
-        from += batchSize;
-      }
+      if (recentError) throw recentError;
       
-      // Fetch related data
+      // Get unique IDs for optimized related data fetching
+      const productIds = [...new Set(recentData?.map(item => item.id_product) || [])];
+      const branchCodes = [...new Set(recentData?.map(item => item.cabang) || [])];
+      
+      // Fetch related data only for loaded records
       const [productsData, branchesData, stockSettingsData] = await Promise.all([
-        supabase.from('nama_product').select('id_product, product_name, supplier_id, suppliers!supplier_id(nama_supplier)'),
-        supabase.from('branches').select('kode_branch, nama_branch'),
-        supabase.from('product_branch_settings').select(`
-          id_product,
-          safety_stock,
-          branches!inner(kode_branch)
-        `)
+        supabase.from('nama_product')
+          .select('id_product, product_name, supplier_id, suppliers!supplier_id(nama_supplier)')
+          .in('id_product', productIds),
+        supabase.from('branches')
+          .select('kode_branch, nama_branch')
+          .in('kode_branch', branchCodes),
+        supabase.from('product_branch_settings')
+          .select('id_product, safety_stock, branches!inner(kode_branch)')
+          .in('id_product', productIds)
       ]);
-      
-      console.log('Products with suppliers:', productsData.data?.slice(0, 3));
       
       const productMap = new Map(productsData.data?.map(p => [p.id_product, p.product_name]) || []);
       const supplierMap = new Map(productsData.data?.map(p => {
@@ -153,17 +145,15 @@ function GudangFinalContent() {
       const branchMap = new Map(branchesData.data?.map(b => [b.kode_branch, b.nama_branch]) || []);
       const stockSettingsMap = new Map(stockSettingsData.data?.map(s => [`${s.id_product}-${(s.branches as any).kode_branch}`, s.safety_stock]) || []);
       
-      console.log('Supplier map sample:', Array.from(supplierMap.entries()).slice(0, 5));
-      
-      let gudangWithNames = allGudangData.map((item: any) => ({
+      let gudangWithNames = recentData?.map((item: any) => ({
         ...item,
         product_name: productMap.get(item.id_product) || item.product_name || '',
         supplier_name: supplierMap.get(item.id_product) || '',
         branch_name: branchMap.get(item.cabang) || item.branch_name || item.cabang,
         minimum_stock: stockSettingsMap.get(`${item.id_product}-${item.cabang}`) || 0
-      }));
+      })) || [];
       
-      // Only apply branch filter for non-super admin users
+      // Apply branch filter for non-admin users
       if (userRole !== 'super admin' && userRole !== 'admin') {
         const branchFilter = await getBranchFilter();
         if (branchFilter && branchFilter.length > 0) {
@@ -206,7 +196,8 @@ function GudangFinalContent() {
       fetchCabang();
       fetchGudang();
       fetchProducts();
-      fetchStockAlerts();
+      // Defer stock alerts to improve initial load time
+      setTimeout(() => fetchStockAlerts(), 1000);
     }
   }, [hasAccess]);
 
@@ -625,6 +616,7 @@ function GudangFinalContent() {
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-3">
           <h1 className="text-sm font-bold text-gray-800">🚀 Gudang</h1>
+          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Recent 1000 records loaded</span>
         </div>
         <div className="text-xs text-gray-500">
           Total: {filteredAndSortedGudang.length} records | Role: {userRole}
