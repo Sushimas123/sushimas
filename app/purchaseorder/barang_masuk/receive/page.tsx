@@ -36,6 +36,7 @@ export default function AddBarangMasukPage() {
   
   const [formData, setFormData] = useState({
     tanggal: new Date().toISOString().split('T')[0],
+    jam: new Date().toTimeString().slice(0, 5), // HH:MM format
     id_barang: '',
     jumlah: '',
     unit_kecil: '',
@@ -86,7 +87,19 @@ export default function AddBarangMasukPage() {
     loadData()
   }, [])
 
-  // Auto-calculate unit conversion when jumlah or product changes
+  // Live time update
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!isEditMode) {
+        setFormData(prev => ({
+          ...prev,
+          jam: new Date().toTimeString().slice(0, 5)
+        }))
+      }
+    }, 1000)
+    
+    return () => clearInterval(timer)
+  }, [isEditMode])
   useEffect(() => {
     if (formData.jumlah && formData.id_barang && products.length > 0) {
       const selectedProduct = products.find(p => p.id_product === parseInt(formData.id_barang))
@@ -188,6 +201,7 @@ export default function AddBarangMasukPage() {
       setFormData(prev => ({
         ...prev,
         tanggal: po.po_date.split('T')[0], // Convert to YYYY-MM-DD format
+        jam: new Date().toTimeString().slice(0, 5), // Current time
         id_supplier: po.supplier_id.toString(),
         id_branch: po.cabang_id.toString(),
         no_po: po.po_number
@@ -326,6 +340,7 @@ export default function AddBarangMasukPage() {
       // Fill form with existing data
       setFormData({
         tanggal: barangMasuk.tanggal.split('T')[0], // Convert to YYYY-MM-DD format
+        jam: barangMasuk.tanggal.includes('T') ? barangMasuk.tanggal.split('T')[1].slice(0, 5) : new Date().toTimeString().slice(0, 5),
         id_barang: barangMasuk.id_barang.toString(),
         jumlah: barangMasuk.qty_po?.toString() || barangMasuk.jumlah.toString(), // Use qty_po if available
         unit_kecil: barangMasuk.unit_kecil?.toString() || '',
@@ -390,7 +405,7 @@ export default function AddBarangMasukPage() {
       const user = JSON.parse(localStorage.getItem('user') || '{}')
       
       const insertData = {
-        tanggal: formData.tanggal,
+        tanggal: `${formData.tanggal}T${formData.jam}:00`, // Combine date and time
         id_barang: parseInt(formData.id_barang),
         jumlah: formData.total_real ? parseFloat(formData.total_real) : parseFloat(formData.jumlah), // Use total_real as jumlah
         qty_po: parseFloat(formData.jumlah), // Original PO quantity
@@ -596,11 +611,22 @@ export default function AddBarangMasukPage() {
                   type="date"
                   name="tanggal"
                   value={formData.tanggal}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100"
-                  readOnly
-                  disabled
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  required
                 />
-                <p className="text-xs text-gray-500 mt-1">Tanggal mengikuti tanggal PO</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Jam</label>
+                <input
+                  type="time"
+                  name="jam"
+                  value={formData.jam}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  required
+                />
               </div>
               
               <div>
