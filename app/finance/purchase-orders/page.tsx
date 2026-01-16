@@ -630,9 +630,23 @@ function FinancePurchaseOrdersContent() {
       
       const poDetailsData = { data: allPODetailsData, error: null }
       
+      // Fetch po_payments in chunks
+      const paymentsDataChunks = await Promise.all(
+        poIdChunks.map(chunk => 
+          supabase.from('po_payments').select('po_id, payment_amount, payment_date, payment_via, payment_method, reference_number, status').in('po_id', chunk).order('payment_date', { ascending: false })
+        )
+      )
+      
+      // Combine all payments data
+      const allPaymentsData = paymentsDataChunks.reduce((acc: any[], chunk) => {
+        if (chunk.data) acc.push(...chunk.data)
+        return acc
+      }, [])
+      
+      const paymentsData = { data: allPaymentsData, error: null }
+      
       // amazonq-ignore-next-line
-      const [paymentsData, barangMasukData, bulkPaymentsData, paymentTermsData, usersData] = await Promise.all([
-        supabase.from('po_payments').select('po_id, payment_amount, payment_date, payment_via, payment_method, reference_number, status').in('po_id', poIds).order('payment_date', { ascending: false }),
+      const [barangMasukData, bulkPaymentsData, paymentTermsData, usersData] = await Promise.all([
         supabase.from('barang_masuk').select('no_po, invoice_number').in('no_po', poNumbers).not('invoice_number', 'is', null),
         supabase.from('bulk_payments').select('*'),
         supabase.from('payment_terms').select('id_payment_term, term_name, calculation_type, days'),
