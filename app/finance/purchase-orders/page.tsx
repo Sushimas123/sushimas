@@ -11,8 +11,8 @@ import BulkPaymentModal from './BulkPaymentModal'
 import { TableSkeleton, MobileCardSkeleton, StatsSkeleton } from '../../../components/SkeletonLoader'
 import { calculatePODueDate, updatePODueDate, getPOPaymentTermDisplay } from '@/src/utils/purchaseOrderPaymentTerms'
 
-// Debounce hook for search optimization
-const useDebounce = (value: string, delay: number) => {
+// Debounce hook for search and filters optimization
+const useDebounce = <T,>(value: T, delay: number): T => {
   const [debouncedValue, setDebouncedValue] = useState(value)
 
   useEffect(() => {
@@ -218,7 +218,7 @@ function FinancePurchaseOrdersContent() {
   const [data, setData] = useState<FinanceData[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const debouncedSearch = useDebounce(search, 800)
+  const debouncedSearch = useDebounce(search, 1500)
   const [selectedPO, setSelectedPO] = useState<FinanceData | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [suppliers, setSuppliers] = useState<any[]>([])
@@ -269,6 +269,7 @@ function FinancePurchaseOrdersContent() {
     goodsReceived: '',
     approvalStatus: ''
   })
+  const debouncedFilters = useDebounce(filters, 1500)
   const [showFilters, setShowFilters] = useState(false)
 
   // Update URL when filters change
@@ -352,12 +353,12 @@ function FinancePurchaseOrdersContent() {
     setCurrentPage(urlPage)
   }, [searchParams])
 
-  // Fetch data when filters change
+  // Fetch data when debounced filters change
   useEffect(() => {
     if (suppliers.length > 0) { // Only fetch when suppliers are loaded
       fetchFinanceData()
     }
-  }, [filters, suppliers])
+  }, [debouncedFilters, suppliers])
 
 
 
@@ -534,7 +535,7 @@ function FinancePurchaseOrdersContent() {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       updateURL()
-    }, 800) // Debounce URL updates
+    }, 1500) // Debounce URL updates
     
     return () => clearTimeout(timeoutId)
   }, [updateURL])
@@ -561,18 +562,21 @@ function FinancePurchaseOrdersContent() {
   const fetchFinanceData = async () => {
     setLoading(true)
     try {
+      // Server-side pagination: only fetch 500 records at a time
+      const limit = 500
       let query = supabase
         .from('finance_dashboard_view')
         .select('*')
         .order('po_date', { ascending: false })
+        .limit(limit)
 
-      // Apply filters
-      if (filters.dateFrom) query = query.gte('po_date', filters.dateFrom)
-      if (filters.dateTo) query = query.lte('po_date', filters.dateTo)
-      if (filters.supplier) query = query.eq('supplier_id', filters.supplier)
-      if (filters.selectedSuppliers.length > 0) {
+      // Apply debounced filters
+      if (debouncedFilters.dateFrom) query = query.gte('po_date', debouncedFilters.dateFrom)
+      if (debouncedFilters.dateTo) query = query.lte('po_date', debouncedFilters.dateTo)
+      if (debouncedFilters.supplier) query = query.eq('supplier_id', debouncedFilters.supplier)
+      if (debouncedFilters.selectedSuppliers.length > 0) {
         // Get all combined IDs from selected suppliers
-        const allSupplierIds = filters.selectedSuppliers.flatMap(selectedId => {
+        const allSupplierIds = debouncedFilters.selectedSuppliers.flatMap(selectedId => {
           const supplier = suppliers.find(s => s.id_supplier.toString() === selectedId)
           return supplier?.combined_ids || [parseInt(selectedId)]
         })
@@ -580,11 +584,11 @@ function FinancePurchaseOrdersContent() {
           query = query.in('supplier_id', allSupplierIds)
         }
       }
-      if (filters.branch) query = query.eq('cabang_id', filters.branch)
-      if (filters.poStatus) query = query.eq('po_status', filters.poStatus)
-      if (filters.dueDate === 'overdue') query = query.eq('is_overdue', true)
-      if (filters.goodsReceived === 'received') query = query.not('tanggal_barang_sampai', 'is', null)
-      if (filters.goodsReceived === 'not_received') query = query.is('tanggal_barang_sampai', null)
+      if (debouncedFilters.branch) query = query.eq('cabang_id', debouncedFilters.branch)
+      if (debouncedFilters.poStatus) query = query.eq('po_status', debouncedFilters.poStatus)
+      if (debouncedFilters.dueDate === 'overdue') query = query.eq('is_overdue', true)
+      if (debouncedFilters.goodsReceived === 'received') query = query.not('tanggal_barang_sampai', 'is', null)
+      if (debouncedFilters.goodsReceived === 'not_received') query = query.is('tanggal_barang_sampai', null)
 
       const { data: financeData, error } = await query
       if (error) throw error
@@ -723,39 +727,19 @@ function FinancePurchaseOrdersContent() {
         const totalTagih = poData?.total_tagih || 0
         const basisAmount = totalTagih > 0 ? totalTagih : correctedTotal
         
-        // Debug specific PO
-        if (item.po_number === 'PO-2025-243929-458') {
-          console.log('=== DEBUG PO-2025-243929-458 ===')
-          console.log('bulk_payment_ref:', poData?.bulk_payment_ref)
-          console.log('totalPaid:', totalPaid)
-          console.log('totalTagih:', totalTagih)
-          console.log('correctedTotal:', correctedTotal)
-          console.log('basisAmount:', basisAmount)
-          console.log('poData:', poData)
-        }
-        
         // Calculate status - prioritize bulk_payment_ref
         let calculatedStatus = 'unpaid'
         if (poData?.bulk_payment_ref) {
-          // If has bulk payment reference, always mark as paid
-          console.log(`PO ${item.po_number}: Has bulk_payment_ref = ${poData.bulk_payment_ref}, setting status to PAID`)
           calculatedStatus = 'paid'
         } else if (basisAmount === 0) {
-          // If no basis amount and no bulk payment, mark as unpaid
           calculatedStatus = 'unpaid'
         } else {
-          // Normal calculation based on payments
           calculatedStatus = totalPaid === 0 ? 'unpaid' : totalPaid >= basisAmount ? 'paid' : 'partial'
         }
         
-        // Debug log for problematic POs
-        if (poData?.bulk_payment_ref && calculatedStatus !== 'paid') {
-          console.error(`ERROR: PO ${item.po_number} has bulk_payment_ref but status is ${calculatedStatus}`)
-        }
-        
-        // Apply filters (logic kamu)
-        if (filters.paymentStatus && calculatedStatus !== filters.paymentStatus) return null
-        if (filters.approvalStatus && poData?.approval_status !== filters.approvalStatus) return null
+        // Apply debounced filters (logic kamu)
+        if (debouncedFilters.paymentStatus && calculatedStatus !== debouncedFilters.paymentStatus) return null
+        if (debouncedFilters.approvalStatus && poData?.approval_status !== debouncedFilters.approvalStatus) return null
         
         let sisaBayar = basisAmount - totalPaid
         let displayTotalPaid = totalPaid
@@ -898,8 +882,6 @@ function FinancePurchaseOrdersContent() {
   }
 
   const applyFilters = () => {
-    console.log('Applying filters:', filters)
-    console.log('Available suppliers:', suppliers)
     setLoading(true)
     setCurrentPage(1)
     
