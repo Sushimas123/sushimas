@@ -574,12 +574,8 @@ function FinancePurchaseOrdersContent() {
         // Get all combined IDs from selected suppliers
         const allSupplierIds = filters.selectedSuppliers.flatMap(selectedId => {
           const supplier = suppliers.find(s => s.id_supplier.toString() === selectedId)
-          // amazonq-ignore-next-line
-          console.log('Processing selected supplier ID:', selectedId, 'Found supplier:', supplier)
           return supplier?.combined_ids || [parseInt(selectedId)]
         })
-        console.log('Selected suppliers:', filters.selectedSuppliers)
-        console.log('All supplier IDs for filter:', allSupplierIds)
         if (allSupplierIds.length > 0) {
           query = query.in('supplier_id', allSupplierIds)
         }
@@ -619,15 +615,30 @@ function FinancePurchaseOrdersContent() {
       
       const itemsData = { data: allItemsData, error: null }
       
+      // Fetch purchase_orders in chunks (same as po_items)
+      const poDetailsDataChunks = await Promise.all(
+        poIdChunks.map(chunk => 
+          supabase.from('purchase_orders').select('id, bulk_payment_ref, total_tagih, keterangan, approval_photo, approval_status, approved_at, rejected_at, rejection_notes, id_payment_term, approved_by, rejected_by').in('id', chunk)
+        )
+      )
+      
+      // Combine all purchase_orders data
+      const allPODetailsData = poDetailsDataChunks.reduce((acc: any[], chunk) => {
+        if (chunk.data) acc.push(...chunk.data)
+        return acc
+      }, [])
+      
+      const poDetailsData = { data: allPODetailsData, error: null }
+      
       // amazonq-ignore-next-line
-      const [paymentsData, poDetailsData, barangMasukData, bulkPaymentsData, paymentTermsData, usersData] = await Promise.all([
+      const [paymentsData, barangMasukData, bulkPaymentsData, paymentTermsData, usersData] = await Promise.all([
         supabase.from('po_payments').select('po_id, payment_amount, payment_date, payment_via, payment_method, reference_number, status').in('po_id', poIds).order('payment_date', { ascending: false }),
-        supabase.from('purchase_orders').select('id, bulk_payment_ref, total_tagih, keterangan, approval_photo, approval_status, approved_at, rejected_at, rejection_notes, id_payment_term, approved_by, rejected_by').in('id', poIds),
         supabase.from('barang_masuk').select('no_po, invoice_number').in('no_po', poNumbers).not('invoice_number', 'is', null),
         supabase.from('bulk_payments').select('*'),
         supabase.from('payment_terms').select('id_payment_term, term_name, calculation_type, days'),
         supabase.from('users').select('id_user, nama_lengkap')
       ])
+
       
 
       
@@ -698,12 +709,34 @@ function FinancePurchaseOrdersContent() {
         const totalTagih = poData?.total_tagih || 0
         const basisAmount = totalTagih > 0 ? totalTagih : correctedTotal
         
-        // Calculate status (logic kamu)
+        // Debug specific PO
+        if (item.po_number === 'PO-2025-243929-458') {
+          console.log('=== DEBUG PO-2025-243929-458 ===')
+          console.log('bulk_payment_ref:', poData?.bulk_payment_ref)
+          console.log('totalPaid:', totalPaid)
+          console.log('totalTagih:', totalTagih)
+          console.log('correctedTotal:', correctedTotal)
+          console.log('basisAmount:', basisAmount)
+          console.log('poData:', poData)
+        }
+        
+        // Calculate status - prioritize bulk_payment_ref
         let calculatedStatus = 'unpaid'
         if (poData?.bulk_payment_ref) {
+          // If has bulk payment reference, always mark as paid
+          console.log(`PO ${item.po_number}: Has bulk_payment_ref = ${poData.bulk_payment_ref}, setting status to PAID`)
           calculatedStatus = 'paid'
+        } else if (basisAmount === 0) {
+          // If no basis amount and no bulk payment, mark as unpaid
+          calculatedStatus = 'unpaid'
         } else {
+          // Normal calculation based on payments
           calculatedStatus = totalPaid === 0 ? 'unpaid' : totalPaid >= basisAmount ? 'paid' : 'partial'
+        }
+        
+        // Debug log for problematic POs
+        if (poData?.bulk_payment_ref && calculatedStatus !== 'paid') {
+          console.error(`ERROR: PO ${item.po_number} has bulk_payment_ref but status is ${calculatedStatus}`)
         }
         
         // Apply filters (logic kamu)
