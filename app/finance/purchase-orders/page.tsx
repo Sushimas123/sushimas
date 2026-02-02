@@ -563,7 +563,7 @@ function FinancePurchaseOrdersContent() {
     setLoading(true)
     try {
       // Server-side pagination: only fetch 500 records at a time
-      const limit = 500
+      const limit = 1500
       let query = supabase
         .from('finance_dashboard_view')
         .select('*')
