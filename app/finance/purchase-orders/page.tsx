@@ -326,6 +326,8 @@ function FinancePurchaseOrdersContent() {
   const [filters, setFilters] = useState({
     dateFrom: "",
     dateTo: "",
+    paymentDateFrom: "",
+    paymentDateTo: "",
     supplier: "",
     selectedSuppliers: [] as string[],
     supplierSearch: "",
@@ -348,6 +350,10 @@ function FinancePurchaseOrdersContent() {
     if (appliedFilters.dateFrom)
       params.set("dateFrom", appliedFilters.dateFrom);
     if (appliedFilters.dateTo) params.set("dateTo", appliedFilters.dateTo);
+    if (appliedFilters.paymentDateFrom)
+      params.set("paymentDateFrom", appliedFilters.paymentDateFrom);
+    if (appliedFilters.paymentDateTo)
+      params.set("paymentDateTo", appliedFilters.paymentDateTo);
     if (appliedFilters.supplier)
       params.set("supplier", appliedFilters.supplier);
     if (appliedFilters.selectedSuppliers.length > 0)
@@ -413,6 +419,8 @@ function FinancePurchaseOrdersContent() {
     const urlFilters = {
       dateFrom: searchParams.get("dateFrom") || "",
       dateTo: searchParams.get("dateTo") || "",
+      paymentDateFrom: searchParams.get("paymentDateFrom") || "",
+      paymentDateTo: searchParams.get("paymentDateTo") || "",
       supplier: searchParams.get("supplier") || "",
       selectedSuppliers: searchParams.get("suppliers")
         ? searchParams.get("suppliers")!.split(",")
@@ -880,7 +888,30 @@ function FinancePurchaseOrdersContent() {
                   : "partial";
           }
 
+          // Get payment info from bulk payment if exists, otherwise from latest payment
+          const bulkPayment = poData?.bulk_payment_ref
+            ? bulkPaymentsMap[poData.bulk_payment_ref]
+            : null;
+
+          // Get payment term info
+          const paymentTerm = poData?.id_payment_term
+            ? paymentTermsMap[poData.id_payment_term]
+            : null;
+
           // Apply applied filters (logic kamu)
+          const dibayarTgl =
+            bulkPayment?.payment_date || latestPayment?.payment_date || null;
+
+          if (
+            appliedFilters.paymentDateFrom &&
+            (!dibayarTgl || dibayarTgl < appliedFilters.paymentDateFrom)
+          )
+            return null;
+          if (
+            appliedFilters.paymentDateTo &&
+            (!dibayarTgl || dibayarTgl > appliedFilters.paymentDateTo)
+          )
+            return null;
           if (
             appliedFilters.paymentStatus &&
             calculatedStatus !== appliedFilters.paymentStatus
@@ -899,16 +930,6 @@ function FinancePurchaseOrdersContent() {
             sisaBayar = 0;
             displayTotalPaid = basisAmount;
           }
-
-          // Get payment info from bulk payment if exists, otherwise from latest payment
-          const bulkPayment = poData?.bulk_payment_ref
-            ? bulkPaymentsMap[poData.bulk_payment_ref]
-            : null;
-
-          // Get payment term info
-          const paymentTerm = poData?.id_payment_term
-            ? paymentTermsMap[poData.id_payment_term]
-            : null;
 
           return {
             ...item,
@@ -1044,6 +1065,8 @@ function FinancePurchaseOrdersContent() {
     const clearedFilters = {
       dateFrom: "",
       dateTo: "",
+      paymentDateFrom: "",
+      paymentDateTo: "",
       supplier: "",
       selectedSuppliers: [],
       supplierSearch: "",
@@ -2447,7 +2470,7 @@ function FinancePurchaseOrdersContent() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Dari Tanggal
+                PO: Dari Tanggal
               </label>
               <input
                 type="date"
@@ -2460,7 +2483,7 @@ function FinancePurchaseOrdersContent() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Sampai Tanggal
+                PO: Sampai Tanggal
               </label>
               <input
                 type="date"
@@ -2469,6 +2492,33 @@ function FinancePurchaseOrdersContent() {
                   setFilters({ ...filters, dateTo: e.target.value })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+
+            <div className="pt-2 border-t border-gray-100">
+              <label className="block text-sm font-medium text-blue-700 mb-1">
+                Release: Dari Tanggal
+              </label>
+              <input
+                type="date"
+                value={filters.paymentDateFrom}
+                onChange={(e) =>
+                  setFilters({ ...filters, paymentDateFrom: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500 text-sm bg-blue-50/30"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-blue-700 mb-1">
+                Release: Sampai Tanggal
+              </label>
+              <input
+                type="date"
+                value={filters.paymentDateTo}
+                onChange={(e) =>
+                  setFilters({ ...filters, paymentDateTo: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500 text-sm bg-blue-50/30"
               />
             </div>
 
@@ -3628,7 +3678,7 @@ function FinancePurchaseOrdersContent() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Dari Tanggal
+                      PO: Dari Tanggal
                     </label>
                     <input
                       type="date"
@@ -3641,7 +3691,7 @@ function FinancePurchaseOrdersContent() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Sampai Tanggal
+                      PO: Sampai Tanggal
                     </label>
                     <input
                       type="date"
@@ -3650,6 +3700,38 @@ function FinancePurchaseOrdersContent() {
                         setFilters({ ...filters, dateTo: e.target.value })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-blue-700 mb-1">
+                      Release: Dari Tanggal
+                    </label>
+                    <input
+                      type="date"
+                      value={filters.paymentDateFrom}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          paymentDateFrom: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500 text-sm bg-blue-50/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-blue-700 mb-1">
+                      Release: Sampai Tanggal
+                    </label>
+                    <input
+                      type="date"
+                      value={filters.paymentDateTo}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          paymentDateTo: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500 text-sm bg-blue-50/20"
                     />
                   </div>
 
