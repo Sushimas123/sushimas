@@ -1,95 +1,143 @@
-"use client"
+"use client";
 
-import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { supabase } from '@/src/lib/supabaseClient'
-import { DollarSign, FileText, AlertTriangle, TrendingUp, Search, Plus, Filter, X, ChevronDown, ChevronRight, Calendar, Building, User, CreditCard, Clock, CheckCircle, AlertCircle, Edit, ChevronUp, Download, LinkIcon, Receipt } from 'lucide-react'
-import Layout from '../../../components/Layout'
-import PageAccessControl from '../../../components/PageAccessControl'
-import PaymentModal from './PaymentModal'
-import BulkPaymentModal from './BulkPaymentModal'
-import { TableSkeleton, MobileCardSkeleton, StatsSkeleton } from '../../../components/SkeletonLoader'
-import { calculatePODueDate, updatePODueDate, getPOPaymentTermDisplay } from '@/src/utils/purchaseOrderPaymentTerms'
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+  Suspense,
+} from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { supabase } from "@/src/lib/supabaseClient";
+import {
+  DollarSign,
+  FileText,
+  AlertTriangle,
+  TrendingUp,
+  Search,
+  Plus,
+  Filter,
+  X,
+  ChevronDown,
+  ChevronRight,
+  Calendar,
+  Building,
+  User,
+  CreditCard,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  Edit,
+  ChevronUp,
+  Download,
+  LinkIcon,
+  Receipt,
+} from "lucide-react";
+import Layout from "../../../components/Layout";
+import PageAccessControl from "../../../components/PageAccessControl";
+import PaymentModal from "./PaymentModal";
+import BulkPaymentModal from "./BulkPaymentModal";
+import {
+  TableSkeleton,
+  MobileCardSkeleton,
+  StatsSkeleton,
+} from "../../../components/SkeletonLoader";
+import {
+  calculatePODueDate,
+  updatePODueDate,
+  getPOPaymentTermDisplay,
+} from "@/src/utils/purchaseOrderPaymentTerms";
 
 // Debounce hook for search and filters optimization
 const useDebounce = <T,>(value: T, delay: number): T => {
-  const [debouncedValue, setDebouncedValue] = useState(value)
+  const [debouncedValue, setDebouncedValue] = useState(value);
 
   useEffect(() => {
     const handler = setTimeout(() => {
-      setDebouncedValue(value)
-    }, delay)
+      setDebouncedValue(value);
+    }, delay);
 
     return () => {
-      clearTimeout(handler)
-    }
-  }, [value, delay])
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
 
-  return debouncedValue
-}
+  return debouncedValue;
+};
 
 // Modal Component untuk Reject
-const RejectModal = ({ po, onClose, onSuccess }: { 
-  po: FinanceData, 
-  onClose: () => void, 
-  onSuccess: () => void 
+const RejectModal = ({
+  po,
+  onClose,
+  onSuccess,
+}: {
+  po: FinanceData;
+  onClose: () => void;
+  onSuccess: () => void;
 }) => {
-  const [notes, setNotes] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleReject = async () => {
     if (!notes.trim()) {
-      alert('Harap masukkan alasan penolakan')
-      return
+      alert("Harap masukkan alasan penolakan");
+      return;
     }
 
-    setLoading(true)
+    setLoading(true);
     try {
       // amazonq-ignore-next-line
       // Get current user from localStorage or Supabase Auth
-      let currentUser = null
+      let currentUser = null;
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        currentUser = user
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        currentUser = user;
       } catch (authError) {
-        console.warn('Auth error, using localStorage:', authError)
+        console.warn("Auth error, using localStorage:", authError);
       }
-      
+
       if (!currentUser) {
-        const localUser = JSON.parse(localStorage.getItem('user') || '{}')
-        currentUser = { id: localUser.auth_id || null }
+        const localUser = JSON.parse(localStorage.getItem("user") || "{}");
+        currentUser = { id: localUser.auth_id || null };
       }
-      
+
       const { error } = await supabase
-        .from('purchase_orders')
-        .update({ 
-          approval_status: 'rejected',
+        .from("purchase_orders")
+        .update({
+          approval_status: "rejected",
           rejected_at: new Date().toISOString(),
           rejection_notes: notes.trim(),
-          rejected_by: currentUser?.id || null
+          rejected_by: currentUser?.id || null,
         })
-        .eq('id', po.id)
+        .eq("id", po.id);
 
-      if (error) throw error
-      
-      onSuccess()
-      onClose()
+      if (error) throw error;
+
+      onSuccess();
+      onClose();
     } catch (error) {
-      console.error('Error rejecting approval:', error)
-      alert('Gagal menolak approval')
+      console.error("Error rejecting approval:", error);
+      alert("Gagal menolak approval");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
       <div className="bg-white rounded-lg p-4 md:p-6 w-full max-w-md mx-4 md:mx-0">
         <h3 className="text-lg font-semibold mb-4">Tolak Approval PO</h3>
-        
+
         <div className="mb-4">
-          <p className="text-sm text-gray-600 mb-2">PO: <strong>{po.po_number}</strong></p>
-          <p className="text-sm text-gray-600">Supplier: <strong>{po.nama_supplier}</strong></p>
+          <p className="text-sm text-gray-600 mb-2">
+            PO: <strong>{po.po_number}</strong>
+          </p>
+          <p className="text-sm text-gray-600">
+            Supplier: <strong>{po.nama_supplier}</strong>
+          </p>
         </div>
 
         <div className="mb-4">
@@ -118,38 +166,52 @@ const RejectModal = ({ po, onClose, onSuccess }: {
             disabled={loading || !notes.trim()}
             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 text-sm"
           >
-            {loading ? 'Memproses...' : 'Tolak Approval'}
+            {loading ? "Memproses..." : "Tolak Approval"}
           </button>
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
 // Modal Component untuk melihat Rejection Notes
-const ViewRejectionNotesModal = ({ po, onClose }: { 
-  po: FinanceData, 
-  onClose: () => void 
+const ViewRejectionNotesModal = ({
+  po,
+  onClose,
+}: {
+  po: FinanceData;
+  onClose: () => void;
 }) => {
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('id-ID', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    })
-  }
+    return new Date(dateString).toLocaleDateString("id-ID", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
       <div className="bg-white rounded-lg p-4 md:p-6 w-full max-w-md mx-4 md:mx-0">
-        <h3 className="text-lg font-semibold mb-4 text-red-600">Catatan Penolakan</h3>
-        
+        <h3 className="text-lg font-semibold mb-4 text-red-600">
+          Catatan Penolakan
+        </h3>
+
         <div className="mb-4">
-          <p className="text-sm text-gray-600 mb-2">PO: <strong>{po.po_number}</strong></p>
-          <p className="text-sm text-gray-600 mb-2">Supplier: <strong>{po.nama_supplier}</strong></p>
-          <p className="text-sm text-gray-600 mb-2">Ditolak: <strong>{po.rejected_at ? formatDate(po.rejected_at) : '-'}</strong></p>
+          <p className="text-sm text-gray-600 mb-2">
+            PO: <strong>{po.po_number}</strong>
+          </p>
+          <p className="text-sm text-gray-600 mb-2">
+            Supplier: <strong>{po.nama_supplier}</strong>
+          </p>
+          <p className="text-sm text-gray-600 mb-2">
+            Ditolak:{" "}
+            <strong>{po.rejected_at ? formatDate(po.rejected_at) : "-"}</strong>
+          </p>
           {po.rejected_by_name && (
-            <p className="text-sm text-gray-600">Ditolak oleh: <strong>{po.rejected_by_name}</strong></p>
+            <p className="text-sm text-gray-600">
+              Ditolak oleh: <strong>{po.rejected_by_name}</strong>
+            </p>
           )}
         </div>
 
@@ -158,7 +220,9 @@ const ViewRejectionNotesModal = ({ po, onClose }: {
             Alasan Penolakan:
           </label>
           <div className="bg-red-50 border border-red-200 rounded-md p-3">
-            <p className="text-sm text-red-800">{po.rejection_notes || 'Tidak ada catatan'}</p>
+            <p className="text-sm text-red-800">
+              {po.rejection_notes || "Tidak ada catatan"}
+            </p>
           </div>
         </div>
 
@@ -172,883 +236,1043 @@ const ViewRejectionNotesModal = ({ po, onClose }: {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
 interface FinanceData {
-  id: number
-  po_number: string
-  po_date: string
-  nama_supplier: string
-  nama_branch: string
-  total_po: number
-  total_paid: number
-  sisa_bayar: number
-  status_payment: string
-  is_overdue: boolean
-  days_overdue: number
-  tanggal_jatuh_tempo: string
-  last_payment_date: string
-  total_tagih: number
-  rejection_notes?: string
-  rejected_at?: string
-  rejected_by?: string
-  rejected_by_name?: string
-  approved_by?: number
-  approved_by_name?: string
-  invoice_number?: string
+  id: number;
+  po_number: string;
+  po_date: string;
+  nama_supplier: string;
+  nama_branch: string;
+  total_po: number;
+  total_paid: number;
+  sisa_bayar: number;
+  status_payment: string;
+  is_overdue: boolean;
+  days_overdue: number;
+  tanggal_jatuh_tempo: string;
+  last_payment_date: string;
+  total_tagih: number;
+  rejection_notes?: string;
+  rejected_at?: string;
+  rejected_by?: string;
+  rejected_by_name?: string;
+  approved_by?: number;
+  approved_by_name?: string;
+  invoice_number?: string;
 }
 
 interface BulkPayment {
-  id: number
-  bulk_reference: string
-  total_amount: number
-  payment_date: string
-  payment_via: string
-  payment_method: string
-  notes: string
-  created_at: string
-  purchase_orders: any[]
+  id: number;
+  bulk_reference: string;
+  total_amount: number;
+  payment_date: string;
+  payment_via: string;
+  payment_method: string;
+  notes: string;
+  created_at: string;
+  purchase_orders: any[];
 }
 
 // amazonq-ignore-next-line
 function FinancePurchaseOrdersContent() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [data, setData] = useState<FinanceData[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const debouncedSearch = useDebounce(search, 1500)
-  const [selectedPO, setSelectedPO] = useState<FinanceData | null>(null)
-  const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [suppliers, setSuppliers] = useState<any[]>([])
-  const [branches, setBranches] = useState<any[]>([])
-  const [expandedRows, setExpandedRows] = useState<number[]>([])
-  const [rowDetails, setRowDetails] = useState<Record<number, any>>({})
-  const [sortField, setSortField] = useState<string>('')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 30
-  const [notesState, setNotesState] = useState<Record<number, string>>({})
-  const [selectedPOs, setSelectedPOs] = useState<number[]>([])
-  const [showBulkPaymentModal, setShowBulkPaymentModal] = useState(false)
-  const [bulkPayments, setBulkPayments] = useState<BulkPayment[]>([])
-  const [showBulkPaymentDetails, setShowBulkPaymentDetails] = useState<BulkPayment | null>(null)
-  
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [data, setData] = useState<FinanceData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 1500);
+  const [selectedPO, setSelectedPO] = useState<FinanceData | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [branches, setBranches] = useState<any[]>([]);
+  const [expandedRows, setExpandedRows] = useState<number[]>([]);
+  const [rowDetails, setRowDetails] = useState<Record<number, any>>({});
+  const [sortField, setSortField] = useState<string>("");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 30;
+  const [notesState, setNotesState] = useState<Record<number, string>>({});
+  const [selectedPOs, setSelectedPOs] = useState<number[]>([]);
+  const [showBulkPaymentModal, setShowBulkPaymentModal] = useState(false);
+  const [bulkPayments, setBulkPayments] = useState<BulkPayment[]>([]);
+  const [showBulkPaymentDetails, setShowBulkPaymentDetails] =
+    useState<BulkPayment | null>(null);
+
   // Reject modal states
-  const [showRejectModal, setShowRejectModal] = useState(false)
-  const [rejectPO, setRejectPO] = useState<FinanceData | null>(null)
-  const [rejectNotes, setRejectNotes] = useState('')
-  
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectPO, setRejectPO] = useState<FinanceData | null>(null);
+  const [rejectNotes, setRejectNotes] = useState("");
+
   // View rejection notes modal states
-  const [showViewRejectionModal, setShowViewRejectionModal] = useState(false)
-  const [viewRejectionPO, setViewRejectionPO] = useState<FinanceData | null>(null)
-  
+  const [showViewRejectionModal, setShowViewRejectionModal] = useState(false);
+  const [viewRejectionPO, setViewRejectionPO] = useState<FinanceData | null>(
+    null,
+  );
+
   // Mobile states
-  const [isMobileView, setIsMobileView] = useState(false)
-  const [selectedMobileItem, setSelectedMobileItem] = useState<FinanceData | null>(null)
-  const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const [showImageModal, setShowImageModal] = useState<string | null>(null)
-  
+  const [isMobileView, setIsMobileView] = useState(false);
+  const [selectedMobileItem, setSelectedMobileItem] =
+    useState<FinanceData | null>(null);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [showImageModal, setShowImageModal] = useState<string | null>(null);
+
   // Scroll sync refs
-  const topScrollRef = useRef<HTMLDivElement>(null)
-  const tableScrollRef = useRef<HTMLDivElement>(null)
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
 
   // Filter states
   const [filters, setFilters] = useState({
-    dateFrom: '',
-    dateTo: '',
-    supplier: '',
+    dateFrom: "",
+    dateTo: "",
+    supplier: "",
     selectedSuppliers: [] as string[],
-    supplierSearch: '',
+    supplierSearch: "",
     showSupplierDropdown: false,
-    branch: '',
-    poStatus: '',
-    paymentStatus: '',
-    dueDate: '',
-    goodsReceived: '',
-    approvalStatus: ''
-  })
-  const debouncedFilters = useDebounce(filters, 1500)
-  const [showFilters, setShowFilters] = useState(false)
+    branch: "",
+    poStatus: "",
+    paymentStatus: "",
+    dueDate: "",
+    goodsReceived: "",
+    approvalStatus: "",
+  });
+  const [appliedFilters, setAppliedFilters] = useState(filters);
+  const [showFilters, setShowFilters] = useState(false);
 
   // Update URL when filters change
   const updateURL = useCallback(() => {
-    const params = new URLSearchParams()
-    
-    if (search) params.set('search', search)
-    if (filters.dateFrom) params.set('dateFrom', filters.dateFrom)
-    if (filters.dateTo) params.set('dateTo', filters.dateTo)
-    if (filters.supplier) params.set('supplier', filters.supplier)
-    if (filters.selectedSuppliers.length > 0) params.set('suppliers', filters.selectedSuppliers.join(','))
-    if (filters.branch) params.set('branch', filters.branch)
-    if (filters.poStatus) params.set('poStatus', filters.poStatus)
-    if (filters.paymentStatus) params.set('paymentStatus', filters.paymentStatus)
-    if (filters.dueDate) params.set('dueDate', filters.dueDate)
-    if (filters.goodsReceived) params.set('goodsReceived', filters.goodsReceived)
-    if (filters.approvalStatus) params.set('approvalStatus', filters.approvalStatus)
-    if (currentPage > 1) params.set('page', currentPage.toString())
-    
-    const newUrl = params.toString() ? `?${params.toString()}` : '/finance/purchase-orders'
-    router.replace(newUrl, { scroll: false })
-  }, [search, filters, currentPage, router])
+    const params = new URLSearchParams();
+
+    if (search) params.set("search", search);
+    if (appliedFilters.dateFrom)
+      params.set("dateFrom", appliedFilters.dateFrom);
+    if (appliedFilters.dateTo) params.set("dateTo", appliedFilters.dateTo);
+    if (appliedFilters.supplier)
+      params.set("supplier", appliedFilters.supplier);
+    if (appliedFilters.selectedSuppliers.length > 0)
+      params.set("suppliers", appliedFilters.selectedSuppliers.join(","));
+    if (appliedFilters.branch) params.set("branch", appliedFilters.branch);
+    if (appliedFilters.poStatus)
+      params.set("poStatus", appliedFilters.poStatus);
+    if (appliedFilters.paymentStatus)
+      params.set("paymentStatus", appliedFilters.paymentStatus);
+    if (appliedFilters.dueDate) params.set("dueDate", appliedFilters.dueDate);
+    if (appliedFilters.goodsReceived)
+      params.set("goodsReceived", appliedFilters.goodsReceived);
+    if (appliedFilters.approvalStatus)
+      params.set("approvalStatus", appliedFilters.approvalStatus);
+    if (currentPage > 1) params.set("page", currentPage.toString());
+
+    const newUrl = params.toString()
+      ? `?${params.toString()}`
+      : "/finance/purchase-orders";
+    router.replace(newUrl, { scroll: false });
+  }, [search, appliedFilters, currentPage, router]);
 
   // Preload critical data on mount
   useEffect(() => {
     // Preload suppliers and branches first (smaller datasets)
-    Promise.all([fetchSuppliers(), fetchBranches()])
-    
+    Promise.all([fetchSuppliers(), fetchBranches()]);
+
     // Check if returning from submit page
-    const returnUrl = sessionStorage.getItem('finance_po_return_url')
-    if (returnUrl && window.location.pathname + window.location.search === returnUrl) {
+    const returnUrl = sessionStorage.getItem("finance_po_return_url");
+    if (
+      returnUrl &&
+      window.location.pathname + window.location.search === returnUrl
+    ) {
       // Restore filter state from sessionStorage
-      const savedFilters = sessionStorage.getItem('finance_po_filters')
-      const savedSearch = sessionStorage.getItem('finance_po_search')
-      const savedPage = sessionStorage.getItem('finance_po_page')
-      
+      const savedFilters = sessionStorage.getItem("finance_po_filters");
+      const savedSearch = sessionStorage.getItem("finance_po_search");
+      const savedPage = sessionStorage.getItem("finance_po_page");
+
       if (savedFilters) {
-        setFilters(JSON.parse(savedFilters))
+        setFilters(JSON.parse(savedFilters));
       }
       if (savedSearch) {
-        setSearch(savedSearch)
+        setSearch(savedSearch);
       }
       if (savedPage) {
-        setCurrentPage(parseInt(savedPage))
+        setCurrentPage(parseInt(savedPage));
       }
-      
+
       // Clear the return URL after restoring
-      sessionStorage.removeItem('finance_po_return_url')
-      sessionStorage.removeItem('finance_po_filters')
-      sessionStorage.removeItem('finance_po_search')
-      sessionStorage.removeItem('finance_po_page')
+      sessionStorage.removeItem("finance_po_return_url");
+      sessionStorage.removeItem("finance_po_filters");
+      sessionStorage.removeItem("finance_po_search");
+      sessionStorage.removeItem("finance_po_page");
     }
-    
-    fetchBulkPayments()
-  }, [])
+
+    fetchBulkPayments();
+  }, []);
 
   // Initialize filters from URL parameters
   useEffect(() => {
-    if (!searchParams) return
-    
+    if (!searchParams) return;
+
     const urlFilters = {
-      dateFrom: searchParams.get('dateFrom') || '',
-      dateTo: searchParams.get('dateTo') || '',
-      supplier: searchParams.get('supplier') || '',
-      selectedSuppliers: searchParams.get('suppliers') ? searchParams.get('suppliers')!.split(',') : [],
-      supplierSearch: '',
+      dateFrom: searchParams.get("dateFrom") || "",
+      dateTo: searchParams.get("dateTo") || "",
+      supplier: searchParams.get("supplier") || "",
+      selectedSuppliers: searchParams.get("suppliers")
+        ? searchParams.get("suppliers")!.split(",")
+        : [],
+      supplierSearch: "",
       showSupplierDropdown: false,
-      branch: searchParams.get('branch') || '',
-      poStatus: searchParams.get('poStatus') || '',
-      paymentStatus: searchParams.get('paymentStatus') || '',
-      dueDate: searchParams.get('dueDate') || '',
-      goodsReceived: searchParams.get('goodsReceived') || '',
-      approvalStatus: searchParams.get('approvalStatus') || ''
-    }
-    
-    const urlSearch = searchParams.get('search') || ''
-    const urlPage = parseInt(searchParams.get('page') || '1')
-    
-    setFilters(urlFilters)
-    setSearch(urlSearch)
-    setCurrentPage(urlPage)
-  }, [searchParams])
+      branch: searchParams.get("branch") || "",
+      poStatus: searchParams.get("poStatus") || "",
+      paymentStatus: searchParams.get("paymentStatus") || "",
+      dueDate: searchParams.get("dueDate") || "",
+      goodsReceived: searchParams.get("goodsReceived") || "",
+      approvalStatus: searchParams.get("approvalStatus") || "",
+    };
 
-  // Fetch data when debounced filters change
+    const urlSearch = searchParams.get("search") || "";
+    const urlPage = parseInt(searchParams.get("page") || "1");
+
+    setFilters(urlFilters);
+    setAppliedFilters(urlFilters);
+    setSearch(urlSearch);
+    setCurrentPage(urlPage);
+  }, [searchParams]);
+
+  // Fetch data when applied filters change
   useEffect(() => {
-    if (suppliers.length > 0) { // Only fetch when suppliers are loaded
-      fetchFinanceData()
+    if (suppliers.length > 0) {
+      // Only fetch when suppliers are loaded
+      fetchFinanceData();
     }
-  }, [debouncedFilters, suppliers])
-
-
+  }, [appliedFilters, suppliers]);
 
   // Check screen size
   useEffect(() => {
     const checkScreenSize = () => {
-      setIsMobileView(window.innerWidth < 768)
-    }
-    
-    checkScreenSize()
-    window.addEventListener('resize', checkScreenSize)
-    
-    return () => window.removeEventListener('resize', checkScreenSize)
-  }, [])
+      setIsMobileView(window.innerWidth < 768);
+    };
+
+    checkScreenSize();
+    window.addEventListener("resize", checkScreenSize);
+
+    return () => window.removeEventListener("resize", checkScreenSize);
+  }, []);
 
   // Close supplier dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (filters.showSupplierDropdown) {
-        const target = event.target as Element
-        if (!target.closest('.supplier-dropdown')) {
-          setFilters(prev => ({...prev, showSupplierDropdown: false}))
+        const target = event.target as Element;
+        if (!target.closest(".supplier-dropdown")) {
+          setFilters((prev) => ({ ...prev, showSupplierDropdown: false }));
         }
       }
-    }
+    };
 
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [filters.showSupplierDropdown])
-
-
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [filters.showSupplierDropdown]);
 
   const fetchSuppliers = useCallback(async () => {
-    const { data } = await supabase.from('suppliers').select('id_supplier, nama_supplier').order('nama_supplier')
-    
+    const { data } = await supabase
+      .from("suppliers")
+      .select("id_supplier, nama_supplier")
+      .order("nama_supplier");
+
     // Remove duplicates based on case-insensitive name comparison
     const uniqueSuppliers = (data || []).reduce((acc: any[], supplier) => {
-      const normalizedName = supplier.nama_supplier.toLowerCase().trim()
-      const existing = acc.find(s => s.nama_supplier.toLowerCase().trim() === normalizedName)
-      
+      const normalizedName = supplier.nama_supplier.toLowerCase().trim();
+      const existing = acc.find(
+        (s) => s.nama_supplier.toLowerCase().trim() === normalizedName,
+      );
+
       if (existing) {
         // If duplicate found, combine the IDs
-        existing.combined_ids = existing.combined_ids || [existing.id_supplier]
-        existing.combined_ids.push(supplier.id_supplier)
+        existing.combined_ids = existing.combined_ids || [existing.id_supplier];
+        existing.combined_ids.push(supplier.id_supplier);
       } else {
         acc.push({
           ...supplier,
-          combined_ids: [supplier.id_supplier]
-        })
+          combined_ids: [supplier.id_supplier],
+        });
       }
-      return acc
-    }, [])
-    
-    setSuppliers(uniqueSuppliers)
-  }, [])
+      return acc;
+    }, []);
+
+    setSuppliers(uniqueSuppliers);
+  }, []);
 
   const fetchBranches = useCallback(async () => {
-    const { data } = await supabase.from('branches').select('id_branch, nama_branch').order('nama_branch')
-    setBranches(data || [])
-  }, [])
+    const { data } = await supabase
+      .from("branches")
+      .select("id_branch, nama_branch")
+      .order("nama_branch");
+    setBranches(data || []);
+  }, []);
 
   const fetchBulkPayments = async () => {
     try {
       // First get bulk payments
       const { data: bulkPaymentsData, error: bulkError } = await supabase
-        .from('bulk_payments')
-        .select('*')
-        .order('payment_date', { ascending: false })
-      
-      if (bulkError) throw bulkError
-      
+        .from("bulk_payments")
+        .select("*")
+        .order("payment_date", { ascending: false });
+
+      if (bulkError) throw bulkError;
+
       // Then get related POs for each bulk payment
       const formattedData = await Promise.all(
         (bulkPaymentsData || []).map(async (bulkPayment) => {
           const { data: relatedPOs } = await supabase
-            .from('purchase_orders')
-            .select('id, po_number, total_tagih, supplier_id')
-            .eq('bulk_payment_ref', bulkPayment.bulk_reference)
-          
+            .from("purchase_orders")
+            .select("id, po_number, total_tagih, supplier_id")
+            .eq("bulk_payment_ref", bulkPayment.bulk_reference);
+
           // Get supplier names for each PO
           const formattedPOs = await Promise.all(
             (relatedPOs || []).map(async (po) => {
               const { data: supplier } = await supabase
-                .from('suppliers')
-                .select('nama_supplier')
-                .eq('id_supplier', po.supplier_id)
-                .single()
-              
+                .from("suppliers")
+                .select("nama_supplier")
+                .eq("id_supplier", po.supplier_id)
+                .single();
+
               return {
                 ...po,
-                nama_supplier: supplier?.nama_supplier || 'Unknown Supplier'
-              }
-            })
-          )
-          
+                nama_supplier: supplier?.nama_supplier || "Unknown Supplier",
+              };
+            }),
+          );
+
           return {
             ...bulkPayment,
-            purchase_orders: formattedPOs
-          }
-        })
-      )
-      
-      setBulkPayments(formattedData)
+            purchase_orders: formattedPOs,
+          };
+        }),
+      );
+
+      setBulkPayments(formattedData);
     } catch (error) {
-      console.error('Error fetching bulk payments:', error)
-      setBulkPayments([])
+      console.error("Error fetching bulk payments:", error);
+      setBulkPayments([]);
     }
-  }
+  };
 
   const fetchRowDetails = async (id: number) => {
     try {
       // Fetch payment history
       const { data: payments } = await supabase
-        .from('po_payments')
-        .select('*')
-        .eq('po_id', id)
-        .order('payment_date', { ascending: false })
-      
+        .from("po_payments")
+        .select("*")
+        .eq("po_id", id)
+        .order("payment_date", { ascending: false });
+
       // Fetch items with product names
       const { data: items } = await supabase
-        .from('po_items')
-        .select('*, qty_tagih, harga_tagih')
-        .eq('po_id', id)
-      
+        .from("po_items")
+        .select("*, qty_tagih, harga_tagih")
+        .eq("po_id", id);
+
       // Get product names for each item
       const itemsWithNames = await Promise.all(
         (items || []).map(async (item) => {
           const { data: product } = await supabase
-            .from('nama_product')
-            .select('product_name')
-            .eq('id_product', item.product_id)
-            .single()
-          
+            .from("nama_product")
+            .select("product_name")
+            .eq("id_product", item.product_id)
+            .single();
+
           return {
             ...item,
-            product_name: product?.product_name || `Product ${item.product_id}`
-          }
-        })
-      )
-      
-      setRowDetails(prev => ({
-        ...prev,
-        [id]: { payments, items: itemsWithNames }
-      }))
-    } catch (error) {
-      console.error('Error fetching row details:', error)
-    }
-  }
+            product_name: product?.product_name || `Product ${item.product_id}`,
+          };
+        }),
+      );
 
-  const toggleRowExpansion = useCallback(async (id: number) => {
-    if (expandedRows.includes(id)) {
-      setExpandedRows(expandedRows.filter(rowId => rowId !== id))
-    } else {
-      setExpandedRows([...expandedRows, id])
-      if (!rowDetails[id]) {
-        await fetchRowDetails(id)
-      }
+      setRowDetails((prev) => ({
+        ...prev,
+        [id]: { payments, items: itemsWithNames },
+      }));
+    } catch (error) {
+      console.error("Error fetching row details:", error);
     }
-  }, [expandedRows, rowDetails])
+  };
+
+  const toggleRowExpansion = useCallback(
+    async (id: number) => {
+      if (expandedRows.includes(id)) {
+        setExpandedRows(expandedRows.filter((rowId) => rowId !== id));
+      } else {
+        setExpandedRows([...expandedRows, id]);
+        if (!rowDetails[id]) {
+          await fetchRowDetails(id);
+        }
+      }
+    },
+    [expandedRows, rowDetails],
+  );
 
   // Save state whenever search changes
   useEffect(() => {
-    if (search !== '') {
-      const currentUrl = new URL(window.location.href)
-      sessionStorage.setItem('finance_po_return_url', currentUrl.pathname + currentUrl.search)
-      sessionStorage.setItem('finance_po_filters', JSON.stringify(filters))
-      sessionStorage.setItem('finance_po_search', search)
-      sessionStorage.setItem('finance_po_page', currentPage.toString())
+    if (search !== "") {
+      const currentUrl = new URL(window.location.href);
+      sessionStorage.setItem(
+        "finance_po_return_url",
+        currentUrl.pathname + currentUrl.search,
+      );
+      sessionStorage.setItem("finance_po_filters", JSON.stringify(filters));
+      sessionStorage.setItem("finance_po_search", search);
+      sessionStorage.setItem("finance_po_page", currentPage.toString());
     }
-  }, [search, filters, currentPage])
+  }, [search, filters, currentPage]);
 
   // Update URL when filters or search change
   // amazonq-ignore-next-line
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      updateURL()
-    }, 1500) // Debounce URL updates
-    
-    return () => clearTimeout(timeoutId)
-  }, [updateURL])
+      updateURL();
+    }, 1500); // Debounce URL updates
+
+    return () => clearTimeout(timeoutId);
+  }, [updateURL]);
 
   // Memoized filtered data for better performance
   // amazonq-ignore-next-line
   const filteredData = useMemo(() => {
-    return data.filter(item => {
-      const matchesSearch = debouncedSearch === '' || 
+    return data.filter((item) => {
+      const matchesSearch =
+        debouncedSearch === "" ||
         item.po_number.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        (item.nama_supplier || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        (item.nama_branch || '').toLowerCase().includes(debouncedSearch.toLowerCase())
-      
-      return matchesSearch
-    })
-  }, [data, debouncedSearch])
+        (item.nama_supplier || "")
+          .toLowerCase()
+          .includes(debouncedSearch.toLowerCase()) ||
+        (item.nama_branch || "")
+          .toLowerCase()
+          .includes(debouncedSearch.toLowerCase());
+
+      return matchesSearch;
+    });
+  }, [data, debouncedSearch]);
 
   // Memoized paginated data
   const paginatedData = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage
-    return filteredData.slice(startIndex, startIndex + itemsPerPage)
-  }, [filteredData, currentPage, itemsPerPage])
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredData.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredData, currentPage, itemsPerPage]);
 
   const fetchFinanceData = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       // Server-side pagination: only fetch 500 records at a time
-      const limit = 1500
+      const limit = 1500;
       let query = supabase
-        .from('finance_dashboard_view')
-        .select('*')
-        .order('po_date', { ascending: false })
-        .limit(limit)
+        .from("finance_dashboard_view")
+        .select("*")
+        .order("po_date", { ascending: false })
+        .limit(limit);
 
-      // Apply debounced filters
-      if (debouncedFilters.dateFrom) query = query.gte('po_date', debouncedFilters.dateFrom)
-      if (debouncedFilters.dateTo) query = query.lte('po_date', debouncedFilters.dateTo)
-      if (debouncedFilters.supplier) query = query.eq('supplier_id', debouncedFilters.supplier)
-      if (debouncedFilters.selectedSuppliers.length > 0) {
+      // Apply applied filters
+      if (appliedFilters.dateFrom)
+        query = query.gte("po_date", appliedFilters.dateFrom);
+      if (appliedFilters.dateTo)
+        query = query.lte("po_date", appliedFilters.dateTo);
+      if (appliedFilters.supplier)
+        query = query.eq("supplier_id", appliedFilters.supplier);
+      if (appliedFilters.selectedSuppliers.length > 0) {
         // Get all combined IDs from selected suppliers
-        const allSupplierIds = debouncedFilters.selectedSuppliers.flatMap(selectedId => {
-          const supplier = suppliers.find(s => s.id_supplier.toString() === selectedId)
-          return supplier?.combined_ids || [parseInt(selectedId)]
-        })
+        const allSupplierIds = appliedFilters.selectedSuppliers.flatMap(
+          (selectedId) => {
+            const supplier = suppliers.find(
+              (s) => s.id_supplier.toString() === selectedId,
+            );
+            return supplier?.combined_ids || [parseInt(selectedId)];
+          },
+        );
         if (allSupplierIds.length > 0) {
-          query = query.in('supplier_id', allSupplierIds)
+          query = query.in("supplier_id", allSupplierIds);
         }
       }
-      if (debouncedFilters.branch) query = query.eq('cabang_id', debouncedFilters.branch)
-      if (debouncedFilters.poStatus) query = query.eq('po_status', debouncedFilters.poStatus)
-      if (debouncedFilters.dueDate === 'overdue') query = query.eq('is_overdue', true)
-      if (debouncedFilters.goodsReceived === 'received') query = query.not('tanggal_barang_sampai', 'is', null)
-      if (debouncedFilters.goodsReceived === 'not_received') query = query.is('tanggal_barang_sampai', null)
+      if (appliedFilters.branch)
+        query = query.eq("cabang_id", appliedFilters.branch);
+      if (appliedFilters.poStatus)
+        query = query.eq("po_status", appliedFilters.poStatus);
+      if (appliedFilters.dueDate === "overdue")
+        query = query.eq("is_overdue", true);
+      if (appliedFilters.goodsReceived === "received")
+        query = query.not("tanggal_barang_sampai", "is", null);
+      if (appliedFilters.goodsReceived === "not_received")
+        query = query.is("tanggal_barang_sampai", null);
 
-      const { data: financeData, error } = await query
-      if (error) throw error
+      const { data: financeData, error } = await query;
+      if (error) throw error;
 
       // Batch queries - ambil semua data sekaligus
-      const poIds = financeData.map(item => item.id)
-      const poNumbers = financeData.map(item => item.po_number)
-      
+      const poIds = financeData.map((item) => item.id);
+      const poNumbers = financeData.map((item) => item.po_number);
+
       // Split poIds into chunks to avoid Supabase limit
-      const chunkSize = 50
-      const poIdChunks = []
+      const chunkSize = 50;
+      const poIdChunks = [];
       for (let i = 0; i < poIds.length; i += chunkSize) {
-        poIdChunks.push(poIds.slice(i, i + chunkSize))
+        poIdChunks.push(poIds.slice(i, i + chunkSize));
       }
-      
+
       // Fetch po_items in chunks
       const itemsDataChunks = await Promise.all(
-        poIdChunks.map(chunk => 
-          supabase.from('po_items').select('po_id, qty, harga, actual_price, received_qty, product_id, qty_tagih, harga_tagih').in('po_id', chunk)
-        )
-      )
-      
+        poIdChunks.map((chunk) =>
+          supabase
+            .from("po_items")
+            .select(
+              "po_id, qty, harga, actual_price, received_qty, product_id, qty_tagih, harga_tagih",
+            )
+            .in("po_id", chunk),
+        ),
+      );
+
       // Combine all items data
       const allItemsData = itemsDataChunks.reduce((acc: any[], chunk) => {
-        if (chunk.data) acc.push(...chunk.data)
-        return acc
-      }, [])
-      
-      const itemsData = { data: allItemsData, error: null }
-      
+        if (chunk.data) acc.push(...chunk.data);
+        return acc;
+      }, []);
+
+      const itemsData = { data: allItemsData, error: null };
+
       // Fetch purchase_orders in chunks (same as po_items)
       const poDetailsDataChunks = await Promise.all(
-        poIdChunks.map(chunk => 
-          supabase.from('purchase_orders').select('id, bulk_payment_ref, total_tagih, keterangan, approval_photo, approval_status, approved_at, rejected_at, rejection_notes, id_payment_term, approved_by, rejected_by').in('id', chunk)
-        )
-      )
-      
+        poIdChunks.map((chunk) =>
+          supabase
+            .from("purchase_orders")
+            .select(
+              "id, bulk_payment_ref, total_tagih, keterangan, approval_photo, approval_status, approved_at, rejected_at, rejection_notes, id_payment_term, approved_by, rejected_by",
+            )
+            .in("id", chunk),
+        ),
+      );
+
       // Combine all purchase_orders data
-      const allPODetailsData = poDetailsDataChunks.reduce((acc: any[], chunk) => {
-        if (chunk.data) acc.push(...chunk.data)
-        return acc
-      }, [])
-      
-      const poDetailsData = { data: allPODetailsData, error: null }
-      
+      const allPODetailsData = poDetailsDataChunks.reduce(
+        (acc: any[], chunk) => {
+          if (chunk.data) acc.push(...chunk.data);
+          return acc;
+        },
+        [],
+      );
+
+      const poDetailsData = { data: allPODetailsData, error: null };
+
       // Fetch po_payments in chunks
       const paymentsDataChunks = await Promise.all(
-        poIdChunks.map(chunk => 
-          supabase.from('po_payments').select('po_id, payment_amount, payment_date, payment_via, payment_method, reference_number, status').in('po_id', chunk).order('payment_date', { ascending: false })
-        )
-      )
-      
+        poIdChunks.map((chunk) =>
+          supabase
+            .from("po_payments")
+            .select(
+              "po_id, payment_amount, payment_date, payment_via, payment_method, reference_number, status",
+            )
+            .in("po_id", chunk)
+            .order("payment_date", { ascending: false }),
+        ),
+      );
+
       // Combine all payments data
       const allPaymentsData = paymentsDataChunks.reduce((acc: any[], chunk) => {
-        if (chunk.data) acc.push(...chunk.data)
-        return acc
-      }, [])
-      
-      const paymentsData = { data: allPaymentsData, error: null }
-      
+        if (chunk.data) acc.push(...chunk.data);
+        return acc;
+      }, []);
+
+      const paymentsData = { data: allPaymentsData, error: null };
+
       // amazonq-ignore-next-line
-      const [barangMasukData, bulkPaymentsData, paymentTermsData, usersData] = await Promise.all([
-        supabase.from('barang_masuk').select('no_po, invoice_number').in('no_po', poNumbers).not('invoice_number', 'is', null),
-        supabase.from('bulk_payments').select('*'),
-        supabase.from('payment_terms').select('id_payment_term, term_name, calculation_type, days'),
-        supabase.from('users').select('id_user, nama_lengkap')
-      ])
-
-      
-
-      
-
+      const [barangMasukData, bulkPaymentsData, paymentTermsData, usersData] =
+        await Promise.all([
+          supabase
+            .from("barang_masuk")
+            .select("no_po, invoice_number")
+            .in("no_po", poNumbers)
+            .not("invoice_number", "is", null),
+          supabase.from("bulk_payments").select("*"),
+          supabase
+            .from("payment_terms")
+            .select("id_payment_term, term_name, calculation_type, days"),
+          supabase.from("users").select("id_user, nama_lengkap"),
+        ]);
 
       // Group data by po_id
-      const itemsByPO: Record<number, any[]> = {}
-      itemsData.data?.forEach(item => {
-        if (!itemsByPO[item.po_id]) itemsByPO[item.po_id] = []
-        itemsByPO[item.po_id].push(item)
-      })
+      const itemsByPO: Record<number, any[]> = {};
+      itemsData.data?.forEach((item) => {
+        if (!itemsByPO[item.po_id]) itemsByPO[item.po_id] = [];
+        itemsByPO[item.po_id].push(item);
+      });
 
-      const paymentsByPO: Record<number, any[]> = {}
-      paymentsData.data?.forEach(payment => {
-        if (payment.status === 'completed') {
-          if (!paymentsByPO[payment.po_id]) paymentsByPO[payment.po_id] = []
-          paymentsByPO[payment.po_id].push(payment)
+      const paymentsByPO: Record<number, any[]> = {};
+      paymentsData.data?.forEach((payment) => {
+        if (payment.status === "completed") {
+          if (!paymentsByPO[payment.po_id]) paymentsByPO[payment.po_id] = [];
+          paymentsByPO[payment.po_id].push(payment);
         }
-      })
+      });
 
-      const poDetailsMap: Record<number, any> = {}
-      poDetailsData.data?.forEach(po => { poDetailsMap[po.id] = po })
+      const poDetailsMap: Record<number, any> = {};
+      poDetailsData.data?.forEach((po) => {
+        poDetailsMap[po.id] = po;
+      });
 
-      const invoiceMap: Record<string, string> = {}
-      barangMasukData.data?.forEach(bm => { 
+      const invoiceMap: Record<string, string> = {};
+      barangMasukData.data?.forEach((bm) => {
         if (bm.invoice_number && bm.invoice_number.trim()) {
           // Always use the latest invoice (overwrite if exists)
-          invoiceMap[bm.no_po] = bm.invoice_number 
+          invoiceMap[bm.no_po] = bm.invoice_number;
         }
-      })
-      
-
+      });
 
       // Create bulk payments map
-      const bulkPaymentsMap: Record<string, any> = {}
-      bulkPaymentsData.data?.forEach(bp => { bulkPaymentsMap[bp.bulk_reference] = bp })
+      const bulkPaymentsMap: Record<string, any> = {};
+      bulkPaymentsData.data?.forEach((bp) => {
+        bulkPaymentsMap[bp.bulk_reference] = bp;
+      });
 
       // Create payment terms map
-      const paymentTermsMap: Record<number, any> = {}
-      paymentTermsData.data?.forEach(pt => { paymentTermsMap[pt.id_payment_term] = pt })
-      
-      // Create users map
-      const usersMap: Record<number, any> = {}
-      usersData.data?.forEach(user => { usersMap[user.id_user] = user })
-      
+      const paymentTermsMap: Record<number, any> = {};
+      paymentTermsData.data?.forEach((pt) => {
+        paymentTermsMap[pt.id_payment_term] = pt;
+      });
 
+      // Create users map
+      const usersMap: Record<number, any> = {};
+      usersData.data?.forEach((user) => {
+        usersMap[user.id_user] = user;
+      });
 
       // Process data dengan perhitungan KAMU (tidak berubah)
-      const correctedData = financeData.map((item: any) => {
-        const items = itemsByPO[item.id] || []
-        const payments = paymentsByPO[item.id] || []
-        const poData = poDetailsMap[item.id]
-        const invoiceNumber = invoiceMap[item.po_number]
+      const correctedData = financeData
+        .map((item: any) => {
+          const items = itemsByPO[item.id] || [];
+          const payments = paymentsByPO[item.id] || [];
+          const poData = poDetailsMap[item.id];
+          const invoiceNumber = invoiceMap[item.po_number];
 
-        // Calculate total PO using original PO price (harga), not actual_price
-        const correctedTotal = items.reduce((sum, poItem) => {
-          const qty = parseFloat(poItem.qty) || 0
-          const harga = parseFloat(poItem.harga) || 0
-          const itemTotal = qty * harga
-          return sum + itemTotal
-        }, 0)
-        
+          // Calculate total PO using original PO price (harga), not actual_price
+          const correctedTotal = items.reduce((sum, poItem) => {
+            const qty = parseFloat(poItem.qty) || 0;
+            const harga = parseFloat(poItem.harga) || 0;
+            const itemTotal = qty * harga;
+            return sum + itemTotal;
+          }, 0);
 
+          // Calculate payments (logic kamu)
+          const totalPaid = payments.reduce(
+            (sum, p) => sum + p.payment_amount,
+            0,
+          );
+          const latestPayment = payments[0] || null;
+          const totalTagih = poData?.total_tagih || 0;
+          const basisAmount = totalTagih > 0 ? totalTagih : correctedTotal;
 
-        // Calculate payments (logic kamu)
-        const totalPaid = payments.reduce((sum, p) => sum + p.payment_amount, 0)
-        const latestPayment = payments[0] || null
-        const totalTagih = poData?.total_tagih || 0
-        const basisAmount = totalTagih > 0 ? totalTagih : correctedTotal
-        
-        // Calculate status - prioritize bulk_payment_ref
-        let calculatedStatus = 'unpaid'
-        if (poData?.bulk_payment_ref) {
-          calculatedStatus = 'paid'
-        } else if (basisAmount === 0) {
-          calculatedStatus = 'unpaid'
-        } else {
-          calculatedStatus = totalPaid === 0 ? 'unpaid' : totalPaid >= basisAmount ? 'paid' : 'partial'
-        }
-        
-        // Apply debounced filters (logic kamu)
-        if (debouncedFilters.paymentStatus && calculatedStatus !== debouncedFilters.paymentStatus) return null
-        if (debouncedFilters.approvalStatus && poData?.approval_status !== debouncedFilters.approvalStatus) return null
-        
-        let sisaBayar = basisAmount - totalPaid
-        let displayTotalPaid = totalPaid
-        
-        if (poData?.bulk_payment_ref) {
-          sisaBayar = 0
-          displayTotalPaid = basisAmount
-        }
+          // Calculate status - prioritize bulk_payment_ref
+          let calculatedStatus = "unpaid";
+          if (poData?.bulk_payment_ref) {
+            calculatedStatus = "paid";
+          } else if (basisAmount === 0) {
+            calculatedStatus = "unpaid";
+          } else {
+            calculatedStatus =
+              totalPaid === 0
+                ? "unpaid"
+                : totalPaid >= basisAmount
+                  ? "paid"
+                  : "partial";
+          }
 
-        // Get payment info from bulk payment if exists, otherwise from latest payment
-        const bulkPayment = poData?.bulk_payment_ref ? bulkPaymentsMap[poData.bulk_payment_ref] : null
-        
-        // Get payment term info
-        const paymentTerm = poData?.id_payment_term ? paymentTermsMap[poData.id_payment_term] : null
-        
-        return {
-          ...item,
-          total_po: correctedTotal,
-          total_paid: displayTotalPaid,
-          sisa_bayar: sisaBayar,
-          status_payment: calculatedStatus,
-          is_overdue: calculatedStatus === 'paid' ? false : item.is_overdue,
-          days_overdue: calculatedStatus === 'paid' ? 0 : item.days_overdue,
-          dibayar_tanggal: bulkPayment?.payment_date || latestPayment?.payment_date || null,
-          payment_via: bulkPayment?.payment_via || latestPayment?.payment_via || null,
-          payment_method: bulkPayment?.payment_method || latestPayment?.payment_method || null,
-          payment_reference: poData?.bulk_payment_ref || latestPayment?.reference_number || null,
-          invoice_number: invoiceNumber || '',
-          total_tagih: totalTagih,
-          keterangan: poData?.keterangan || '',
-          approval_photo: poData?.approval_photo || null,
-          approval_status: poData?.approval_status || null,
-          approved_at: poData?.approved_at || null,
-          approved_by: poData?.approved_by || null,
-          approved_by_name: poData?.approved_by ? (usersMap[poData.approved_by]?.nama_lengkap || `User ${poData.approved_by} (not found)`) : null,
-          rejected_at: poData?.rejected_at || null,
-          rejected_by: poData?.rejected_by || null,
-          rejected_by_name: null, // Will be populated separately
-          rejection_notes: poData?.rejection_notes || null,
-          bulk_payment_ref: poData?.bulk_payment_ref || null,
-          payment_term_name: paymentTerm?.term_name || null,
-          payment_term_type: paymentTerm?.calculation_type || null
-        }
-      }).filter(item => item !== null)
+          // Apply applied filters (logic kamu)
+          if (
+            appliedFilters.paymentStatus &&
+            calculatedStatus !== appliedFilters.paymentStatus
+          )
+            return null;
+          if (
+            appliedFilters.approvalStatus &&
+            poData?.approval_status !== appliedFilters.approvalStatus
+          )
+            return null;
+
+          let sisaBayar = basisAmount - totalPaid;
+          let displayTotalPaid = totalPaid;
+
+          if (poData?.bulk_payment_ref) {
+            sisaBayar = 0;
+            displayTotalPaid = basisAmount;
+          }
+
+          // Get payment info from bulk payment if exists, otherwise from latest payment
+          const bulkPayment = poData?.bulk_payment_ref
+            ? bulkPaymentsMap[poData.bulk_payment_ref]
+            : null;
+
+          // Get payment term info
+          const paymentTerm = poData?.id_payment_term
+            ? paymentTermsMap[poData.id_payment_term]
+            : null;
+
+          return {
+            ...item,
+            total_po: correctedTotal,
+            total_paid: displayTotalPaid,
+            sisa_bayar: sisaBayar,
+            status_payment: calculatedStatus,
+            is_overdue: calculatedStatus === "paid" ? false : item.is_overdue,
+            days_overdue: calculatedStatus === "paid" ? 0 : item.days_overdue,
+            dibayar_tanggal:
+              bulkPayment?.payment_date || latestPayment?.payment_date || null,
+            payment_via:
+              bulkPayment?.payment_via || latestPayment?.payment_via || null,
+            payment_method:
+              bulkPayment?.payment_method ||
+              latestPayment?.payment_method ||
+              null,
+            payment_reference:
+              poData?.bulk_payment_ref ||
+              latestPayment?.reference_number ||
+              null,
+            invoice_number: invoiceNumber || "",
+            total_tagih: totalTagih,
+            keterangan: poData?.keterangan || "",
+            approval_photo: poData?.approval_photo || null,
+            approval_status: poData?.approval_status || null,
+            approved_at: poData?.approved_at || null,
+            approved_by: poData?.approved_by || null,
+            approved_by_name: poData?.approved_by
+              ? usersMap[poData.approved_by]?.nama_lengkap ||
+                `User ${poData.approved_by} (not found)`
+              : null,
+            rejected_at: poData?.rejected_at || null,
+            rejected_by: poData?.rejected_by || null,
+            rejected_by_name: null, // Will be populated separately
+            rejection_notes: poData?.rejection_notes || null,
+            bulk_payment_ref: poData?.bulk_payment_ref || null,
+            payment_term_name: paymentTerm?.term_name || null,
+            payment_term_type: paymentTerm?.calculation_type || null,
+          };
+        })
+        .filter((item) => item !== null);
 
       // Get rejected_by names for rejected POs
-      const rejectedPOs = correctedData.filter(item => item.rejected_by)
+      const rejectedPOs = correctedData.filter((item) => item.rejected_by);
       if (rejectedPOs.length > 0) {
-        const rejectedByIds = [...new Set(rejectedPOs.map(item => item.rejected_by))]
+        const rejectedByIds = [
+          ...new Set(rejectedPOs.map((item) => item.rejected_by)),
+        ];
         const { data: rejectedUsers } = await supabase
-          .from('users')
-          .select('auth_id, nama_lengkap')
-          .in('auth_id', rejectedByIds)
-        
-        const rejectedUsersMap: Record<string, string> = {}
-        rejectedUsers?.forEach(user => {
-          rejectedUsersMap[user.auth_id] = user.nama_lengkap
-        })
-        
+          .from("users")
+          .select("auth_id, nama_lengkap")
+          .in("auth_id", rejectedByIds);
+
+        const rejectedUsersMap: Record<string, string> = {};
+        rejectedUsers?.forEach((user) => {
+          rejectedUsersMap[user.auth_id] = user.nama_lengkap;
+        });
+
         // Update rejected_by_name
-        correctedData.forEach(item => {
+        correctedData.forEach((item) => {
           if (item.rejected_by) {
-            item.rejected_by_name = rejectedUsersMap[item.rejected_by] || null
+            item.rejected_by_name = rejectedUsersMap[item.rejected_by] || null;
           }
-        })
+        });
       }
-      
-      setData(correctedData)
+
+      setData(correctedData);
 
       // Initialize notes
-      const newNotesState: Record<number, string> = {}
-      correctedData.forEach(item => {
-        const defaultNotes = item.nama_branch === 'Sushimas Harapan Indah' ? 'Rek CV' : 'Rek PT'
-        newNotesState[item.id] = item.notes || defaultNotes
-      })
-      setNotesState(newNotesState)
-      
+      const newNotesState: Record<number, string> = {};
+      correctedData.forEach((item) => {
+        const defaultNotes =
+          item.nama_branch === "Sushimas Harapan Indah" ? "Rek CV" : "Rek PT";
+        newNotesState[item.id] = item.notes || defaultNotes;
+      });
+      setNotesState(newNotesState);
     } catch (error) {
-      console.error('Error:', error)
+      console.error("Error:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleSort = (field: string) => {
     if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
     } else {
-      setSortField(field)
-      setSortDirection('asc')
+      setSortField(field);
+      setSortDirection("asc");
     }
-  }
+  };
 
-  const allFilteredData = data.filter(item => {
-    const matchesSearch = item.po_number.toLowerCase().includes(search.toLowerCase()) ||
-                         (item.nama_supplier || '').toLowerCase().includes(search.toLowerCase()) ||
-                         (item.nama_branch || '').toLowerCase().includes(search.toLowerCase())
-    return matchesSearch
-  }).sort((a, b) => {
-    if (!sortField) return 0
-    
-    let aVal = (a as any)[sortField]
-    let bVal = (b as any)[sortField]
-    
-    if (sortField === 'po_date' || sortField === 'tanggal_jatuh_tempo' || sortField === 'dibayar_tanggal' || sortField === 'tanggal_barang_sampai') {
-      aVal = aVal ? new Date(aVal).getTime() : 0
-      bVal = bVal ? new Date(bVal).getTime() : 0
-    }
-    
-    if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
-    if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
-    return 0
-  })
+  const allFilteredData = data
+    .filter((item) => {
+      const matchesSearch =
+        item.po_number.toLowerCase().includes(search.toLowerCase()) ||
+        (item.nama_supplier || "")
+          .toLowerCase()
+          .includes(search.toLowerCase()) ||
+        (item.nama_branch || "").toLowerCase().includes(search.toLowerCase());
+      return matchesSearch;
+    })
+    .sort((a, b) => {
+      if (!sortField) return 0;
 
-  const totalPages = Math.ceil(allFilteredData.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const currentPageData = allFilteredData.slice(startIndex, startIndex + itemsPerPage)
+      let aVal = (a as any)[sortField];
+      let bVal = (b as any)[sortField];
+
+      if (
+        sortField === "po_date" ||
+        sortField === "tanggal_jatuh_tempo" ||
+        sortField === "dibayar_tanggal" ||
+        sortField === "tanggal_barang_sampai"
+      ) {
+        aVal = aVal ? new Date(aVal).getTime() : 0;
+        bVal = bVal ? new Date(bVal).getTime() : 0;
+      }
+
+      if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+
+  const totalPages = Math.ceil(allFilteredData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const currentPageData = allFilteredData.slice(
+    startIndex,
+    startIndex + itemsPerPage,
+  );
 
   const clearFilters = () => {
     const clearedFilters = {
-      dateFrom: '',
-      dateTo: '',
-      supplier: '',
+      dateFrom: "",
+      dateTo: "",
+      supplier: "",
       selectedSuppliers: [],
-      supplierSearch: '',
+      supplierSearch: "",
       showSupplierDropdown: false,
-      branch: '',
-      poStatus: '',
-      paymentStatus: '',
-      dueDate: '',
-      goodsReceived: '',
-      approvalStatus: ''
-    }
-    setFilters(clearedFilters)
-    setSearch('')
-    setCurrentPage(1)
-    
+      branch: "",
+      poStatus: "",
+      paymentStatus: "",
+      dueDate: "",
+      goodsReceived: "",
+      approvalStatus: "",
+    };
+    setFilters(clearedFilters);
+    setAppliedFilters(clearedFilters);
+    setSearch("");
+    setCurrentPage(1);
+
     // Clear URL parameters
-    router.replace('/finance/purchase-orders', { scroll: false })
-  }
+    router.replace("/finance/purchase-orders", { scroll: false });
+  };
 
   const applyFilters = () => {
-    setLoading(true)
-    setCurrentPage(1)
-    
+    setLoading(true);
+    setCurrentPage(1);
+    setAppliedFilters(filters);
+
     // Save current state whenever filters are applied
-    const currentUrl = new URL(window.location.href)
-    sessionStorage.setItem('finance_po_return_url', currentUrl.pathname + currentUrl.search)
-    sessionStorage.setItem('finance_po_filters', JSON.stringify(filters))
-    sessionStorage.setItem('finance_po_search', search)
-    sessionStorage.setItem('finance_po_page', '1')
-    
-    // Update URL immediately when applying filters
-    updateURL()
-    
-    fetchFinanceData()
-  }
+    const currentUrl = new URL(window.location.href);
+    sessionStorage.setItem(
+      "finance_po_return_url",
+      currentUrl.pathname + currentUrl.search,
+    );
+    sessionStorage.setItem("finance_po_filters", JSON.stringify(filters));
+    sessionStorage.setItem("finance_po_search", search);
+    sessionStorage.setItem("finance_po_page", "1");
+  };
 
   const summary = {
-    totalPO: data.filter(item => item.status_payment !== 'paid').reduce((sum, item) => sum + item.total_po, 0),
-    totalPaid: data.filter(item => item.status_payment !== 'paid').reduce((sum, item) => sum + item.total_paid, 0),
-    outstanding: data.filter(item => item.status_payment !== 'paid').reduce((sum, item) => sum + item.sisa_bayar, 0),
-    overdue: data.filter(item => item.is_overdue && item.status_payment !== 'paid').reduce((sum, item) => sum + item.sisa_bayar, 0),
-    totalOrders: data.filter(item => item.status_payment !== 'paid').length,
-    overdueOrders: data.filter(item => item.is_overdue && item.status_payment !== 'paid').length
-  }
+    totalPO: data
+      .filter((item) => item.status_payment !== "paid")
+      .reduce((sum, item) => sum + item.total_po, 0),
+    totalPaid: data
+      .filter((item) => item.status_payment !== "paid")
+      .reduce((sum, item) => sum + item.total_paid, 0),
+    outstanding: data
+      .filter((item) => item.status_payment !== "paid")
+      .reduce((sum, item) => sum + item.sisa_bayar, 0),
+    overdue: data
+      .filter((item) => item.is_overdue && item.status_payment !== "paid")
+      .reduce((sum, item) => sum + item.sisa_bayar, 0),
+    totalOrders: data.filter((item) => item.status_payment !== "paid").length,
+    overdueOrders: data.filter(
+      (item) => item.is_overdue && item.status_payment !== "paid",
+    ).length,
+  };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0
-    }).format(amount)
-  }
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
 
   // Approval Photo Thumbnail Component
   const ApprovalPhotoThumbnail = ({ po }: { po: any }) => {
     if (!po.approval_photo) {
-      return <span className="text-gray-400 text-xs">-</span>
+      return <span className="text-gray-400 text-xs">-</span>;
     }
 
-    const imageUrl = `${supabase.storage.from('po-photos').getPublicUrl(po.approval_photo).data.publicUrl}`
+    const imageUrl = `${supabase.storage.from("po-photos").getPublicUrl(po.approval_photo).data.publicUrl}`;
 
     return (
-      <div 
+      <div
         className="cursor-pointer hover:opacity-80 transition-opacity"
         onClick={() => setShowImageModal(po.id.toString())}
       >
-        <img 
+        <img
           src={imageUrl}
           alt="Approval"
           className="w-12 h-12 object-cover rounded border border-gray-300"
         />
-        <div className="text-xs text-gray-500 mt-1 text-center">
-          📷 View
-        </div>
+        <div className="text-xs text-gray-500 mt-1 text-center">📷 View</div>
       </div>
-    )
-  }
+    );
+  };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('id-ID', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    })
-  }
+    return new Date(dateString).toLocaleDateString("id-ID", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
 
   const getStatusColor = (status: string) => {
     // amazonq-ignore-next-line
     switch (status) {
-      case 'paid': return 'bg-green-100 text-green-800'
-      case 'partial': return 'bg-yellow-100 text-yellow-800'
-      case 'unpaid': return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case "paid":
+        return "bg-green-100 text-green-800";
+      case "partial":
+        return "bg-yellow-100 text-yellow-800";
+      case "unpaid":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
-  }
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'paid': return <CheckCircle className="h-4 w-4 mr-1" />
-      case 'partial': return <Clock className="h-4 w-4 mr-1" />
-      case 'unpaid': return <AlertCircle className="h-4 w-4 mr-1" />
-      default: return <FileText className="h-4 w-4 mr-1" />
+      case "paid":
+        return <CheckCircle className="h-4 w-4 mr-1" />;
+      case "partial":
+        return <Clock className="h-4 w-4 mr-1" />;
+      case "unpaid":
+        return <AlertCircle className="h-4 w-4 mr-1" />;
+      default:
+        return <FileText className="h-4 w-4 mr-1" />;
     }
-  }
+  };
 
   const handlePaymentSuccess = () => {
-    fetchFinanceData()
-    setShowPaymentModal(false)
-    setSelectedPO(null)
-  }
+    fetchFinanceData();
+    setShowPaymentModal(false);
+    setSelectedPO(null);
+  };
 
   const handleNotesChange = async (poId: number, newValue: string) => {
     try {
       const { error } = await supabase
-        .from('purchase_orders')
+        .from("purchase_orders")
         .update({ notes: newValue })
-        .eq('id', poId)
-      
-      if (error) throw error
-      
+        .eq("id", poId);
+
+      if (error) throw error;
+
       // Update local state
-      setNotesState(prev => ({
+      setNotesState((prev) => ({
         ...prev,
-        [poId]: newValue
-      }))
+        [poId]: newValue,
+      }));
 
       // Also update the data state to reflect the change
-      setData(prev => prev.map(item => 
-        item.id === poId ? { ...item, notes: newValue } : item
-      ))
+      setData((prev) =>
+        prev.map((item) =>
+          item.id === poId ? { ...item, notes: newValue } : item,
+        ),
+      );
     } catch (error) {
-      console.error('Error updating notes:', error)
+      console.error("Error updating notes:", error);
     }
-  }
+  };
 
   const exportToXLSX = async () => {
     try {
-      const XLSX = await import('xlsx')
-      
-      const worksheetData = allFilteredData.map(item => ({
-        'No PO': item.po_number,
-        'PO Date': formatDate(item.po_date),
-        'CABANG': item.nama_branch,
-        'Barang Sampai': (item as any).tanggal_barang_sampai ? formatDate((item as any).tanggal_barang_sampai) : '',
-        'PO Status': (item as any).po_status || '',
-        'Payment Term': (item as any).payment_term_name || `${(item as any).termin_days || 30} hari`,
-        'Jatuh Tempo': item.tanggal_jatuh_tempo ? formatDate(item.tanggal_jatuh_tempo) : 'Menunggu barang sampai',
-        'Total PO': item.total_po,
-        'Total Tagihan': (item as any).total_tagih || 0,
-        'Invoice': (item as any).invoice_number || '',
-        'Supplier': item.nama_supplier,
-        'Rekening': (item as any).nomor_rekening ? `${(item as any).bank_penerima} - ${(item as any).nomor_rekening}` : '',
-        'Dibayar': item.total_paid,
-        'Sisa': item.sisa_bayar,
-        'Release Payment': (item as any).dibayar_tanggal ? formatDate((item as any).dibayar_tanggal) : '',
-        'Tipe Payment': (item as any).payment_method || '',
-        'Payment Via': (item as any).payment_via || '',
-        'Payment Status': item.status_payment,
-        'Ref. Pembayaran': (item as any).bulk_payment_ref || (item as any).payment_reference || '',
-        'Approved Date': (item as any).approved_at ? formatDate((item as any).approved_at) : '',
-        'Notes Raymond': notesState[item.id] || 'Rek Michael',
-        'Keterangan': (item as any).keterangan || ''
-      }))
-      
-      const worksheet = XLSX.utils.json_to_sheet(worksheetData)
-      const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Finance Purchase Orders')
-      
-      XLSX.writeFile(workbook, `finance-purchase-orders-${new Date().toISOString().split('T')[0]}.xlsx`)
-    // amazonq-ignore-next-line
+      const XLSX = await import("xlsx");
+
+      const worksheetData = allFilteredData.map((item) => ({
+        "No PO": item.po_number,
+        "PO Date": formatDate(item.po_date),
+        CABANG: item.nama_branch,
+        "Barang Sampai": (item as any).tanggal_barang_sampai
+          ? formatDate((item as any).tanggal_barang_sampai)
+          : "",
+        "PO Status": (item as any).po_status || "",
+        "Payment Term":
+          (item as any).payment_term_name ||
+          `${(item as any).termin_days || 30} hari`,
+        "Jatuh Tempo": item.tanggal_jatuh_tempo
+          ? formatDate(item.tanggal_jatuh_tempo)
+          : "Menunggu barang sampai",
+        "Total PO": item.total_po,
+        "Total Tagihan": (item as any).total_tagih || 0,
+        Invoice: (item as any).invoice_number || "",
+        Supplier: item.nama_supplier,
+        Rekening: (item as any).nomor_rekening
+          ? `${(item as any).bank_penerima} - ${(item as any).nomor_rekening}`
+          : "",
+        Dibayar: item.total_paid,
+        Sisa: item.sisa_bayar,
+        "Release Payment": (item as any).dibayar_tanggal
+          ? formatDate((item as any).dibayar_tanggal)
+          : "",
+        "Tipe Payment": (item as any).payment_method || "",
+        "Payment Via": (item as any).payment_via || "",
+        "Payment Status": item.status_payment,
+        "Ref. Pembayaran":
+          (item as any).bulk_payment_ref ||
+          (item as any).payment_reference ||
+          "",
+        "Approved Date": (item as any).approved_at
+          ? formatDate((item as any).approved_at)
+          : "",
+        "Notes Raymond": notesState[item.id] || "Rek Michael",
+        Keterangan: (item as any).keterangan || "",
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "Finance Purchase Orders",
+      );
+
+      XLSX.writeFile(
+        workbook,
+        `finance-purchase-orders-${new Date().toISOString().split("T")[0]}.xlsx`,
+      );
+      // amazonq-ignore-next-line
     } catch (error) {
-      console.error('Error exporting to XLSX:', error)
-      alert('Gagal export file. Pastikan browser mendukung fitur export.')
+      console.error("Error exporting to XLSX:", error);
+      alert("Gagal export file. Pastikan browser mendukung fitur export.");
     }
-  }
-
-
+  };
 
   // Mobile Components
   const MobileFinanceCard = ({ item }: { item: FinanceData }) => {
-    const isExpanded = expandedRows.includes(item.id)
-    const hasDetails = !!rowDetails[item.id]
-    
+    const isExpanded = expandedRows.includes(item.id);
+    const hasDetails = !!rowDetails[item.id];
+
     return (
-      <div className={`bg-white rounded-lg shadow border mb-4 overflow-hidden ${
-        item.is_overdue && item.status_payment !== 'paid' ? 'border-red-200' : 'border-gray-200'
-      } ${isExpanded ? 'border-blue-200' : ''}`}>
+      <div
+        className={`bg-white rounded-lg shadow border mb-4 overflow-hidden ${
+          item.is_overdue && item.status_payment !== "paid"
+            ? "border-red-200"
+            : "border-gray-200"
+        } ${isExpanded ? "border-blue-200" : ""}`}
+      >
         <div className="p-4">
           {/* Header */}
           <div className="flex justify-between items-start mb-3">
@@ -1056,18 +1280,18 @@ function FinancePurchaseOrdersContent() {
               <input
                 type="checkbox"
                 checked={selectedPOs.includes(item.id)}
-                disabled={item.status_payment === 'paid'}
+                disabled={item.status_payment === "paid"}
                 onChange={(e) => {
                   if (e.target.checked) {
-                    setSelectedPOs([...selectedPOs, item.id])
+                    setSelectedPOs([...selectedPOs, item.id]);
                   } else {
-                    setSelectedPOs(selectedPOs.filter(id => id !== item.id))
+                    setSelectedPOs(selectedPOs.filter((id) => id !== item.id));
                   }
                 }}
                 className="rounded border-gray-300 mr-3 disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <div>
-                <a 
+                <a
                   href={`/purchaseorder/received-preview?id=${item.id}`}
                   className="text-sm font-medium text-blue-600 hover:text-blue-800"
                   target="_blank"
@@ -1081,11 +1305,15 @@ function FinancePurchaseOrdersContent() {
                 </div>
               </div>
             </div>
-            <button 
+            <button
               onClick={() => toggleRowExpansion(item.id)}
               className="text-gray-500 hover:text-blue-600 ml-2"
             >
-              {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+              {isExpanded ? (
+                <ChevronUp className="h-5 w-5" />
+              ) : (
+                <ChevronDown className="h-5 w-5" />
+              )}
             </button>
           </div>
 
@@ -1093,7 +1321,9 @@ function FinancePurchaseOrdersContent() {
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
               <p className="text-xs text-gray-500">Supplier</p>
-              <p className="text-sm font-medium truncate">{item.nama_supplier}</p>
+              <p className="text-sm font-medium truncate">
+                {item.nama_supplier}
+              </p>
             </div>
             <div>
               <p className="text-xs text-gray-500">Cabang</p>
@@ -1103,26 +1333,34 @@ function FinancePurchaseOrdersContent() {
 
           {/* Payment Status */}
           <div className="mb-3">
-            <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}>
+            <span
+              className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}
+            >
               {getStatusIcon(item.status_payment)}
               {item.status_payment.toUpperCase()}
             </span>
-            {(item as any).approval_status === 'approved' && (
+            {(item as any).approval_status === "approved" && (
               <div className="text-xs text-purple-600 mt-1 flex items-center">
                 <CheckCircle className="h-3 w-3 mr-1" />
-                Approved {(item as any).approved_at ? `- ${formatDate((item as any).approved_at)}` : ''}
+                Approved{" "}
+                {(item as any).approved_at
+                  ? `- ${formatDate((item as any).approved_at)}`
+                  : ""}
               </div>
             )}
-            {(item as any).approval_status === 'pending' && (
+            {(item as any).approval_status === "pending" && (
               <div className="text-xs text-orange-600 mt-1 flex items-center">
                 <Clock className="h-3 w-3 mr-1" />
                 Wait for Approval
               </div>
             )}
-            {(item as any).approval_status === 'rejected' && (
+            {(item as any).approval_status === "rejected" && (
               <div className="text-xs text-red-600 mt-1 flex items-center">
                 <X className="h-3 w-3 mr-1" />
-                Rejected {(item as any).rejected_at ? `- ${formatDate((item as any).rejected_at)}` : ''}
+                Rejected{" "}
+                {(item as any).rejected_at
+                  ? `- ${formatDate((item as any).rejected_at)}`
+                  : ""}
                 {(item as any).rejection_notes && (
                   <span className="ml-1" title={(item as any).rejection_notes}>
                     (Ada catatan)
@@ -1130,7 +1368,7 @@ function FinancePurchaseOrdersContent() {
                 )}
               </div>
             )}
-            {item.is_overdue && item.status_payment !== 'paid' && (
+            {item.is_overdue && item.status_payment !== "paid" && (
               <div className="text-xs text-red-600 mt-1 flex items-center">
                 <AlertTriangle className="h-3 w-3 mr-1" />
                 Overdue {item.days_overdue} hari
@@ -1142,15 +1380,21 @@ function FinancePurchaseOrdersContent() {
           <div className="grid grid-cols-3 gap-2 mb-3">
             <div className="bg-gray-50 p-2 rounded">
               <p className="text-xs text-gray-500">Total PO</p>
-              <p className="text-sm font-medium">{formatCurrency(item.total_po)}</p>
+              <p className="text-sm font-medium">
+                {formatCurrency(item.total_po)}
+              </p>
             </div>
             <div className="bg-gray-50 p-2 rounded">
               <p className="text-xs text-gray-500">Dibayar</p>
-              <p className="text-sm font-medium">{formatCurrency(item.total_paid)}</p>
+              <p className="text-sm font-medium">
+                {formatCurrency(item.total_paid)}
+              </p>
             </div>
             <div className="bg-gray-50 p-2 rounded">
               <p className="text-xs text-gray-500">Sisa</p>
-              <p className="text-sm font-medium">{formatCurrency(item.sisa_bayar)}</p>
+              <p className="text-sm font-medium">
+                {formatCurrency(item.sisa_bayar)}
+              </p>
             </div>
           </div>
 
@@ -1158,56 +1402,72 @@ function FinancePurchaseOrdersContent() {
           <div className="flex justify-between items-center">
             <div>
               <p className="text-xs text-gray-500">Jatuh Tempo</p>
-              <p className="text-sm">{item.tanggal_jatuh_tempo ? formatDate(item.tanggal_jatuh_tempo) : 'Menunggu barang sampai'}</p>
+              <p className="text-sm">
+                {item.tanggal_jatuh_tempo
+                  ? formatDate(item.tanggal_jatuh_tempo)
+                  : "Menunggu barang sampai"}
+              </p>
             </div>
             <div className="flex gap-1">
               <button
                 onClick={() => {
                   // Save current state before navigating
-                  const currentUrl = new URL(window.location.href)
-                  sessionStorage.setItem('finance_po_return_url', currentUrl.pathname + currentUrl.search)
-                  sessionStorage.setItem('finance_po_filters', JSON.stringify(filters))
-                  sessionStorage.setItem('finance_po_search', search)
-                  sessionStorage.setItem('finance_po_page', currentPage.toString())
-                  window.location.href = `/finance/purchase-orders/submit-approval?id=${item.id}`
+                  const currentUrl = new URL(window.location.href);
+                  sessionStorage.setItem(
+                    "finance_po_return_url",
+                    currentUrl.pathname + currentUrl.search,
+                  );
+                  sessionStorage.setItem(
+                    "finance_po_filters",
+                    JSON.stringify(filters),
+                  );
+                  sessionStorage.setItem("finance_po_search", search);
+                  sessionStorage.setItem(
+                    "finance_po_page",
+                    currentPage.toString(),
+                  );
+                  window.location.href = `/finance/purchase-orders/submit-approval?id=${item.id}`;
                 }}
                 className="inline-flex items-center p-1 border border-transparent rounded-md text-white bg-green-600 hover:bg-green-700"
                 title="Submit Total Tagih"
               >
                 <FileText className="h-3 w-3" />
               </button>
-              {(item as any).approval_status === 'pending' && (
+              {(item as any).approval_status === "pending" && (
                 <>
                   <button
                     onClick={async () => {
                       try {
                         // Get current user from Supabase Auth
-                        const { data: { user } } = await supabase.auth.getUser()
-                        if (!user) throw new Error('User not authenticated')
-                        
+                        const {
+                          data: { user },
+                        } = await supabase.auth.getUser();
+                        if (!user) throw new Error("User not authenticated");
+
                         // Get user ID from users table using email
-                        const { data: userData, error: userError } = await supabase
-                          .from('users')
-                          .select('id_user')
-                          .eq('email', user.email)
-                          .single()
-                        
-                        if (userError) throw userError
-                        
+                        const { data: userData, error: userError } =
+                          await supabase
+                            .from("users")
+                            .select("id_user")
+                            .eq("email", user.email)
+                            .single();
+
+                        if (userError) throw userError;
+
                         const { error } = await supabase
-                          .from('purchase_orders')
-                          .update({ 
-                            approval_status: 'approved',
+                          .from("purchase_orders")
+                          .update({
+                            approval_status: "approved",
                             approved_at: new Date().toISOString(),
                             approved_by: userData?.id_user || null,
                             rejection_notes: null,
-                            rejected_at: null
+                            rejected_at: null,
                           })
-                          .eq('id', item.id)
-                        if (error) throw error
-                        fetchFinanceData()
+                          .eq("id", item.id);
+                        if (error) throw error;
+                        fetchFinanceData();
                       } catch (error) {
-                        console.error('Error approving:', error)
+                        console.error("Error approving:", error);
                       }
                     }}
                     className="inline-flex items-center p-1 border border-transparent rounded-md text-white bg-purple-600 hover:bg-purple-700"
@@ -1217,8 +1477,8 @@ function FinancePurchaseOrdersContent() {
                   </button>
                   <button
                     onClick={() => {
-                      setRejectPO(item)
-                      setShowRejectModal(true)
+                      setRejectPO(item);
+                      setShowRejectModal(true);
                     }}
                     className="inline-flex items-center p-1 border border-transparent rounded-md text-white bg-red-600 hover:bg-red-700"
                     title="Reject"
@@ -1227,21 +1487,21 @@ function FinancePurchaseOrdersContent() {
                   </button>
                 </>
               )}
-              {(item as any).approval_status === 'approved' && (
+              {(item as any).approval_status === "approved" && (
                 <button
                   onClick={async () => {
                     try {
                       const { error } = await supabase
-                        .from('purchase_orders')
-                        .update({ 
-                          approval_status: 'pending',
-                          approved_at: null
+                        .from("purchase_orders")
+                        .update({
+                          approval_status: "pending",
+                          approved_at: null,
                         })
-                        .eq('id', item.id)
-                      if (error) throw error
-                      fetchFinanceData()
+                        .eq("id", item.id);
+                      if (error) throw error;
+                      fetchFinanceData();
                     } catch (error) {
-                      console.error('Error undoing approval:', error)
+                      console.error("Error undoing approval:", error);
                     }
                   }}
                   className="inline-flex items-center p-1 border border-transparent rounded-md text-white bg-red-600 hover:bg-red-700"
@@ -1253,8 +1513,8 @@ function FinancePurchaseOrdersContent() {
               {item.sisa_bayar > 0 && !(item as any).bulk_payment_ref && (
                 <button
                   onClick={() => {
-                    setSelectedPO(item)
-                    setShowPaymentModal(true)
+                    setSelectedPO(item);
+                    setShowPaymentModal(true);
                   }}
                   className="inline-flex items-center p-1 border border-transparent rounded-md text-white bg-blue-600 hover:bg-blue-700"
                   title="Bayar"
@@ -1262,20 +1522,23 @@ function FinancePurchaseOrdersContent() {
                   <Plus className="h-3 w-3" />
                 </button>
               )}
-              {((item.total_paid > 0 && !(item as any).bulk_payment_ref) || (item as any).bulk_payment_ref) && (
+              {((item.total_paid > 0 && !(item as any).bulk_payment_ref) ||
+                (item as any).bulk_payment_ref) && (
                 <button
                   onClick={() => {
                     if ((item as any).bulk_payment_ref) {
                       // For bulk payments, redirect to bulk payments page with ref parameter
-                      router.push(`/finance/bulk-payments?ref=${(item as any).bulk_payment_ref}`)
+                      router.push(
+                        `/finance/bulk-payments?ref=${(item as any).bulk_payment_ref}`,
+                      );
                     } else {
                       // For single payments, open payment modal
-                      setSelectedPO(item)
-                      setShowPaymentModal(true)
+                      setSelectedPO(item);
+                      setShowPaymentModal(true);
                     }
                   }}
                   className="inline-flex items-center p-1 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                  title={`${(item as any).bulk_payment_ref ? 'View Bulk Payment' : 'Edit Payment'}`}
+                  title={`${(item as any).bulk_payment_ref ? "View Bulk Payment" : "Edit Payment"}`}
                 >
                   <Edit className="h-3 w-3" />
                 </button>
@@ -1299,44 +1562,107 @@ function FinancePurchaseOrdersContent() {
                     <table className="min-w-full text-xs">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-2 py-1 text-left font-medium text-gray-500">Produk</th>
-                          <th className="px-2 py-1 text-center font-medium text-gray-500">Qty PO</th>
-                          <th className="px-2 py-1 text-center font-medium text-gray-500">Qty Diterima</th>
-                          <th className="px-2 py-1 text-right font-medium text-gray-500">Harga PO</th>
-                          <th className="px-2 py-1 text-right font-medium text-gray-500">Harga Aktual</th>
-                          <th className="px-2 py-1 text-right font-medium text-gray-500">Total</th>
-                          <th className="px-2 py-1 text-left font-medium text-gray-500">Keterangan</th>
+                          <th className="px-2 py-1 text-left font-medium text-gray-500">
+                            Produk
+                          </th>
+                          <th className="px-2 py-1 text-center font-medium text-gray-500">
+                            Qty PO
+                          </th>
+                          <th className="px-2 py-1 text-center font-medium text-gray-500">
+                            Qty Diterima
+                          </th>
+                          <th className="px-2 py-1 text-right font-medium text-gray-500">
+                            Harga PO
+                          </th>
+                          <th className="px-2 py-1 text-right font-medium text-gray-500">
+                            Harga Aktual
+                          </th>
+                          <th className="px-2 py-1 text-right font-medium text-gray-500">
+                            Total
+                          </th>
+                          <th className="px-2 py-1 text-left font-medium text-gray-500">
+                            Keterangan
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {rowDetails[item.id].items.slice(0, 3).map((poItem: any) => (
-                          <tr key={poItem.id}>
-                            <td className="px-2 py-1 font-medium">{poItem.product_name || `Product ${poItem.product_id}`}</td>
-                            <td className="px-2 py-1 text-center">{poItem.qty}</td>
-                            <td className="px-2 py-1 text-center">{poItem.received_qty || poItem.qty}</td>
-                            <td className="px-2 py-1 text-right">{formatCurrency(poItem.harga || 0)}</td>
-                            <td className="px-2 py-1 text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
-                            <td className="px-2 py-1 text-right font-medium">{formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}</td>
-                            <td className="px-2 py-1">Status: {poItem.received_qty ? 'received' : 'pending'}</td>
-                          </tr>
-                        ))}
+                        {rowDetails[item.id].items
+                          .slice(0, 3)
+                          .map((poItem: any) => (
+                            <tr key={poItem.id}>
+                              <td className="px-2 py-1 font-medium">
+                                {poItem.product_name ||
+                                  `Product ${poItem.product_id}`}
+                              </td>
+                              <td className="px-2 py-1 text-center">
+                                {poItem.qty}
+                              </td>
+                              <td className="px-2 py-1 text-center">
+                                {poItem.received_qty || poItem.qty}
+                              </td>
+                              <td className="px-2 py-1 text-right">
+                                {formatCurrency(poItem.harga || 0)}
+                              </td>
+                              <td className="px-2 py-1 text-right">
+                                {formatCurrency(
+                                  poItem.actual_price || poItem.harga || 0,
+                                )}
+                              </td>
+                              <td className="px-2 py-1 text-right font-medium">
+                                {formatCurrency(
+                                  (poItem.received_qty || poItem.qty) *
+                                    (poItem.actual_price || poItem.harga || 0),
+                                )}
+                              </td>
+                              <td className="px-2 py-1">
+                                Status:{" "}
+                                {poItem.received_qty ? "received" : "pending"}
+                              </td>
+                            </tr>
+                          ))}
                       </tbody>
                       <tfoot className="bg-gray-100 border-t border-gray-300">
                         <tr>
-                          <td className="px-2 py-1 text-xs font-bold" colSpan={5}>Total PO:</td>
+                          <td
+                            className="px-2 py-1 text-xs font-bold"
+                            colSpan={5}
+                          >
+                            Total PO:
+                          </td>
                           <td className="px-2 py-1 text-right text-xs font-bold">
-                            {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
-                              sum + (parseFloat(poItem.qty) || 0) * (parseFloat(poItem.harga) || 0), 0
-                            ))}
+                            {formatCurrency(
+                              rowDetails[item.id].items.reduce(
+                                (sum: number, poItem: any) =>
+                                  sum +
+                                  (parseFloat(poItem.qty) || 0) *
+                                    (parseFloat(poItem.harga) || 0),
+                                0,
+                              ),
+                            )}
                           </td>
                           <td className="px-2 py-1"></td>
                         </tr>
                         <tr>
-                          <td className="px-2 py-1 text-xs font-bold" colSpan={5}>Total Aktual:</td>
+                          <td
+                            className="px-2 py-1 text-xs font-bold"
+                            colSpan={5}
+                          >
+                            Total Aktual:
+                          </td>
                           <td className="px-2 py-1 text-right text-xs font-bold">
-                            {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
-                              sum + (parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
-                            ))}
+                            {formatCurrency(
+                              rowDetails[item.id].items.reduce(
+                                (sum: number, poItem: any) =>
+                                  sum +
+                                  (parseFloat(poItem.received_qty) ||
+                                    parseFloat(poItem.qty) ||
+                                    0) *
+                                    (parseFloat(poItem.actual_price) ||
+                                      parseFloat(poItem.harga) ||
+                                      0),
+                                0,
+                              ),
+                            )}
                           </td>
                           <td className="px-2 py-1"></td>
                         </tr>
@@ -1361,25 +1687,39 @@ function FinancePurchaseOrdersContent() {
                 </h3>
                 {rowDetails[item.id]?.payments?.length > 0 ? (
                   <div className="space-y-2">
-                    {rowDetails[item.id].payments.slice(0, 2).map((payment: any) => (
-                      <div key={payment.id} className="bg-white p-2 rounded border border-gray-200">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="text-xs font-medium">{formatDate(payment.payment_date)}</p>
-                            <p className="text-xs text-gray-500">{payment.payment_method}</p>
+                    {rowDetails[item.id].payments
+                      .slice(0, 2)
+                      .map((payment: any) => (
+                        <div
+                          key={payment.id}
+                          className="bg-white p-2 rounded border border-gray-200"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="text-xs font-medium">
+                                {formatDate(payment.payment_date)}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {payment.payment_method}
+                              </p>
+                            </div>
+                            <p className="text-sm font-medium">
+                              {formatCurrency(payment.payment_amount)}
+                            </p>
                           </div>
-                          <p className="text-sm font-medium">{formatCurrency(payment.payment_amount)}</p>
                         </div>
-                      </div>
-                    ))}
+                      ))}
                     {rowDetails[item.id].payments.length > 2 && (
                       <p className="text-xs text-gray-500 text-center mt-2">
-                        +{rowDetails[item.id].payments.length - 2} pembayaran lainnya
+                        +{rowDetails[item.id].payments.length - 2} pembayaran
+                        lainnya
                       </p>
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-500">Belum ada riwayat pembayaran</p>
+                  <p className="text-sm text-gray-500">
+                    Belum ada riwayat pembayaran
+                  </p>
                 )}
               </div>
 
@@ -1391,20 +1731,34 @@ function FinancePurchaseOrdersContent() {
                 </h3>
                 {(item as any).approval_photo ? (
                   <div className="bg-white rounded border border-gray-200 overflow-hidden">
-                    <img 
-                      src={`${supabase.storage.from('po-photos').getPublicUrl((item as any).approval_photo).data.publicUrl}`}
+                    <img
+                      src={`${supabase.storage.from("po-photos").getPublicUrl((item as any).approval_photo).data.publicUrl}`}
                       alt="Approval Photo"
                       className="w-full h-32 object-cover cursor-pointer hover:opacity-80"
-                      onClick={() => window.open(`${supabase.storage.from('po-photos').getPublicUrl((item as any).approval_photo).data.publicUrl}`, '_blank')}
+                      onClick={() =>
+                        window.open(
+                          `${supabase.storage.from("po-photos").getPublicUrl((item as any).approval_photo).data.publicUrl}`,
+                          "_blank",
+                        )
+                      }
                     />
                     <div className="p-2 text-xs text-gray-500">
-                      <p>Status: {(item as any).approval_status || 'pending'}</p>
-                      <p>Total Tagih: {formatCurrency((item as any).total_tagih || 0)}</p>
-                      {(item as any).keterangan && <p>Keterangan: {(item as any).keterangan}</p>}
+                      <p>
+                        Status: {(item as any).approval_status || "pending"}
+                      </p>
+                      <p>
+                        Total Tagih:{" "}
+                        {formatCurrency((item as any).total_tagih || 0)}
+                      </p>
+                      {(item as any).keterangan && (
+                        <p>Keterangan: {(item as any).keterangan}</p>
+                      )}
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-500">Belum ada foto approval</p>
+                  <p className="text-sm text-gray-500">
+                    Belum ada foto approval
+                  </p>
                 )}
               </div>
 
@@ -1420,51 +1774,147 @@ function FinancePurchaseOrdersContent() {
                       <table className="min-w-full text-xs">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="px-2 py-1 text-left font-medium text-gray-500">Produk</th>
-                            <th className="px-2 py-1 text-center font-medium text-gray-500">Qty PO</th>
-                            <th className="px-2 py-1 text-center font-medium text-gray-500">Qty Diterima</th>
-                            <th className="px-2 py-1 text-center font-medium text-gray-500">Qty Tagih</th>
-                            <th className="px-2 py-1 text-right font-medium text-gray-500">Harga PO</th>
-                            <th className="px-2 py-1 text-right font-medium text-gray-500">Harga Diterima</th>
-                            <th className="px-2 py-1 text-right font-medium text-gray-500">Harga Tagih</th>
-                            <th className="px-2 py-1 text-right font-medium text-gray-500">Total PO</th>
-                            <th className="px-2 py-1 text-right font-medium text-gray-500">Total Aktual</th>
-                            <th className="px-2 py-1 text-right font-medium text-gray-500">Total Tagih</th>
+                            <th className="px-2 py-1 text-left font-medium text-gray-500">
+                              Produk
+                            </th>
+                            <th className="px-2 py-1 text-center font-medium text-gray-500">
+                              Qty PO
+                            </th>
+                            <th className="px-2 py-1 text-center font-medium text-gray-500">
+                              Qty Diterima
+                            </th>
+                            <th className="px-2 py-1 text-center font-medium text-gray-500">
+                              Qty Tagih
+                            </th>
+                            <th className="px-2 py-1 text-right font-medium text-gray-500">
+                              Harga PO
+                            </th>
+                            <th className="px-2 py-1 text-right font-medium text-gray-500">
+                              Harga Diterima
+                            </th>
+                            <th className="px-2 py-1 text-right font-medium text-gray-500">
+                              Harga Tagih
+                            </th>
+                            <th className="px-2 py-1 text-right font-medium text-gray-500">
+                              Total PO
+                            </th>
+                            <th className="px-2 py-1 text-right font-medium text-gray-500">
+                              Total Aktual
+                            </th>
+                            <th className="px-2 py-1 text-right font-medium text-gray-500">
+                              Total Tagih
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                           {rowDetails[item.id].items.map((poItem: any) => (
                             <tr key={poItem.id}>
-                              <td className="px-2 py-1 font-medium">{poItem.product_name || `Product ${poItem.product_id}`}</td>
-                              <td className="px-2 py-1 text-center">{poItem.qty}</td>
-                              <td className="px-2 py-1 text-center">{poItem.received_qty || poItem.qty}</td>
-                              <td className="px-2 py-1 text-center">{poItem.qty_tagih || poItem.received_qty || poItem.qty}</td>
-                              <td className="px-2 py-1 text-right">{formatCurrency(poItem.harga || 0)}</td>
-                              <td className="px-2 py-1 text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
-                              <td className="px-2 py-1 text-right">{formatCurrency(poItem.harga_tagih || poItem.actual_price || poItem.harga || 0)}</td>
-                              <td className="px-2 py-1 text-right font-medium">{formatCurrency((poItem.qty) * (poItem.harga || 0))}</td>
-                              <td className="px-2 py-1 text-right font-medium">{formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}</td>
-                              <td className="px-2 py-1 text-right font-medium">{formatCurrency((poItem.qty_tagih || poItem.received_qty || poItem.qty) * (poItem.harga_tagih || poItem.actual_price || poItem.harga || 0))}</td>
+                              <td className="px-2 py-1 font-medium">
+                                {poItem.product_name ||
+                                  `Product ${poItem.product_id}`}
+                              </td>
+                              <td className="px-2 py-1 text-center">
+                                {poItem.qty}
+                              </td>
+                              <td className="px-2 py-1 text-center">
+                                {poItem.received_qty || poItem.qty}
+                              </td>
+                              <td className="px-2 py-1 text-center">
+                                {poItem.qty_tagih ||
+                                  poItem.received_qty ||
+                                  poItem.qty}
+                              </td>
+                              <td className="px-2 py-1 text-right">
+                                {formatCurrency(poItem.harga || 0)}
+                              </td>
+                              <td className="px-2 py-1 text-right">
+                                {formatCurrency(
+                                  poItem.actual_price || poItem.harga || 0,
+                                )}
+                              </td>
+                              <td className="px-2 py-1 text-right">
+                                {formatCurrency(
+                                  poItem.harga_tagih ||
+                                    poItem.actual_price ||
+                                    poItem.harga ||
+                                    0,
+                                )}
+                              </td>
+                              <td className="px-2 py-1 text-right font-medium">
+                                {formatCurrency(
+                                  poItem.qty * (poItem.harga || 0),
+                                )}
+                              </td>
+                              <td className="px-2 py-1 text-right font-medium">
+                                {formatCurrency(
+                                  (poItem.received_qty || poItem.qty) *
+                                    (poItem.actual_price || poItem.harga || 0),
+                                )}
+                              </td>
+                              <td className="px-2 py-1 text-right font-medium">
+                                {formatCurrency(
+                                  (poItem.qty_tagih ||
+                                    poItem.received_qty ||
+                                    poItem.qty) *
+                                    (poItem.harga_tagih ||
+                                      poItem.actual_price ||
+                                      poItem.harga ||
+                                      0),
+                                )}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
                         <tfoot className="bg-gray-100 border-t border-gray-300">
                           <tr>
-                            <td className="px-2 py-1 text-xs font-bold" colSpan={7}>TOTAL:</td>
-                            <td className="px-2 py-1 text-right text-xs font-bold">
-                              {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
-                                sum + (parseFloat(poItem.qty) || 0) * (parseFloat(poItem.harga) || 0), 0
-                              ))}
+                            <td
+                              className="px-2 py-1 text-xs font-bold"
+                              colSpan={7}
+                            >
+                              TOTAL:
                             </td>
                             <td className="px-2 py-1 text-right text-xs font-bold">
-                              {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
-                                sum + (parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
-                              ))}
+                              {formatCurrency(
+                                rowDetails[item.id].items.reduce(
+                                  (sum: number, poItem: any) =>
+                                    sum +
+                                    (parseFloat(poItem.qty) || 0) *
+                                      (parseFloat(poItem.harga) || 0),
+                                  0,
+                                ),
+                              )}
                             </td>
                             <td className="px-2 py-1 text-right text-xs font-bold">
-                              {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
-                                sum + (parseFloat(poItem.qty_tagih) || parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.harga_tagih) || parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
-                              ))}
+                              {formatCurrency(
+                                rowDetails[item.id].items.reduce(
+                                  (sum: number, poItem: any) =>
+                                    sum +
+                                    (parseFloat(poItem.received_qty) ||
+                                      parseFloat(poItem.qty) ||
+                                      0) *
+                                      (parseFloat(poItem.actual_price) ||
+                                        parseFloat(poItem.harga) ||
+                                        0),
+                                  0,
+                                ),
+                              )}
+                            </td>
+                            <td className="px-2 py-1 text-right text-xs font-bold">
+                              {formatCurrency(
+                                rowDetails[item.id].items.reduce(
+                                  (sum: number, poItem: any) =>
+                                    sum +
+                                    (parseFloat(poItem.qty_tagih) ||
+                                      parseFloat(poItem.received_qty) ||
+                                      parseFloat(poItem.qty) ||
+                                      0) *
+                                      (parseFloat(poItem.harga_tagih) ||
+                                        parseFloat(poItem.actual_price) ||
+                                        parseFloat(poItem.harga) ||
+                                        0),
+                                  0,
+                                ),
+                              )}
                             </td>
                           </tr>
                         </tfoot>
@@ -1487,8 +1937,8 @@ function FinancePurchaseOrdersContent() {
           </div>
         )}
       </div>
-    )
-  }
+    );
+  };
 
   const MobileDetailView = ({ item }: { item: FinanceData }) => {
     return (
@@ -1503,7 +1953,9 @@ function FinancePurchaseOrdersContent() {
 
         <div className="p-4">
           <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
-            <h3 className="text-sm font-medium text-gray-900 mb-3">Informasi Utama</h3>
+            <h3 className="text-sm font-medium text-gray-900 mb-3">
+              Informasi Utama
+            </h3>
             <div className="space-y-3">
               <div>
                 <p className="text-xs text-gray-500">No PO</p>
@@ -1523,11 +1975,17 @@ function FinancePurchaseOrdersContent() {
               </div>
               <div>
                 <p className="text-xs text-gray-500">Jatuh Tempo</p>
-                <p className="text-sm">{item.tanggal_jatuh_tempo ? formatDate(item.tanggal_jatuh_tempo) : 'Menunggu barang sampai'}</p>
+                <p className="text-sm">
+                  {item.tanggal_jatuh_tempo
+                    ? formatDate(item.tanggal_jatuh_tempo)
+                    : "Menunggu barang sampai"}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-gray-500">Status Pembayaran</p>
-                <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}>
+                <span
+                  className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}
+                >
                   {getStatusIcon(item.status_payment)}
                   {item.status_payment.toUpperCase()}
                 </span>
@@ -1536,23 +1994,33 @@ function FinancePurchaseOrdersContent() {
           </div>
 
           <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
-            <h3 className="text-sm font-medium text-gray-900 mb-3">Informasi Keuangan</h3>
+            <h3 className="text-sm font-medium text-gray-900 mb-3">
+              Informasi Keuangan
+            </h3>
             <div className="space-y-3">
               <div className="flex justify-between">
                 <p className="text-sm">Total PO</p>
-                <p className="text-sm font-medium">{formatCurrency(item.total_po)}</p>
+                <p className="text-sm font-medium">
+                  {formatCurrency(item.total_po)}
+                </p>
               </div>
               <div className="flex justify-between">
                 <p className="text-sm">Total Dibayar</p>
-                <p className="text-sm font-medium">{formatCurrency(item.total_paid)}</p>
+                <p className="text-sm font-medium">
+                  {formatCurrency(item.total_paid)}
+                </p>
               </div>
               <div className="flex justify-between">
                 <p className="text-sm">Sisa Bayar</p>
-                <p className="text-sm font-medium">{formatCurrency(item.sisa_bayar)}</p>
+                <p className="text-sm font-medium">
+                  {formatCurrency(item.sisa_bayar)}
+                </p>
               </div>
               <div className="flex justify-between">
                 <p className="text-sm">Total Tagihan</p>
-                <p className="text-sm font-medium">{formatCurrency((item as any).total_tagih || 0)}</p>
+                <p className="text-sm font-medium">
+                  {formatCurrency((item as any).total_tagih || 0)}
+                </p>
               </div>
             </div>
           </div>
@@ -1568,40 +2036,90 @@ function FinancePurchaseOrdersContent() {
                 <table className="min-w-full text-xs border border-gray-200 rounded">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500 border-b">Produk</th>
-                      <th className="px-3 py-2 text-center font-medium text-gray-500 border-b">Qty PO</th>
-                      <th className="px-3 py-2 text-center font-medium text-gray-500 border-b">Qty Diterima</th>
-                      <th className="px-3 py-2 text-right font-medium text-gray-500 border-b">Harga PO</th>
-                      <th className="px-3 py-2 text-right font-medium text-gray-500 border-b">Harga Aktual</th>
-                      <th className="px-3 py-2 text-right font-medium text-gray-500 border-b">Total</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500 border-b">Keterangan</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-500 border-b">
+                        Produk
+                      </th>
+                      <th className="px-3 py-2 text-center font-medium text-gray-500 border-b">
+                        Qty PO
+                      </th>
+                      <th className="px-3 py-2 text-center font-medium text-gray-500 border-b">
+                        Qty Diterima
+                      </th>
+                      <th className="px-3 py-2 text-right font-medium text-gray-500 border-b">
+                        Harga PO
+                      </th>
+                      <th className="px-3 py-2 text-right font-medium text-gray-500 border-b">
+                        Harga Aktual
+                      </th>
+                      <th className="px-3 py-2 text-right font-medium text-gray-500 border-b">
+                        Total
+                      </th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-500 border-b">
+                        Keterangan
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {rowDetails[item.id].items.map((poItem: any) => (
                       <tr key={poItem.id}>
-                        <td className="px-3 py-2 font-medium">{poItem.product_name || `Product ${poItem.product_id}`}</td>
+                        <td className="px-3 py-2 font-medium">
+                          {poItem.product_name ||
+                            `Product ${poItem.product_id}`}
+                        </td>
                         <td className="px-3 py-2 text-center">{poItem.qty}</td>
-                        <td className="px-3 py-2 text-center">{poItem.received_qty || poItem.qty}</td>
-                        <td className="px-3 py-2 text-right">{formatCurrency(poItem.harga || 0)}</td>
-                        <td className="px-3 py-2 text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
-                        <td className="px-3 py-2 text-right font-medium">{formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}</td>
-                        <td className="px-3 py-2">Status: {poItem.received_qty ? 'received' : 'pending'}</td>
+                        <td className="px-3 py-2 text-center">
+                          {poItem.received_qty || poItem.qty}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {formatCurrency(poItem.harga || 0)}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {formatCurrency(
+                            poItem.actual_price || poItem.harga || 0,
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right font-medium">
+                          {formatCurrency(
+                            (poItem.received_qty || poItem.qty) *
+                              (poItem.actual_price || poItem.harga || 0),
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          Status: {poItem.received_qty ? "received" : "pending"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot className="bg-gray-100 border-t border-gray-300">
                     <tr>
-                      <td className="px-3 py-2 text-xs font-bold" colSpan={4}>Total PO:</td>
-                      <td className="px-3 py-2 text-right text-xs font-bold">
-                        {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
-                          sum + (parseFloat(poItem.qty) || 0) * (parseFloat(poItem.harga) || 0), 0
-                        ))}
+                      <td className="px-3 py-2 text-xs font-bold" colSpan={4}>
+                        Total PO:
                       </td>
                       <td className="px-3 py-2 text-right text-xs font-bold">
-                        {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
-                          sum + (parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
-                        ))}
+                        {formatCurrency(
+                          rowDetails[item.id].items.reduce(
+                            (sum: number, poItem: any) =>
+                              sum +
+                              (parseFloat(poItem.qty) || 0) *
+                                (parseFloat(poItem.harga) || 0),
+                            0,
+                          ),
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right text-xs font-bold">
+                        {formatCurrency(
+                          rowDetails[item.id].items.reduce(
+                            (sum: number, poItem: any) =>
+                              sum +
+                              (parseFloat(poItem.received_qty) ||
+                                parseFloat(poItem.qty) ||
+                                0) *
+                                (parseFloat(poItem.actual_price) ||
+                                  parseFloat(poItem.harga) ||
+                                  0),
+                            0,
+                          ),
+                        )}
                       </td>
                       <td className="px-3 py-2"></td>
                     </tr>
@@ -1622,20 +2140,35 @@ function FinancePurchaseOrdersContent() {
             {rowDetails[item.id]?.payments?.length > 0 ? (
               <div className="space-y-3">
                 {rowDetails[item.id].payments.map((payment: any) => (
-                  <div key={payment.id} className="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
+                  <div
+                    key={payment.id}
+                    className="border-b border-gray-100 pb-3 last:border-0 last:pb-0"
+                  >
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="text-sm font-medium">{formatDate(payment.payment_date)}</p>
-                        <p className="text-xs text-gray-500">{payment.payment_method} • {payment.payment_via}</p>
-                        {payment.notes && <p className="text-xs text-gray-500 mt-1">{payment.notes}</p>}
+                        <p className="text-sm font-medium">
+                          {formatDate(payment.payment_date)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {payment.payment_method} • {payment.payment_via}
+                        </p>
+                        {payment.notes && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            {payment.notes}
+                          </p>
+                        )}
                       </div>
-                      <p className="text-sm font-medium">{formatCurrency(payment.payment_amount)}</p>
+                      <p className="text-sm font-medium">
+                        {formatCurrency(payment.payment_amount)}
+                      </p>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-500">Belum ada riwayat pembayaran</p>
+              <p className="text-sm text-gray-500">
+                Belum ada riwayat pembayaran
+              </p>
             )}
           </div>
 
@@ -1645,86 +2178,90 @@ function FinancePurchaseOrdersContent() {
               <button
                 onClick={async () => {
                   try {
-                    const jsPDF = (await import('jspdf')).default
-                    const doc = new jsPDF()
-                    
+                    const jsPDF = (await import("jspdf")).default;
+                    const doc = new jsPDF();
+
                     // Get company data from branches table
                     const { data: branchData } = await supabase
-                      .from('branches')
-                      .select('badan')
-                      .eq('id_branch', (item as any).cabang_id)
-                      .single()
-                    
-                    const companyName = branchData?.badan || 'PT. Suryamas Pratama'
-                    const paymentDate = (item as any).dibayar_tanggal 
+                      .from("branches")
+                      .select("badan")
+                      .eq("id_branch", (item as any).cabang_id)
+                      .single();
+
+                    const companyName =
+                      branchData?.badan || "PT. Suryamas Pratama";
+                    const paymentDate = (item as any).dibayar_tanggal
                       ? formatDate((item as any).dibayar_tanggal)
-                      : new Date().toLocaleDateString('id-ID')
-                    
-                    const bankInfo = (item as any).payment_method && (item as any).payment_via
-                      ? `${(item as any).payment_method} - ${(item as any).payment_via}`
-                      : ''
-                    
+                      : new Date().toLocaleDateString("id-ID");
+
+                    const bankInfo =
+                      (item as any).payment_method && (item as any).payment_via
+                        ? `${(item as any).payment_method} - ${(item as any).payment_via}`
+                        : "";
+
                     // Header
-                    doc.setFontSize(16)
-                    doc.setFont('helvetica', 'bold')
-                    doc.text(companyName, 105, 20, { align: 'center' })
-                    
-                    doc.setFontSize(14)
-                    doc.text('BUKTI PENGELUARAN', 105, 35, { align: 'center' })
-                    
-                    doc.setFont('helvetica', 'normal')
-                    doc.setFontSize(10)
-                    doc.text(`Tanggal: ${paymentDate}`, 20, 50)
-                    doc.text(`Supplier: ${item.nama_supplier}`, 20, 60)
-                    doc.text('Nomor Bukti: _______________', 20, 70)
-                    
+                    doc.setFontSize(16);
+                    doc.setFont("helvetica", "bold");
+                    doc.text(companyName, 105, 20, { align: "center" });
+
+                    doc.setFontSize(14);
+                    doc.text("BUKTI PENGELUARAN", 105, 35, { align: "center" });
+
+                    doc.setFont("helvetica", "normal");
+                    doc.setFontSize(10);
+                    doc.text(`Tanggal: ${paymentDate}`, 20, 50);
+                    doc.text(`Supplier: ${item.nama_supplier}`, 20, 60);
+                    doc.text("Nomor Bukti: _______________", 20, 70);
+
                     // Table Header
-                    const tableStartY = 90
-                    doc.setFont('helvetica', 'bold')
-                    doc.rect(20, tableStartY, 170, 10)
-                    doc.text('COA', 25, tableStartY + 7)
-                    doc.text('Deskripsi', 85, tableStartY + 7)
-                    doc.text('Nominal', 170, tableStartY + 7)
-                    
+                    const tableStartY = 90;
+                    doc.setFont("helvetica", "bold");
+                    doc.rect(20, tableStartY, 170, 10);
+                    doc.text("COA", 25, tableStartY + 7);
+                    doc.text("Deskripsi", 85, tableStartY + 7);
+                    doc.text("Nominal", 170, tableStartY + 7);
+
                     // Table Content
-                    doc.setFont('helvetica', 'normal')
-                    const rowY = tableStartY + 10
-                    doc.rect(20, rowY, 170, 15)
-                    doc.text('', 25, rowY + 10)
-                    const description = `Pembayaran untuk invoice ${(item as any).invoice_number} dari supplier ${item.nama_supplier}`
-                    doc.text(description, 50, rowY + 10, { maxWidth: 100 })
-                    doc.text(formatCurrency(item.total_paid), 168, rowY + 10)
-                    
+                    doc.setFont("helvetica", "normal");
+                    const rowY = tableStartY + 10;
+                    doc.rect(20, rowY, 170, 15);
+                    doc.text("", 25, rowY + 10);
+                    const description = `Pembayaran untuk invoice ${(item as any).invoice_number} dari supplier ${item.nama_supplier}`;
+                    doc.text(description, 50, rowY + 10, { maxWidth: 100 });
+                    doc.text(formatCurrency(item.total_paid), 168, rowY + 10);
+
                     // Total
-                    const totalY = rowY + 15
-                    doc.rect(20, totalY, 170, 10)
-                    doc.setFont('helvetica', 'bold')
-                    doc.text('TOTAL', 55, totalY + 7)
-                    doc.text(formatCurrency(item.total_paid), 168, totalY + 7)
-                    
+                    const totalY = rowY + 15;
+                    doc.rect(20, totalY, 170, 10);
+                    doc.setFont("helvetica", "bold");
+                    doc.text("TOTAL", 55, totalY + 7);
+                    doc.text(formatCurrency(item.total_paid), 168, totalY + 7);
+
                     // Signature Section
-                    const signY = totalY + 40
-                    doc.setFont('helvetica', 'normal')
-                    doc.text('Dibuat,', 30, signY)
-                    doc.text('Disetujui,', 90, signY)
-                    doc.text('Bank,', 150, signY)
+                    const signY = totalY + 40;
+                    doc.setFont("helvetica", "normal");
+                    doc.text("Dibuat,", 30, signY);
+                    doc.text("Disetujui,", 90, signY);
+                    doc.text("Bank,", 150, signY);
                     if (bankInfo) {
-                      doc.text(bankInfo, 150, signY + 10)
+                      doc.text(bankInfo, 150, signY + 10);
                     }
-                    
+
                     // Signature lines
-                    doc.line(20, signY + 30, 70, signY + 30)
-                    doc.line(80, signY + 30, 130, signY + 30)
-                    doc.line(140, signY + 30, 190, signY + 30)
-                    
+                    doc.line(20, signY + 30, 70, signY + 30);
+                    doc.line(80, signY + 30, 130, signY + 30);
+                    doc.line(140, signY + 30, 190, signY + 30);
+
                     // Names under signature lines
-                    doc.text('Khoirun Nisa', 30, signY + 40)
-                    doc.text('Raymond', 90, signY + 40)
-                    
-                    doc.save(`bukti-pengeluaran-${item.po_number}-${new Date().toISOString().split('T')[0]}.pdf`)
+                    doc.text("Khoirun Nisa", 30, signY + 40);
+                    doc.text("Raymond", 90, signY + 40);
+
+                    doc.save(
+                      `bukti-pengeluaran-${item.po_number}-${new Date().toISOString().split("T")[0]}.pdf`,
+                    );
                   } catch (error) {
-                    console.error('Error exporting PDF:', error)
-                    alert('Gagal export PDF')
+                    console.error("Error exporting PDF:", error);
+                    alert("Gagal export PDF");
                   }
                 }}
                 className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 flex items-center justify-center"
@@ -1736,59 +2273,75 @@ function FinancePurchaseOrdersContent() {
             <button
               onClick={() => {
                 // Save current state before navigating
-                const currentUrl = new URL(window.location.href)
-                sessionStorage.setItem('finance_po_return_url', currentUrl.pathname + currentUrl.search)
-                sessionStorage.setItem('finance_po_filters', JSON.stringify(filters))
-                sessionStorage.setItem('finance_po_search', search)
-                sessionStorage.setItem('finance_po_page', currentPage.toString())
-                window.location.href = `/finance/purchase-orders/submit-approval?id=${item.id}`
+                const currentUrl = new URL(window.location.href);
+                sessionStorage.setItem(
+                  "finance_po_return_url",
+                  currentUrl.pathname + currentUrl.search,
+                );
+                sessionStorage.setItem(
+                  "finance_po_filters",
+                  JSON.stringify(filters),
+                );
+                sessionStorage.setItem("finance_po_search", search);
+                sessionStorage.setItem(
+                  "finance_po_page",
+                  currentPage.toString(),
+                );
+                window.location.href = `/finance/purchase-orders/submit-approval?id=${item.id}`;
               }}
               className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
             >
               <FileText className="h-4 w-4 mr-1" />
               Submit
             </button>
-            {(item as any).approval_status === 'pending' && (
+            {(item as any).approval_status === "pending" && (
               <>
                 <button
                   onClick={async () => {
                     try {
                       // Get current user from localStorage or Supabase Auth
-                      let userId = null
+                      let userId = null;
                       try {
-                        const { data: { user } } = await supabase.auth.getUser()
+                        const {
+                          data: { user },
+                        } = await supabase.auth.getUser();
                         if (user) {
                           const { data: userData } = await supabase
-                            .from('users')
-                            .select('id_user')
-                            .eq('email', user.email)
-                            .single()
-                          userId = userData?.id_user
+                            .from("users")
+                            .select("id_user")
+                            .eq("email", user.email)
+                            .single();
+                          userId = userData?.id_user;
                         }
                       } catch (authError) {
-                        console.warn('Auth error, using localStorage:', authError)
+                        console.warn(
+                          "Auth error, using localStorage:",
+                          authError,
+                        );
                       }
-                      
+
                       if (!userId) {
-                        const localUser = JSON.parse(localStorage.getItem('user') || '{}')
-                        userId = localUser.id_user || null
+                        const localUser = JSON.parse(
+                          localStorage.getItem("user") || "{}",
+                        );
+                        userId = localUser.id_user || null;
                       }
-                      
+
                       const { error } = await supabase
-                        .from('purchase_orders')
-                        .update({ 
-                          approval_status: 'approved',
+                        .from("purchase_orders")
+                        .update({
+                          approval_status: "approved",
                           approved_at: new Date().toISOString(),
                           approved_by: userId,
                           rejection_notes: null,
-                          rejected_at: null
+                          rejected_at: null,
                         })
-                        .eq('id', item.id)
-                      if (error) throw error
-                      fetchFinanceData()
-                      setSelectedMobileItem(null)
+                        .eq("id", item.id);
+                      if (error) throw error;
+                      fetchFinanceData();
+                      setSelectedMobileItem(null);
                     } catch (error) {
-                      console.error('Error approving:', error)
+                      console.error("Error approving:", error);
                     }
                   }}
                   className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
@@ -1798,9 +2351,9 @@ function FinancePurchaseOrdersContent() {
                 </button>
                 <button
                   onClick={() => {
-                    setRejectPO(item)
-                    setShowRejectModal(true)
-                    setSelectedMobileItem(null)
+                    setRejectPO(item);
+                    setShowRejectModal(true);
+                    setSelectedMobileItem(null);
                   }}
                   className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
                 >
@@ -1809,22 +2362,22 @@ function FinancePurchaseOrdersContent() {
                 </button>
               </>
             )}
-            {(item as any).approval_status === 'approved' && (
+            {(item as any).approval_status === "approved" && (
               <button
                 onClick={async () => {
                   try {
                     const { error } = await supabase
-                      .from('purchase_orders')
-                      .update({ 
-                        approval_status: 'pending',
-                        approved_at: null
+                      .from("purchase_orders")
+                      .update({
+                        approval_status: "pending",
+                        approved_at: null,
                       })
-                      .eq('id', item.id)
-                    if (error) throw error
-                    fetchFinanceData()
-                    setSelectedMobileItem(null)
+                      .eq("id", item.id);
+                    if (error) throw error;
+                    fetchFinanceData();
+                    setSelectedMobileItem(null);
                   } catch (error) {
-                    console.error('Error undoing approval:', error)
+                    console.error("Error undoing approval:", error);
                   }
                 }}
                 className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
@@ -1836,9 +2389,9 @@ function FinancePurchaseOrdersContent() {
             {item.sisa_bayar > 0 && !(item as any).bulk_payment_ref && (
               <button
                 onClick={() => {
-                  setSelectedPO(item)
-                  setShowPaymentModal(true)
-                  setSelectedMobileItem(null)
+                  setSelectedPO(item);
+                  setShowPaymentModal(true);
+                  setSelectedMobileItem(null);
                 }}
                 className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
               >
@@ -1846,30 +2399,33 @@ function FinancePurchaseOrdersContent() {
                 Bayar
               </button>
             )}
-            {((item.total_paid > 0 && !(item as any).bulk_payment_ref) || (item as any).bulk_payment_ref) && (
+            {((item.total_paid > 0 && !(item as any).bulk_payment_ref) ||
+              (item as any).bulk_payment_ref) && (
               <button
                 onClick={() => {
                   if ((item as any).bulk_payment_ref) {
                     // For bulk payments, redirect to bulk payments page with ref parameter
-                    router.push(`/finance/bulk-payments?ref=${(item as any).bulk_payment_ref}`)
+                    router.push(
+                      `/finance/bulk-payments?ref=${(item as any).bulk_payment_ref}`,
+                    );
                   } else {
                     // For single payments, open payment modal
-                    setSelectedPO(item)
-                    setShowPaymentModal(true)
-                    setSelectedMobileItem(null)
+                    setSelectedPO(item);
+                    setShowPaymentModal(true);
+                    setSelectedMobileItem(null);
                   }
                 }}
                 className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
               >
                 <Edit className="h-4 w-4 mr-1" />
-                {(item as any).bulk_payment_ref ? 'View Bulk' : 'Edit Payment'}
+                {(item as any).bulk_payment_ref ? "View Bulk" : "Edit Payment"}
               </button>
             )}
           </div>
         </div>
       </div>
-    )
-  }
+    );
+  };
 
   const MobileFiltersPanel = () => {
     return (
@@ -1879,7 +2435,7 @@ function FinancePurchaseOrdersContent() {
             <X className="h-5 w-5" />
           </button>
           <h2 className="text-lg font-semibold">Filter Data</h2>
-          <button 
+          <button
             onClick={clearFilters}
             className="text-blue-600 text-sm font-medium"
           >
@@ -1890,41 +2446,55 @@ function FinancePurchaseOrdersContent() {
         <div className="p-4">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Dari Tanggal
+              </label>
               <input
                 type="date"
                 value={filters.dateFrom}
-                onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
+                onChange={(e) =>
+                  setFilters({ ...filters, dateFrom: e.target.value })
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sampai Tanggal
+              </label>
               <input
                 type="date"
                 value={filters.dateTo}
-                onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
+                onChange={(e) =>
+                  setFilters({ ...filters, dateTo: e.target.value })
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Supplier
+              </label>
               <div className="relative supplier-dropdown">
                 <button
                   type="button"
-                  onClick={() => setFilters({...filters, showSupplierDropdown: !filters.showSupplierDropdown})}
+                  onClick={() =>
+                    setFilters({
+                      ...filters,
+                      showSupplierDropdown: !filters.showSupplierDropdown,
+                    })
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm text-left bg-white flex items-center justify-between"
                 >
                   <span className="truncate">
-                    {filters.selectedSuppliers.length === 0 
-                      ? 'Pilih Supplier' 
-                      : `${filters.selectedSuppliers.length} supplier dipilih`
-                    }
+                    {filters.selectedSuppliers.length === 0
+                      ? "Pilih Supplier"
+                      : `${filters.selectedSuppliers.length} supplier dipilih`}
                   </span>
                   <ChevronDown className="h-4 w-4 text-gray-400" />
                 </button>
-                
+
                 {filters.showSupplierDropdown && (
                   <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-hidden">
                     <div className="p-2 border-b border-gray-200">
@@ -1932,55 +2502,91 @@ function FinancePurchaseOrdersContent() {
                         type="text"
                         placeholder="Cari supplier..."
                         value={filters.supplierSearch}
-                        onChange={(e) => setFilters({...filters, supplierSearch: e.target.value})}
+                        onChange={(e) =>
+                          setFilters({
+                            ...filters,
+                            supplierSearch: e.target.value,
+                          })
+                        }
                         className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
                       />
                     </div>
                     <div className="max-h-40 overflow-y-auto">
                       {suppliers
-                        .filter(supplier => 
-                          supplier.nama_supplier.toLowerCase().includes(filters.supplierSearch.toLowerCase())
+                        .filter((supplier) =>
+                          supplier.nama_supplier
+                            .toLowerCase()
+                            .includes(filters.supplierSearch.toLowerCase()),
                         )
-                        .map(supplier => (
-                          <label key={supplier.id_supplier} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                        .map((supplier) => (
+                          <label
+                            key={supplier.id_supplier}
+                            className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                          >
                             <input
                               type="checkbox"
-                              checked={filters.selectedSuppliers.includes(supplier.id_supplier.toString())}
+                              checked={filters.selectedSuppliers.includes(
+                                supplier.id_supplier.toString(),
+                              )}
                               onChange={(e) => {
-                                const supplierId = supplier.id_supplier.toString()
-                                console.log('Checkbox changed:', supplierId, e.target.checked)
+                                const supplierId =
+                                  supplier.id_supplier.toString();
+                                console.log(
+                                  "Checkbox changed:",
+                                  supplierId,
+                                  e.target.checked,
+                                );
                                 if (e.target.checked) {
-                                  const newSelected = [...filters.selectedSuppliers, supplierId]
-                                  console.log('New selected suppliers:', newSelected)
+                                  const newSelected = [
+                                    ...filters.selectedSuppliers,
+                                    supplierId,
+                                  ];
+                                  console.log(
+                                    "New selected suppliers:",
+                                    newSelected,
+                                  );
                                   setFilters({
                                     ...filters,
-                                    selectedSuppliers: newSelected
-                                  })
+                                    selectedSuppliers: newSelected,
+                                  });
                                 } else {
-                                  const newSelected = filters.selectedSuppliers.filter(id => id !== supplierId)
-                                  console.log('New selected suppliers after removal:', newSelected)
+                                  const newSelected =
+                                    filters.selectedSuppliers.filter(
+                                      (id) => id !== supplierId,
+                                    );
+                                  console.log(
+                                    "New selected suppliers after removal:",
+                                    newSelected,
+                                  );
                                   setFilters({
                                     ...filters,
-                                    selectedSuppliers: newSelected
-                                  })
+                                    selectedSuppliers: newSelected,
+                                  });
                                 }
                               }}
                               className="rounded border-gray-300 mr-2"
                             />
-                            <span className="text-sm truncate">{supplier.nama_supplier}</span>
+                            <span className="text-sm truncate">
+                              {supplier.nama_supplier}
+                            </span>
                           </label>
-                        ))
-                      }
-                      {suppliers.filter(supplier => 
-                        supplier.nama_supplier.toLowerCase().includes(filters.supplierSearch.toLowerCase())
+                        ))}
+                      {suppliers.filter((supplier) =>
+                        supplier.nama_supplier
+                          .toLowerCase()
+                          .includes(filters.supplierSearch.toLowerCase()),
                       ).length === 0 && (
-                        <div className="px-3 py-2 text-sm text-gray-500">Tidak ada supplier ditemukan</div>
+                        <div className="px-3 py-2 text-sm text-gray-500">
+                          Tidak ada supplier ditemukan
+                        </div>
                       )}
                     </div>
                     <div className="p-2 border-t border-gray-200 flex gap-2">
                       <button
                         type="button"
-                        onClick={() => setFilters({...filters, selectedSuppliers: []})}
+                        onClick={() =>
+                          setFilters({ ...filters, selectedSuppliers: [] })
+                        }
                         className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
                       >
                         Clear All
@@ -1988,8 +2594,13 @@ function FinancePurchaseOrdersContent() {
                       <button
                         type="button"
                         onClick={() => {
-                          const allSupplierIds = suppliers.map(s => s.id_supplier.toString())
-                          setFilters({...filters, selectedSuppliers: allSupplierIds})
+                          const allSupplierIds = suppliers.map((s) =>
+                            s.id_supplier.toString(),
+                          );
+                          setFilters({
+                            ...filters,
+                            selectedSuppliers: allSupplierIds,
+                          });
                         }}
                         className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
                       >
@@ -2001,14 +2612,18 @@ function FinancePurchaseOrdersContent() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Cabang
+              </label>
               <select
                 value={filters.branch}
-                onChange={(e) => setFilters({...filters, branch: e.target.value})}
+                onChange={(e) =>
+                  setFilters({ ...filters, branch: e.target.value })
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
               >
                 <option value="">Semua Cabang</option>
-                {branches.map(branch => (
+                {branches.map((branch) => (
                   <option key={branch.id_branch} value={branch.id_branch}>
                     {branch.nama_branch}
                   </option>
@@ -2016,10 +2631,14 @@ function FinancePurchaseOrdersContent() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Payment Status</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Payment Status
+              </label>
               <select
                 value={filters.paymentStatus}
-                onChange={(e) => setFilters({...filters, paymentStatus: e.target.value})}
+                onChange={(e) =>
+                  setFilters({ ...filters, paymentStatus: e.target.value })
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
               >
                 <option value="">Semua Payment Status</option>
@@ -2029,10 +2648,14 @@ function FinancePurchaseOrdersContent() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Jatuh Tempo</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Jatuh Tempo
+              </label>
               <select
                 value={filters.dueDate}
-                onChange={(e) => setFilters({...filters, dueDate: e.target.value})}
+                onChange={(e) =>
+                  setFilters({ ...filters, dueDate: e.target.value })
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
               >
                 <option value="">Semua</option>
@@ -2044,8 +2667,8 @@ function FinancePurchaseOrdersContent() {
 
           <button
             onClick={() => {
-              applyFilters()
-              setShowMobileFilters(false)
+              applyFilters();
+              setShowMobileFilters(false);
             }}
             className="w-full mt-6 py-3 bg-blue-600 text-white font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
@@ -2053,8 +2676,8 @@ function FinancePurchaseOrdersContent() {
           </button>
         </div>
       </div>
-    )
-  }
+    );
+  };
 
   if (loading) {
     return (
@@ -2063,7 +2686,7 @@ function FinancePurchaseOrdersContent() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       </Layout>
-    )
+    );
   }
 
   // Render mobile view
@@ -2076,25 +2699,37 @@ function FinancePurchaseOrdersContent() {
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
                 <p className="text-xs text-gray-600">Total PO</p>
-                <p className="text-sm font-semibold">{formatCurrency(summary.totalPO)}</p>
-                <p className="text-xs text-gray-500">{summary.totalOrders} orders</p>
+                <p className="text-sm font-semibold">
+                  {formatCurrency(summary.totalPO)}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {summary.totalOrders} orders
+                </p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
                 <p className="text-xs text-gray-600">Outstanding</p>
-                <p className="text-sm font-semibold">{formatCurrency(summary.outstanding)}</p>
+                <p className="text-sm font-semibold">
+                  {formatCurrency(summary.outstanding)}
+                </p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
                 <p className="text-xs text-gray-600">Overdue</p>
-                <p className="text-sm font-semibold">{formatCurrency(summary.overdue)}</p>
-                <p className="text-xs text-gray-500">{summary.overdueOrders} orders</p>
+                <p className="text-sm font-semibold">
+                  {formatCurrency(summary.overdue)}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {summary.overdueOrders} orders
+                </p>
               </div>
               <div className="bg-white p-3 rounded-lg shadow border border-gray-200">
                 <div className="flex justify-between items-center h-full">
                   <div>
                     <p className="text-xs text-gray-600">Last Updated</p>
-                    <p className="text-xs font-semibold">{new Date().toLocaleDateString('id-ID')}</p>
+                    <p className="text-xs font-semibold">
+                      {new Date().toLocaleDateString("id-ID")}
+                    </p>
                   </div>
-                  <button 
+                  <button
                     onClick={fetchFinanceData}
                     className="px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700"
                   >
@@ -2113,10 +2748,13 @@ function FinancePurchaseOrdersContent() {
                       {selectedPOs.length} PO dipilih
                     </span>
                     <div className="text-xs text-blue-700 mt-1">
-                      Total: {formatCurrency(selectedPOs.reduce((sum, poId) => {
-                        const po = data.find(item => item.id === poId)
-                        return sum + (po?.sisa_bayar || 0)
-                      }, 0))}
+                      Total:{" "}
+                      {formatCurrency(
+                        selectedPOs.reduce((sum, poId) => {
+                          const po = data.find((item) => item.id === poId);
+                          return sum + (po?.sisa_bayar || 0);
+                        }, 0),
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -2158,203 +2796,233 @@ function FinancePurchaseOrdersContent() {
                   <Download size={16} />
                 </button>
               </div>
-              
+
               {/* Quick Filter Buttons - Mobile */}
               <div className="flex flex-col gap-3 mb-3">
                 {/* Status Filter Buttons */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">Status PO:</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    Status PO:
+                  </label>
                   <div className="flex flex-wrap gap-1">
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, poStatus: ''}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = { ...filters, poStatus: "" };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
-                        filters.poStatus === '' 
-                          ? 'bg-blue-600 text-white border-blue-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.poStatus === ""
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Semua
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, poStatus: 'Pending'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = { ...filters, poStatus: "Pending" };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
-                        filters.poStatus === 'Pending' 
-                          ? 'bg-yellow-600 text-white border-yellow-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.poStatus === "Pending"
+                          ? "bg-yellow-600 text-white border-yellow-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Pending
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, poStatus: 'Sedang diproses'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = {
+                          ...filters,
+                          poStatus: "Sedang diproses",
+                        };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
-                        filters.poStatus === 'Sedang diproses' 
-                          ? 'bg-blue-600 text-white border-blue-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.poStatus === "Sedang diproses"
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Diproses
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, poStatus: 'Barang sampai'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = {
+                          ...filters,
+                          poStatus: "Barang sampai",
+                        };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
-                        filters.poStatus === 'Barang sampai' 
-                          ? 'bg-green-600 text-white border-green-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.poStatus === "Barang sampai"
+                          ? "bg-green-600 text-white border-green-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Sampai
                     </button>
                   </div>
                 </div>
-                
+
                 {/* Payment Status Filter Buttons */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">Payment Status:</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    Payment Status:
+                  </label>
                   <div className="flex flex-wrap gap-1">
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, paymentStatus: ''}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = { ...filters, paymentStatus: "" };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
-                        filters.paymentStatus === '' 
-                          ? 'bg-blue-600 text-white border-blue-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.paymentStatus === ""
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Semua
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, paymentStatus: 'unpaid'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = {
+                          ...filters,
+                          paymentStatus: "unpaid",
+                        };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
-                        filters.paymentStatus === 'unpaid' 
-                          ? 'bg-red-600 text-white border-red-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.paymentStatus === "unpaid"
+                          ? "bg-red-600 text-white border-red-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Unpaid
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, paymentStatus: 'partial'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = {
+                          ...filters,
+                          paymentStatus: "partial",
+                        };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
-                        filters.paymentStatus === 'partial' 
-                          ? 'bg-yellow-600 text-white border-yellow-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.paymentStatus === "partial"
+                          ? "bg-yellow-600 text-white border-yellow-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Partial
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, paymentStatus: 'paid'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = {
+                          ...filters,
+                          paymentStatus: "paid",
+                        };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
-                        filters.paymentStatus === 'paid' 
-                          ? 'bg-green-600 text-white border-green-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.paymentStatus === "paid"
+                          ? "bg-green-600 text-white border-green-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Paid
                     </button>
                   </div>
                 </div>
-                
+
                 {/* Approval Status Filter Buttons */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">Approval Status:</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    Approval Status:
+                  </label>
                   <div className="flex flex-wrap gap-1">
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, approvalStatus: ''}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = { ...filters, approvalStatus: "" };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
-                        filters.approvalStatus === '' 
-                          ? 'bg-blue-600 text-white border-blue-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.approvalStatus === ""
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Semua
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, approvalStatus: 'pending'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = {
+                          ...filters,
+                          approvalStatus: "pending",
+                        };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
-                        filters.approvalStatus === 'pending' 
-                          ? 'bg-orange-600 text-white border-orange-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.approvalStatus === "pending"
+                          ? "bg-orange-600 text-white border-orange-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Pending
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, approvalStatus: 'approved'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = {
+                          ...filters,
+                          approvalStatus: "approved",
+                        };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
-                        filters.approvalStatus === 'approved' 
-                          ? 'bg-purple-600 text-white border-purple-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.approvalStatus === "approved"
+                          ? "bg-purple-600 text-white border-purple-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Approved
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, approvalStatus: 'rejected'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = {
+                          ...filters,
+                          approvalStatus: "rejected",
+                        };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
-                        filters.approvalStatus === 'rejected' 
-                          ? 'bg-red-600 text-white border-red-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.approvalStatus === "rejected"
+                          ? "bg-red-600 text-white border-red-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Rejected
@@ -2362,7 +3030,7 @@ function FinancePurchaseOrdersContent() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowMobileFilters(true)}
@@ -2398,7 +3066,9 @@ function FinancePurchaseOrdersContent() {
                   Page {currentPage} of {totalPages}
                 </span>
                 <button
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  onClick={() =>
+                    setCurrentPage(Math.min(totalPages, currentPage + 1))
+                  }
                   disabled={currentPage === totalPages}
                   className="relative inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
                 >
@@ -2427,12 +3097,12 @@ function FinancePurchaseOrdersContent() {
             <RejectModal
               po={rejectPO}
               onClose={() => {
-                setShowRejectModal(false)
-                setRejectPO(null)
-                setRejectNotes('')
+                setShowRejectModal(false);
+                setRejectPO(null);
+                setRejectNotes("");
               }}
               onSuccess={() => {
-                fetchFinanceData()
+                fetchFinanceData();
               }}
             />
           )}
@@ -2442,8 +3112,8 @@ function FinancePurchaseOrdersContent() {
             <ViewRejectionNotesModal
               po={viewRejectionPO}
               onClose={() => {
-                setShowViewRejectionModal(false)
-                setViewRejectionPO(null)
+                setShowViewRejectionModal(false);
+                setViewRejectionPO(null);
               }}
             />
           )}
@@ -2453,11 +3123,11 @@ function FinancePurchaseOrdersContent() {
             <PaymentModal
               po={{
                 ...selectedPO,
-                total_tagih: (selectedPO as any).total_tagih || 0
+                total_tagih: (selectedPO as any).total_tagih || 0,
               }}
               onClose={() => {
-                setShowPaymentModal(false)
-                setSelectedPO(null)
+                setShowPaymentModal(false);
+                setSelectedPO(null);
               }}
               onSuccess={handlePaymentSuccess}
             />
@@ -2467,19 +3137,21 @@ function FinancePurchaseOrdersContent() {
           {showBulkPaymentModal && (
             <BulkPaymentModal
               isOpen={showBulkPaymentModal}
-              availablePOs={data.filter(item => selectedPOs.includes(item.id))}
+              availablePOs={data.filter((item) =>
+                selectedPOs.includes(item.id),
+              )}
               onClose={() => setShowBulkPaymentModal(false)}
               onSuccess={() => {
-                setShowBulkPaymentModal(false)
-                setSelectedPOs([])
-                fetchFinanceData()
-                fetchBulkPayments()
+                setShowBulkPaymentModal(false);
+                setSelectedPOs([]);
+                fetchFinanceData();
+                fetchBulkPayments();
               }}
             />
           )}
         </PageAccessControl>
       </Layout>
-    )
+    );
   }
 
   // Desktop view
@@ -2487,8 +3159,6 @@ function FinancePurchaseOrdersContent() {
     <Layout>
       <PageAccessControl pageName="finance">
         <div className="p-3 md:p-6 bg-gray-50 min-h-screen">
-
-
           {/* Bulk Actions */}
           {selectedPOs.length > 0 && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 md:p-4 mb-4">
@@ -2498,7 +3168,16 @@ function FinancePurchaseOrdersContent() {
                     {selectedPOs.length} PO dipilih
                   </span>
                   <span className="text-xs sm:text-sm text-blue-600">
-                    Total: {formatCurrency(data.filter(item => selectedPOs.includes(item.id)).reduce((sum, item) => sum + (item.total_tagih || item.sisa_bayar), 0))}
+                    Total:{" "}
+                    {formatCurrency(
+                      data
+                        .filter((item) => selectedPOs.includes(item.id))
+                        .reduce(
+                          (sum, item) =>
+                            sum + (item.total_tagih || item.sisa_bayar),
+                          0,
+                        ),
+                    )}
                   </span>
                 </div>
                 <div className="flex gap-2">
@@ -2506,115 +3185,155 @@ function FinancePurchaseOrdersContent() {
                     onClick={async () => {
                       try {
                         // Get current user from localStorage or Supabase Auth
-                        let userId = null
+                        let userId = null;
                         try {
-                          const { data: { user } } = await supabase.auth.getUser()
+                          const {
+                            data: { user },
+                          } = await supabase.auth.getUser();
                           if (user) {
-                            const { data: userData, error: userError } = await supabase
-                              .from('users')
-                              .select('id_user')
-                              .eq('email', user.email)
-                              .single()
-                            
+                            const { data: userData, error: userError } =
+                              await supabase
+                                .from("users")
+                                .select("id_user")
+                                .eq("email", user.email)
+                                .single();
+
                             if (!userError && userData) {
-                              userId = userData.id_user
+                              userId = userData.id_user;
                             }
                           }
                         } catch (authError) {
-                          console.warn('Auth error, using localStorage:', authError)
+                          console.warn(
+                            "Auth error, using localStorage:",
+                            authError,
+                          );
                         }
-                        
+
                         if (!userId) {
-                          const localUser = JSON.parse(localStorage.getItem('user') || '{}')
-                          userId = localUser.id_user || null
+                          const localUser = JSON.parse(
+                            localStorage.getItem("user") || "{}",
+                          );
+                          userId = localUser.id_user || null;
                         }
-                        
+
                         if (!userId) {
-                          throw new Error('User not authenticated. Please login again.')
+                          throw new Error(
+                            "User not authenticated. Please login again.",
+                          );
                         }
-                        
-                        const updatePromises = selectedPOs.map(poId => 
+
+                        const updatePromises = selectedPOs.map((poId) =>
                           supabase
-                            .from('purchase_orders')
-                            .update({ 
-                              approval_status: 'approved',
+                            .from("purchase_orders")
+                            .update({
+                              approval_status: "approved",
                               approved_at: new Date().toISOString(),
                               approved_by: userId,
                               rejection_notes: null,
-                              rejected_at: null
+                              rejected_at: null,
                             })
-                            .eq('id', poId)
-                        )
-                        await Promise.all(updatePromises)
-                        fetchFinanceData()
-                        alert(`${selectedPOs.length} PO berhasil di-approve`)
+                            .eq("id", poId),
+                        );
+                        await Promise.all(updatePromises);
+                        fetchFinanceData();
+                        alert(`${selectedPOs.length} PO berhasil di-approve`);
                       } catch (error) {
-                        console.error('Error bulk approving:', error)
-                        alert('Gagal melakukan bulk approval')
+                        console.error("Error bulk approving:", error);
+                        alert("Gagal melakukan bulk approval");
                       }
                     }}
                     className="flex-1 sm:flex-none px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-xs sm:text-sm"
-                    disabled={!data.filter(item => selectedPOs.includes(item.id)).some(item => (item as any).approval_status === 'pending')}
+                    disabled={
+                      !data
+                        .filter((item) => selectedPOs.includes(item.id))
+                        .some(
+                          (item) => (item as any).approval_status === "pending",
+                        )
+                    }
                   >
                     <span className="hidden sm:inline">Bulk </span>Approve
                   </button>
                   <button
                     onClick={async () => {
                       try {
-                        const notes = prompt('Masukkan alasan penolakan untuk semua PO yang dipilih:')
-                        if (notes === null) return // User cancelled
-                        
+                        const notes = prompt(
+                          "Masukkan alasan penolakan untuk semua PO yang dipilih:",
+                        );
+                        if (notes === null) return; // User cancelled
+
                         if (!notes.trim()) {
-                          alert('Harap masukkan alasan penolakan')
-                          return
+                          alert("Harap masukkan alasan penolakan");
+                          return;
                         }
 
                         // Get current user from localStorage or Supabase Auth
-                        let currentUser = null
+                        let currentUser = null;
                         try {
-                          const { data: { user } } = await supabase.auth.getUser()
-                          currentUser = user
+                          const {
+                            data: { user },
+                          } = await supabase.auth.getUser();
+                          currentUser = user;
                         } catch (authError) {
-                          console.warn('Auth error, using localStorage:', authError)
+                          console.warn(
+                            "Auth error, using localStorage:",
+                            authError,
+                          );
                         }
-                        
+
                         if (!currentUser) {
-                          const localUser = JSON.parse(localStorage.getItem('user') || '{}')
-                          currentUser = { id: localUser.auth_id || null }
+                          const localUser = JSON.parse(
+                            localStorage.getItem("user") || "{}",
+                          );
+                          currentUser = { id: localUser.auth_id || null };
                         }
-                        
+
                         if (!currentUser?.id) {
-                          throw new Error('User not authenticated. Please login again.')
+                          throw new Error(
+                            "User not authenticated. Please login again.",
+                          );
                         }
-                        
-                        const updatePromises = selectedPOs.map(poId => 
+
+                        const updatePromises = selectedPOs.map((poId) =>
                           supabase
-                            .from('purchase_orders')
-                            .update({ 
-                              approval_status: 'rejected',
+                            .from("purchase_orders")
+                            .update({
+                              approval_status: "rejected",
                               rejected_at: new Date().toISOString(),
                               rejection_notes: notes.trim(),
-                              rejected_by: currentUser.id
+                              rejected_by: currentUser.id,
                             })
-                            .eq('id', poId)
-                        )
-                        await Promise.all(updatePromises)
-                        fetchFinanceData()
-                        alert(`${selectedPOs.length} PO berhasil ditolak`)
+                            .eq("id", poId),
+                        );
+                        await Promise.all(updatePromises);
+                        fetchFinanceData();
+                        alert(`${selectedPOs.length} PO berhasil ditolak`);
                       } catch (error) {
-                        console.error('Error bulk rejecting:', error)
-                        alert('Gagal melakukan bulk rejection')
+                        console.error("Error bulk rejecting:", error);
+                        alert("Gagal melakukan bulk rejection");
                       }
                     }}
                     className="flex-1 sm:flex-none px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-xs sm:text-sm"
-                    disabled={!data.filter(item => selectedPOs.includes(item.id)).some(item => (item as any).approval_status === 'pending')}
+                    disabled={
+                      !data
+                        .filter((item) => selectedPOs.includes(item.id))
+                        .some(
+                          (item) => (item as any).approval_status === "pending",
+                        )
+                    }
                   >
                     <span className="hidden sm:inline">Bulk </span>Reject
                   </button>
                   <button
                     onClick={() => setShowBulkPaymentModal(true)}
                     className="flex-1 sm:flex-none px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-xs sm:text-sm"
-                    disabled={!data.filter(item => selectedPOs.includes(item.id)).every(item => (item as any).approval_status === 'approved')}
+                    disabled={
+                      !data
+                        .filter((item) => selectedPOs.includes(item.id))
+                        .every(
+                          (item) =>
+                            (item as any).approval_status === "approved",
+                        )
+                    }
                   >
                     <span className="hidden sm:inline">Bulk </span>Payment
                   </button>
@@ -2654,203 +3373,233 @@ function FinancePurchaseOrdersContent() {
                   <span className="hidden sm:inline">Filter</span>
                 </button>
               </div>
-              
+
               {/* Quick Filter Buttons */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Status Filter Buttons */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">Status PO:</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    Status PO:
+                  </label>
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, poStatus: ''}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = { ...filters, poStatus: "" };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                        filters.poStatus === '' 
-                          ? 'bg-blue-600 text-white border-blue-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.poStatus === ""
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Semua
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, poStatus: 'Pending'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = { ...filters, poStatus: "Pending" };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                        filters.poStatus === 'Pending' 
-                          ? 'bg-yellow-600 text-white border-yellow-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.poStatus === "Pending"
+                          ? "bg-yellow-600 text-white border-yellow-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Pending
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, poStatus: 'Sedang diproses'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = {
+                          ...filters,
+                          poStatus: "Sedang diproses",
+                        };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                        filters.poStatus === 'Sedang diproses' 
-                          ? 'bg-blue-600 text-white border-blue-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.poStatus === "Sedang diproses"
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Diproses
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, poStatus: 'Barang sampai'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = {
+                          ...filters,
+                          poStatus: "Barang sampai",
+                        };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                        filters.poStatus === 'Barang sampai' 
-                          ? 'bg-green-600 text-white border-green-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.poStatus === "Barang sampai"
+                          ? "bg-green-600 text-white border-green-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Sampai
                     </button>
                   </div>
                 </div>
-                
+
                 {/* Payment Status Filter Buttons */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">Payment Status:</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    Payment Status:
+                  </label>
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, paymentStatus: ''}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = { ...filters, paymentStatus: "" };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                        filters.paymentStatus === '' 
-                          ? 'bg-blue-600 text-white border-blue-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.paymentStatus === ""
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Semua
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, paymentStatus: 'unpaid'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = {
+                          ...filters,
+                          paymentStatus: "unpaid",
+                        };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                        filters.paymentStatus === 'unpaid' 
-                          ? 'bg-red-600 text-white border-red-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.paymentStatus === "unpaid"
+                          ? "bg-red-600 text-white border-red-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Unpaid
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, paymentStatus: 'partial'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = {
+                          ...filters,
+                          paymentStatus: "partial",
+                        };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                        filters.paymentStatus === 'partial' 
-                          ? 'bg-yellow-600 text-white border-yellow-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.paymentStatus === "partial"
+                          ? "bg-yellow-600 text-white border-yellow-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Partial
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, paymentStatus: 'paid'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = {
+                          ...filters,
+                          paymentStatus: "paid",
+                        };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                        filters.paymentStatus === 'paid' 
-                          ? 'bg-green-600 text-white border-green-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.paymentStatus === "paid"
+                          ? "bg-green-600 text-white border-green-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Paid
                     </button>
                   </div>
                 </div>
-                
+
                 {/* Approval Status Filter Buttons */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">Approval Status:</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    Approval Status:
+                  </label>
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, approvalStatus: ''}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = { ...filters, approvalStatus: "" };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                        filters.approvalStatus === '' 
-                          ? 'bg-blue-600 text-white border-blue-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.approvalStatus === ""
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Semua
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, approvalStatus: 'pending'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = {
+                          ...filters,
+                          approvalStatus: "pending",
+                        };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                        filters.approvalStatus === 'pending' 
-                          ? 'bg-orange-600 text-white border-orange-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.approvalStatus === "pending"
+                          ? "bg-orange-600 text-white border-orange-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Pending
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, approvalStatus: 'approved'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = {
+                          ...filters,
+                          approvalStatus: "approved",
+                        };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                        filters.approvalStatus === 'approved' 
-                          ? 'bg-purple-600 text-white border-purple-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.approvalStatus === "approved"
+                          ? "bg-purple-600 text-white border-purple-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Approved
                     </button>
                     <button
                       onClick={() => {
-                        const newFilters = {...filters, approvalStatus: 'rejected'}
-                        setFilters(newFilters)
-                        setCurrentPage(1)
-                        setTimeout(() => updateURL(), 0)
+                        const newFilters = {
+                          ...filters,
+                          approvalStatus: "rejected",
+                        };
+                        setFilters(newFilters);
+                        setCurrentPage(1);
+                        setTimeout(() => updateURL(), 0);
                       }}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                        filters.approvalStatus === 'rejected' 
-                          ? 'bg-red-600 text-white border-red-600' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        filters.approvalStatus === "rejected"
+                          ? "bg-red-600 text-white border-red-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       Rejected
@@ -2858,7 +3607,7 @@ function FinancePurchaseOrdersContent() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex gap-2">
                 <button
                   onClick={exportToXLSX}
@@ -2878,98 +3627,156 @@ function FinancePurchaseOrdersContent() {
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Dari Tanggal
+                    </label>
                     <input
                       type="date"
                       value={filters.dateFrom}
-                      onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
+                      onChange={(e) =>
+                        setFilters({ ...filters, dateFrom: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Sampai Tanggal
+                    </label>
                     <input
                       type="date"
                       value={filters.dateTo}
-                      onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
+                      onChange={(e) =>
+                        setFilters({ ...filters, dateTo: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     />
                   </div>
-                  
+
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Supplier
+                    </label>
                     <div className="relative supplier-dropdown">
                       <button
                         type="button"
-                        onClick={() => setFilters({...filters, showSupplierDropdown: !filters.showSupplierDropdown})}
+                        onClick={() =>
+                          setFilters({
+                            ...filters,
+                            showSupplierDropdown: !filters.showSupplierDropdown,
+                          })
+                        }
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm text-left bg-white flex items-center justify-between"
                       >
                         <span className="truncate">
-                          {filters.selectedSuppliers.length === 0 
-                            ? 'Pilih Supplier' 
-                            : `${filters.selectedSuppliers.length} supplier dipilih`
-                          }
+                          {filters.selectedSuppliers.length === 0
+                            ? "Pilih Supplier"
+                            : `${filters.selectedSuppliers.length} supplier dipilih`}
                         </span>
                         <ChevronDown className="h-4 w-4 text-gray-400" />
                       </button>
-                      
+
                       {filters.showSupplierDropdown && (
-                        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-hidden"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <div className="p-2 border-b border-gray-200">
                             <input
                               type="text"
                               placeholder="Cari supplier..."
                               value={filters.supplierSearch}
-                              onChange={(e) => setFilters({...filters, supplierSearch: e.target.value})}
+                              onChange={(e) =>
+                                setFilters({
+                                  ...filters,
+                                  supplierSearch: e.target.value,
+                                })
+                              }
                               className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
                             />
                           </div>
                           <div className="max-h-40 overflow-y-auto">
                             {suppliers
-                              .filter(supplier => 
-                                supplier.nama_supplier.toLowerCase().includes(filters.supplierSearch.toLowerCase())
+                              .filter((supplier) =>
+                                supplier.nama_supplier
+                                  .toLowerCase()
+                                  .includes(
+                                    filters.supplierSearch.toLowerCase(),
+                                  ),
                               )
-                              .map(supplier => (
-                                <div key={supplier.id_supplier} className="flex items-center px-3 py-2 hover:bg-gray-50">
+                              .map((supplier) => (
+                                <div
+                                  key={supplier.id_supplier}
+                                  className="flex items-center px-3 py-2 hover:bg-gray-50"
+                                >
                                   <input
                                     type="checkbox"
-                                    checked={filters.selectedSuppliers.includes(supplier.id_supplier.toString())}
+                                    checked={filters.selectedSuppliers.includes(
+                                      supplier.id_supplier.toString(),
+                                    )}
                                     onChange={(e) => {
-                                      e.stopPropagation()
-                                      const supplierId = supplier.id_supplier.toString()
-                                      console.log('Desktop checkbox changed:', supplierId, e.target.checked)
+                                      e.stopPropagation();
+                                      const supplierId =
+                                        supplier.id_supplier.toString();
+                                      console.log(
+                                        "Desktop checkbox changed:",
+                                        supplierId,
+                                        e.target.checked,
+                                      );
                                       if (e.target.checked) {
-                                        const newSelected = [...filters.selectedSuppliers, supplierId]
-                                        console.log('Desktop new selected suppliers:', newSelected)
+                                        const newSelected = [
+                                          ...filters.selectedSuppliers,
+                                          supplierId,
+                                        ];
+                                        console.log(
+                                          "Desktop new selected suppliers:",
+                                          newSelected,
+                                        );
                                         setFilters({
                                           ...filters,
-                                          selectedSuppliers: newSelected
-                                        })
+                                          selectedSuppliers: newSelected,
+                                        });
                                       } else {
-                                        const newSelected = filters.selectedSuppliers.filter(id => id !== supplierId)
-                                        console.log('Desktop new selected suppliers after removal:', newSelected)
+                                        const newSelected =
+                                          filters.selectedSuppliers.filter(
+                                            (id) => id !== supplierId,
+                                          );
+                                        console.log(
+                                          "Desktop new selected suppliers after removal:",
+                                          newSelected,
+                                        );
                                         setFilters({
                                           ...filters,
-                                          selectedSuppliers: newSelected
-                                        })
+                                          selectedSuppliers: newSelected,
+                                        });
                                       }
                                     }}
                                     className="rounded border-gray-300 mr-2"
                                   />
-                                  <span className="text-sm truncate">{supplier.nama_supplier}</span>
+                                  <span className="text-sm truncate">
+                                    {supplier.nama_supplier}
+                                  </span>
                                 </div>
-                              ))
-                            }
-                            {suppliers.filter(supplier => 
-                              supplier.nama_supplier.toLowerCase().includes(filters.supplierSearch.toLowerCase())
+                              ))}
+                            {suppliers.filter((supplier) =>
+                              supplier.nama_supplier
+                                .toLowerCase()
+                                .includes(filters.supplierSearch.toLowerCase()),
                             ).length === 0 && (
-                              <div className="px-3 py-2 text-sm text-gray-500">Tidak ada supplier ditemukan</div>
+                              <div className="px-3 py-2 text-sm text-gray-500">
+                                Tidak ada supplier ditemukan
+                              </div>
                             )}
                           </div>
                           <div className="p-2 border-t border-gray-200 flex gap-2">
                             <button
                               type="button"
-                              onClick={() => setFilters({...filters, selectedSuppliers: []})}
+                              onClick={() =>
+                                setFilters({
+                                  ...filters,
+                                  selectedSuppliers: [],
+                                })
+                              }
                               className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
                             >
                               Clear All
@@ -2977,9 +3784,17 @@ function FinancePurchaseOrdersContent() {
                             <button
                               type="button"
                               onClick={() => {
-                                const allSupplierIds = suppliers.map(s => s.id_supplier.toString())
-                                console.log('Select All clicked, all supplier IDs:', allSupplierIds)
-                                setFilters({...filters, selectedSuppliers: allSupplierIds})
+                                const allSupplierIds = suppliers.map((s) =>
+                                  s.id_supplier.toString(),
+                                );
+                                console.log(
+                                  "Select All clicked, all supplier IDs:",
+                                  allSupplierIds,
+                                );
+                                setFilters({
+                                  ...filters,
+                                  selectedSuppliers: allSupplierIds,
+                                });
                               }}
                               className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
                             >
@@ -2991,14 +3806,18 @@ function FinancePurchaseOrdersContent() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Cabang</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Cabang
+                    </label>
                     <select
                       value={filters.branch}
-                      onChange={(e) => setFilters({...filters, branch: e.target.value})}
+                      onChange={(e) =>
+                        setFilters({ ...filters, branch: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     >
                       <option value="">Semua Cabang</option>
-                      {branches.map(branch => (
+                      {branches.map((branch) => (
                         <option key={branch.id_branch} value={branch.id_branch}>
                           {branch.nama_branch}
                         </option>
@@ -3006,10 +3825,14 @@ function FinancePurchaseOrdersContent() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">PO Status</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      PO Status
+                    </label>
                     <select
                       value={filters.poStatus}
-                      onChange={(e) => setFilters({...filters, poStatus: e.target.value})}
+                      onChange={(e) =>
+                        setFilters({ ...filters, poStatus: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     >
                       <option value="">Semua Status PO</option>
@@ -3020,10 +3843,17 @@ function FinancePurchaseOrdersContent() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Status</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Payment Status
+                    </label>
                     <select
                       value={filters.paymentStatus}
-                      onChange={(e) => setFilters({...filters, paymentStatus: e.target.value})}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          paymentStatus: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     >
                       <option value="">Semua Payment Status</option>
@@ -3033,10 +3863,14 @@ function FinancePurchaseOrdersContent() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Jatuh Tempo</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Jatuh Tempo
+                    </label>
                     <select
                       value={filters.dueDate}
-                      onChange={(e) => setFilters({...filters, dueDate: e.target.value})}
+                      onChange={(e) =>
+                        setFilters({ ...filters, dueDate: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     >
                       <option value="">Semua</option>
@@ -3045,10 +3879,17 @@ function FinancePurchaseOrdersContent() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Barang Sampai</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Barang Sampai
+                    </label>
                     <select
                       value={filters.goodsReceived}
-                      onChange={(e) => setFilters({...filters, goodsReceived: e.target.value})}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          goodsReceived: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     >
                       <option value="">Semua</option>
@@ -3057,10 +3898,17 @@ function FinancePurchaseOrdersContent() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Approval Status</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Approval Status
+                    </label>
                     <select
                       value={filters.approvalStatus}
-                      onChange={(e) => setFilters({...filters, approvalStatus: e.target.value})}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          approvalStatus: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     >
                       <option value="">Semua</option>
@@ -3078,9 +3926,8 @@ function FinancePurchaseOrdersContent() {
                     Terapkan Filter
                   </button>
                   <button
-                    onClick={() => { 
-                      clearFilters()
-                      fetchFinanceData()
+                    onClick={() => {
+                      clearFilters();
                     }}
                     className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-2 text-sm"
                   >
@@ -3095,31 +3942,40 @@ function FinancePurchaseOrdersContent() {
           {/* Mobile Card View */}
           <div className="block md:hidden">
             {currentPageData.map((item) => {
-              const isExpanded = expandedRows.includes(item.id)
+              const isExpanded = expandedRows.includes(item.id);
               return (
-                <div key={item.id} className="bg-white rounded-lg shadow border border-gray-200 mb-3 p-3">
+                <div
+                  key={item.id}
+                  className="bg-white rounded-lg shadow border border-gray-200 mb-3 p-3"
+                >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
                         checked={selectedPOs.includes(item.id)}
-                        disabled={item.status_payment === 'paid'}
+                        disabled={item.status_payment === "paid"}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setSelectedPOs([...selectedPOs, item.id])
+                            setSelectedPOs([...selectedPOs, item.id]);
                           } else {
-                            setSelectedPOs(selectedPOs.filter(id => id !== item.id))
+                            setSelectedPOs(
+                              selectedPOs.filter((id) => id !== item.id),
+                            );
                           }
                         }}
                         className="rounded border-gray-300 disabled:opacity-50"
                       />
-                      <button 
+                      <button
                         onClick={() => toggleRowExpansion(item.id)}
                         className="text-gray-500 hover:text-blue-600"
                       >
-                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
                       </button>
-                      <a 
+                      <a
                         href={`/purchaseorder/received-preview?id=${item.id}`}
                         className="text-sm font-bold text-blue-600 hover:text-blue-800"
                         target="_blank"
@@ -3127,11 +3983,13 @@ function FinancePurchaseOrdersContent() {
                         {item.po_number}
                       </a>
                     </div>
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}>
+                    <span
+                      className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}
+                    >
                       {item.status_payment.toUpperCase()}
                     </span>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-2 text-xs mb-2">
                     <div>
                       <span className="text-gray-500">Cabang:</span>
@@ -3143,45 +4001,64 @@ function FinancePurchaseOrdersContent() {
                     </div>
                     <div>
                       <span className="text-gray-500">Total PO:</span>
-                      <p className="font-medium">{formatCurrency(item.total_po)}</p>
+                      <p className="font-medium">
+                        {formatCurrency(item.total_po)}
+                      </p>
                     </div>
                     <div>
                       <span className="text-gray-500">Sisa:</span>
-                      <p className="font-medium text-red-600">{formatCurrency(item.sisa_bayar)}</p>
+                      <p className="font-medium text-red-600">
+                        {formatCurrency(item.sisa_bayar)}
+                      </p>
                     </div>
                     <div>
                       <span className="text-gray-500">Jatuh Tempo:</span>
-                      <p className={`font-medium ${item.is_overdue ? 'text-red-600' : ''}`}>
-                        {item.tanggal_jatuh_tempo ? formatDate(item.tanggal_jatuh_tempo) : 'Menunggu barang sampai'}
-                        {item.is_overdue && <span className="ml-1 text-xs">(Overdue {item.days_overdue}d)</span>}
+                      <p
+                        className={`font-medium ${item.is_overdue ? "text-red-600" : ""}`}
+                      >
+                        {item.tanggal_jatuh_tempo
+                          ? formatDate(item.tanggal_jatuh_tempo)
+                          : "Menunggu barang sampai"}
+                        {item.is_overdue && (
+                          <span className="ml-1 text-xs">
+                            (Overdue {item.days_overdue}d)
+                          </span>
+                        )}
                       </p>
                     </div>
                     <div>
                       <span className="text-gray-500">Status PO:</span>
-                      <span className={`inline-flex px-1 py-0.5 text-xs font-semibold rounded ${
-                        (item as any).po_status === 'Barang sampai' ? 'bg-green-100 text-green-800' :
-                        (item as any).po_status === 'Sedang diproses' ? 'bg-blue-100 text-blue-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
+                      <span
+                        className={`inline-flex px-1 py-0.5 text-xs font-semibold rounded ${
+                          (item as any).po_status === "Barang sampai"
+                            ? "bg-green-100 text-green-800"
+                            : (item as any).po_status === "Sedang diproses"
+                              ? "bg-blue-100 text-blue-800"
+                              : "bg-yellow-100 text-yellow-800"
+                        }`}
+                      >
                         {(item as any).po_status}
                       </span>
                     </div>
                   </div>
-                  
+
                   {(item as any).tanggal_barang_sampai && (
                     <div className="text-xs text-green-600 mb-2 flex items-center">
                       <CheckCircle className="h-3 w-3 mr-1" />
-                      Barang sampai: {formatDate((item as any).tanggal_barang_sampai)}
+                      Barang sampai:{" "}
+                      {formatDate((item as any).tanggal_barang_sampai)}
                     </div>
                   )}
-                  
+
                   {(item as any).dibayar_tanggal && (
                     <div className="text-xs text-blue-600 mb-2 flex items-center">
                       <CreditCard className="h-3 w-3 mr-1" />
-                      Dibayar: {formatDate((item as any).dibayar_tanggal)} via {(item as any).payment_via}
+                      Dibayar: {formatDate(
+                        (item as any).dibayar_tanggal,
+                      )} via {(item as any).payment_via}
                     </div>
                   )}
-                  
+
                   {/* Expanded Details for Mobile */}
                   {isExpanded && (
                     <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
@@ -3196,51 +4073,124 @@ function FinancePurchaseOrdersContent() {
                             <table className="w-full text-xs">
                               <thead>
                                 <tr className="border-b border-gray-300">
-                                  <th className="text-left py-1 font-medium">Produk</th>
-                                  <th className="text-center py-1 font-medium">Qty PO</th>
-                                  <th className="text-center py-1 font-medium">Qty Diterima</th>
-                                  <th className="text-right py-1 font-medium">Harga PO</th>
-                                  <th className="text-right py-1 font-medium">Harga Aktual</th>
-                                  <th className="text-right py-1 font-medium">Total</th>
-                                  <th className="text-left py-1 font-medium">Keterangan</th>
+                                  <th className="text-left py-1 font-medium">
+                                    Produk
+                                  </th>
+                                  <th className="text-center py-1 font-medium">
+                                    Qty PO
+                                  </th>
+                                  <th className="text-center py-1 font-medium">
+                                    Qty Diterima
+                                  </th>
+                                  <th className="text-right py-1 font-medium">
+                                    Harga PO
+                                  </th>
+                                  <th className="text-right py-1 font-medium">
+                                    Harga Aktual
+                                  </th>
+                                  <th className="text-right py-1 font-medium">
+                                    Total
+                                  </th>
+                                  <th className="text-left py-1 font-medium">
+                                    Keterangan
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {rowDetails[item.id].items.map((poItem: any) => (
-                                  <tr key={poItem.id} className="border-b border-gray-200 last:border-b-0">
-                                    <td className="py-1 font-medium">{poItem.product_name}</td>
-                                    <td className="py-1 text-center">{poItem.qty}</td>
-                                    <td className="py-1 text-center">{poItem.received_qty || poItem.qty}</td>
-                                    <td className="py-1 text-right">{formatCurrency(poItem.harga || 0)}</td>
-                                    <td className="py-1 text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
-                                    <td className="py-1 text-right font-medium">{formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}</td>
-                                    <td className="py-1">Status: {poItem.received_qty ? 'received' : 'pending'}</td>
-                                  </tr>
-                                ))}
+                                {rowDetails[item.id].items.map(
+                                  (poItem: any) => (
+                                    <tr
+                                      key={poItem.id}
+                                      className="border-b border-gray-200 last:border-b-0"
+                                    >
+                                      <td className="py-1 font-medium">
+                                        {poItem.product_name}
+                                      </td>
+                                      <td className="py-1 text-center">
+                                        {poItem.qty}
+                                      </td>
+                                      <td className="py-1 text-center">
+                                        {poItem.received_qty || poItem.qty}
+                                      </td>
+                                      <td className="py-1 text-right">
+                                        {formatCurrency(poItem.harga || 0)}
+                                      </td>
+                                      <td className="py-1 text-right">
+                                        {formatCurrency(
+                                          poItem.actual_price ||
+                                            poItem.harga ||
+                                            0,
+                                        )}
+                                      </td>
+                                      <td className="py-1 text-right font-medium">
+                                        {formatCurrency(
+                                          (poItem.received_qty || poItem.qty) *
+                                            (poItem.actual_price ||
+                                              poItem.harga ||
+                                              0),
+                                        )}
+                                      </td>
+                                      <td className="py-1">
+                                        Status:{" "}
+                                        {poItem.received_qty
+                                          ? "received"
+                                          : "pending"}
+                                      </td>
+                                    </tr>
+                                  ),
+                                )}
                                 <tr className="bg-gray-100 border-t border-gray-300">
-                                  <td className="py-1 text-xs font-bold" colSpan={6}>Total PO Asli (qty po × harga):</td>
+                                  <td
+                                    className="py-1 text-xs font-bold"
+                                    colSpan={6}
+                                  >
+                                    Total PO Asli (qty po × harga):
+                                  </td>
                                   <td className="py-1 text-right text-xs font-bold">
-                                    {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
-                                      sum + (parseFloat(poItem.qty) || 0) * (parseFloat(poItem.harga) || 0), 0
-                                    ))}
+                                    {formatCurrency(
+                                      rowDetails[item.id].items.reduce(
+                                        (sum: number, poItem: any) =>
+                                          sum +
+                                          (parseFloat(poItem.qty) || 0) *
+                                            (parseFloat(poItem.harga) || 0),
+                                        0,
+                                      ),
+                                    )}
                                   </td>
                                 </tr>
                                 <tr className="bg-gray-100">
-                                  <td className="py-1 text-xs font-bold" colSpan={6}>Total Aktual (qty diterima × harga aktual):</td>
+                                  <td
+                                    className="py-1 text-xs font-bold"
+                                    colSpan={6}
+                                  >
+                                    Total Aktual (qty diterima × harga aktual):
+                                  </td>
                                   <td className="py-1 text-right text-xs font-bold">
-                                    {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
-                                      sum + (parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
-                                    ))}
+                                    {formatCurrency(
+                                      rowDetails[item.id].items.reduce(
+                                        (sum: number, poItem: any) =>
+                                          sum +
+                                          (parseFloat(poItem.received_qty) ||
+                                            parseFloat(poItem.qty) ||
+                                            0) *
+                                            (parseFloat(poItem.actual_price) ||
+                                              parseFloat(poItem.harga) ||
+                                              0),
+                                        0,
+                                      ),
+                                    )}
                                   </td>
                                 </tr>
                               </tbody>
                             </table>
                           </div>
                         ) : (
-                          <p className="text-xs text-gray-500">Tidak ada item</p>
+                          <p className="text-xs text-gray-500">
+                            Tidak ada item
+                          </p>
                         )}
                       </div>
-                      
+
                       {/* Payment History */}
                       <div>
                         <h4 className="text-xs font-medium text-gray-900 mb-2 flex items-center">
@@ -3249,24 +4199,39 @@ function FinancePurchaseOrdersContent() {
                         </h4>
                         {rowDetails[item.id]?.payments?.length > 0 ? (
                           <div className="bg-gray-50 rounded p-2">
-                            {rowDetails[item.id].payments.map((payment: any) => (
-                              <div key={payment.id} className="flex justify-between items-center py-1 text-xs border-b border-gray-200 last:border-b-0">
-                                <div>
-                                  <p className="font-medium">{formatDate(payment.payment_date)}</p>
-                                  <p className="text-gray-500">{payment.payment_method}</p>
+                            {rowDetails[item.id].payments.map(
+                              (payment: any) => (
+                                <div
+                                  key={payment.id}
+                                  className="flex justify-between items-center py-1 text-xs border-b border-gray-200 last:border-b-0"
+                                >
+                                  <div>
+                                    <p className="font-medium">
+                                      {formatDate(payment.payment_date)}
+                                    </p>
+                                    <p className="text-gray-500">
+                                      {payment.payment_method}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="font-medium">
+                                      {formatCurrency(payment.payment_amount)}
+                                    </p>
+                                    <p className="text-gray-500">
+                                      {payment.notes || "-"}
+                                    </p>
+                                  </div>
                                 </div>
-                                <div className="text-right">
-                                  <p className="font-medium">{formatCurrency(payment.payment_amount)}</p>
-                                  <p className="text-gray-500">{payment.notes || '-'}</p>
-                                </div>
-                              </div>
-                            ))}
+                              ),
+                            )}
                           </div>
                         ) : (
-                          <p className="text-xs text-gray-500">Belum ada riwayat pembayaran</p>
+                          <p className="text-xs text-gray-500">
+                            Belum ada riwayat pembayaran
+                          </p>
                         )}
                       </div>
-                      
+
                       {/* Approval Photo */}
                       <div>
                         <h4 className="text-xs font-medium text-gray-900 mb-2 flex items-center">
@@ -3275,72 +4240,100 @@ function FinancePurchaseOrdersContent() {
                         </h4>
                         {(item as any).approval_photo ? (
                           <div className="bg-gray-50 rounded p-2">
-                            <img 
-                              src={`${supabase.storage.from('po-photos').getPublicUrl((item as any).approval_photo).data.publicUrl}`}
+                            <img
+                              src={`${supabase.storage.from("po-photos").getPublicUrl((item as any).approval_photo).data.publicUrl}`}
                               alt="Approval Photo"
                               className="w-full h-32 object-cover rounded cursor-pointer hover:opacity-80"
-                              onClick={() => window.open(`${supabase.storage.from('po-photos').getPublicUrl((item as any).approval_photo).data.publicUrl}`, '_blank')}
+                              onClick={() =>
+                                window.open(
+                                  `${supabase.storage.from("po-photos").getPublicUrl((item as any).approval_photo).data.publicUrl}`,
+                                  "_blank",
+                                )
+                              }
                             />
                             <div className="mt-2 text-xs text-gray-500">
-                              <p>Status: {(item as any).approval_status || 'pending'}</p>
-                              <p>Total Tagih: {formatCurrency((item as any).total_tagih || 0)}</p>
-                              {(item as any).keterangan && <p>Keterangan: {(item as any).keterangan}</p>}
+                              <p>
+                                Status:{" "}
+                                {(item as any).approval_status || "pending"}
+                              </p>
+                              <p>
+                                Total Tagih:{" "}
+                                {formatCurrency((item as any).total_tagih || 0)}
+                              </p>
+                              {(item as any).keterangan && (
+                                <p>Keterangan: {(item as any).keterangan}</p>
+                              )}
                             </div>
                           </div>
                         ) : (
-                          <p className="text-xs text-gray-500">Belum ada foto approval</p>
+                          <p className="text-xs text-gray-500">
+                            Belum ada foto approval
+                          </p>
                         )}
                       </div>
                     </div>
                   )}
-                  
+
                   <div className="flex gap-1 mt-2">
                     <button
                       onClick={() => {
                         // Save current state before navigating
-                        const currentUrl = new URL(window.location.href)
-                        sessionStorage.setItem('finance_po_return_url', currentUrl.pathname + currentUrl.search)
-                        sessionStorage.setItem('finance_po_filters', JSON.stringify(filters))
-                        sessionStorage.setItem('finance_po_search', search)
-                        sessionStorage.setItem('finance_po_page', currentPage.toString())
-                        window.location.href = `/finance/purchase-orders/submit-approval?id=${item.id}`
+                        const currentUrl = new URL(window.location.href);
+                        sessionStorage.setItem(
+                          "finance_po_return_url",
+                          currentUrl.pathname + currentUrl.search,
+                        );
+                        sessionStorage.setItem(
+                          "finance_po_filters",
+                          JSON.stringify(filters),
+                        );
+                        sessionStorage.setItem("finance_po_search", search);
+                        sessionStorage.setItem(
+                          "finance_po_page",
+                          currentPage.toString(),
+                        );
+                        window.location.href = `/finance/purchase-orders/submit-approval?id=${item.id}`;
                       }}
                       className="flex-1 text-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
                     >
                       Submit
                     </button>
-                    {(item as any).approval_status === 'pending' && (
+                    {(item as any).approval_status === "pending" && (
                       <>
                         <button
                           onClick={async () => {
                             try {
                               // Get current user from Supabase Auth
-                              const { data: { user } } = await supabase.auth.getUser()
-                              if (!user) throw new Error('User not authenticated')
-                              
+                              const {
+                                data: { user },
+                              } = await supabase.auth.getUser();
+                              if (!user)
+                                throw new Error("User not authenticated");
+
                               // Get user ID from users table using email
-                              const { data: userData, error: userError } = await supabase
-                                .from('users')
-                                .select('id_user')
-                                .eq('email', user.email)
-                                .single()
-                              
-                              if (userError) throw userError
-                              
+                              const { data: userData, error: userError } =
+                                await supabase
+                                  .from("users")
+                                  .select("id_user")
+                                  .eq("email", user.email)
+                                  .single();
+
+                              if (userError) throw userError;
+
                               const { error } = await supabase
-                                .from('purchase_orders')
-                                .update({ 
-                                  approval_status: 'approved',
+                                .from("purchase_orders")
+                                .update({
+                                  approval_status: "approved",
                                   approved_at: new Date().toISOString(),
                                   approved_by: userData?.id_user || null,
                                   rejection_notes: null,
-                                  rejected_at: null
+                                  rejected_at: null,
                                 })
-                                .eq('id', item.id)
-                              if (error) throw error
-                              fetchFinanceData()
+                                .eq("id", item.id);
+                              if (error) throw error;
+                              fetchFinanceData();
                             } catch (error) {
-                              console.error('Error approving:', error)
+                              console.error("Error approving:", error);
                             }
                           }}
                           className="flex-1 text-center px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700"
@@ -3349,8 +4342,8 @@ function FinancePurchaseOrdersContent() {
                         </button>
                         <button
                           onClick={() => {
-                            setRejectPO(item)
-                            setShowRejectModal(true)
+                            setRejectPO(item);
+                            setShowRejectModal(true);
                           }}
                           className="flex-1 text-center px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
                         >
@@ -3358,21 +4351,21 @@ function FinancePurchaseOrdersContent() {
                         </button>
                       </>
                     )}
-                    {(item as any).approval_status === 'approved' && (
+                    {(item as any).approval_status === "approved" && (
                       <button
                         onClick={async () => {
                           try {
                             const { error } = await supabase
-                              .from('purchase_orders')
-                              .update({ 
-                                approval_status: 'pending',
-                                approved_at: null
+                              .from("purchase_orders")
+                              .update({
+                                approval_status: "pending",
+                                approved_at: null,
                               })
-                              .eq('id', item.id)
-                            if (error) throw error
-                            fetchFinanceData()
+                              .eq("id", item.id);
+                            if (error) throw error;
+                            fetchFinanceData();
                           } catch (error) {
-                            console.error('Error undoing approval:', error)
+                            console.error("Error undoing approval:", error);
                           }
                         }}
                         className="flex-1 text-center px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
@@ -3383,58 +4376,63 @@ function FinancePurchaseOrdersContent() {
                     {item.sisa_bayar > 0 && !(item as any).bulk_payment_ref && (
                       <button
                         onClick={() => {
-                          setSelectedPO(item)
-                          setShowPaymentModal(true)
+                          setSelectedPO(item);
+                          setShowPaymentModal(true);
                         }}
                         className="flex-1 text-center px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
                       >
                         Bayar
                       </button>
                     )}
-                    {((item.total_paid > 0 && !(item as any).bulk_payment_ref) || (item as any).bulk_payment_ref) && (
+                    {((item.total_paid > 0 &&
+                      !(item as any).bulk_payment_ref) ||
+                      (item as any).bulk_payment_ref) && (
                       <button
                         onClick={() => {
                           if ((item as any).bulk_payment_ref) {
                             // For bulk payments, redirect to bulk payments page with ref parameter
-                            router.push(`/finance/bulk-payments?ref=${(item as any).bulk_payment_ref}`)
+                            router.push(
+                              `/finance/bulk-payments?ref=${(item as any).bulk_payment_ref}`,
+                            );
                           } else {
                             // For single payments, open payment modal
-                            setSelectedPO(item)
-                            setShowPaymentModal(true)
+                            setSelectedPO(item);
+                            setShowPaymentModal(true);
                           }
                         }}
                         className="flex-1 text-center px-2 py-1 border border-gray-300 text-gray-700 bg-white text-xs rounded hover:bg-gray-50"
-                        title={`${(item as any).bulk_payment_ref ? 'View Bulk Payment' : 'Edit Payment'}`}
+                        title={`${(item as any).bulk_payment_ref ? "View Bulk Payment" : "Edit Payment"}`}
                       >
                         <Edit className="h-3 w-3 mx-auto" />
                       </button>
                     )}
                   </div>
                 </div>
-              )
+              );
             })}
           </div>
 
           {/* Desktop Table View */}
           <div className="hidden md:block bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
             {/* Top horizontal scrollbar */}
-            <div 
+            <div
               ref={topScrollRef}
               className="overflow-x-auto border-b border-gray-200 bg-gray-50"
               onScroll={(e) => {
                 if (tableScrollRef.current) {
-                  tableScrollRef.current.scrollLeft = e.currentTarget.scrollLeft
+                  tableScrollRef.current.scrollLeft =
+                    e.currentTarget.scrollLeft;
                 }
               }}
             >
-              <div className="h-4" style={{width: '1800px'}}></div>
+              <div className="h-4" style={{ width: "1800px" }}></div>
             </div>
-            <div 
+            <div
               ref={tableScrollRef}
               className="overflow-x-auto max-h-[70vh]"
               onScroll={(e) => {
                 if (topScrollRef.current) {
-                  topScrollRef.current.scrollLeft = e.currentTarget.scrollLeft
+                  topScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
                 }
               }}
             >
@@ -3446,47 +4444,132 @@ function FinancePurchaseOrdersContent() {
                         type="checkbox"
                         onChange={(e) => {
                           if (e.target.checked) {
-                            const unpaidPOs = currentPageData.filter(item => item.status_payment !== 'paid').map(item => item.id)
-                            setSelectedPOs(unpaidPOs)
+                            const unpaidPOs = currentPageData
+                              .filter((item) => item.status_payment !== "paid")
+                              .map((item) => item.id);
+                            setSelectedPOs(unpaidPOs);
                           } else {
-                            setSelectedPOs([])
+                            setSelectedPOs([]);
                           }
                         }}
-                        checked={selectedPOs.length > 0 && selectedPOs.length === currentPageData.filter(item => item.status_payment !== 'paid').length}
+                        checked={
+                          selectedPOs.length > 0 &&
+                          selectedPOs.length ===
+                            currentPageData.filter(
+                              (item) => item.status_payment !== "paid",
+                            ).length
+                        }
                         className="rounded border-gray-300"
                       />
                     </th>
                     <th className="w-6 px-1 py-2 sticky left-6 bg-gray-50 z-20"></th>
-                    <th className="w-20 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 sticky left-12 bg-gray-50 z-20" onClick={() => handleSort('po_number')}>No PO</th>
-                    <th className="w-24 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_branch')}>Cabang</th>                    
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_barang_sampai')}>Tgl Sampai</th>
-                    <th className="w-20 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nama_supplier')}>Supplier</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">No Rek</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_po')}>Total PO</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tagihan</th>
-                    <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Invoice</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tanggal_jatuh_tempo')}>J.Tempo</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Payment Term</th>
-                    <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_paid')}>Dibayar</th>
-                    <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('sisa_bayar')}>Sisa</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('dibayar_tanggal')}>Release</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('status_payment')}>Pay Status</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('approved_at')}>Approved</th>
-                    <th className="w-12 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipe</th>
-                    <th className="w-12 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Bank</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Ref</th>
+                    <th
+                      className="w-20 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 sticky left-12 bg-gray-50 z-20"
+                      onClick={() => handleSort("po_number")}
+                    >
+                      No PO
+                    </th>
+                    <th className="w-24 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Status
+                    </th>
+                    <th
+                      className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort("nama_branch")}
+                    >
+                      Cabang
+                    </th>
+                    <th
+                      className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort("tanggal_barang_sampai")}
+                    >
+                      Tgl Sampai
+                    </th>
+                    <th
+                      className="w-20 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort("nama_supplier")}
+                    >
+                      Supplier
+                    </th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      No Rek
+                    </th>
+                    <th
+                      className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort("total_po")}
+                    >
+                      Total PO
+                    </th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Tagihan
+                    </th>
+                    <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Invoice
+                    </th>
+                    <th
+                      className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort("tanggal_jatuh_tempo")}
+                    >
+                      J.Tempo
+                    </th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Payment Term
+                    </th>
+                    <th
+                      className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort("total_paid")}
+                    >
+                      Dibayar
+                    </th>
+                    <th
+                      className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort("sisa_bayar")}
+                    >
+                      Sisa
+                    </th>
+                    <th
+                      className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort("dibayar_tanggal")}
+                    >
+                      Release
+                    </th>
+                    <th
+                      className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort("status_payment")}
+                    >
+                      Pay Status
+                    </th>
+                    <th
+                      className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort("approved_at")}
+                    >
+                      Approved
+                    </th>
+                    <th className="w-12 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Tipe
+                    </th>
+                    <th className="w-12 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Bank
+                    </th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Ref
+                    </th>
 
-                    <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
-                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
-                    <th className="w-16 px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="w-14 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Notes
+                    </th>
+                    <th className="w-16 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Keterangan
+                    </th>
+                    <th className="w-16 px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {currentPageData.map((item) => {
-                    const isExpanded = expandedRows.includes(item.id)
-                    const rowClass = `hover:bg-gray-50 ${item.is_overdue && item.status_payment !== 'paid' ? 'bg-red-50' : ''} ${isExpanded ? 'bg-blue-50' : ''}`
-                    
+                    const isExpanded = expandedRows.includes(item.id);
+                    const rowClass = `hover:bg-gray-50 ${item.is_overdue && item.status_payment !== "paid" ? "bg-red-50" : ""} ${isExpanded ? "bg-blue-50" : ""}`;
+
                     return (
                       <React.Fragment key={item.id}>
                         <tr className={rowClass}>
@@ -3494,28 +4577,34 @@ function FinancePurchaseOrdersContent() {
                             <input
                               type="checkbox"
                               checked={selectedPOs.includes(item.id)}
-                              disabled={item.status_payment === 'paid'}
+                              disabled={item.status_payment === "paid"}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setSelectedPOs([...selectedPOs, item.id])
+                                  setSelectedPOs([...selectedPOs, item.id]);
                                 } else {
-                                  setSelectedPOs(selectedPOs.filter(id => id !== item.id))
+                                  setSelectedPOs(
+                                    selectedPOs.filter((id) => id !== item.id),
+                                  );
                                 }
                               }}
                               className="rounded border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                           </td>
                           <td className="px-1 py-2 whitespace-nowrap sticky left-6 bg-white z-10">
-                            <button 
+                            <button
                               onClick={() => toggleRowExpansion(item.id)}
                               className="text-gray-500 hover:text-blue-600"
                             >
-                              {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                              {isExpanded ? (
+                                <ChevronDown className="h-3 w-3" />
+                              ) : (
+                                <ChevronRight className="h-3 w-3" />
+                              )}
                             </button>
                           </td>
                           <td className="px-2 py-2 whitespace-nowrap sticky left-12 bg-white z-10">
                             <div>
-                              <a 
+                              <a
                                 href={`/purchaseorder/received-preview?id=${item.id}`}
                                 className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
                                 target="_blank"
@@ -3529,12 +4618,18 @@ function FinancePurchaseOrdersContent() {
                             </div>
                           </td>
                           <td className="px-2 py-2 whitespace-nowrap">
-                            <span className={`inline-flex px-1 py-0.5 text-xs rounded ${
-                              (item as any).po_status === 'Barang sampai' ? 'bg-green-100 text-green-800' :
-                              (item as any).po_status === 'Sedang diproses' ? 'bg-blue-100 text-blue-800' :
-                              (item as any).po_status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
+                            <span
+                              className={`inline-flex px-1 py-0.5 text-xs rounded ${
+                                (item as any).po_status === "Barang sampai"
+                                  ? "bg-green-100 text-green-800"
+                                  : (item as any).po_status ===
+                                      "Sedang diproses"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : (item as any).po_status === "Pending"
+                                      ? "bg-yellow-100 text-yellow-800"
+                                      : "bg-gray-100 text-gray-800"
+                              }`}
+                            >
                               {(item as any).po_status}
                             </span>
                           </td>
@@ -3544,7 +4639,9 @@ function FinancePurchaseOrdersContent() {
                           <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
                             {(item as any).tanggal_barang_sampai ? (
                               <div className="text-green-600">
-                                {formatDate((item as any).tanggal_barang_sampai)}
+                                {formatDate(
+                                  (item as any).tanggal_barang_sampai,
+                                )}
                               </div>
                             ) : (
                               <span className="text-gray-400">-</span>
@@ -3556,7 +4653,9 @@ function FinancePurchaseOrdersContent() {
                               {item.nama_supplier}
                             </div>
                             {(item as any).nama_penerima && (
-                              <div className="text-xs text-gray-500 mt-1">{(item as any).nama_penerima}</div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                {(item as any).nama_penerima}
+                              </div>
                             )}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -3566,12 +4665,14 @@ function FinancePurchaseOrdersContent() {
                                   <CreditCard className="h-4 w-4 text-gray-400 mr-1" />
                                   {(item as any).bank_penerima}
                                 </div>
-                                <div className="text-xs text-gray-500">{(item as any).nomor_rekening}</div>
+                                <div className="text-xs text-gray-500">
+                                  {(item as any).nomor_rekening}
+                                </div>
                               </div>
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
-                          </td>   
+                          </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {formatCurrency(item.total_po)}
                           </td>
@@ -3579,10 +4680,15 @@ function FinancePurchaseOrdersContent() {
                             {formatCurrency((item as any).total_tagih || 0)}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {item.invoice_number && item.invoice_number.trim() ? (
-                              <span className="font-medium text-blue-600">{item.invoice_number}</span>
+                            {item.invoice_number &&
+                            item.invoice_number.trim() ? (
+                              <span className="font-medium text-blue-600">
+                                {item.invoice_number}
+                              </span>
                             ) : (
-                              <span className="text-gray-400 italic">Belum ada</span>
+                              <span className="text-gray-400 italic">
+                                Belum ada
+                              </span>
                             )}
                           </td>
                           <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
@@ -3593,7 +4699,8 @@ function FinancePurchaseOrdersContent() {
                             )}
                           </td>
                           <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
-                            {(item as any).payment_term_name || `${(item as any).termin_days || 30}d`}
+                            {(item as any).payment_term_name ||
+                              `${(item as any).termin_days || 30}d`}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                             {formatCurrency(item.total_paid)}
@@ -3608,29 +4715,36 @@ function FinancePurchaseOrdersContent() {
                                 {formatDate((item as any).dibayar_tanggal)}
                               </div>
                             ) : (
-                              <span className="text-gray-400">Belum dibayar</span>
+                              <span className="text-gray-400">
+                                Belum dibayar
+                              </span>
                             )}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap">
-                            <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}>
+                            <span
+                              className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status_payment)}`}
+                            >
                               {getStatusIcon(item.status_payment)}
                               {item.status_payment.toUpperCase()}
                             </span>
-                            {(item as any).approval_status === 'pending' && (
+                            {(item as any).approval_status === "pending" && (
                               <div className="text-xs text-orange-600 mt-1 flex items-center">
                                 <Clock className="h-3 w-3 mr-1" />
                                 Wait for Approval
                               </div>
                             )}
-                            {(item as any).approval_status === 'rejected' && (
+                            {(item as any).approval_status === "rejected" && (
                               <div className="text-xs text-red-600 mt-1 flex items-center">
                                 <X className="h-3 w-3 mr-1" />
-                                Rejected {(item as any).rejected_at ? `- ${formatDate((item as any).rejected_at)}` : ''}
+                                Rejected{" "}
+                                {(item as any).rejected_at
+                                  ? `- ${formatDate((item as any).rejected_at)}`
+                                  : ""}
                                 {(item as any).rejection_notes && (
-                                  <button 
+                                  <button
                                     onClick={() => {
-                                      setViewRejectionPO(item)
-                                      setShowViewRejectionModal(true)
+                                      setViewRejectionPO(item);
+                                      setShowViewRejectionModal(true);
                                     }}
                                     className="ml-1 text-blue-600 hover:text-blue-800 underline"
                                   >
@@ -3639,12 +4753,13 @@ function FinancePurchaseOrdersContent() {
                                 )}
                               </div>
                             )}
-                            {item.is_overdue && item.status_payment !== 'paid' && (
-                              <div className="text-xs text-red-600 mt-1 flex items-center">
-                                <AlertTriangle className="h-3 w-3 mr-1" />
-                                Overdue {item.days_overdue} hari
-              </div>
-                            )}
+                            {item.is_overdue &&
+                              item.status_payment !== "paid" && (
+                                <div className="text-xs text-red-600 mt-1 flex items-center">
+                                  <AlertTriangle className="h-3 w-3 mr-1" />
+                                  Overdue {item.days_overdue} hari
+                                </div>
+                              )}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                             {(item as any).approved_at ? (
@@ -3662,18 +4777,24 @@ function FinancePurchaseOrdersContent() {
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
-                          </td>  
-                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).payment_method || <span className="text-gray-400">-</span>}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {(item as any).payment_via || <span className="text-gray-400">-</span>}
+                            {(item as any).payment_method || (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(item as any).payment_via || (
+                              <span className="text-gray-400">-</span>
+                            )}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                             {(item as any).bulk_payment_ref ? (
                               <button
                                 onClick={() => {
-                                  router.push(`/finance/bulk-payments?ref=${(item as any).bulk_payment_ref}`)
+                                  router.push(
+                                    `/finance/bulk-payments?ref=${(item as any).bulk_payment_ref}`,
+                                  );
                                 }}
                                 className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200"
                                 title="Lihat detail pembayaran bulk"
@@ -3691,10 +4812,12 @@ function FinancePurchaseOrdersContent() {
                             )}
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <select 
+                            <select
                               className="text-xs border border-gray-300 rounded px-2 py-1 bg-white"
-                              value={notesState[item.id] || 'Rek Michael'}
-                              onChange={(e) => handleNotesChange(item.id, e.target.value)}
+                              value={notesState[item.id] || "Rek Michael"}
+                              onChange={(e) =>
+                                handleNotesChange(item.id, e.target.value)
+                              }
                             >
                               <option value="Rek Michael">Rek Michael</option>
                               <option value="Rek PT">Rek PT</option>
@@ -3703,7 +4826,7 @@ function FinancePurchaseOrdersContent() {
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                             <span className="text-xs text-gray-700">
-                              {(item as any).keterangan || '-'}
+                              {(item as any).keterangan || "-"}
                             </span>
                           </td>
                           <td className="px-3 py-4 whitespace-nowrap text-center">
@@ -3711,67 +4834,98 @@ function FinancePurchaseOrdersContent() {
                               <button
                                 onClick={() => {
                                   // Save current state before navigating
-                                  const currentUrl = new URL(window.location.href)
-                                  sessionStorage.setItem('finance_po_return_url', currentUrl.pathname + currentUrl.search)
-                                  sessionStorage.setItem('finance_po_filters', JSON.stringify(filters))
-                                  sessionStorage.setItem('finance_po_search', search)
-                                  sessionStorage.setItem('finance_po_page', currentPage.toString())
-                                  window.location.href = `/finance/purchase-orders/submit-approval?id=${item.id}`
+                                  const currentUrl = new URL(
+                                    window.location.href,
+                                  );
+                                  sessionStorage.setItem(
+                                    "finance_po_return_url",
+                                    currentUrl.pathname + currentUrl.search,
+                                  );
+                                  sessionStorage.setItem(
+                                    "finance_po_filters",
+                                    JSON.stringify(filters),
+                                  );
+                                  sessionStorage.setItem(
+                                    "finance_po_search",
+                                    search,
+                                  );
+                                  sessionStorage.setItem(
+                                    "finance_po_page",
+                                    currentPage.toString(),
+                                  );
+                                  window.location.href = `/finance/purchase-orders/submit-approval?id=${item.id}`;
                                 }}
                                 className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                                 title="Submit Total Tagih"
                               >
                                 <FileText className="h-3 w-3" />
                               </button>
-                              {(item as any).approval_status === 'pending' && (
+                              {(item as any).approval_status === "pending" && (
                                 <>
                                   <button
                                     onClick={async () => {
                                       try {
                                         // Get current user from localStorage or Supabase Auth
-                                        let userId = null
+                                        let userId = null;
                                         try {
-                                          const { data: { user } } = await supabase.auth.getUser()
+                                          const {
+                                            data: { user },
+                                          } = await supabase.auth.getUser();
                                           if (user) {
                                             // Get user ID from users table using email
-                                            const { data: userData, error: userError } = await supabase
-                                              .from('users')
-                                              .select('id_user')
-                                              .eq('email', user.email)
-                                              .single()
-                                            
+                                            const {
+                                              data: userData,
+                                              error: userError,
+                                            } = await supabase
+                                              .from("users")
+                                              .select("id_user")
+                                              .eq("email", user.email)
+                                              .single();
+
                                             if (!userError && userData) {
-                                              userId = userData.id_user
+                                              userId = userData.id_user;
                                             }
                                           }
                                         } catch (authError) {
-                                          console.warn('Auth error, using localStorage:', authError)
+                                          console.warn(
+                                            "Auth error, using localStorage:",
+                                            authError,
+                                          );
                                         }
-                                        
+
                                         // Fallback to localStorage
                                         if (!userId) {
-                                          const localUser = JSON.parse(localStorage.getItem('user') || '{}')
-                                          userId = localUser.id_user || null
+                                          const localUser = JSON.parse(
+                                            localStorage.getItem("user") ||
+                                              "{}",
+                                          );
+                                          userId = localUser.id_user || null;
                                         }
-                                        
+
                                         if (!userId) {
-                                          throw new Error('User not authenticated. Please login again.')
+                                          throw new Error(
+                                            "User not authenticated. Please login again.",
+                                          );
                                         }
-                                        
+
                                         const { error } = await supabase
-                                          .from('purchase_orders')
-                                          .update({ 
-                                            approval_status: 'approved',
-                                            approved_at: new Date().toISOString(),
+                                          .from("purchase_orders")
+                                          .update({
+                                            approval_status: "approved",
+                                            approved_at:
+                                              new Date().toISOString(),
                                             approved_by: userId,
                                             rejection_notes: null,
-                                            rejected_at: null
+                                            rejected_at: null,
                                           })
-                                          .eq('id', item.id)
-                                        if (error) throw error
-                                        fetchFinanceData()
+                                          .eq("id", item.id);
+                                        if (error) throw error;
+                                        fetchFinanceData();
                                       } catch (error) {
-                                        console.error('Error approving:', error)
+                                        console.error(
+                                          "Error approving:",
+                                          error,
+                                        );
                                       }
                                     }}
                                     className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
@@ -3781,8 +4935,8 @@ function FinancePurchaseOrdersContent() {
                                   </button>
                                   <button
                                     onClick={() => {
-                                      setRejectPO(item)
-                                      setShowRejectModal(true)
+                                      setRejectPO(item);
+                                      setShowRejectModal(true);
                                     }}
                                     className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                                     title="Reject"
@@ -3791,21 +4945,24 @@ function FinancePurchaseOrdersContent() {
                                   </button>
                                 </>
                               )}
-                              {(item as any).approval_status === 'approved' && (
+                              {(item as any).approval_status === "approved" && (
                                 <button
                                   onClick={async () => {
                                     try {
                                       const { error } = await supabase
-                                        .from('purchase_orders')
-                                        .update({ 
-                                          approval_status: 'pending',
-                                          approved_at: null
+                                        .from("purchase_orders")
+                                        .update({
+                                          approval_status: "pending",
+                                          approved_at: null,
                                         })
-                                        .eq('id', item.id)
-                                      if (error) throw error
-                                      fetchFinanceData()
+                                        .eq("id", item.id);
+                                      if (error) throw error;
+                                      fetchFinanceData();
                                     } catch (error) {
-                                      console.error('Error undoing approval:', error)
+                                      console.error(
+                                        "Error undoing approval:",
+                                        error,
+                                      );
                                     }
                                   }}
                                   className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
@@ -3814,32 +4971,37 @@ function FinancePurchaseOrdersContent() {
                                   <X className="h-3 w-3" />
                                 </button>
                               )}
-                              {item.sisa_bayar > 0 && !(item as any).bulk_payment_ref && (
-                                <button
-                                  onClick={() => {
-                                    setSelectedPO(item)
-                                    setShowPaymentModal(true)
-                                  }}
-                                  className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                  title="Bayar"
-                                >
-                                  <Plus className="h-3 w-3" />
-                                </button>
-                              )}
-                              {((item.total_paid > 0 && !(item as any).bulk_payment_ref) || (item as any).bulk_payment_ref) && (
+                              {item.sisa_bayar > 0 &&
+                                !(item as any).bulk_payment_ref && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedPO(item);
+                                      setShowPaymentModal(true);
+                                    }}
+                                    className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                    title="Bayar"
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                  </button>
+                                )}
+                              {((item.total_paid > 0 &&
+                                !(item as any).bulk_payment_ref) ||
+                                (item as any).bulk_payment_ref) && (
                                 <button
                                   onClick={() => {
                                     if ((item as any).bulk_payment_ref) {
                                       // For bulk payments, redirect to bulk payments page with ref parameter
-                                      router.push(`/finance/bulk-payments?ref=${(item as any).bulk_payment_ref}`)
+                                      router.push(
+                                        `/finance/bulk-payments?ref=${(item as any).bulk_payment_ref}`,
+                                      );
                                     } else {
                                       // For single payments, open payment modal
-                                      setSelectedPO(item)
-                                      setShowPaymentModal(true)
+                                      setSelectedPO(item);
+                                      setShowPaymentModal(true);
                                     }
                                   }}
                                   className="inline-flex items-center px-2 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                  title={`${(item as any).bulk_payment_ref ? 'View Bulk Payment' : 'Edit Payment'}`}
+                                  title={`${(item as any).bulk_payment_ref ? "View Bulk Payment" : "Edit Payment"}`}
                                 >
                                   <Edit className="h-3 w-3" />
                                 </button>
@@ -3847,7 +5009,7 @@ function FinancePurchaseOrdersContent() {
                             </div>
                           </td>
                         </tr>
-                        
+
                         {/* Expanded Row with Details - Desktop Only */}
                         {isExpanded && (
                           <tr className="bg-blue-50">
@@ -3864,55 +5026,142 @@ function FinancePurchaseOrdersContent() {
                                       <table className="min-w-full divide-y divide-gray-200">
                                         <thead className="bg-gray-50">
                                           <tr>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Produk</th>
-                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Qty PO</th>
-                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Qty Diterima</th>
-                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Harga PO</th>
-                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Harga Aktual</th>
-                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                              Produk
+                                            </th>
+                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                                              Qty PO
+                                            </th>
+                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                                              Qty Diterima
+                                            </th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                                              Harga PO
+                                            </th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                                              Harga Aktual
+                                            </th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                                              Total
+                                            </th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                              Keterangan
+                                            </th>
                                           </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-200">
-                                          {rowDetails[item.id].items.map((poItem: any) => (
-                                            <tr key={poItem.id}>
-                                              <td className="px-3 py-2 text-sm">{poItem.product_name || `Product ${poItem.product_id}`}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-center">{poItem.qty}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-center">{poItem.received_qty || poItem.qty}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">{formatCurrency(poItem.harga || 0)}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">
-                                                {formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}
-                                              </td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm">Status: {poItem.received_qty ? 'received' : 'pending'}</td>
-                                            </tr>
-                                          ))}
+                                          {rowDetails[item.id].items.map(
+                                            (poItem: any) => (
+                                              <tr key={poItem.id}>
+                                                <td className="px-3 py-2 text-sm">
+                                                  {poItem.product_name ||
+                                                    `Product ${poItem.product_id}`}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                                                  {poItem.qty}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                                                  {poItem.received_qty ||
+                                                    poItem.qty}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                                  {formatCurrency(
+                                                    poItem.harga || 0,
+                                                  )}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                                  {formatCurrency(
+                                                    poItem.actual_price ||
+                                                      poItem.harga ||
+                                                      0,
+                                                  )}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">
+                                                  {formatCurrency(
+                                                    (poItem.received_qty ||
+                                                      poItem.qty) *
+                                                      (poItem.actual_price ||
+                                                        poItem.harga ||
+                                                        0),
+                                                  )}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm">
+                                                  Status:{" "}
+                                                  {poItem.received_qty
+                                                    ? "received"
+                                                    : "pending"}
+                                                </td>
+                                              </tr>
+                                            ),
+                                          )}
                                         </tbody>
                                         <tfoot className="bg-gray-100 border-t border-gray-300">
                                           <tr>
-                                            <td className="px-3 py-2 text-sm font-bold" colSpan={6}>Total PO Asli (qty po × harga):</td>
+                                            <td
+                                              className="px-3 py-2 text-sm font-bold"
+                                              colSpan={6}
+                                            >
+                                              Total PO Asli (qty po × harga):
+                                            </td>
                                             <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-bold">
-                                              {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
-                                                sum + (parseFloat(poItem.qty) || 0) * (parseFloat(poItem.harga) || 0), 0
-                                              ))}
+                                              {formatCurrency(
+                                                rowDetails[
+                                                  item.id
+                                                ].items.reduce(
+                                                  (sum: number, poItem: any) =>
+                                                    sum +
+                                                    (parseFloat(poItem.qty) ||
+                                                      0) *
+                                                      (parseFloat(
+                                                        poItem.harga,
+                                                      ) || 0),
+                                                  0,
+                                                ),
+                                              )}
                                             </td>
                                           </tr>
                                           <tr>
-                                            <td className="px-3 py-2 text-sm font-bold" colSpan={6}>Total Aktual (qty diterima × harga aktual):</td>
+                                            <td
+                                              className="px-3 py-2 text-sm font-bold"
+                                              colSpan={6}
+                                            >
+                                              Total Aktual (qty diterima × harga
+                                              aktual):
+                                            </td>
                                             <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-bold">
-                                              {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
-                                                sum + (parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
-                                              ))}
+                                              {formatCurrency(
+                                                rowDetails[
+                                                  item.id
+                                                ].items.reduce(
+                                                  (sum: number, poItem: any) =>
+                                                    sum +
+                                                    (parseFloat(
+                                                      poItem.received_qty,
+                                                    ) ||
+                                                      parseFloat(poItem.qty) ||
+                                                      0) *
+                                                      (parseFloat(
+                                                        poItem.actual_price,
+                                                      ) ||
+                                                        parseFloat(
+                                                          poItem.harga,
+                                                        ) ||
+                                                        0),
+                                                  0,
+                                                ),
+                                              )}
                                             </td>
                                           </tr>
                                         </tfoot>
                                       </table>
                                     </div>
                                   ) : (
-                                    <p className="text-sm text-gray-500">Tidak ada item</p>
+                                    <p className="text-sm text-gray-500">
+                                      Tidak ada item
+                                    </p>
                                   )}
                                 </div>
-                                
+
                                 {/* Payment History */}
                                 <div className="md:col-span-2">
                                   <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
@@ -3924,29 +5173,53 @@ function FinancePurchaseOrdersContent() {
                                       <table className="min-w-full divide-y divide-gray-200">
                                         <thead className="bg-gray-50">
                                           <tr>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Jumlah</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Metode</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                              Tanggal
+                                            </th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                              Jumlah
+                                            </th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                              Metode
+                                            </th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                              Keterangan
+                                            </th>
                                           </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-200">
-                                          {rowDetails[item.id].payments.map((payment: any) => (
-                                            <tr key={payment.id}>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm">{formatDate(payment.payment_date)}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium">{formatCurrency(payment.payment_amount)}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm">{payment.payment_method}</td>
-                                              <td className="px-3 py-2 text-sm">{payment.notes || '-'}</td>
-                                            </tr>
-                                          ))}
+                                          {rowDetails[item.id].payments.map(
+                                            (payment: any) => (
+                                              <tr key={payment.id}>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm">
+                                                  {formatDate(
+                                                    payment.payment_date,
+                                                  )}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm font-medium">
+                                                  {formatCurrency(
+                                                    payment.payment_amount,
+                                                  )}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm">
+                                                  {payment.payment_method}
+                                                </td>
+                                                <td className="px-3 py-2 text-sm">
+                                                  {payment.notes || "-"}
+                                                </td>
+                                              </tr>
+                                            ),
+                                          )}
                                         </tbody>
                                       </table>
                                     </div>
                                   ) : (
-                                    <p className="text-sm text-gray-500">Belum ada riwayat pembayaran</p>
+                                    <p className="text-sm text-gray-500">
+                                      Belum ada riwayat pembayaran
+                                    </p>
                                   )}
                                 </div>
-                                
+
                                 {/* Approval Photo */}
                                 <div className="md:col-span-1">
                                   <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
@@ -3958,10 +5231,25 @@ function FinancePurchaseOrdersContent() {
                                       <ApprovalPhotoThumbnail po={item} />
                                     </div>
                                     <div className="mt-2 space-y-1 text-xs text-center">
-                                      <p>Status: <span className="font-medium">{(item as any).approval_status || 'pending'}</span></p>
-                                      <p>Total Tagih: <span className="font-medium">{formatCurrency((item as any).total_tagih || 0)}</span></p>
+                                      <p>
+                                        Status:{" "}
+                                        <span className="font-medium">
+                                          {(item as any).approval_status ||
+                                            "pending"}
+                                        </span>
+                                      </p>
+                                      <p>
+                                        Total Tagih:{" "}
+                                        <span className="font-medium">
+                                          {formatCurrency(
+                                            (item as any).total_tagih || 0,
+                                          )}
+                                        </span>
+                                      </p>
                                       {(item as any).keterangan && (
-                                        <p>Keterangan: {(item as any).keterangan}</p>
+                                        <p>
+                                          Keterangan: {(item as any).keterangan}
+                                        </p>
                                       )}
                                     </div>
                                   </div>
@@ -3978,74 +5266,213 @@ function FinancePurchaseOrdersContent() {
                                       <table className="min-w-full divide-y divide-gray-200">
                                         <thead className="bg-gray-50">
                                           <tr>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Produk</th>
-                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Qty PO</th>
-                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Qty Diterima</th>
-                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Qty Tagih</th>
-                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Harga PO</th>
-                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Harga Diterima</th>
-                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Harga Tagih</th>
-                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total PO</th>
-                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total Aktual</th>
-                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total Tagih</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                              Produk
+                                            </th>
+                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                                              Qty PO
+                                            </th>
+                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                                              Qty Diterima
+                                            </th>
+                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                                              Qty Tagih
+                                            </th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                                              Harga PO
+                                            </th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                                              Harga Diterima
+                                            </th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                                              Harga Tagih
+                                            </th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                                              Total PO
+                                            </th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                                              Total Aktual
+                                            </th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                                              Total Tagih
+                                            </th>
                                           </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-200">
-                                          {rowDetails[item.id].items.map((poItem: any) => (
-                                            <tr key={poItem.id}>
-                                              <td className="px-3 py-2 text-sm">{poItem.product_name || `Product ${poItem.product_id}`}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-center">{poItem.qty}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-center">{poItem.received_qty || poItem.qty}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-center">{poItem.qty_tagih || poItem.received_qty || poItem.qty}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">{formatCurrency(poItem.harga || 0)}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">{formatCurrency(poItem.actual_price || poItem.harga || 0)}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">{formatCurrency(poItem.harga_tagih || poItem.actual_price || poItem.harga || 0)}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">{formatCurrency((poItem.qty) * (poItem.harga || 0))}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">{formatCurrency((poItem.received_qty || poItem.qty) * (poItem.actual_price || poItem.harga || 0))}</td>
-                                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">{formatCurrency((poItem.qty_tagih || poItem.received_qty || poItem.qty) * (poItem.harga_tagih || poItem.actual_price || poItem.harga || 0))}</td>
-                                            </tr>
-                                          ))}
+                                          {rowDetails[item.id].items.map(
+                                            (poItem: any) => (
+                                              <tr key={poItem.id}>
+                                                <td className="px-3 py-2 text-sm">
+                                                  {poItem.product_name ||
+                                                    `Product ${poItem.product_id}`}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                                                  {poItem.qty}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                                                  {poItem.received_qty ||
+                                                    poItem.qty}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                                                  {poItem.qty_tagih ||
+                                                    poItem.received_qty ||
+                                                    poItem.qty}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                                  {formatCurrency(
+                                                    poItem.harga || 0,
+                                                  )}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                                  {formatCurrency(
+                                                    poItem.actual_price ||
+                                                      poItem.harga ||
+                                                      0,
+                                                  )}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                                  {formatCurrency(
+                                                    poItem.harga_tagih ||
+                                                      poItem.actual_price ||
+                                                      poItem.harga ||
+                                                      0,
+                                                  )}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">
+                                                  {formatCurrency(
+                                                    poItem.qty *
+                                                      (poItem.harga || 0),
+                                                  )}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">
+                                                  {formatCurrency(
+                                                    (poItem.received_qty ||
+                                                      poItem.qty) *
+                                                      (poItem.actual_price ||
+                                                        poItem.harga ||
+                                                        0),
+                                                  )}
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">
+                                                  {formatCurrency(
+                                                    (poItem.qty_tagih ||
+                                                      poItem.received_qty ||
+                                                      poItem.qty) *
+                                                      (poItem.harga_tagih ||
+                                                        poItem.actual_price ||
+                                                        poItem.harga ||
+                                                        0),
+                                                  )}
+                                                </td>
+                                              </tr>
+                                            ),
+                                          )}
                                         </tbody>
                                         <tfoot className="bg-gray-100 border-t border-gray-300">
                                           <tr>
-                                            <td className="px-3 py-2 text-sm font-bold" colSpan={7}>TOTAL:</td>
-                                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-bold">
-                                              {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
-                                                sum + (parseFloat(poItem.qty) || 0) * (parseFloat(poItem.harga) || 0), 0
-                                              ))}
+                                            <td
+                                              className="px-3 py-2 text-sm font-bold"
+                                              colSpan={7}
+                                            >
+                                              TOTAL:
                                             </td>
                                             <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-bold">
-                                              {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
-                                                sum + (parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
-                                              ))}
+                                              {formatCurrency(
+                                                rowDetails[
+                                                  item.id
+                                                ].items.reduce(
+                                                  (sum: number, poItem: any) =>
+                                                    sum +
+                                                    (parseFloat(poItem.qty) ||
+                                                      0) *
+                                                      (parseFloat(
+                                                        poItem.harga,
+                                                      ) || 0),
+                                                  0,
+                                                ),
+                                              )}
                                             </td>
                                             <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-bold">
-                                              {formatCurrency(rowDetails[item.id].items.reduce((sum: number, poItem: any) => 
-                                                sum + (parseFloat(poItem.qty_tagih) || parseFloat(poItem.received_qty) || parseFloat(poItem.qty) || 0) * (parseFloat(poItem.harga_tagih) || parseFloat(poItem.actual_price) || parseFloat(poItem.harga) || 0), 0
-                                              ))}
+                                              {formatCurrency(
+                                                rowDetails[
+                                                  item.id
+                                                ].items.reduce(
+                                                  (sum: number, poItem: any) =>
+                                                    sum +
+                                                    (parseFloat(
+                                                      poItem.received_qty,
+                                                    ) ||
+                                                      parseFloat(poItem.qty) ||
+                                                      0) *
+                                                      (parseFloat(
+                                                        poItem.actual_price,
+                                                      ) ||
+                                                        parseFloat(
+                                                          poItem.harga,
+                                                        ) ||
+                                                        0),
+                                                  0,
+                                                ),
+                                              )}
+                                            </td>
+                                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-bold">
+                                              {formatCurrency(
+                                                rowDetails[
+                                                  item.id
+                                                ].items.reduce(
+                                                  (sum: number, poItem: any) =>
+                                                    sum +
+                                                    (parseFloat(
+                                                      poItem.qty_tagih,
+                                                    ) ||
+                                                      parseFloat(
+                                                        poItem.received_qty,
+                                                      ) ||
+                                                      parseFloat(poItem.qty) ||
+                                                      0) *
+                                                      (parseFloat(
+                                                        poItem.harga_tagih,
+                                                      ) ||
+                                                        parseFloat(
+                                                          poItem.actual_price,
+                                                        ) ||
+                                                        parseFloat(
+                                                          poItem.harga,
+                                                        ) ||
+                                                        0),
+                                                  0,
+                                                ),
+                                              )}
                                             </td>
                                           </tr>
                                         </tfoot>
                                       </table>
                                     </div>
                                   ) : (
-                                    <p className="text-sm text-gray-500">Tidak ada item</p>
+                                    <p className="text-sm text-gray-500">
+                                      Tidak ada item
+                                    </p>
                                   )}
                                 </div>
-                                
+
                                 {/* Rejection Notes */}
-                                {(item as any).approval_status === 'rejected' && (item as any).rejection_notes && (
-                                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
-                                    <p className="text-xs font-medium text-red-800">Alasan Penolakan:</p>
-                                    <p className="text-xs text-red-700 mt-1">{(item as any).rejection_notes}</p>
-                                  </div>
-                                )}
+                                {(item as any).approval_status === "rejected" &&
+                                  (item as any).rejection_notes && (
+                                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
+                                      <p className="text-xs font-medium text-red-800">
+                                        Alasan Penolakan:
+                                      </p>
+                                      <p className="text-xs text-red-700 mt-1">
+                                        {(item as any).rejection_notes}
+                                      </p>
+                                    </div>
+                                  )}
                               </div>
                             </td>
                           </tr>
                         )}
                       </React.Fragment>
-                    )
+                    );
                   })}
                 </tbody>
               </table>
@@ -4068,42 +5495,56 @@ function FinancePurchaseOrdersContent() {
                   {currentPage} / {totalPages}
                 </span>
                 <button
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  onClick={() =>
+                    setCurrentPage(Math.min(totalPages, currentPage + 1))
+                  }
                   disabled={currentPage === totalPages}
                   className="relative inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
                 >
                   Next
                 </button>
               </div>
-              
+
               {/* Desktop pagination */}
               <div className="hidden md:flex-1 md:flex md:items-center md:justify-between">
                 <div>
                   <p className="text-sm text-gray-700">
-                    Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
-                    <span className="font-medium">{Math.min(startIndex + itemsPerPage, allFilteredData.length)}</span> of{' '}
-                    <span className="font-medium">{allFilteredData.length}</span> results
+                    Showing{" "}
+                    <span className="font-medium">{startIndex + 1}</span> to{" "}
+                    <span className="font-medium">
+                      {Math.min(
+                        startIndex + itemsPerPage,
+                        allFilteredData.length,
+                      )}
+                    </span>{" "}
+                    of{" "}
+                    <span className="font-medium">
+                      {allFilteredData.length}
+                    </span>{" "}
+                    results
                   </p>
                 </div>
                 <div>
                   <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
                     <button
-                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      onClick={() =>
+                        setCurrentPage(Math.max(1, currentPage - 1))
+                      }
                       disabled={currentPage === 1}
                       className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                     >
                       Previous
                     </button>
                     {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                      let page
+                      let page;
                       if (totalPages <= 5) {
-                        page = i + 1
+                        page = i + 1;
                       } else if (currentPage <= 3) {
-                        page = i + 1
+                        page = i + 1;
                       } else if (currentPage >= totalPages - 2) {
-                        page = totalPages - 4 + i
+                        page = totalPages - 4 + i;
                       } else {
-                        page = currentPage - 2 + i
+                        page = currentPage - 2 + i;
                       }
                       return (
                         <button
@@ -4111,16 +5552,18 @@ function FinancePurchaseOrdersContent() {
                           onClick={() => setCurrentPage(page)}
                           className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
                             page === currentPage
-                              ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                              : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                              ? "z-10 bg-blue-50 border-blue-500 text-blue-600"
+                              : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
                           }`}
                         >
                           {page}
                         </button>
-                      )
+                      );
                     })}
                     <button
-                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      onClick={() =>
+                        setCurrentPage(Math.min(totalPages, currentPage + 1))
+                      }
                       disabled={currentPage === totalPages}
                       className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                     >
@@ -4136,8 +5579,12 @@ function FinancePurchaseOrdersContent() {
           {allFilteredData.length === 0 && !loading && (
             <div className="text-center py-8 md:py-12 text-gray-500 bg-white rounded-lg border border-gray-200 mt-4">
               <FileText className="h-8 w-8 md:h-12 md:w-12 mx-auto text-gray-400" />
-              <p className="mt-2 text-sm md:text-base">Tidak ada data yang ditemukan</p>
-              <p className="text-xs md:text-sm">Coba ubah filter pencarian Anda</p>
+              <p className="mt-2 text-sm md:text-base">
+                Tidak ada data yang ditemukan
+              </p>
+              <p className="text-xs md:text-sm">
+                Coba ubah filter pencarian Anda
+              </p>
             </div>
           )}
         </div>
@@ -4147,11 +5594,11 @@ function FinancePurchaseOrdersContent() {
           <PaymentModal
             po={{
               ...selectedPO,
-              total_tagih: (selectedPO as any).total_tagih || 0
+              total_tagih: (selectedPO as any).total_tagih || 0,
             }}
             onClose={() => {
-              setShowPaymentModal(false)
-              setSelectedPO(null)
+              setShowPaymentModal(false);
+              setSelectedPO(null);
             }}
             onSuccess={handlePaymentSuccess}
           />
@@ -4161,13 +5608,13 @@ function FinancePurchaseOrdersContent() {
         {showBulkPaymentModal && (
           <BulkPaymentModal
             isOpen={showBulkPaymentModal}
-            availablePOs={data.filter(item => selectedPOs.includes(item.id))}
+            availablePOs={data.filter((item) => selectedPOs.includes(item.id))}
             onClose={() => setShowBulkPaymentModal(false)}
             onSuccess={() => {
-              setShowBulkPaymentModal(false)
-              setSelectedPOs([])
-              fetchFinanceData()
-              fetchBulkPayments()
+              setShowBulkPaymentModal(false);
+              setSelectedPOs([]);
+              fetchFinanceData();
+              fetchBulkPayments();
             }}
           />
         )}
@@ -4177,51 +5624,75 @@ function FinancePurchaseOrdersContent() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Detail Pembayaran Bulk</h3>
-                <button onClick={() => setShowBulkPaymentDetails(null)} className="text-gray-500 hover:text-gray-700">
+                <h3 className="text-lg font-semibold">
+                  Detail Pembayaran Bulk
+                </h3>
+                <button
+                  onClick={() => setShowBulkPaymentDetails(null)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
                   <X size={20} />
                 </button>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <p className="text-sm text-gray-600">Referensi</p>
-                  <p className="font-medium">{showBulkPaymentDetails.bulk_reference}</p>
+                  <p className="font-medium">
+                    {showBulkPaymentDetails.bulk_reference}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Tanggal Pembayaran</p>
-                  <p className="font-medium">{formatDate(showBulkPaymentDetails.payment_date)}</p>
+                  <p className="font-medium">
+                    {formatDate(showBulkPaymentDetails.payment_date)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Total Amount</p>
-                  <p className="font-medium">{formatCurrency(showBulkPaymentDetails.total_amount)}</p>
+                  <p className="font-medium">
+                    {formatCurrency(showBulkPaymentDetails.total_amount)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Metode Pembayaran</p>
-                  <p className="font-medium">{showBulkPaymentDetails.payment_method} via {showBulkPaymentDetails.payment_via}</p>
+                  <p className="font-medium">
+                    {showBulkPaymentDetails.payment_method} via{" "}
+                    {showBulkPaymentDetails.payment_via}
+                  </p>
                 </div>
               </div>
-              
+
               <div className="mb-4">
                 <p className="text-sm text-gray-600">Catatan</p>
-                <p className="font-medium">{showBulkPaymentDetails.notes || '-'}</p>
+                <p className="font-medium">
+                  {showBulkPaymentDetails.notes || "-"}
+                </p>
               </div>
-              
-              <h4 className="font-medium mb-2">Purchase Orders yang termasuk:</h4>
+
+              <h4 className="font-medium mb-2">
+                Purchase Orders yang termasuk:
+              </h4>
               <div className="border rounded-lg overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">PO Number</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        PO Number
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Supplier
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Amount
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {showBulkPaymentDetails.purchase_orders.map((po: any) => (
                       <tr key={po.id}>
                         <td className="px-3 py-2 text-sm">
-                          <a 
+                          <a
                             href={`/purchaseorder/received-preview?id=${po.id}`}
                             className="text-blue-600 hover:text-blue-800 hover:underline"
                             target="_blank"
@@ -4230,16 +5701,20 @@ function FinancePurchaseOrdersContent() {
                             {po.po_number}
                           </a>
                         </td>
-                        <td className="px-3 py-2 text-sm">{po.nama_supplier}</td>
-                        <td className="px-3 py-2 text-sm font-medium">{formatCurrency(po.total_tagih)}</td>
+                        <td className="px-3 py-2 text-sm">
+                          {po.nama_supplier}
+                        </td>
+                        <td className="px-3 py-2 text-sm font-medium">
+                          {formatCurrency(po.total_tagih)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              
+
               <div className="mt-4 flex justify-end">
-                <button 
+                <button
                   onClick={() => setShowBulkPaymentDetails(null)}
                   className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
                 >
@@ -4255,12 +5730,12 @@ function FinancePurchaseOrdersContent() {
           <RejectModal
             po={rejectPO}
             onClose={() => {
-              setShowRejectModal(false)
-              setRejectPO(null)
-              setRejectNotes('')
+              setShowRejectModal(false);
+              setRejectPO(null);
+              setRejectNotes("");
             }}
             onSuccess={() => {
-              fetchFinanceData()
+              fetchFinanceData();
             }}
           />
         )}
@@ -4270,8 +5745,8 @@ function FinancePurchaseOrdersContent() {
           <ViewRejectionNotesModal
             po={viewRejectionPO}
             onClose={() => {
-              setShowViewRejectionModal(false)
-              setViewRejectionPO(null)
+              setShowViewRejectionModal(false);
+              setViewRejectionPO(null);
             }}
           />
         )}
@@ -4282,9 +5757,13 @@ function FinancePurchaseOrdersContent() {
             <div className="bg-white rounded-lg p-4 max-w-4xl max-h-[90vh]">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold">
-                  Foto Approval - {data.find(po => po.id.toString() === showImageModal)?.po_number}
+                  Foto Approval -{" "}
+                  {
+                    data.find((po) => po.id.toString() === showImageModal)
+                      ?.po_number
+                  }
                 </h3>
-                <button 
+                <button
                   onClick={() => setShowImageModal(null)}
                   className="text-gray-500 hover:text-gray-700"
                 >
@@ -4292,36 +5771,48 @@ function FinancePurchaseOrdersContent() {
                 </button>
               </div>
               {(() => {
-                const po = data.find(p => p.id.toString() === showImageModal)
-                if (!po || !(po as any).approval_photo) return null
-                const imageUrl = `${supabase.storage.from('po-photos').getPublicUrl((po as any).approval_photo).data.publicUrl}`
+                const po = data.find((p) => p.id.toString() === showImageModal);
+                if (!po || !(po as any).approval_photo) return null;
+                const imageUrl = `${supabase.storage.from("po-photos").getPublicUrl((po as any).approval_photo).data.publicUrl}`;
                 return (
                   <>
-                    <img 
+                    <img
                       src={imageUrl}
                       alt="Approval Photo Full Size"
                       className="max-w-full max-h-[70vh] object-contain"
                     />
                     <div className="mt-4 text-sm text-gray-600">
-                      <p>Status: <span className={`font-medium ${
-                        (po as any).approval_status === 'approved' ? 'text-green-600' : 
-                        (po as any).approval_status === 'rejected' ? 'text-red-600' : 'text-orange-600'
-                      }`}>
-                        {(po as any).approval_status || 'pending'}
-                      </span></p>
-                      <p>Total Tagih: {formatCurrency((po as any).total_tagih || 0)}</p>
-                      {(po as any).keterangan && <p>Keterangan: {(po as any).keterangan}</p>}
+                      <p>
+                        Status:{" "}
+                        <span
+                          className={`font-medium ${
+                            (po as any).approval_status === "approved"
+                              ? "text-green-600"
+                              : (po as any).approval_status === "rejected"
+                                ? "text-red-600"
+                                : "text-orange-600"
+                          }`}
+                        >
+                          {(po as any).approval_status || "pending"}
+                        </span>
+                      </p>
+                      <p>
+                        Total Tagih:{" "}
+                        {formatCurrency((po as any).total_tagih || 0)}
+                      </p>
+                      {(po as any).keterangan && (
+                        <p>Keterangan: {(po as any).keterangan}</p>
+                      )}
                     </div>
                   </>
-                )
+                );
               })()}
             </div>
           </div>
         )}
-
       </PageAccessControl>
     </Layout>
-  )
+  );
 }
 
 export default function FinancePurchaseOrders() {
@@ -4329,5 +5820,5 @@ export default function FinancePurchaseOrders() {
     <Suspense fallback={<div>Loading...</div>}>
       <FinancePurchaseOrdersContent />
     </Suspense>
-  )
+  );
 }
