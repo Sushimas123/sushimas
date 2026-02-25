@@ -342,6 +342,17 @@ function FinancePurchaseOrdersContent() {
   const [appliedFilters, setAppliedFilters] = useState(filters);
   const [showFilters, setShowFilters] = useState(false);
 
+  // Helper function untuk handle semua perubahan filter (seperti saran user)
+  const handleFilterChange = (filterChange: Partial<typeof filters>) => {
+    const newFilters = { ...filters, ...filterChange };
+    setFilters(newFilters);
+    // Langsung apply untuk fetch data
+    setAppliedFilters(newFilters);
+    // Reset ke halaman 1
+    setCurrentPage(1);
+    // URL akan diupdate secara otomatis melalui useEffect yang memantau updateURL/appliedFilters
+  };
+
   // Update URL when filters change
   const updateURL = useCallback(() => {
     const params = new URLSearchParams();
@@ -393,7 +404,9 @@ function FinancePurchaseOrdersContent() {
       const savedPage = sessionStorage.getItem("finance_po_page");
 
       if (savedFilters) {
-        setFilters(JSON.parse(savedFilters));
+        const parsed = JSON.parse(savedFilters);
+        setFilters(parsed);
+        setAppliedFilters(parsed);
       }
       if (savedSearch) {
         setSearch(savedSearch);
@@ -1078,6 +1091,8 @@ function FinancePurchaseOrdersContent() {
       goodsReceived: "",
       approvalStatus: "",
     };
+
+    // Reset both states
     setFilters(clearedFilters);
     setAppliedFilters(clearedFilters);
     setSearch("");
@@ -1090,7 +1105,7 @@ function FinancePurchaseOrdersContent() {
   const applyFilters = () => {
     setLoading(true);
     setCurrentPage(1);
-    setAppliedFilters(filters);
+    setAppliedFilters(filters); // <-- Sync dari filters ke appliedFilters
 
     // Save current state whenever filters are applied
     const currentUrl = new URL(window.location.href);
@@ -2476,7 +2491,7 @@ function FinancePurchaseOrdersContent() {
                 type="date"
                 value={filters.dateFrom}
                 onChange={(e) =>
-                  setFilters({ ...filters, dateFrom: e.target.value })
+                  handleFilterChange({ dateFrom: e.target.value })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
               />
@@ -2488,9 +2503,7 @@ function FinancePurchaseOrdersContent() {
               <input
                 type="date"
                 value={filters.dateTo}
-                onChange={(e) =>
-                  setFilters({ ...filters, dateTo: e.target.value })
-                }
+                onChange={(e) => handleFilterChange({ dateTo: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
               />
             </div>
@@ -2503,7 +2516,7 @@ function FinancePurchaseOrdersContent() {
                 type="date"
                 value={filters.paymentDateFrom}
                 onChange={(e) =>
-                  setFilters({ ...filters, paymentDateFrom: e.target.value })
+                  handleFilterChange({ paymentDateFrom: e.target.value })
                 }
                 className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500 text-sm bg-blue-50/30"
               />
@@ -2516,7 +2529,7 @@ function FinancePurchaseOrdersContent() {
                 type="date"
                 value={filters.paymentDateTo}
                 onChange={(e) =>
-                  setFilters({ ...filters, paymentDateTo: e.target.value })
+                  handleFilterChange({ paymentDateTo: e.target.value })
                 }
                 className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500 text-sm bg-blue-50/30"
               />
@@ -2581,38 +2594,23 @@ function FinancePurchaseOrdersContent() {
                               onChange={(e) => {
                                 const supplierId =
                                   supplier.id_supplier.toString();
-                                console.log(
-                                  "Checkbox changed:",
-                                  supplierId,
-                                  e.target.checked,
-                                );
+                                let newSelected;
+
                                 if (e.target.checked) {
-                                  const newSelected = [
+                                  newSelected = [
                                     ...filters.selectedSuppliers,
                                     supplierId,
                                   ];
-                                  console.log(
-                                    "New selected suppliers:",
-                                    newSelected,
-                                  );
-                                  setFilters({
-                                    ...filters,
-                                    selectedSuppliers: newSelected,
-                                  });
                                 } else {
-                                  const newSelected =
+                                  newSelected =
                                     filters.selectedSuppliers.filter(
                                       (id) => id !== supplierId,
                                     );
-                                  console.log(
-                                    "New selected suppliers after removal:",
-                                    newSelected,
-                                  );
-                                  setFilters({
-                                    ...filters,
-                                    selectedSuppliers: newSelected,
-                                  });
                                 }
+
+                                handleFilterChange({
+                                  selectedSuppliers: newSelected,
+                                });
                               }}
                               className="rounded border-gray-300 mr-2"
                             />
@@ -2635,7 +2633,7 @@ function FinancePurchaseOrdersContent() {
                       <button
                         type="button"
                         onClick={() =>
-                          setFilters({ ...filters, selectedSuppliers: [] })
+                          handleFilterChange({ selectedSuppliers: [] })
                         }
                         className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
                       >
@@ -2647,8 +2645,7 @@ function FinancePurchaseOrdersContent() {
                           const allSupplierIds = suppliers.map((s) =>
                             s.id_supplier.toString(),
                           );
-                          setFilters({
-                            ...filters,
+                          handleFilterChange({
                             selectedSuppliers: allSupplierIds,
                           });
                         }}
@@ -2667,9 +2664,7 @@ function FinancePurchaseOrdersContent() {
               </label>
               <select
                 value={filters.branch}
-                onChange={(e) =>
-                  setFilters({ ...filters, branch: e.target.value })
-                }
+                onChange={(e) => handleFilterChange({ branch: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
               >
                 <option value="">Semua Cabang</option>
@@ -2687,7 +2682,7 @@ function FinancePurchaseOrdersContent() {
               <select
                 value={filters.paymentStatus}
                 onChange={(e) =>
-                  setFilters({ ...filters, paymentStatus: e.target.value })
+                  handleFilterChange({ paymentStatus: e.target.value })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
               >
@@ -2704,7 +2699,7 @@ function FinancePurchaseOrdersContent() {
               <select
                 value={filters.dueDate}
                 onChange={(e) =>
-                  setFilters({ ...filters, dueDate: e.target.value })
+                  handleFilterChange({ dueDate: e.target.value })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
               >
@@ -2856,12 +2851,7 @@ function FinancePurchaseOrdersContent() {
                   </label>
                   <div className="flex flex-wrap gap-1">
                     <button
-                      onClick={() => {
-                        const newFilters = { ...filters, poStatus: "" };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() => handleFilterChange({ poStatus: "" })}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.poStatus === ""
                           ? "bg-blue-600 text-white border-blue-600"
@@ -2871,12 +2861,9 @@ function FinancePurchaseOrdersContent() {
                       Semua
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = { ...filters, poStatus: "Pending" };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ poStatus: "Pending" })
+                      }
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.poStatus === "Pending"
                           ? "bg-yellow-600 text-white border-yellow-600"
@@ -2886,15 +2873,9 @@ function FinancePurchaseOrdersContent() {
                       Pending
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = {
-                          ...filters,
-                          poStatus: "Sedang diproses",
-                        };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ poStatus: "Sedang diproses" })
+                      }
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.poStatus === "Sedang diproses"
                           ? "bg-blue-600 text-white border-blue-600"
@@ -2904,15 +2885,9 @@ function FinancePurchaseOrdersContent() {
                       Diproses
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = {
-                          ...filters,
-                          poStatus: "Barang sampai",
-                        };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ poStatus: "Barang sampai" })
+                      }
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.poStatus === "Barang sampai"
                           ? "bg-green-600 text-white border-green-600"
@@ -2931,12 +2906,7 @@ function FinancePurchaseOrdersContent() {
                   </label>
                   <div className="flex flex-wrap gap-1">
                     <button
-                      onClick={() => {
-                        const newFilters = { ...filters, paymentStatus: "" };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() => handleFilterChange({ paymentStatus: "" })}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.paymentStatus === ""
                           ? "bg-blue-600 text-white border-blue-600"
@@ -2946,15 +2916,9 @@ function FinancePurchaseOrdersContent() {
                       Semua
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = {
-                          ...filters,
-                          paymentStatus: "unpaid",
-                        };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ paymentStatus: "unpaid" })
+                      }
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.paymentStatus === "unpaid"
                           ? "bg-red-600 text-white border-red-600"
@@ -2964,15 +2928,9 @@ function FinancePurchaseOrdersContent() {
                       Unpaid
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = {
-                          ...filters,
-                          paymentStatus: "partial",
-                        };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ paymentStatus: "partial" })
+                      }
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.paymentStatus === "partial"
                           ? "bg-yellow-600 text-white border-yellow-600"
@@ -2982,15 +2940,9 @@ function FinancePurchaseOrdersContent() {
                       Partial
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = {
-                          ...filters,
-                          paymentStatus: "paid",
-                        };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ paymentStatus: "paid" })
+                      }
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.paymentStatus === "paid"
                           ? "bg-green-600 text-white border-green-600"
@@ -3009,12 +2961,7 @@ function FinancePurchaseOrdersContent() {
                   </label>
                   <div className="flex flex-wrap gap-1">
                     <button
-                      onClick={() => {
-                        const newFilters = { ...filters, approvalStatus: "" };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() => handleFilterChange({ approvalStatus: "" })}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.approvalStatus === ""
                           ? "bg-blue-600 text-white border-blue-600"
@@ -3024,15 +2971,9 @@ function FinancePurchaseOrdersContent() {
                       Semua
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = {
-                          ...filters,
-                          approvalStatus: "pending",
-                        };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ approvalStatus: "pending" })
+                      }
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.approvalStatus === "pending"
                           ? "bg-orange-600 text-white border-orange-600"
@@ -3042,15 +2983,9 @@ function FinancePurchaseOrdersContent() {
                       Pending
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = {
-                          ...filters,
-                          approvalStatus: "approved",
-                        };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ approvalStatus: "approved" })
+                      }
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.approvalStatus === "approved"
                           ? "bg-purple-600 text-white border-purple-600"
@@ -3060,15 +2995,9 @@ function FinancePurchaseOrdersContent() {
                       Approved
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = {
-                          ...filters,
-                          approvalStatus: "rejected",
-                        };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ approvalStatus: "rejected" })
+                      }
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         filters.approvalStatus === "rejected"
                           ? "bg-red-600 text-white border-red-600"
@@ -3433,12 +3362,7 @@ function FinancePurchaseOrdersContent() {
                   </label>
                   <div className="flex flex-wrap gap-2">
                     <button
-                      onClick={() => {
-                        const newFilters = { ...filters, poStatus: "" };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() => handleFilterChange({ poStatus: "" })}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.poStatus === ""
                           ? "bg-blue-600 text-white border-blue-600"
@@ -3448,12 +3372,9 @@ function FinancePurchaseOrdersContent() {
                       Semua
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = { ...filters, poStatus: "Pending" };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ poStatus: "Pending" })
+                      }
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.poStatus === "Pending"
                           ? "bg-yellow-600 text-white border-yellow-600"
@@ -3463,15 +3384,9 @@ function FinancePurchaseOrdersContent() {
                       Pending
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = {
-                          ...filters,
-                          poStatus: "Sedang diproses",
-                        };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ poStatus: "Sedang diproses" })
+                      }
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.poStatus === "Sedang diproses"
                           ? "bg-blue-600 text-white border-blue-600"
@@ -3481,15 +3396,9 @@ function FinancePurchaseOrdersContent() {
                       Diproses
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = {
-                          ...filters,
-                          poStatus: "Barang sampai",
-                        };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ poStatus: "Barang sampai" })
+                      }
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.poStatus === "Barang sampai"
                           ? "bg-green-600 text-white border-green-600"
@@ -3508,12 +3417,7 @@ function FinancePurchaseOrdersContent() {
                   </label>
                   <div className="flex flex-wrap gap-2">
                     <button
-                      onClick={() => {
-                        const newFilters = { ...filters, paymentStatus: "" };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() => handleFilterChange({ paymentStatus: "" })}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.paymentStatus === ""
                           ? "bg-blue-600 text-white border-blue-600"
@@ -3523,15 +3427,9 @@ function FinancePurchaseOrdersContent() {
                       Semua
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = {
-                          ...filters,
-                          paymentStatus: "unpaid",
-                        };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ paymentStatus: "unpaid" })
+                      }
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.paymentStatus === "unpaid"
                           ? "bg-red-600 text-white border-red-600"
@@ -3541,15 +3439,9 @@ function FinancePurchaseOrdersContent() {
                       Unpaid
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = {
-                          ...filters,
-                          paymentStatus: "partial",
-                        };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ paymentStatus: "partial" })
+                      }
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.paymentStatus === "partial"
                           ? "bg-yellow-600 text-white border-yellow-600"
@@ -3559,15 +3451,9 @@ function FinancePurchaseOrdersContent() {
                       Partial
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = {
-                          ...filters,
-                          paymentStatus: "paid",
-                        };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ paymentStatus: "paid" })
+                      }
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.paymentStatus === "paid"
                           ? "bg-green-600 text-white border-green-600"
@@ -3586,12 +3472,7 @@ function FinancePurchaseOrdersContent() {
                   </label>
                   <div className="flex flex-wrap gap-2">
                     <button
-                      onClick={() => {
-                        const newFilters = { ...filters, approvalStatus: "" };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() => handleFilterChange({ approvalStatus: "" })}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.approvalStatus === ""
                           ? "bg-blue-600 text-white border-blue-600"
@@ -3601,15 +3482,9 @@ function FinancePurchaseOrdersContent() {
                       Semua
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = {
-                          ...filters,
-                          approvalStatus: "pending",
-                        };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ approvalStatus: "pending" })
+                      }
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.approvalStatus === "pending"
                           ? "bg-orange-600 text-white border-orange-600"
@@ -3619,15 +3494,9 @@ function FinancePurchaseOrdersContent() {
                       Pending
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = {
-                          ...filters,
-                          approvalStatus: "approved",
-                        };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ approvalStatus: "approved" })
+                      }
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.approvalStatus === "approved"
                           ? "bg-purple-600 text-white border-purple-600"
@@ -3637,15 +3506,9 @@ function FinancePurchaseOrdersContent() {
                       Approved
                     </button>
                     <button
-                      onClick={() => {
-                        const newFilters = {
-                          ...filters,
-                          approvalStatus: "rejected",
-                        };
-                        setFilters(newFilters);
-                        setCurrentPage(1);
-                        setTimeout(() => updateURL(), 0);
-                      }}
+                      onClick={() =>
+                        handleFilterChange({ approvalStatus: "rejected" })
+                      }
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         filters.approvalStatus === "rejected"
                           ? "bg-red-600 text-white border-red-600"
@@ -3684,7 +3547,7 @@ function FinancePurchaseOrdersContent() {
                       type="date"
                       value={filters.dateFrom}
                       onChange={(e) =>
-                        setFilters({ ...filters, dateFrom: e.target.value })
+                        handleFilterChange({ dateFrom: e.target.value })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     />
@@ -3697,7 +3560,7 @@ function FinancePurchaseOrdersContent() {
                       type="date"
                       value={filters.dateTo}
                       onChange={(e) =>
-                        setFilters({ ...filters, dateTo: e.target.value })
+                        handleFilterChange({ dateTo: e.target.value })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     />
@@ -3710,10 +3573,7 @@ function FinancePurchaseOrdersContent() {
                       type="date"
                       value={filters.paymentDateFrom}
                       onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          paymentDateFrom: e.target.value,
-                        })
+                        handleFilterChange({ paymentDateFrom: e.target.value })
                       }
                       className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500 text-sm bg-blue-50/20"
                     />
@@ -3726,10 +3586,7 @@ function FinancePurchaseOrdersContent() {
                       type="date"
                       value={filters.paymentDateTo}
                       onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          paymentDateTo: e.target.value,
-                        })
+                        handleFilterChange({ paymentDateTo: e.target.value })
                       }
                       className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500 text-sm bg-blue-50/20"
                     />
@@ -3800,38 +3657,24 @@ function FinancePurchaseOrdersContent() {
                                       e.stopPropagation();
                                       const supplierId =
                                         supplier.id_supplier.toString();
-                                      console.log(
-                                        "Desktop checkbox changed:",
-                                        supplierId,
-                                        e.target.checked,
-                                      );
+                                      let newSelected;
+
                                       if (e.target.checked) {
-                                        const newSelected = [
+                                        newSelected = [
                                           ...filters.selectedSuppliers,
                                           supplierId,
                                         ];
-                                        console.log(
-                                          "Desktop new selected suppliers:",
-                                          newSelected,
-                                        );
-                                        setFilters({
-                                          ...filters,
-                                          selectedSuppliers: newSelected,
-                                        });
                                       } else {
-                                        const newSelected =
+                                        newSelected =
                                           filters.selectedSuppliers.filter(
                                             (id) => id !== supplierId,
                                           );
-                                        console.log(
-                                          "Desktop new selected suppliers after removal:",
-                                          newSelected,
-                                        );
-                                        setFilters({
-                                          ...filters,
-                                          selectedSuppliers: newSelected,
-                                        });
                                       }
+
+                                      // Update both states (langsung apply)
+                                      handleFilterChange({
+                                        selectedSuppliers: newSelected,
+                                      });
                                     }}
                                     className="rounded border-gray-300 mr-2"
                                   />
@@ -3854,12 +3697,11 @@ function FinancePurchaseOrdersContent() {
                             <button
                               type="button"
                               onClick={() =>
-                                setFilters({
-                                  ...filters,
+                                handleFilterChange({
                                   selectedSuppliers: [],
                                 })
                               }
-                              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                              className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-md text-sm"
                             >
                               Clear All
                             </button>
@@ -3869,16 +3711,11 @@ function FinancePurchaseOrdersContent() {
                                 const allSupplierIds = suppliers.map((s) =>
                                   s.id_supplier.toString(),
                                 );
-                                console.log(
-                                  "Select All clicked, all supplier IDs:",
-                                  allSupplierIds,
-                                );
-                                setFilters({
-                                  ...filters,
+                                handleFilterChange({
                                   selectedSuppliers: allSupplierIds,
                                 });
                               }}
-                              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                              className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-md text-sm"
                             >
                               Select All
                             </button>
@@ -3894,7 +3731,7 @@ function FinancePurchaseOrdersContent() {
                     <select
                       value={filters.branch}
                       onChange={(e) =>
-                        setFilters({ ...filters, branch: e.target.value })
+                        handleFilterChange({ branch: e.target.value })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     >
@@ -3913,7 +3750,7 @@ function FinancePurchaseOrdersContent() {
                     <select
                       value={filters.poStatus}
                       onChange={(e) =>
-                        setFilters({ ...filters, poStatus: e.target.value })
+                        handleFilterChange({ poStatus: e.target.value })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     >
@@ -3931,10 +3768,7 @@ function FinancePurchaseOrdersContent() {
                     <select
                       value={filters.paymentStatus}
                       onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          paymentStatus: e.target.value,
-                        })
+                        handleFilterChange({ paymentStatus: e.target.value })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     >
@@ -3951,7 +3785,7 @@ function FinancePurchaseOrdersContent() {
                     <select
                       value={filters.dueDate}
                       onChange={(e) =>
-                        setFilters({ ...filters, dueDate: e.target.value })
+                        handleFilterChange({ dueDate: e.target.value })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     >
@@ -3967,10 +3801,7 @@ function FinancePurchaseOrdersContent() {
                     <select
                       value={filters.goodsReceived}
                       onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          goodsReceived: e.target.value,
-                        })
+                        handleFilterChange({ goodsReceived: e.target.value })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     >
@@ -3986,10 +3817,7 @@ function FinancePurchaseOrdersContent() {
                     <select
                       value={filters.approvalStatus}
                       onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          approvalStatus: e.target.value,
-                        })
+                        handleFilterChange({ approvalStatus: e.target.value })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                     >
