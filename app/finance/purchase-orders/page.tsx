@@ -682,15 +682,83 @@ function FinancePurchaseOrdersContent() {
   const fetchFinanceData = async () => {
     setLoading(true);
     try {
-      // Server-side pagination: only fetch 500 records at a time
-      const limit = 1500;
+      // 1. Cari PO IDs berdasarkan filter Release Payment (karena tanggal bayar tidak ada di view)
+      let paymentFilteredPoIds: number[] = [];
+      let isPaymentFiltered = false;
+
+      if (appliedFilters.paymentDateFrom || appliedFilters.paymentDateTo) {
+        isPaymentFiltered = true;
+
+        // Ambil dari po_payments
+        let payQuery = supabase.from("po_payments").select("po_id");
+        if (appliedFilters.paymentDateFrom)
+          payQuery = payQuery.gte(
+            "payment_date",
+            appliedFilters.paymentDateFrom,
+          );
+        if (appliedFilters.paymentDateTo)
+          payQuery = payQuery.lte("payment_date", appliedFilters.paymentDateTo);
+
+        const { data: pData } = await payQuery;
+        const ids1 = pData?.map((p) => p.po_id) || [];
+
+        // Ambil dari bulk_payments -> purchase_orders
+        let bulkQuery = supabase.from("bulk_payments").select("bulk_reference");
+        if (appliedFilters.paymentDateFrom)
+          bulkQuery = bulkQuery.gte(
+            "payment_date",
+            appliedFilters.paymentDateFrom,
+          );
+        if (appliedFilters.paymentDateTo)
+          bulkQuery = bulkQuery.lte(
+            "payment_date",
+            appliedFilters.paymentDateTo,
+          );
+
+        const { data: bData } = await bulkQuery;
+        const refs = bData?.map((b) => b.bulk_reference) || [];
+
+        let ids2: number[] = [];
+        if (refs.length > 0) {
+          const { data: poWithBulk } = await supabase
+            .from("purchase_orders")
+            .select("id")
+            .in("bulk_payment_ref", refs);
+          ids2 = poWithBulk?.map((po) => po.id) || [];
+        }
+
+        paymentFilteredPoIds = Array.from(new Set([...ids1, ...ids2]));
+      }
+
+      // 2. Bangun Query Utama
       let query = supabase
         .from("finance_dashboard_view")
         .select("*")
-        .order("po_date", { ascending: false })
-        .limit(limit);
+        .order("po_date", { ascending: false });
 
-      // Apply applied filters
+      // Apply Release Payment filter jika ada
+      if (isPaymentFiltered) {
+        if (paymentFilteredPoIds.length > 0) {
+          query = query.in("id", paymentFilteredPoIds);
+        } else {
+          // Jika filter aktif tapi tidak ada data bayar, paksa hasil kosong
+          query = query.eq("id", -1);
+        }
+      } else {
+        // Hanya pakai limit jika TIDAK sedang filter tanggal bayar (agar data valid full DB)
+        // Jika ada filter tanggal PO atau supplier, limit 1500 dirasa cukup,
+        // tapi jika tidak ada filter sama sekali baru pakai limit.
+        const hasSpecificFilter =
+          appliedFilters.dateFrom ||
+          appliedFilters.dateTo ||
+          appliedFilters.supplier ||
+          appliedFilters.selectedSuppliers.length > 0;
+        if (!hasSpecificFilter) {
+          query = query.limit(1500);
+        }
+      }
+
+      // 3. Apply applied filters lainnya ke database (Server-side)
       if (appliedFilters.dateFrom)
         query = query.gte("po_date", appliedFilters.dateFrom);
       if (appliedFilters.dateTo)
