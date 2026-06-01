@@ -338,6 +338,8 @@ function FinancePurchaseOrdersContent() {
     dueDate: "",
     goodsReceived: "",
     approvalStatus: "",
+    barangSampaiFrom: "",
+    barangSampaiTo: "",
   });
   const [appliedFilters, setAppliedFilters] = useState(filters);
   const [showFilters, setShowFilters] = useState(false);
@@ -377,8 +379,13 @@ function FinancePurchaseOrdersContent() {
     if (appliedFilters.dueDate) params.set("dueDate", appliedFilters.dueDate);
     if (appliedFilters.goodsReceived)
       params.set("goodsReceived", appliedFilters.goodsReceived);
+    if (appliedFilters.barangSampaiFrom)
+      params.set("barangSampaiFrom", appliedFilters.barangSampaiFrom);
+    if (appliedFilters.barangSampaiTo)
+      params.set("barangSampaiTo", appliedFilters.barangSampaiTo);
     if (appliedFilters.approvalStatus)
       params.set("approvalStatus", appliedFilters.approvalStatus);
+
     if (currentPage > 1) params.set("page", currentPage.toString());
 
     const newUrl = params.toString()
@@ -446,6 +453,8 @@ function FinancePurchaseOrdersContent() {
       dueDate: searchParams.get("dueDate") || "",
       goodsReceived: searchParams.get("goodsReceived") || "",
       approvalStatus: searchParams.get("approvalStatus") || "",
+      barangSampaiFrom: searchParams.get("barangSampaiFrom") || "",
+      barangSampaiTo: searchParams.get("barangSampaiTo") || "",
     };
 
     const urlSearch = searchParams.get("search") || "";
@@ -789,6 +798,17 @@ function FinancePurchaseOrdersContent() {
         query = query.not("tanggal_barang_sampai", "is", null);
       if (appliedFilters.goodsReceived === "not_received")
         query = query.is("tanggal_barang_sampai", null);
+      if (appliedFilters.barangSampaiFrom)
+        query = query.gte(
+          "tanggal_barang_sampai",
+          appliedFilters.barangSampaiFrom,
+        );
+      if (appliedFilters.barangSampaiTo)
+        query = query.lte(
+          "tanggal_barang_sampai",
+          appliedFilters.barangSampaiTo,
+        );
+
 
       const { data: financeData, error } = await query;
       if (error) throw error;
@@ -1157,6 +1177,8 @@ function FinancePurchaseOrdersContent() {
       paymentStatus: "",
       dueDate: "",
       goodsReceived: "",
+      barangSampaiFrom: "",
+      barangSampaiTo: "",
       approvalStatus: "",
     };
 
@@ -2762,6 +2784,49 @@ function FinancePurchaseOrdersContent() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
+                Barang Sampai
+              </label>
+              <select
+                value={filters.goodsReceived}
+                onChange={(e) =>
+                  handleFilterChange({ goodsReceived: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="">Semua</option>
+                <option value="received">Sudah Sampai</option>
+                <option value="not_received">Belum Sampai</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tgl Barang Sampai: Dari
+              </label>
+              <input
+                type="date"
+                value={filters.barangSampaiFrom}
+                onChange={(e) =>
+                  handleFilterChange({ barangSampaiFrom: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tgl Barang Sampai: Sampai
+              </label>
+              <input
+                type="date"
+                value={filters.barangSampaiTo}
+                onChange={(e) =>
+                  handleFilterChange({ barangSampaiTo: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Jatuh Tempo
               </label>
               <select
@@ -3877,6 +3942,32 @@ function FinancePurchaseOrdersContent() {
                       <option value="received">Sudah Sampai</option>
                       <option value="not_received">Belum Sampai</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tgl Barang Sampai: Dari
+                    </label>
+                    <input
+                      type="date"
+                      value={filters.barangSampaiFrom}
+                      onChange={(e) =>
+                        handleFilterChange({ barangSampaiFrom: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tgl Barang Sampai: Sampai
+                    </label>
+                    <input
+                      type="date"
+                      value={filters.barangSampaiTo}
+                      onChange={(e) =>
+                        handleFilterChange({ barangSampaiTo: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">

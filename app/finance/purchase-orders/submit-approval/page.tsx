@@ -91,7 +91,7 @@ export default function SubmitApprovalPage() {
       // Calculate total_tagih from items
       const itemsWithTagih = itemsWithDetails.map(item => {
         const qtyTagih = item.qty_tagih || item.received_qty || item.qty
-        const hargaTagih = item.harga_tagih || item.actual_price || item.harga || product?.harga || 0
+        const hargaTagih = item.harga_tagih || item.actual_price || item.harga || 0
         return {
           ...item,
           qty_tagih: qtyTagih,
